@@ -132,6 +132,7 @@ export interface VacancyItem {
   createdAt: string;
   contractorName?: string | null;
   contractorCompanyName?: string | null;
+  providerName?: string | null;
 }
 
 export async function getAdminOpenVacancies(): Promise<VacancyItem[]> {
@@ -160,11 +161,29 @@ export interface UserItem {
   isActive: boolean;
   emailConfirmed: boolean;
   status: string;
+  deletionFeedback: string | null;
+  deletionRequestedAt: string | null;
+  deletionScheduledAt: string | null;
+  deletedAt: string | null;
   createdAt: string;
 }
 
 export async function getAdminUsers(): Promise<UserItem[]> {
   const res = await adminApi.get("/users");
+  return res.data.data;
+}
+
+export interface DeletionStats {
+  totalDeleted: number;
+  pendingDeletion: number;
+  suspendedDeletion: number;
+  deletedThisMonth: number;
+  feedbackBreakdown: { reason: string; count: number }[];
+  deletionsByMonth: { month: string; count: number }[];
+}
+
+export async function getAdminDeletionStats(): Promise<DeletionStats> {
+  const res = await adminApi.get("/deletion-stats");
   return res.data.data;
 }
 

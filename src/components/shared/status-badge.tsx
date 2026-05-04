@@ -17,7 +17,10 @@ type StatusVariant =
   | "recruiting"
   | "filled"
   | "executing"
-  | "finished";
+  | "finished"
+  | "pending-deletion"
+  | "deletion-suspended"
+  | "deleted";
 
 interface StatusBadgeProps {
   status: StatusVariant | string;
@@ -41,6 +44,9 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
   filled: { label: "Preenchido", variant: "success" },
   executing: { label: "Executando", variant: "default" },
   finished: { label: "Finalizado", variant: "success" },
+  "pending-deletion": { label: "Exclusão Pendente", variant: "warning" },
+  "deletion-suspended": { label: "Exclusão Suspensa", variant: "destructive" },
+  deleted: { label: "Excluído", variant: "destructive" },
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {

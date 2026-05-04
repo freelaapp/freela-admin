@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2 } from "lucide-react";
+import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -17,6 +17,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { useAdminVacancies } from "@/modules/admin/application/use-admin-vacancies";
+import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
 
 const vagasUrgentes = [
@@ -66,6 +67,7 @@ function mapVacancyToRow(v: VacancyItem) {
     data: formatDate(v.date),
     horario: `${start} - ${end}`,
     status: mapVacancyStatus(v.status),
+    providerName: v.providerName ?? null,
     raw: v,
   };
 }
@@ -77,6 +79,7 @@ type Tab = typeof tabs[number];
 
 export default function JobsPage() {
   const { data: vacancies, isLoading, isError } = useAdminVacancies();
+  const { data: contractors } = useAdminContractors();
   const [tab, setTab] = useState<Tab>("Todas as Vagas");
   const [enviando, setEnviando] = useState<number | null>(null);
 
@@ -86,6 +89,7 @@ export default function JobsPage() {
   const [selecionadosConvocar, setSelecionadosConvocar] = useState<number[]>([]);
 
   const rows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
+  const contractorMap = new Map(contractors?.map((c) => [c.id, c]));
 
   const handleEnviarWhatsApp = (vaga: typeof vagasUrgentes[0]) => {
     setEnviando(vaga.id);
@@ -335,6 +339,48 @@ export default function JobsPage() {
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.horario}</p>
                 </div>
               </div>
+              {(() => {
+                const contractor = modalDetalhes.raw?.contractorId
+                  ? contractorMap.get(modalDetalhes.raw.contractorId)
+                  : undefined;
+                if (!contractor) return null;
+                return (
+                  <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
+                    <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">Contato do Contratante</p>
+                    <div className="flex flex-col gap-1.5">
+                      {contractor.contactPhone && (
+                        <a
+                          href={`tel:${contractor.contactPhone}`}
+                          className="flex items-center gap-2 text-sm text-[#1d1d1b] hover:text-[#eca826] transition-colors"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-[#737373]" />
+                          {contractor.contactPhone}
+                        </a>
+                      )}
+                      {contractor.contactEmail && (
+                        <a
+                          href={`mailto:${contractor.contactEmail}`}
+                          className="flex items-center gap-2 text-sm text-[#1d1d1b] hover:text-[#eca826] transition-colors"
+                        >
+                          <Mail className="w-3.5 h-3.5 text-[#737373]" />
+                          {contractor.contactEmail}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+              {modalDetalhes.status === "filled" && modalDetalhes.providerName && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-bold">
+                    {modalDetalhes.providerName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-xs text-green-700">Freelancer alocado</p>
+                    <p className="font-semibold text-green-900">{modalDetalhes.providerName}</p>
+                  </div>
+                </div>
+              )}
               <div className="bg-[#f7f7f7] rounded-lg p-3 flex items-center justify-between">
                 <div>
                   <p className="text-[#737373]">Status</p>
