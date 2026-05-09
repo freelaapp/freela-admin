@@ -132,7 +132,10 @@ export interface VacancyItem {
   createdAt: string;
   contractorName?: string | null;
   contractorCompanyName?: string | null;
+  providerId?: string | null;
   providerName?: string | null;
+  providerPhone?: string | null;
+  providerEmail?: string | null;
 }
 
 export async function getAdminOpenVacancies(): Promise<VacancyItem[]> {

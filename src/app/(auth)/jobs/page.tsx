@@ -371,14 +371,38 @@ export default function JobsPage() {
                 );
               })()}
               {modalDetalhes.status === "filled" && modalDetalhes.providerName && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-bold">
-                    {modalDetalhes.providerName.charAt(0).toUpperCase()}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-bold">
+                      {modalDetalhes.providerName.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-xs text-green-700">Freelancer alocado</p>
+                      <p className="font-semibold text-green-900">{modalDetalhes.providerName}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-green-700">Freelancer alocado</p>
-                    <p className="font-semibold text-green-900">{modalDetalhes.providerName}</p>
-                  </div>
+                  {(modalDetalhes.raw?.providerPhone || modalDetalhes.raw?.providerEmail) && (
+                    <div className="flex flex-col gap-1.5 pt-2 border-t border-green-200">
+                      {modalDetalhes.raw.providerPhone && (
+                        <a
+                          href={`tel:${modalDetalhes.raw.providerPhone}`}
+                          className="flex items-center gap-2 text-sm text-green-900 hover:text-green-700 transition-colors"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-green-700" />
+                          {modalDetalhes.raw.providerPhone}
+                        </a>
+                      )}
+                      {modalDetalhes.raw.providerEmail && (
+                        <a
+                          href={`mailto:${modalDetalhes.raw.providerEmail}`}
+                          className="flex items-center gap-2 text-sm text-green-900 hover:text-green-700 transition-colors"
+                        >
+                          <Mail className="w-3.5 h-3.5 text-green-700" />
+                          {modalDetalhes.raw.providerEmail}
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               <div className="bg-[#f7f7f7] rounded-lg p-3 flex items-center justify-between">
