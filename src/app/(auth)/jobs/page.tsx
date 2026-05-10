@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminVacancies } from "@/modules/admin/application/use-admin-vacancies";
 import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
+import { useVacancyCandidacies } from "@/modules/admin/application/use-vacancy-candidacies";
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
 
 const vagasUrgentes = [
@@ -88,6 +89,10 @@ export default function JobsPage() {
   const [modalEditar, setModalEditar] = useState<Row | null>(null);
   const [modalConvocar, setModalConvocar] = useState<Row | null>(null);
   const [selecionadosConvocar, setSelecionadosConvocar] = useState<number[]>([]);
+
+  const { data: candidacies, isLoading: loadingCandidacies } = useVacancyCandidacies(
+    modalDetalhes?.raw.id ?? null,
+  );
 
   const allRows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
   const rows =
@@ -462,6 +467,66 @@ export default function JobsPage() {
                   <p className="text-[#737373]">Status</p>
                   <div className="mt-1"><StatusBadge status={modalDetalhes.status} /></div>
                 </div>
+              </div>
+
+              <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
+                <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
+                  Candidatos {candidacies ? `(${candidacies.length})` : ""}
+                </p>
+                {loadingCandidacies && (
+                  <div className="flex items-center gap-2 text-xs text-[#737373]">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Carregando candidatos...
+                  </div>
+                )}
+                {!loadingCandidacies && candidacies && candidacies.length === 0 && (
+                  <p className="text-xs text-[#737373]">Nenhum candidato ainda.</p>
+                )}
+                {!loadingCandidacies && candidacies && candidacies.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    {candidacies.map((c) => {
+                      const statusColor =
+                        c.status === "ACCEPTED"
+                          ? "bg-green-100 text-green-700 border-green-200"
+                          : c.status === "REJECTED"
+                          ? "bg-red-100 text-red-700 border-red-200"
+                          : c.status === "CANCELLED"
+                          ? "bg-gray-200 text-gray-600 border-gray-300"
+                          : "bg-amber-100 text-amber-700 border-amber-200";
+                      const statusLabel =
+                        c.status === "ACCEPTED" ? "Aceito"
+                          : c.status === "REJECTED" ? "Rejeitado"
+                          : c.status === "CANCELLED" ? "Cancelado"
+                          : "Pendente";
+                      return (
+                        <div key={c.id} className="bg-white border border-[#e5e5e5] rounded-md p-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium text-[#1d1d1b]">
+                              {c.providerName ?? "Sem nome"}
+                            </p>
+                            <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${statusColor}`}>
+                              {statusLabel}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex flex-col gap-0.5">
+                            {c.providerPhone && (
+                              <a href={`tel:${c.providerPhone}`} className="flex items-center gap-1.5 text-xs text-[#1d1d1b] hover:text-[#eca826] transition-colors">
+                                <Phone className="w-3 h-3 text-[#737373]" />
+                                {c.providerPhone}
+                              </a>
+                            )}
+                            {c.providerEmail && (
+                              <a href={`mailto:${c.providerEmail}`} className="flex items-center gap-1.5 text-xs text-[#1d1d1b] hover:text-[#eca826] transition-colors">
+                                <Mail className="w-3 h-3 text-[#737373]" />
+                                {c.providerEmail}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

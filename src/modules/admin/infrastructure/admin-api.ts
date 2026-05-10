@@ -148,6 +148,21 @@ export async function getAdminClosedVacancies(): Promise<VacancyItem[]> {
   return res.data.data;
 }
 
+export interface VacancyCandidacyItem {
+  id: string;
+  providerId: string;
+  providerName: string | null;
+  providerPhone: string | null;
+  providerEmail: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export async function getVacancyCandidacies(vacancyId: string): Promise<VacancyCandidacyItem[]> {
+  const res = await adminApi.get(`/vacancies/${vacancyId}/candidacies`);
+  return res.data.data;
+}
+
 export async function getAdminAllVacancies(): Promise<VacancyItem[]> {
   const [open, closed] = await Promise.all([
     getAdminOpenVacancies(),
