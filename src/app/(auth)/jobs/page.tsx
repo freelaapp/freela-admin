@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail } from "lucide-react";
+import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -19,6 +19,7 @@ import {
 import { useAdminVacancies } from "@/modules/admin/application/use-admin-vacancies";
 import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
 import { useVacancyCandidacies } from "@/modules/admin/application/use-vacancy-candidacies";
+import { useAdminCancelVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
 
 const vagasUrgentes = [
@@ -94,6 +95,10 @@ export default function JobsPage() {
     modalDetalhes?.raw.id ?? null,
   );
 
+  const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const cancelMutation = useAdminCancelVacancy();
+
   const allRows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
   const rows =
     statusFilter === "all"
@@ -111,6 +116,28 @@ export default function JobsPage() {
 
   const handleEnviarTodos = () => {
     toast.info(`WhatsApp sendo enviado para todas as ${vagasUrgentes.length} vagas urgentes.`);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelTarget) return;
+    if (cancelReason.trim().length < 5) {
+      toast.error("Informe um motivo com pelo menos 5 caracteres.");
+      return;
+    }
+    try {
+      const result = await cancelMutation.mutateAsync({
+        vacancyId: cancelTarget.raw.id,
+        reason: cancelReason.trim(),
+      });
+      const valor = (result.refundAmount / 100).toFixed(2).replace(".", ",");
+      const tipo = result.refundType === "FULL" ? "integral" : "parcial (50%)";
+      toast.success(`Vaga cancelada. Estorno ${tipo} de R$ ${valor} processado.`);
+      setCancelTarget(null);
+      setCancelReason("");
+      setModalDetalhes(null);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Falha ao cancelar a vaga."));
+    }
   };
 
   const handleConvocar = () => {
@@ -531,8 +558,105 @@ export default function JobsPage() {
             </div>
           )}
           <DialogFooter>
+            {modalDetalhes && modalDetalhes.status !== "cancelled" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCancelTarget(modalDetalhes);
+                  setCancelReason("");
+                }}
+                className="border-red-200 text-red-600 hover:bg-red-50"
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                Cancelar Vaga
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setModalDetalhes(null)} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">
               Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Cancelar Vaga (admin) */}
+      <Dialog
+        open={!!cancelTarget}
+        onOpenChange={(open) => {
+          if (!open && !cancelMutation.isPending) {
+            setCancelTarget(null);
+            setCancelReason("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogClose
+            onClick={() => {
+              if (!cancelMutation.isPending) {
+                setCancelTarget(null);
+                setCancelReason("");
+              }
+            }}
+          />
+          <DialogHeader>
+            <DialogTitle>Cancelar Vaga</DialogTitle>
+            <DialogDescription>
+              Esta acao cancela todas as candidaturas e dispara o estorno via Pix conforme a regra:
+              100% se faltam 2h ou mais para o inicio, 50% se faltar menos. A acao nao pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          {cancelTarget && (
+            <div className="space-y-3">
+              <div className="bg-[#f7f7f7] rounded-lg p-3 text-sm">
+                <p className="text-[#737373] text-xs uppercase tracking-wide">Vaga</p>
+                <p className="font-semibold text-[#1d1d1b]">{cancelTarget.empresa}</p>
+                <p className="text-xs text-[#737373]">
+                  {cancelTarget.cargo} • {cancelTarget.data} • {cancelTarget.horario}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1d1d1b] mb-1">
+                  Motivo do cancelamento <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  rows={3}
+                  placeholder="Ex.: Fraude detectada no contratante; vaga duplicada por erro; solicitacao formal do contratante via suporte..."
+                  className="w-full rounded-lg border border-[#e5e5e5] px-3 py-2 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                  disabled={cancelMutation.isPending}
+                />
+                <p className="text-xs text-[#737373] mt-1">Minimo 5 caracteres. Ficara registrado em auditoria.</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCancelTarget(null);
+                setCancelReason("");
+              }}
+              disabled={cancelMutation.isPending}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Voltar
+            </Button>
+            <Button
+              onClick={handleConfirmCancel}
+              disabled={cancelMutation.isPending || cancelReason.trim().length < 5}
+              className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {cancelMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processando estorno...
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Confirmar cancelamento
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
