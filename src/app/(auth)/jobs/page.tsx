@@ -82,13 +82,18 @@ export default function JobsPage() {
   const { data: contractors } = useAdminContractors();
   const [tab, setTab] = useState<Tab>("Todas as Vagas");
   const [enviando, setEnviando] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "filled" | "cancelled">("all");
 
   const [modalDetalhes, setModalDetalhes] = useState<Row | null>(null);
   const [modalEditar, setModalEditar] = useState<Row | null>(null);
   const [modalConvocar, setModalConvocar] = useState<Row | null>(null);
   const [selecionadosConvocar, setSelecionadosConvocar] = useState<number[]>([]);
 
-  const rows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
+  const allRows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
+  const rows =
+    statusFilter === "all"
+      ? allRows
+      : allRows.filter((r) => r.status === statusFilter);
   const contractorMap = new Map(contractors?.map((c) => [c.id, c]));
 
   const handleEnviarWhatsApp = (vaga: typeof vagasUrgentes[0]) => {
@@ -130,13 +135,30 @@ export default function JobsPage() {
   }
 
   const columns = [
-    { header: "Empresa", accessor: "empresa" as const },
-    { header: "Cidade", accessor: "cidade" as const, className: "hidden md:table-cell" },
-    { header: "Cargo", accessor: "cargo" as const },
+    { header: "Empresa", accessor: "empresa" as const, sortable: true, sortAccessor: (r: Row) => r.empresa },
+    { header: "Lugar", accessor: "cidade" as const, className: "hidden md:table-cell", sortable: true, sortAccessor: (r: Row) => r.cidade },
+    { header: "Cargo", accessor: "cargo" as const, sortable: true, sortAccessor: (r: Row) => r.cargo },
     { header: "Qtd", accessor: "qtd" as const },
-    { header: "Valor/FL", accessor: "valor" as const, className: "hidden lg:table-cell" },
-    { header: "Data", accessor: "data" as const },
-    { header: "Horário", accessor: "horario" as const, className: "hidden lg:table-cell" },
+    {
+      header: "Valor/FL",
+      accessor: "valor" as const,
+      className: "hidden lg:table-cell",
+      sortable: true,
+      sortAccessor: (r: Row) => r.raw.payment,
+    },
+    {
+      header: "Data",
+      accessor: "data" as const,
+      sortable: true,
+      sortAccessor: (r: Row) => new Date(r.raw.date),
+    },
+    {
+      header: "Horário",
+      accessor: "horario" as const,
+      className: "hidden lg:table-cell",
+      sortable: true,
+      sortAccessor: (r: Row) => new Date(r.raw.startTime),
+    },
     {
       header: "Status",
       accessor: (row: Row) => <StatusBadge status={row.status} />,
@@ -206,7 +228,37 @@ export default function JobsPage() {
       </div>
 
       {tab === "Todas as Vagas" && (
-        <DataTable columns={columns} data={rows} searchPlaceholder="Buscar por empresa..." searchKey="empresa" />
+        <DataTable
+          columns={columns}
+          data={rows}
+          searchPlaceholder="Buscar por empresa..."
+          searchKey="empresa"
+          defaultSort={{ index: 5, direction: "desc" }}
+          filters={
+            <div className="flex gap-2 flex-wrap">
+              {(
+                [
+                  { key: "all", label: `Todas (${allRows.length})` },
+                  { key: "open", label: `Abertas (${allRows.filter((r) => r.status === "open").length})` },
+                  { key: "filled", label: `Preenchidas (${allRows.filter((r) => r.status === "filled").length})` },
+                  { key: "cancelled", label: `Canceladas (${allRows.filter((r) => r.status === "cancelled").length})` },
+                ] as const
+              ).map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setStatusFilter(f.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    statusFilter === f.key
+                      ? "bg-[#eca826] text-white"
+                      : "bg-[#f7f7f7] text-[#737373] hover:text-[#1d1d1b]"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          }
+        />
       )}
 
       {tab === "Vagas Urgentes" && (

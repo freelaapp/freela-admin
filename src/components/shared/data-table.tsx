@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Search, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 
 interface Column<T> {
   header: string;
   accessor: keyof T | ((row: T) => React.ReactNode);
+  sortAccessor?: (row: T) => string | number | Date | null | undefined;
+  sortable?: boolean;
   className?: string;
 }
 
@@ -15,6 +17,21 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   searchKey?: keyof T;
   filters?: React.ReactNode;
+  defaultSort?: { index: number; direction: "asc" | "desc" };
+}
+
+type SortState = { index: number; direction: "asc" | "desc" };
+
+function compareValues(
+  a: string | number | Date | null | undefined,
+  b: string | number | Date | null | undefined,
+): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  if (a instanceof Date && b instanceof Date) return a.getTime() - b.getTime();
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), "pt-BR");
 }
 
 export function DataTable<T extends { id?: string | number }>({
@@ -23,15 +40,38 @@ export function DataTable<T extends { id?: string | number }>({
   searchPlaceholder = "Buscar...",
   searchKey,
   filters,
+  defaultSort,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortState | null>(defaultSort ?? null);
 
-  const filteredData = searchKey
-    ? data.filter((row) => {
-        const val = row[searchKey];
-        return String(val).toLowerCase().includes(search.toLowerCase());
-      })
-    : data;
+  const filteredData = useMemo(() => {
+    if (!searchKey) return data;
+    const needle = search.toLowerCase();
+    return data.filter((row) =>
+      String(row[searchKey] ?? "").toLowerCase().includes(needle),
+    );
+  }, [data, searchKey, search]);
+
+  const sortedData = useMemo(() => {
+    if (!sort) return filteredData;
+    const col = columns[sort.index];
+    if (!col?.sortAccessor) return filteredData;
+    const arr = [...filteredData];
+    arr.sort((a, b) => {
+      const cmp = compareValues(col.sortAccessor!(a), col.sortAccessor!(b));
+      return sort.direction === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filteredData, sort, columns]);
+
+  const toggleSort = (index: number) => {
+    setSort((prev) => {
+      if (!prev || prev.index !== index) return { index, direction: "asc" };
+      if (prev.direction === "asc") return { index, direction: "desc" };
+      return null;
+    });
+  };
 
   return (
     <div className="bg-white rounded-xl border border-[#e5e5e5]">
@@ -55,18 +95,39 @@ export function DataTable<T extends { id?: string | number }>({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[#e5e5e5]">
-              {columns.map((col, i) => (
-                <th
-                  key={i}
-                  className={`px-4 py-3 text-left font-medium text-[#737373] ${col.className || ""}`}
-                >
-                  {col.header}
-                </th>
-              ))}
+              {columns.map((col, i) => {
+                const isSortable = !!col.sortable && !!col.sortAccessor;
+                const active = sort?.index === i;
+                return (
+                  <th
+                    key={i}
+                    onClick={isSortable ? () => toggleSort(i) : undefined}
+                    className={`px-4 py-3 text-left font-medium text-[#737373] ${
+                      isSortable
+                        ? "cursor-pointer select-none hover:text-[#1d1d1b]"
+                        : ""
+                    } ${col.className || ""}`}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {col.header}
+                      {isSortable &&
+                        (active ? (
+                          sort!.direction === "asc" ? (
+                            <ChevronUp className="w-3.5 h-3.5 text-[#eca826]" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-[#eca826]" />
+                          )
+                        ) : (
+                          <ChevronsUpDown className="w-3.5 h-3.5 text-[#a3a3a3]" />
+                        ))}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {filteredData.map((row, rowIdx) => (
+            {sortedData.map((row, rowIdx) => (
               <tr
                 key={String((row as { id?: string | number }).id ?? rowIdx)}
                 className="border-b border-[#e5e5e5] last:border-0 hover:bg-[#f7f7f7] transition-colors"
@@ -83,7 +144,7 @@ export function DataTable<T extends { id?: string | number }>({
                 ))}
               </tr>
             ))}
-            {filteredData.length === 0 && (
+            {sortedData.length === 0 && (
               <tr>
                 <td
                   colSpan={columns.length}
