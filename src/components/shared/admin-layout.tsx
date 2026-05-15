@@ -15,6 +15,7 @@ import {
   DollarSign,
   BarChart3,
   Shield,
+  UserPlus,
   Settings,
   Bell,
   Search,
@@ -25,7 +26,14 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/modules/auth/application/use-auth";
 
-const navItems = [
+type NavItem = {
+  label: string;
+  icon: typeof LayoutDashboard;
+  path: string;
+  superAdminOnly?: boolean;
+};
+
+const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { label: "Freelancers", icon: Users, path: "/freelancers" },
   { label: "Empresas", icon: Building2, path: "/empresas" },
@@ -37,13 +45,22 @@ const navItems = [
   { label: "Financeiro", icon: DollarSign, path: "/financeiro" },
   { label: "Relatórios", icon: BarChart3, path: "/relatorios" },
   { label: "Usuários", icon: Shield, path: "/usuarios" },
+  {
+    label: "Recrutadores",
+    icon: UserPlus,
+    path: "/usuarios/recrutadores",
+    superAdminOnly: true,
+  },
   { label: "Configurações", icon: Settings, path: "/configuracoes" },
 ];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { logout } = useAuth();
+  const { logout, isSuperAdmin } = useAuth();
+  const visibleNavItems = navItems.filter(
+    (item) => !item.superAdminOnly || isSuperAdmin,
+  );
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f7f7f7]">
@@ -80,7 +97,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = pathname === item.path;
             return (
               <Link

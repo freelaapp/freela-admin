@@ -6,6 +6,18 @@ import { loginApi } from "@/modules/auth/infrastructure/auth.api";
 import { LoginPayload, AuthUser } from "@/modules/auth/domain/types";
 import { toast } from "sonner";
 
+function decodeJwtRole(token: string): AuthUser["role"] {
+  try {
+    const payload = token.split(".")[1];
+    const json = JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/")),
+    );
+    return (json.role as AuthUser["role"]) ?? "ADMIN";
+  } catch {
+    return "ADMIN";
+  }
+}
+
 export function useAuth() {
   const { user, isHydrated, setUser, hydrate, clear } = useAuthStore();
 
@@ -23,7 +35,7 @@ export function useAuth() {
           id: "admin",
           name: "Admin",
           email: payload.email,
-          role: "ADMIN",
+          role: decodeJwtRole(response.data.accessToken),
           accessToken: response.data.accessToken,
           refreshToken: response.data.refreshToken,
         };
@@ -45,12 +57,14 @@ export function useAuth() {
   }, [clear]);
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
   return {
     user,
     isHydrated,
     isAuthenticated: !!user,
     isAdmin,
+    isSuperAdmin,
     login,
     logout,
   };

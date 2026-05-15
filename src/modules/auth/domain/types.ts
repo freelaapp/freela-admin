@@ -2,7 +2,7 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "SUPER_ADMIN" | string;
+  role: "ADMIN" | "SUPER_ADMIN" | "RECRUITER" | string;
   accessToken: string;
   refreshToken: string;
 }
