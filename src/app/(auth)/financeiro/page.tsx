@@ -12,6 +12,7 @@ import { useAdminPayments } from "@/modules/admin/application/use-admin-payments
 import { useAdminRepasses } from "@/modules/admin/application/use-admin-repasses";
 import { useAdminMetrics } from "@/modules/admin/application/use-admin-metrics";
 import type { PaymentItem, RepasseItem } from "@/modules/admin/infrastructure/admin-api";
+import { formatInstantDate } from "@/lib/date.utils";
 
 const tabs = ["Visão Geral", "Pagamentos", "Repasses", "Estornos & Cancelamentos", "Por Cidade", "Por Tipo de Freelancer", "Parcerias"] as const;
 type Tab = typeof tabs[number];
@@ -20,9 +21,7 @@ function formatCurrency(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 }
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("pt-BR");
-}
+const formatDate = formatInstantDate;
 
 function mapPaymentToRow(p: PaymentItem) {
   return {

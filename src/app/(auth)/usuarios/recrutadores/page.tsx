@@ -24,6 +24,7 @@ import {
 } from "@/modules/admin/application/use-admin-recruiters";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
+import { formatInstantDate } from "@/lib/date.utils";
 import type { RecruiterItem } from "@/modules/admin/infrastructure/admin-api";
 
 export default function RecrutadoresPage() {
@@ -87,7 +88,7 @@ export default function RecrutadoresPage() {
     {
       header: "Cadastrado em",
       accessor: (row: RecruiterItem) =>
-        new Date(row.createdAt).toLocaleDateString("pt-BR"),
+        formatInstantDate(row.createdAt),
       className: "hidden md:table-cell",
     },
   ];

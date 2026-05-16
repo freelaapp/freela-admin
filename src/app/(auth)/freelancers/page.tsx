@@ -20,6 +20,7 @@ import {
 import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
 import type { ProviderItem, ProviderHistoryItem } from "@/modules/admin/infrastructure/admin-api";
 import { getProviderHistory } from "@/modules/admin/infrastructure/admin-api";
+import { formatVacancyDate } from "@/lib/date.utils";
 
 type ModalType = "view" | "edit" | "ban" | "history" | null;
 
@@ -275,7 +276,7 @@ export default function FreelancersPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-[#737373]">
-                      <span>{new Date(job.date).toLocaleDateString("pt-BR")}</span>
+                      <span>{formatVacancyDate(job.date)}</span>
                       <span className="font-semibold text-[#1d1d1b]">
                         R$ {(job.payment / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                       </span>

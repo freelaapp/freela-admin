@@ -19,6 +19,7 @@ import {
 import { useAdminUsers } from "@/modules/admin/application/use-admin-users";
 import { useAdminDeletionStats } from "@/modules/admin/application/use-admin-deletion-stats";
 import type { UserItem } from "@/modules/admin/infrastructure/admin-api";
+import { formatInstantDate } from "@/lib/date.utils";
 
 function mapUserStatus(status: string) {
   switch (status) {
@@ -282,14 +283,14 @@ export default function UsuariosPage() {
                       <div className="bg-[#f7f7f7] rounded-lg p-3">
                         <p className="text-[#737373]">Solicitado em</p>
                         <p className="font-semibold text-[#1d1d1b]">
-                          {new Date(modalEditar.deletionRequestedAt).toLocaleDateString("pt-BR")}
+                          {formatInstantDate(modalEditar.deletionRequestedAt)}
                         </p>
                       </div>
                       <div className="bg-[#f7f7f7] rounded-lg p-3">
                         <p className="text-[#737373]">Agendado para</p>
                         <p className="font-semibold text-[#1d1d1b]">
                           {modalEditar.deletionScheduledAt
-                            ? new Date(modalEditar.deletionScheduledAt).toLocaleDateString("pt-BR")
+                            ? formatInstantDate(modalEditar.deletionScheduledAt)
                             : "—"}
                         </p>
                       </div>
@@ -299,7 +300,7 @@ export default function UsuariosPage() {
                     <div className="bg-[#f7f7f7] rounded-lg p-3">
                       <p className="text-[#737373]">Excluído em</p>
                       <p className="font-semibold text-[#1d1d1b]">
-                        {new Date(modalEditar.deletedAt).toLocaleDateString("pt-BR")}
+                        {formatInstantDate(modalEditar.deletedAt)}
                       </p>
                     </div>
                   )}

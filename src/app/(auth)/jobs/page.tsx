@@ -21,6 +21,7 @@ import { useAdminContractors } from "@/modules/admin/application/use-admin-contr
 import { useVacancyCandidacies } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useAdminCancelVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
+import { formatVacancyDate, formatVacancyTime } from "@/lib/date.utils";
 
 const vagasUrgentes = [
   { id: 101, empresa: "Bar do Zé", cidade: "São Paulo", cargo: "Garçom", qtdFaltando: 2, valor: "R$ 180", data: "13/03/2026", horario: "18:00 - 02:00", tempoRestante: "1h 45min", freelancersDisponiveis: 28 },
@@ -36,15 +37,8 @@ const freelancersDisponiveis = [
   { id: 5, nome: "Juliana Mendes", cidade: "Belo Horizonte", cargo: "Recepcionista", avaliacao: 5.0 },
 ];
 
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("pt-BR");
-}
-
-function formatTime(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
+const formatDate = formatVacancyDate;
+const formatTime = formatVacancyTime;
 
 function mapVacancyStatus(status: string) {
   switch (status) {

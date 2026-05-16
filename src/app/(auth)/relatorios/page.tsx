@@ -15,6 +15,7 @@ import {
 import { useAdminMetrics } from "@/modules/admin/application/use-admin-metrics";
 import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
 import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
+import { formatInstantDate } from "@/lib/date.utils";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -138,7 +139,7 @@ export default function RelatoriosPage() {
           <div ref={reportRef} className="bg-white p-6 space-y-6">
             <div className="text-center border-b border-[#e5e5e5] pb-4">
               <h2 className="text-xl font-bold text-[#1d1d1b]">{selectedReport?.title}</h2>
-              <p className="text-sm text-[#737373]">Gerado em {new Date().toLocaleDateString("pt-BR")}</p>
+              <p className="text-sm text-[#737373]">Gerado em {formatInstantDate(new Date())}</p>
             </div>
 
             {openReport === "overview" && metrics && (

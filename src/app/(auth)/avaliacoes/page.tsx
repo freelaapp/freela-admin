@@ -17,10 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminFeedbacks } from "@/modules/admin/application/use-admin-feedbacks";
 import type { FeedbackItem } from "@/modules/admin/infrastructure/admin-api";
+import { formatInstantDate } from "@/lib/date.utils";
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("pt-BR");
-}
+const formatDate = formatInstantDate;
 
 function renderStars(n: number) {
   return (
