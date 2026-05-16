@@ -388,7 +388,7 @@ export default function JobsPage() {
             <DialogDescription>Informações completas da vaga selecionada.</DialogDescription>
           </DialogHeader>
           {modalDetalhes && (
-            <div className="space-y-3 text-sm">
+            <div className="space-y-3 text-sm max-h-[60vh] overflow-y-auto pr-1 -mr-1">
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
                   <p className="text-[#737373]">Empresa</p>
