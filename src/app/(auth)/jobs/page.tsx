@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle } from "lucide-react";
+import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -20,6 +20,7 @@ import { useAdminVacancies } from "@/modules/admin/application/use-admin-vacanci
 import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
 import { useVacancyCandidacies } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useAdminCancelVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
+import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate, formatVacancyTime } from "@/lib/date.utils";
 
@@ -93,6 +94,14 @@ export default function JobsPage() {
   const [cancelReason, setCancelReason] = useState("");
   const cancelMutation = useAdminCancelVacancy();
 
+  const [removeTarget, setRemoveTarget] = useState<{
+    vacancyId: string;
+    candidacyId: string;
+    providerName: string;
+  } | null>(null);
+  const [removeReason, setRemoveReason] = useState("");
+  const removeCandidacyMutation = useAdminRemoveCandidacy();
+
   const allRows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
   const rows =
     statusFilter === "all"
@@ -131,6 +140,26 @@ export default function JobsPage() {
       setModalDetalhes(null);
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Falha ao cancelar a vaga."));
+    }
+  };
+
+  const handleConfirmRemoveCandidacy = async () => {
+    if (!removeTarget) return;
+    try {
+      const result = await removeCandidacyMutation.mutateAsync({
+        vacancyId: removeTarget.vacancyId,
+        candidacyId: removeTarget.candidacyId,
+        reason: removeReason.trim() || undefined,
+      });
+      toast.success(
+        result.vacancyReopened
+          ? `${removeTarget.providerName} desvinculado. Vaga reaberta para novos candidatos.`
+          : `${removeTarget.providerName} desvinculado da vaga.`,
+      );
+      setRemoveTarget(null);
+      setRemoveReason("");
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Falha ao desvincular o freelancer."));
     }
   };
 
@@ -490,6 +519,42 @@ export default function JobsPage() {
                 </div>
               </div>
 
+              {modalDetalhes.raw?.id && (() => {
+                const shareUrl = `https://www.freelaservicosapp.com.br/freelancer/vagas/${modalDetalhes.raw.id}`;
+                return (
+                  <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
+                    <p className="text-[#737373] text-xs font-medium uppercase tracking-wide flex items-center gap-1.5">
+                      <Link2 className="w-3.5 h-3.5" />
+                      Link da vaga
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={shareUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 truncate text-xs text-[#1d1d1b] hover:text-[#eca826] transition-colors"
+                      >
+                        {shareUrl}
+                      </a>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(shareUrl);
+                            toast.success("Link da vaga copiado.");
+                          } catch {
+                            toast.error("Nao foi possivel copiar o link.");
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-[#eca826] hover:text-[#d4951e] transition-colors shrink-0"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
                 <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
                   Candidatos {candidacies ? `(${candidacies.length})` : ""}
@@ -543,6 +608,22 @@ export default function JobsPage() {
                               </a>
                             )}
                           </div>
+                          {(c.status === "ACCEPTED" || c.status === "PENDING") &&
+                            modalDetalhes?.raw.id && (
+                              <button
+                                onClick={() =>
+                                  setRemoveTarget({
+                                    vacancyId: modalDetalhes.raw.id,
+                                    candidacyId: c.id,
+                                    providerName: c.providerName ?? "Freelancer",
+                                  })
+                                }
+                                className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-700 transition-colors"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                Desvincular da vaga
+                              </button>
+                            )}
                         </div>
                       );
                     })}
@@ -649,6 +730,88 @@ export default function JobsPage() {
                 <>
                   <XCircle className="w-4 h-4 mr-2" />
                   Confirmar cancelamento
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Desvincular Freelancer (admin) */}
+      <Dialog
+        open={!!removeTarget}
+        onOpenChange={(open) => {
+          if (!open && !removeCandidacyMutation.isPending) {
+            setRemoveTarget(null);
+            setRemoveReason("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogClose
+            onClick={() => {
+              if (!removeCandidacyMutation.isPending) {
+                setRemoveTarget(null);
+                setRemoveReason("");
+              }
+            }}
+          />
+          <DialogHeader>
+            <DialogTitle>Desvincular freelancer</DialogTitle>
+            <DialogDescription>
+              O freelancer sera removido desta vaga e notificado. Se a vaga estava preenchida,
+              ela volta a ficar aberta para novos candidatos. O pagamento do contratante e o job
+              agendado sao mantidos. Bloqueado se ja houve check-in, job iniciado ou repasse.
+            </DialogDescription>
+          </DialogHeader>
+          {removeTarget && (
+            <div className="space-y-3">
+              <div className="bg-[#f7f7f7] rounded-lg p-3 text-sm">
+                <p className="text-[#737373] text-xs uppercase tracking-wide">Freelancer</p>
+                <p className="font-semibold text-[#1d1d1b]">{removeTarget.providerName}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1d1d1b] mb-1">
+                  Motivo (opcional)
+                </label>
+                <textarea
+                  value={removeReason}
+                  onChange={(e) => setRemoveReason(e.target.value)}
+                  rows={3}
+                  placeholder="Ex.: freelancer desistiu; troca solicitada pelo contratante..."
+                  className="w-full rounded-lg border border-[#e5e5e5] px-3 py-2 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                  disabled={removeCandidacyMutation.isPending}
+                />
+                <p className="text-xs text-[#737373] mt-1">Fica registrado no log.</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRemoveTarget(null);
+                setRemoveReason("");
+              }}
+              disabled={removeCandidacyMutation.isPending}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Voltar
+            </Button>
+            <Button
+              onClick={handleConfirmRemoveCandidacy}
+              disabled={removeCandidacyMutation.isPending}
+              className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {removeCandidacyMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Desvinculando...
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Confirmar desvinculo
                 </>
               )}
             </Button>

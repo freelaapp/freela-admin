@@ -178,6 +178,25 @@ export async function adminCancelVacancy(
   return res.data.data;
 }
 
+export interface AdminRemoveCandidacyResult {
+  vacancyId: string;
+  candidacyId: string;
+  providerId: string;
+  vacancyReopened: boolean;
+}
+
+export async function adminRemoveCandidacy(
+  vacancyId: string,
+  candidacyId: string,
+  reason?: string,
+): Promise<AdminRemoveCandidacyResult> {
+  const res = await adminApi.post(
+    `/vacancies/${vacancyId}/candidacies/${candidacyId}/remove`,
+    reason ? { reason } : {},
+  );
+  return res.data.data;
+}
+
 export async function getAdminAllVacancies(): Promise<VacancyItem[]> {
   const [open, closed] = await Promise.all([
     getAdminOpenVacancies(),
