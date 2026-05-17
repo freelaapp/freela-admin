@@ -136,6 +136,13 @@ export interface VacancyItem {
   providerName?: string | null;
   providerPhone?: string | null;
   providerEmail?: string | null;
+  providerPixKeys?: ProviderPixKey[];
+}
+
+export interface ProviderPixKey {
+  keyType: string;
+  keyValue: string;
+  isDefault: boolean;
 }
 
 export async function getAdminOpenVacancies(): Promise<VacancyItem[]> {

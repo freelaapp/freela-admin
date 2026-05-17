@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy } from "lucide-react";
+import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -40,6 +40,15 @@ const freelancersDisponiveis = [
 
 const formatDate = formatVacancyDate;
 const formatTime = formatVacancyTime;
+
+const PIX_KEY_TYPE_LABELS: Record<string, string> = {
+  CPF: "CPF",
+  CNPJ: "CNPJ",
+  EMAIL: "E-mail",
+  PHONE: "Telefone",
+  EVP: "Chave aleatória",
+  RANDOM: "Chave aleatória",
+};
 
 function mapVacancyStatus(status: string) {
   switch (status) {
@@ -510,6 +519,50 @@ export default function JobsPage() {
                       )}
                     </div>
                   )}
+                  <div className="pt-2 border-t border-green-200 space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-green-700 flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5" />
+                      Chave PIX
+                    </p>
+                    {modalDetalhes.raw?.providerPixKeys && modalDetalhes.raw.providerPixKeys.length > 0 ? (
+                      <div className="flex flex-col gap-1.5">
+                        {modalDetalhes.raw.providerPixKeys.map((pix, i) => (
+                          <div
+                            key={`${pix.keyType}-${i}`}
+                            className="flex items-center justify-between gap-2 bg-white border border-green-200 rounded-md px-2.5 py-1.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-green-700 flex items-center gap-1.5">
+                                {PIX_KEY_TYPE_LABELS[pix.keyType] ?? pix.keyType}
+                                {pix.isDefault && (
+                                  <span className="text-[9px] font-semibold uppercase tracking-wide bg-green-100 text-green-700 border border-green-200 rounded px-1.5 py-0.5">
+                                    Padrão
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-sm text-green-900 truncate">{pix.keyValue}</p>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(pix.keyValue);
+                                  toast.success("Chave PIX copiada.");
+                                } catch {
+                                  toast.error("Não foi possível copiar a chave PIX.");
+                                }
+                              }}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 hover:text-green-900 transition-colors shrink-0"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              Copiar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-green-700/70">Nenhuma chave PIX cadastrada.</p>
+                    )}
+                  </div>
                 </div>
               )}
               <div className="bg-[#f7f7f7] rounded-lg p-3 flex items-center justify-between">
