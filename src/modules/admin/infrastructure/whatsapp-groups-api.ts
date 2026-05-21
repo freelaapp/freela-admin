@@ -86,3 +86,50 @@ export async function updateVacancyGroupRoute(
 export async function deleteVacancyGroupRoute(id: string): Promise<void> {
   await whatsappApi.delete(`/${id}`);
 }
+
+// ─── State (UF) routes ──────────────────────────────────────────────────────
+
+export interface VacancyGroupStateRoute {
+  id: string;
+  uf: string;
+  groupJid: string;
+  groupName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateStateRoutePayload {
+  uf: string;
+  groupJid: string;
+  groupName?: string;
+}
+
+export interface UpdateStateRoutePayload {
+  uf?: string;
+  groupJid?: string;
+  groupName?: string;
+}
+
+export async function getVacancyGroupStateRoutes(): Promise<VacancyGroupStateRoute[]> {
+  const res = await whatsappApi.get("/states");
+  return res.data.data;
+}
+
+export async function createVacancyGroupStateRoute(
+  payload: CreateStateRoutePayload,
+): Promise<VacancyGroupStateRoute> {
+  const res = await whatsappApi.post("/states", payload);
+  return res.data.data;
+}
+
+export async function updateVacancyGroupStateRoute(
+  id: string,
+  payload: UpdateStateRoutePayload,
+): Promise<VacancyGroupStateRoute> {
+  const res = await whatsappApi.put(`/states/${id}`, payload);
+  return res.data.data;
+}
+
+export async function deleteVacancyGroupStateRoute(id: string): Promise<void> {
+  await whatsappApi.delete(`/states/${id}`);
+}
