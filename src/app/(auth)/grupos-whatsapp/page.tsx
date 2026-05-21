@@ -71,7 +71,7 @@ export default function GruposWhatsappPage() {
     <div>
       <PageHeader
         title="Grupos WhatsApp"
-        description='O roteamento é automático pelo nome do grupo no padrão "Vagas <Cidade> <UF>". A vaga de um contratante vai para o grupo da sua cidade + estado. Grupos fora do padrão não recebem vagas.'
+        description='O roteamento é automático pelo nome do grupo no padrão "Vagas Freela <Cidade> <UF>". A vaga de um contratante vai para o grupo da sua cidade + estado. Grupos fora do padrão não recebem vagas.'
       />
 
       {isLoading ? (
