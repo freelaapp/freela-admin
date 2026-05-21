@@ -26,110 +26,21 @@ whatsappApi.interceptors.request.use((config) => {
   return config;
 });
 
-// ─── Types ────────────────────────────────────────────────────────────────
-
-export interface VacancyGroupRoute {
-  id: string;
-  cityNormalized: string;
-  cityLabel: string;
-  groupJid: string;
-  groupName: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WhatsAppGroup {
+/**
+ * Routing is fully automatic from the WhatsApp group names ("Vagas <Cidade> <UF>"),
+ * so the admin panel is read-only diagnostics: which groups were recognized and
+ * which are off-pattern (and therefore unreachable by routing).
+ */
+export interface GroupDiagnostic {
   jid: string;
   name: string;
   participants: number | null;
+  city: string | null;
+  uf: string | null;
+  recognized: boolean;
 }
 
-export interface CreateRoutePayload {
-  city: string;
-  groupJid: string;
-  groupName?: string;
-}
-
-export interface UpdateRoutePayload {
-  city?: string;
-  groupJid?: string;
-  groupName?: string;
-}
-
-// ─── API ──────────────────────────────────────────────────────────────────
-
-export async function getVacancyGroupRoutes(): Promise<VacancyGroupRoute[]> {
-  const res = await whatsappApi.get("");
+export async function getGroupDiagnostics(): Promise<GroupDiagnostic[]> {
+  const res = await whatsappApi.get("/diagnostics");
   return res.data.data;
-}
-
-export async function getWhatsAppGroups(): Promise<WhatsAppGroup[]> {
-  const res = await whatsappApi.get("/whatsapp-groups");
-  return res.data.data;
-}
-
-export async function createVacancyGroupRoute(
-  payload: CreateRoutePayload,
-): Promise<VacancyGroupRoute> {
-  const res = await whatsappApi.post("", payload);
-  return res.data.data;
-}
-
-export async function updateVacancyGroupRoute(
-  id: string,
-  payload: UpdateRoutePayload,
-): Promise<VacancyGroupRoute> {
-  const res = await whatsappApi.put(`/${id}`, payload);
-  return res.data.data;
-}
-
-export async function deleteVacancyGroupRoute(id: string): Promise<void> {
-  await whatsappApi.delete(`/${id}`);
-}
-
-// ─── State (UF) routes ──────────────────────────────────────────────────────
-
-export interface VacancyGroupStateRoute {
-  id: string;
-  uf: string;
-  groupJid: string;
-  groupName: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateStateRoutePayload {
-  uf: string;
-  groupJid: string;
-  groupName?: string;
-}
-
-export interface UpdateStateRoutePayload {
-  uf?: string;
-  groupJid?: string;
-  groupName?: string;
-}
-
-export async function getVacancyGroupStateRoutes(): Promise<VacancyGroupStateRoute[]> {
-  const res = await whatsappApi.get("/states");
-  return res.data.data;
-}
-
-export async function createVacancyGroupStateRoute(
-  payload: CreateStateRoutePayload,
-): Promise<VacancyGroupStateRoute> {
-  const res = await whatsappApi.post("/states", payload);
-  return res.data.data;
-}
-
-export async function updateVacancyGroupStateRoute(
-  id: string,
-  payload: UpdateStateRoutePayload,
-): Promise<VacancyGroupStateRoute> {
-  const res = await whatsappApi.put(`/states/${id}`, payload);
-  return res.data.data;
-}
-
-export async function deleteVacancyGroupStateRoute(id: string): Promise<void> {
-  await whatsappApi.delete(`/states/${id}`);
 }
