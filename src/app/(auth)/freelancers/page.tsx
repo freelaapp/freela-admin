@@ -30,6 +30,7 @@ function mapProviderToRow(p: ProviderItem) {
     nome: p.name || (p.jobTitle ? `Profissional (${p.jobTitle})` : "Sem nome"),
     telefone: p.phone || "N/A",
     cidade: p.city || "N/A",
+    estado: p.uf || "N/A",
     cargo: p.jobTitle || "N/A",
     avaliacao: p.avaliacao ?? 0,
     trabalhos: p.trabalhos,
@@ -41,6 +42,38 @@ function mapProviderToRow(p: ProviderItem) {
 
 type Row = ReturnType<typeof mapProviderToRow>;
 
+function FilterSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: (string | { value: string; label: string })[];
+  placeholder: string;
+}) {
+  const normalized = options.map((opt) =>
+    typeof opt === "string" ? { value: opt, label: opt } : opt,
+  );
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`h-9 px-3 pr-8 rounded-lg bg-[#f7f7f7] border-none text-sm focus:outline-none focus:ring-2 focus:ring-[#eca826]/30 cursor-pointer ${
+        value ? "text-[#1d1d1b]" : "text-[#a3a3a3]"
+      }`}
+    >
+      <option value="">{placeholder}</option>
+      {normalized.map((opt) => (
+        <option key={opt.value} value={opt.value} className="text-[#1d1d1b]">
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export default function FreelancersPage() {
   const { data: providers, isLoading, isError } = useAdminProviders();
   const [modalOpen, setModalOpen] = useState(false);
@@ -48,8 +81,26 @@ export default function FreelancersPage() {
   const [selectedItem, setSelectedItem] = useState<Row | null>(null);
   const [historyData, setHistoryData] = useState<ProviderHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [estadoFilter, setEstadoFilter] = useState("");
+  const [cidadeFilter, setCidadeFilter] = useState("");
+  const [cargoFilter, setCargoFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
-  const rows: Row[] = providers?.map(mapProviderToRow) ?? [];
+  const allRows: Row[] = providers?.map(mapProviderToRow) ?? [];
+
+  const sortedUnique = (values: string[]) =>
+    Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const estadoOptions = sortedUnique(allRows.map((r) => r.estado));
+  const cidadeOptions = sortedUnique(allRows.map((r) => r.cidade));
+  const cargoOptions = sortedUnique(allRows.map((r) => r.cargo));
+
+  const rows: Row[] = allRows.filter(
+    (r) =>
+      (!estadoFilter || r.estado === estadoFilter) &&
+      (!cidadeFilter || r.cidade === cidadeFilter) &&
+      (!cargoFilter || r.cargo === cargoFilter) &&
+      (!statusFilter || r.status === statusFilter),
+  );
 
   const openModal = async (type: ModalType, item: Row) => {
     setModalType(type);
@@ -101,10 +152,11 @@ export default function FreelancersPage() {
       ),
       className: "w-12",
     },
-    { header: "Nome", accessor: "nome" as const },
+    { header: "Nome", accessor: "nome" as const, sortable: true, sortAccessor: (row: Row) => row.nome },
     { header: "Telefone", accessor: "telefone" as const, className: "hidden md:table-cell" },
-    { header: "Cidade", accessor: "cidade" as const, className: "hidden lg:table-cell" },
-    { header: "Cargo", accessor: "cargo" as const },
+    { header: "Cidade", accessor: "cidade" as const, className: "hidden lg:table-cell", sortable: true, sortAccessor: (row: Row) => row.cidade },
+    { header: "Estado", accessor: "estado" as const, className: "hidden lg:table-cell", sortable: true, sortAccessor: (row: Row) => row.estado },
+    { header: "Cargo", accessor: "cargo" as const, sortable: true, sortAccessor: (row: Row) => row.cargo },
     {
       header: "Avaliação",
       accessor: (row: Row) => (
@@ -113,11 +165,15 @@ export default function FreelancersPage() {
           {row.avaliacao > 0 ? row.avaliacao.toFixed(1) : "—"}
         </span>
       ),
+      sortable: true,
+      sortAccessor: (row: Row) => row.avaliacao,
     },
-    { header: "Trabalhos", accessor: "trabalhos" as const, className: "hidden lg:table-cell" },
+    { header: "Trabalhos", accessor: "trabalhos" as const, className: "hidden lg:table-cell", sortable: true, sortAccessor: (row: Row) => row.trabalhos },
     {
       header: "Status",
       accessor: (row: Row) => <StatusBadge status={row.status} />,
+      sortable: true,
+      sortAccessor: (row: Row) => row.status,
     },
     {
       header: "Score",
@@ -126,6 +182,8 @@ export default function FreelancersPage() {
           {row.score > 0 ? row.score : "—"}
         </span>
       ),
+      sortable: true,
+      sortAccessor: (row: Row) => row.score,
     },
     {
       header: "Ações",
@@ -169,6 +227,7 @@ export default function FreelancersPage() {
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <MapPin className="w-4 h-4 text-[#737373]" />
                   {selectedItem.cidade}
+                  {selectedItem.estado !== "N/A" && ` - ${selectedItem.estado}`}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <Star className="w-4 h-4 text-[#eca826]" />
@@ -325,6 +384,35 @@ export default function FreelancersPage() {
         data={rows}
         searchPlaceholder="Buscar freelancer por nome..."
         searchKey="nome"
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterSelect value={estadoFilter} onChange={setEstadoFilter} options={estadoOptions} placeholder="Estado" />
+            <FilterSelect value={cidadeFilter} onChange={setCidadeFilter} options={cidadeOptions} placeholder="Cidade" />
+            <FilterSelect value={cargoFilter} onChange={setCargoFilter} options={cargoOptions} placeholder="Cargo" />
+            <FilterSelect
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "active", label: "Ativo" },
+                { value: "inactive", label: "Inativo" },
+              ]}
+              placeholder="Status"
+            />
+            {(estadoFilter || cidadeFilter || cargoFilter || statusFilter) && (
+              <button
+                onClick={() => {
+                  setEstadoFilter("");
+                  setCidadeFilter("");
+                  setCargoFilter("");
+                  setStatusFilter("");
+                }}
+                className="h-9 px-3 rounded-lg text-sm text-[#737373] hover:text-[#1d1d1b] hover:bg-[#f7f7f7] cursor-pointer transition-colors"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        }
       />
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="relative">
