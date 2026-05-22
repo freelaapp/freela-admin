@@ -61,13 +61,25 @@ const navItems: NavItem[] = [
   { label: "Configurações", icon: Settings, path: "/configuracoes" },
 ];
 
+function getInitials(value: string): string {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return value.slice(0, 2).toUpperCase();
+}
+
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { logout, isSuperAdmin } = useAuth();
+  const { user, logout, isSuperAdmin } = useAuth();
   const visibleNavItems = navItems.filter(
     (item) => !item.superAdminOnly || isSuperAdmin,
   );
+
+  const displayName = user?.name || "Admin";
+  const displayEmail = user?.email || "";
+  const initials = getInitials(displayName || displayEmail || "AD");
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f7f7f7]">
@@ -129,11 +141,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         <div className="px-4 py-4 border-t border-[#333333]">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-[#2e2e2e] flex items-center justify-center text-xs font-semibold text-white">
-              AD
+              {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">Admin</p>
-              <p className="text-xs text-[#737373] truncate">admin@freela.com</p>
+              <p className="text-sm font-medium text-white truncate">{displayName}</p>
+              <p className="text-xs text-[#737373] truncate">{displayEmail}</p>
             </div>
             <button
               onClick={logout}
@@ -176,9 +188,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             </button>
             <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-[#e5e5e5]">
               <div className="w-8 h-8 rounded-full bg-[#eca826]/10 flex items-center justify-center text-xs font-semibold text-[#eca826]">
-                AD
+                {initials}
               </div>
-              <span className="text-sm font-medium text-[#1d1d1b]">Admin</span>
+              <span className="text-sm font-medium text-[#1d1d1b]">{displayName}</span>
             </div>
           </div>
         </header>

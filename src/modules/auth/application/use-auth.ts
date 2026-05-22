@@ -31,9 +31,15 @@ export function useAuth() {
     async (payload: LoginPayload) => {
       try {
         const response = await loginApi(payload);
+        const emailLocal = payload.email.split("@")[0];
+        const name = emailLocal
+          .split(/[._-]+/)
+          .filter(Boolean)
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
         const authUser: AuthUser = {
           id: "admin",
-          name: "Admin",
+          name: name || "Admin",
           email: payload.email,
           role: decodeJwtRole(response.data.accessToken),
           accessToken: response.data.accessToken,
