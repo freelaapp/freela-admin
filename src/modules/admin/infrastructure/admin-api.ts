@@ -99,6 +99,7 @@ export interface ProviderItem {
   phone: string | null;
   email: string | null;
   jobTitle: string | null;
+  services: string[];
   bio: string | null;
   city: string | null;
   uf: string | null;

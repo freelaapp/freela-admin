@@ -22,7 +22,15 @@ import type { ProviderItem, ProviderHistoryItem } from "@/modules/admin/infrastr
 import { getProviderHistory } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate } from "@/lib/date.utils";
 
-type ModalType = "view" | "edit" | "ban" | "history" | null;
+type ModalType = "view" | "edit" | "ban" | "history" | "cargos" | null;
+
+function formatCargo(value: string): string {
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 function mapProviderToRow(p: ProviderItem) {
   return {
@@ -32,6 +40,7 @@ function mapProviderToRow(p: ProviderItem) {
     cidade: p.city || "N/A",
     estado: p.uf || "N/A",
     cargo: p.jobTitle || "N/A",
+    cargos: p.services ?? [],
     avaliacao: p.avaliacao ?? 0,
     trabalhos: p.trabalhos,
     status: p.isActive ? ("active" as const) : ("inactive" as const),
@@ -92,13 +101,15 @@ export default function FreelancersPage() {
     Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, "pt-BR"));
   const estadoOptions = sortedUnique(allRows.map((r) => r.estado));
   const cidadeOptions = sortedUnique(allRows.map((r) => r.cidade));
-  const cargoOptions = sortedUnique(allRows.map((r) => r.cargo));
+  const cargoOptions = sortedUnique(allRows.flatMap((r) => r.cargos)).map(
+    (value) => ({ value, label: formatCargo(value) }),
+  );
 
   const rows: Row[] = allRows.filter(
     (r) =>
       (!estadoFilter || r.estado === estadoFilter) &&
       (!cidadeFilter || r.cidade === cidadeFilter) &&
-      (!cargoFilter || r.cargo === cargoFilter) &&
+      (!cargoFilter || r.cargos.includes(cargoFilter)) &&
       (!statusFilter || r.status === statusFilter),
   );
 
@@ -156,7 +167,24 @@ export default function FreelancersPage() {
     { header: "Telefone", accessor: "telefone" as const, className: "hidden md:table-cell" },
     { header: "Cidade", accessor: "cidade" as const, className: "hidden lg:table-cell", sortable: true, sortAccessor: (row: Row) => row.cidade },
     { header: "Estado", accessor: "estado" as const, className: "hidden lg:table-cell", sortable: true, sortAccessor: (row: Row) => row.estado },
-    { header: "Cargo", accessor: "cargo" as const, sortable: true, sortAccessor: (row: Row) => row.cargo },
+    {
+      header: "Cargos",
+      accessor: (row: Row) =>
+        row.cargos.length === 0 ? (
+          <span className="text-[#a3a3a3]">—</span>
+        ) : (
+          <button
+            onClick={() => openModal("cargos", row)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#eca826]/10 text-[#b87d12] text-xs font-medium hover:bg-[#eca826]/20 cursor-pointer transition-colors"
+            title="Ver cargos disponíveis"
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            {row.cargos.length} {row.cargos.length === 1 ? "cargo" : "cargos"}
+          </button>
+        ),
+      sortable: true,
+      sortAccessor: (row: Row) => row.cargos.length,
+    },
     {
       header: "Avaliação",
       accessor: (row: Row) => (
@@ -308,6 +336,35 @@ export default function FreelancersPage() {
             <DialogFooter>
               <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
               <Button onClick={closeModal} className="bg-red-500 text-white hover:bg-red-600">Bloquear</Button>
+            </DialogFooter>
+          </>
+        );
+      case "cargos":
+        return (
+          <>
+            <DialogHeader>
+              <DialogTitle>Cargos disponíveis</DialogTitle>
+              <DialogDescription>
+                Tipos de vaga para os quais {selectedItem.nome} se disponibilizou.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-wrap gap-2 max-h-72 overflow-y-auto py-1">
+              {selectedItem.cargos.length === 0 ? (
+                <p className="text-sm text-[#737373]">Nenhum cargo selecionado.</p>
+              ) : (
+                selectedItem.cargos.map((c) => (
+                  <span
+                    key={c}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#eca826]/10 text-[#b87d12] text-sm font-medium"
+                  >
+                    <Briefcase className="w-3.5 h-3.5" />
+                    {formatCargo(c)}
+                  </span>
+                ))
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
             </DialogFooter>
           </>
         );
