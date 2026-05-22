@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Users,
   UserCheck,
   Building2,
   Briefcase,
@@ -72,7 +71,6 @@ export default function DashboardPage() {
     : 0;
 
   const row1 = [
-    { title: "Usuários Ativos", value: String(m.activeUsers), icon: Users },
     { title: "Freelancers Cadastrados", value: String(m.totalFreelancers), icon: UserCheck },
     { title: "Contratantes Cadastrados", value: String(m.totalCompanies), icon: Building2 },
     { title: "Vagas Abertas", value: String(m.openVacancies), icon: Briefcase },
