@@ -173,6 +173,16 @@ export interface VacancyItem {
   providerPixKeys?: ProviderPixKey[];
   freelancerAmountInCents?: number | null;
   platformFeeInCents?: number | null;
+  /**
+   * Job vinculado à vaga (presente apenas quando há job criado — pós-pagamento).
+   * Backend retorna apenas no endpoint /closed-vacancies.
+   */
+  job?: {
+    id: string;
+    status: string;
+    hasContractorFeedback?: boolean;
+    hasProviderFeedback?: boolean;
+  } | null;
 }
 
 export interface ProviderPixKey {

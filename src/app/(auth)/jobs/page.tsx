@@ -64,6 +64,51 @@ function mapVacancyStatus(status: string) {
   }
 }
 
+type VacancyBucket =
+  | "open"
+  | "awaitingHire"
+  | "inProgress"
+  | "completedReviewed"
+  | "completedAwaitingReview"
+  | "cancelled"
+  | "lost";
+
+function resolveVacancyBucket(v: VacancyItem, now: Date = new Date()): VacancyBucket {
+  const status = v.status?.toUpperCase();
+  const jobStatus = v.job?.status?.toUpperCase();
+
+  if (status === "CANCELLED" || status === "CANCELLED_BY_CONTRACTOR") {
+    return "cancelled";
+  }
+
+  if (jobStatus === "COMPLETED") {
+    const reviewedBoth =
+      Boolean(v.job?.hasContractorFeedback) && Boolean(v.job?.hasProviderFeedback);
+    return reviewedBoth ? "completedReviewed" : "completedAwaitingReview";
+  }
+
+  if (jobStatus === "IN_PROGRESS") {
+    return "inProgress";
+  }
+
+  // CLOSED sem job ainda (aguardando pagamento) OU job SCHEDULED (pago, ainda não começou).
+  if (status === "CLOSED") {
+    return "awaitingHire";
+  }
+
+  // OPEN: só conta como ativa se ainda dentro do prazo; caso contrário a vaga
+  // expirou sem candidato aceito (perdida).
+  const ref = v.endTime || v.startTime;
+  if (ref) {
+    const ms = Date.parse(ref);
+    if (!Number.isNaN(ms) && ms < now.getTime()) {
+      return "lost";
+    }
+  }
+
+  return "open";
+}
+
 function mapVacancyToRow(v: VacancyItem) {
   const start = formatTime(v.startTime);
   const end = formatTime(v.endTime);
@@ -78,6 +123,7 @@ function mapVacancyToRow(v: VacancyItem) {
     data: formatDate(v.date),
     horario: `${start} - ${end}`,
     status: mapVacancyStatus(v.status),
+    bucket: resolveVacancyBucket(v),
     providerName: v.providerName ?? null,
     raw: v,
   };
@@ -93,7 +139,15 @@ export default function JobsPage() {
   const { data: contractors } = useAdminContractors();
   const [tab, setTab] = useState<Tab>("Todas as Vagas");
   const [enviando, setEnviando] = useState<number | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "filled" | "cancelled">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    | "all"
+    | "open"
+    | "awaitingHire"
+    | "inProgress"
+    | "completedReviewed"
+    | "completedAwaitingReview"
+    | "cancelled"
+  >("all");
 
   const [modalDetalhes, setModalDetalhes] = useState<Row | null>(null);
   const [modalBuscarId, setModalBuscarId] = useState(false);
@@ -121,8 +175,8 @@ export default function JobsPage() {
   const allRows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
   const rows =
     statusFilter === "all"
-      ? allRows
-      : allRows.filter((r) => r.status === statusFilter);
+      ? allRows.filter((r) => r.bucket !== "lost")
+      : allRows.filter((r) => r.bucket === statusFilter);
   const contractorMap = new Map(contractors?.map((c) => [c.id, c]));
 
   const handleEnviarWhatsApp = (vaga: typeof vagasUrgentes[0]) => {
@@ -335,10 +389,34 @@ export default function JobsPage() {
             <div className="flex gap-2 flex-wrap">
               {(
                 [
-                  { key: "all", label: `Todas (${allRows.length})` },
-                  { key: "open", label: `Abertas (${allRows.filter((r) => r.status === "open").length})` },
-                  { key: "filled", label: `Preenchidas (${allRows.filter((r) => r.status === "filled").length})` },
-                  { key: "cancelled", label: `Canceladas (${allRows.filter((r) => r.status === "cancelled").length})` },
+                  {
+                    key: "all",
+                    label: `Todas (${allRows.filter((r) => r.bucket !== "lost").length})`,
+                  },
+                  {
+                    key: "open",
+                    label: `Abertas (${allRows.filter((r) => r.bucket === "open").length})`,
+                  },
+                  {
+                    key: "awaitingHire",
+                    label: `Aguardando contratação (${allRows.filter((r) => r.bucket === "awaitingHire").length})`,
+                  },
+                  {
+                    key: "inProgress",
+                    label: `Em andamento (${allRows.filter((r) => r.bucket === "inProgress").length})`,
+                  },
+                  {
+                    key: "completedReviewed",
+                    label: `Concluídas (${allRows.filter((r) => r.bucket === "completedReviewed").length})`,
+                  },
+                  {
+                    key: "completedAwaitingReview",
+                    label: `Concluídas s/ avaliação (${allRows.filter((r) => r.bucket === "completedAwaitingReview").length})`,
+                  },
+                  {
+                    key: "cancelled",
+                    label: `Canceladas (${allRows.filter((r) => r.bucket === "cancelled").length})`,
+                  },
                 ] as const
               ).map((f) => (
                 <button
