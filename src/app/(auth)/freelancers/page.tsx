@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -17,12 +17,16 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
+import {
+  useAdminProviders,
+  useProvidersFilterOptions,
+} from "@/modules/admin/application/use-admin-providers";
 import type { ProviderItem, ProviderHistoryItem } from "@/modules/admin/infrastructure/admin-api";
 import { getProviderHistory } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate } from "@/lib/date.utils";
 
 type ModalType = "view" | "edit" | "ban" | "history" | "cargos" | null;
+const PAGE_SIZE = 100;
 
 function formatCargo(value: string): string {
   return value
@@ -83,35 +87,57 @@ function FilterSelect({
   );
 }
 
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
+
 export default function FreelancersPage() {
-  const { data: providers, isLoading, isError } = useAdminProviders();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<ModalType>(null);
-  const [selectedItem, setSelectedItem] = useState<Row | null>(null);
-  const [historyData, setHistoryData] = useState<ProviderHistoryItem[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounced(search, 300);
   const [estadoFilter, setEstadoFilter] = useState("");
   const [cidadeFilter, setCidadeFilter] = useState("");
   const [cargoFilter, setCargoFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  const allRows: Row[] = providers?.map(mapProviderToRow) ?? [];
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, estadoFilter, cidadeFilter, cargoFilter, statusFilter]);
 
-  const sortedUnique = (values: string[]) =>
-    Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const estadoOptions = sortedUnique(allRows.map((r) => r.estado));
-  const cidadeOptions = sortedUnique(allRows.map((r) => r.cidade));
-  const cargoOptions = sortedUnique(allRows.flatMap((r) => r.cargos)).map(
-    (value) => ({ value, label: formatCargo(value) }),
-  );
+  const { data, isLoading, isError, isFetching } = useAdminProviders({
+    page,
+    limit: PAGE_SIZE,
+    search: debouncedSearch || undefined,
+    uf: estadoFilter || undefined,
+    city: cidadeFilter || undefined,
+    service: cargoFilter || undefined,
+    status: (statusFilter as "active" | "inactive") || undefined,
+  });
+  const { data: filterOptions } = useProvidersFilterOptions();
 
-  const rows: Row[] = allRows.filter(
-    (r) =>
-      (!estadoFilter || r.estado === estadoFilter) &&
-      (!cidadeFilter || r.cidade === cidadeFilter) &&
-      (!cargoFilter || r.cargos.includes(cargoFilter)) &&
-      (!statusFilter || r.status === statusFilter),
-  );
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<ModalType>(null);
+  const [selectedItem, setSelectedItem] = useState<Row | null>(null);
+  const [historyData, setHistoryData] = useState<ProviderHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const rows: Row[] = (data?.data ?? []).map(mapProviderToRow);
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const fromIndex = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const toIndex = Math.min(page * PAGE_SIZE, total);
+
+  const estadoOptions = filterOptions?.ufs ?? [];
+  const cidadeOptions = filterOptions?.cities ?? [];
+  const cargoOptions = (filterOptions?.services ?? []).map((value) => ({
+    value,
+    label: formatCargo(value),
+  }));
 
   const openModal = async (type: ModalType, item: Row) => {
     setModalType(type);
@@ -439,8 +465,8 @@ export default function FreelancersPage() {
       <DataTable
         columns={columns}
         data={rows}
-        searchPlaceholder="Buscar freelancer por nome..."
-        searchKey="nome"
+        searchPlaceholder="Buscar por nome, email ou telefone..."
+        controlledSearch={{ value: search, onChange: setSearch }}
         filters={
           <div className="flex flex-wrap items-center gap-2">
             <FilterSelect value={estadoFilter} onChange={setEstadoFilter} options={estadoOptions} placeholder="Estado" />
@@ -468,6 +494,39 @@ export default function FreelancersPage() {
                 Limpar filtros
               </button>
             )}
+            {isFetching && (
+              <Loader2 className="h-4 w-4 animate-spin text-[#eca826]" />
+            )}
+          </div>
+        }
+        footer={
+          <div className="flex items-center justify-between text-sm text-[#737373]">
+            <span>
+              {total === 0
+                ? "Nenhum freelancer"
+                : `Mostrando ${fromIndex}–${toIndex} de ${total.toLocaleString("pt-BR")}`}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || isFetching}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-[#e5e5e5] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#f7f7f7] cursor-pointer transition-colors"
+                title="Página anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-2 text-[#1d1d1b]">
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || isFetching}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-[#e5e5e5] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#f7f7f7] cursor-pointer transition-colors"
+                title="Próxima página"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         }
       />

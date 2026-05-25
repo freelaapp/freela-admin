@@ -17,7 +17,9 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   searchKey?: keyof T;
   filters?: React.ReactNode;
+  footer?: React.ReactNode;
   defaultSort?: { index: number; direction: "asc" | "desc" };
+  controlledSearch?: { value: string; onChange: (v: string) => void };
 }
 
 type SortState = { index: number; direction: "asc" | "desc" };
@@ -40,18 +42,23 @@ export function DataTable<T extends { id?: string | number }>({
   searchPlaceholder = "Buscar...",
   searchKey,
   filters,
+  footer,
   defaultSort,
+  controlledSearch,
 }: DataTableProps<T>) {
-  const [search, setSearch] = useState("");
+  const [internalSearch, setInternalSearch] = useState("");
   const [sort, setSort] = useState<SortState | null>(defaultSort ?? null);
+  const isControlled = !!controlledSearch;
+  const search = isControlled ? controlledSearch.value : internalSearch;
+  const setSearch = isControlled ? controlledSearch.onChange : setInternalSearch;
 
   const filteredData = useMemo(() => {
-    if (!searchKey) return data;
+    if (isControlled || !searchKey) return data;
     const needle = search.toLowerCase();
     return data.filter((row) =>
       String(row[searchKey] ?? "").toLowerCase().includes(needle),
     );
-  }, [data, searchKey, search]);
+  }, [data, searchKey, search, isControlled]);
 
   const sortedData = useMemo(() => {
     if (!sort) return filteredData;
@@ -157,6 +164,9 @@ export function DataTable<T extends { id?: string | number }>({
           </tbody>
         </table>
       </div>
+      {footer && (
+        <div className="px-4 py-3 border-t border-[#e5e5e5]">{footer}</div>
+      )}
     </div>
   );
 }

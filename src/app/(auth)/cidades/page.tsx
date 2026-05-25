@@ -6,7 +6,8 @@ import { useAdminContractors } from "@/modules/admin/application/use-admin-contr
 import { Loader2 } from "lucide-react";
 
 export default function CidadesPage() {
-  const { data: providers, isLoading: loadingProviders } = useAdminProviders();
+  const { data: providersPage, isLoading: loadingProviders } = useAdminProviders({ limit: 500 });
+  const providers = providersPage?.data;
   const { data: contractors, isLoading: loadingContractors } = useAdminContractors();
 
   const isLoading = loadingProviders || loadingContractors;

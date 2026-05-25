@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
 
 export default function CargosPage() {
-  const { data: providers, isLoading } = useAdminProviders();
+  const { data, isLoading } = useAdminProviders({ limit: 500 });
+  const providers = data?.data;
 
   if (isLoading) {
     return (

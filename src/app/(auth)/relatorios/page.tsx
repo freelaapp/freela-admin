@@ -47,7 +47,8 @@ export default function RelatoriosPage() {
   const reportRef = useRef<HTMLDivElement>(null);
 
   const { data: metrics } = useAdminMetrics();
-  const { data: providers } = useAdminProviders();
+  const { data: providersPage } = useAdminProviders({ limit: 500 });
+  const providers = providersPage?.data;
   const { data: contractors } = useAdminContractors();
 
   const handleDownloadPDF = async () => {

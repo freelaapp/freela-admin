@@ -110,8 +110,41 @@ export interface ProviderItem {
   score: number;
 }
 
-export async function getAdminProviders(): Promise<ProviderItem[]> {
-  const res = await adminApi.get("/providers");
+export interface GetAdminProvidersParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  uf?: string;
+  city?: string;
+  service?: string;
+  status?: "active" | "inactive";
+}
+
+export interface PagedProviders {
+  data: ProviderItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export async function getAdminProviders(
+  params: GetAdminProvidersParams = {},
+): Promise<PagedProviders> {
+  const res = await adminApi.get("/providers", { params });
+  const total = res.data.meta?.total ?? res.data.data?.length ?? 0;
+  const page = res.data.meta?.page ?? params.page ?? 1;
+  const limit = res.data.meta?.limit ?? params.limit ?? 100;
+  return { data: res.data.data, total, page, limit };
+}
+
+export interface ProvidersFilterOptions {
+  ufs: string[];
+  cities: string[];
+  services: string[];
+}
+
+export async function getProvidersFilterOptions(): Promise<ProvidersFilterOptions> {
+  const res = await adminApi.get("/providers/filter-options");
   return res.data.data;
 }
 
