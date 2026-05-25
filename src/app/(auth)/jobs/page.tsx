@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound } from "lucide-react";
+import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -91,6 +91,8 @@ export default function JobsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "filled" | "cancelled">("all");
 
   const [modalDetalhes, setModalDetalhes] = useState<Row | null>(null);
+  const [modalBuscarId, setModalBuscarId] = useState(false);
+  const [buscaIdInput, setBuscaIdInput] = useState("");
   const [modalEditar, setModalEditar] = useState<Row | null>(null);
   const [modalConvocar, setModalConvocar] = useState<Row | null>(null);
   const [selecionadosConvocar, setSelecionadosConvocar] = useState<number[]>([]);
@@ -170,6 +172,22 @@ export default function JobsPage() {
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Falha ao desvincular o freelancer."));
     }
+  };
+
+  const handleBuscarPorId = () => {
+    const id = buscaIdInput.trim();
+    if (!id) {
+      toast.error("Informe o ID da vaga.");
+      return;
+    }
+    const found = allRows.find((r) => r.id === id);
+    if (!found) {
+      toast.error("Vaga não encontrada com este ID.");
+      return;
+    }
+    setModalDetalhes(found);
+    setModalBuscarId(false);
+    setBuscaIdInput("");
   };
 
   const handleConvocar = () => {
@@ -263,10 +281,20 @@ export default function JobsPage() {
         title="Vagas / Jobs"
         description="Gerencie as vagas e solicitações de freelancers"
         action={
-          <Button className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium">
-            <Plus className="w-4 h-4 mr-2" />
-            Criar Job
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setModalBuscarId(true)}
+              className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium"
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Buscar por ID
+            </Button>
+            <Button className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium">
+              <Plus className="w-4 h-4 mr-2" />
+              Criar Job
+            </Button>
+          </div>
         }
       />
 
@@ -924,6 +952,67 @@ export default function JobsPage() {
             </Button>
             <Button className="bg-[#eca826] text-white hover:bg-[#d4951e]" onClick={() => { toast.success("Vaga atualizada com sucesso!"); setModalEditar(null); }}>
               Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Buscar Vaga por ID */}
+      <Dialog
+        open={modalBuscarId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setModalBuscarId(false);
+            setBuscaIdInput("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogClose
+            onClick={() => {
+              setModalBuscarId(false);
+              setBuscaIdInput("");
+            }}
+          />
+          <DialogHeader>
+            <DialogTitle>Buscar vaga por ID</DialogTitle>
+            <DialogDescription>
+              Informe o ID da vaga para abrir os detalhes completos.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <label className="block text-sm font-medium text-[#1d1d1b] mb-1">
+              ID da vaga <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={buscaIdInput}
+              onChange={(e) => setBuscaIdInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleBuscarPorId();
+              }}
+              autoFocus
+              placeholder="Cole aqui o ID da vaga"
+              className="w-full rounded-lg border border-[#e5e5e5] px-3 py-2 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setModalBuscarId(false);
+                setBuscaIdInput("");
+              }}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleBuscarPorId}
+              className="bg-[#eca826] text-white hover:bg-[#d4951e]"
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Buscar
             </Button>
           </DialogFooter>
         </DialogContent>
