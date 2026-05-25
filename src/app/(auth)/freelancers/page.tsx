@@ -467,6 +467,7 @@ export default function FreelancersPage() {
         data={rows}
         searchPlaceholder="Buscar por nome, email ou telefone..."
         controlledSearch={{ value: search, onChange: setSearch }}
+        isFetching={isFetching}
         filters={
           <div className="flex flex-wrap items-center gap-2">
             <FilterSelect value={estadoFilter} onChange={setEstadoFilter} options={estadoOptions} placeholder="Estado" />
@@ -493,9 +494,6 @@ export default function FreelancersPage() {
               >
                 Limpar filtros
               </button>
-            )}
-            {isFetching && (
-              <Loader2 className="h-4 w-4 animate-spin text-[#eca826]" />
             )}
           </div>
         }

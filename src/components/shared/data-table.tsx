@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Loader2 } from "lucide-react";
 
 interface Column<T> {
   header: string;
@@ -20,6 +20,7 @@ interface DataTableProps<T> {
   footer?: React.ReactNode;
   defaultSort?: { index: number; direction: "asc" | "desc" };
   controlledSearch?: { value: string; onChange: (v: string) => void };
+  isFetching?: boolean;
 }
 
 type SortState = { index: number; direction: "asc" | "desc" };
@@ -45,6 +46,7 @@ export function DataTable<T extends { id?: string | number }>({
   footer,
   defaultSort,
   controlledSearch,
+  isFetching = false,
 }: DataTableProps<T>) {
   const [internalSearch, setInternalSearch] = useState("");
   const [sort, setSort] = useState<SortState | null>(defaultSort ?? null);
@@ -98,8 +100,12 @@ export function DataTable<T extends { id?: string | number }>({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="relative overflow-x-auto">
+        <table
+          className={`w-full text-sm transition-[filter,opacity] duration-200 ${
+            isFetching ? "blur-[2px] opacity-60 pointer-events-none" : ""
+          }`}
+        >
           <thead>
             <tr className="border-b border-[#e5e5e5]">
               {columns.map((col, i) => {
@@ -163,6 +169,14 @@ export function DataTable<T extends { id?: string | number }>({
             )}
           </tbody>
         </table>
+        {isFetching && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 border border-[#e5e5e5] shadow-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-[#eca826]" />
+              <span className="text-xs font-medium text-[#737373]">Carregando…</span>
+            </div>
+          </div>
+        )}
       </div>
       {footer && (
         <div className="px-4 py-3 border-t border-[#e5e5e5]">{footer}</div>
