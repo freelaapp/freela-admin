@@ -41,6 +41,11 @@ const freelancersDisponiveis = [
 const formatDate = formatVacancyDate;
 const formatTime = formatVacancyTime;
 
+function formatCents(cents: number | null | undefined): string | null {
+  if (cents == null) return null;
+  return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
+}
+
 const PIX_KEY_TYPE_LABELS: Record<string, string> = {
   CPF: "CPF",
   CNPJ: "CNPJ",
@@ -471,8 +476,19 @@ export default function JobsPage() {
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.preenchidas}</p>
                 </div>
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
-                  <p className="text-[#737373]">Valor/FL</p>
+                  <p className="text-[#737373]">Contratante pagou</p>
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.valor}</p>
+                  {modalDetalhes.raw?.platformFeeInCents != null && (
+                    <p className="text-[10px] text-[#737373] mt-0.5">
+                      Plataforma: {formatCents(modalDetalhes.raw.platformFeeInCents)}
+                    </p>
+                  )}
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-green-700 text-xs">Freelancer recebe</p>
+                  <p className="font-semibold text-green-900">
+                    {formatCents(modalDetalhes.raw?.freelancerAmountInCents) ?? "—"}
+                  </p>
                 </div>
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
                   <p className="text-[#737373]">Data</p>

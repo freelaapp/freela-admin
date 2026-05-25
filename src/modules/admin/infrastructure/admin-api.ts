@@ -171,6 +171,8 @@ export interface VacancyItem {
   providerPhone?: string | null;
   providerEmail?: string | null;
   providerPixKeys?: ProviderPixKey[];
+  freelancerAmountInCents?: number | null;
+  platformFeeInCents?: number | null;
 }
 
 export interface ProviderPixKey {
