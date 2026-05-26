@@ -216,6 +216,29 @@ export async function getVacancyCandidacies(vacancyId: string): Promise<VacancyC
   return res.data.data;
 }
 
+export interface VacancyFeedbackEntry {
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  authorName: string | null;
+}
+
+export interface VacancyFeedbacksResponse {
+  jobId: string | null;
+  jobStatus: string | null;
+  /** Avaliação do contratante sobre o freelancer. */
+  contractor: VacancyFeedbackEntry | null;
+  /** Avaliação do freelancer sobre o contratante. */
+  provider: VacancyFeedbackEntry | null;
+}
+
+export async function getVacancyFeedbacks(
+  vacancyId: string,
+): Promise<VacancyFeedbacksResponse> {
+  const res = await adminApi.get(`/vacancies/${vacancyId}/feedbacks`);
+  return res.data.data;
+}
+
 export interface AdminCancelVacancyResult {
   vacancyId: string;
   refundAmount: number;
