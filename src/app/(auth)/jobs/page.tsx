@@ -194,6 +194,7 @@ export default function JobsPage() {
     | "inProgress"
     | "completedReviewed"
     | "completedAwaitingReview"
+    | "lost"
     | "cancelled"
   >("all");
 
@@ -227,7 +228,7 @@ export default function JobsPage() {
   const allRows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
   const rows =
     statusFilter === "all"
-      ? allRows.filter((r) => r.bucket !== "lost")
+      ? allRows
       : allRows.filter((r) => r.bucket === statusFilter);
   const contractorMap = new Map(contractors?.map((c) => [c.id, c]));
 
@@ -443,7 +444,7 @@ export default function JobsPage() {
                 [
                   {
                     key: "all",
-                    label: `Todas (${allRows.filter((r) => r.bucket !== "lost").length})`,
+                    label: `Todas (${allRows.length})`,
                   },
                   {
                     key: "open",
@@ -464,6 +465,10 @@ export default function JobsPage() {
                   {
                     key: "completedAwaitingReview",
                     label: `Concluídas s/ avaliação (${allRows.filter((r) => r.bucket === "completedAwaitingReview").length})`,
+                  },
+                  {
+                    key: "lost",
+                    label: `Perdidas (${allRows.filter((r) => r.bucket === "lost").length})`,
                   },
                   {
                     key: "cancelled",
