@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search } from "lucide-react";
+import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -119,6 +119,7 @@ function mapVacancyToRow(v: VacancyItem) {
     cidade: v.address || "N/A",
     cargo: v.serviceType,
     qtd: 1,
+    candidatos: v.candidacyCount ?? 0,
     preenchidas: v.status === "CLOSED" ? 1 : 0,
     valor: `R$ ${(v.payment / 100).toFixed(2).replace(".", ",")}`,
     data: formatDate(v.date),
@@ -333,6 +334,17 @@ export default function JobsPage() {
     { header: "Lugar", accessor: "cidade" as const, className: "hidden md:table-cell", sortable: true, sortAccessor: (r: Row) => r.cidade },
     { header: "Cargo", accessor: "cargo" as const, sortable: true, sortAccessor: (r: Row) => r.cargo },
     { header: "Qtd", accessor: "qtd" as const },
+    {
+      header: "Candidatos",
+      accessor: (row: Row) => (
+        <span className="inline-flex items-center gap-1.5">
+          <Users className="w-4 h-4 text-[#737373]" />
+          {row.candidatos}
+        </span>
+      ),
+      sortable: true,
+      sortAccessor: (r: Row) => r.candidatos,
+    },
     {
       header: "Valor/FL",
       accessor: "valor" as const,

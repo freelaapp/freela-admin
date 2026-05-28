@@ -173,6 +173,8 @@ export interface VacancyItem {
   providerPixKeys?: ProviderPixKey[];
   freelancerAmountInCents?: number | null;
   platformFeeInCents?: number | null;
+  /** Quantidade de freelancers que se candidataram à vaga. */
+  candidacyCount?: number;
   /**
    * Job vinculado à vaga (presente apenas quando há job criado — pós-pagamento).
    * Backend retorna apenas no endpoint /closed-vacancies.
