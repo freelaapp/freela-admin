@@ -16,6 +16,7 @@ import {
   BarChart3,
   Shield,
   UserPlus,
+  Handshake,
   MessageCircle,
   Settings,
   Bell,
@@ -50,6 +51,12 @@ const navItems: NavItem[] = [
     label: "Recrutadores",
     icon: UserPlus,
     path: "/usuarios/recrutadores",
+    superAdminOnly: true,
+  },
+  {
+    label: "Consultores",
+    icon: Handshake,
+    path: "/consultores",
     superAdminOnly: true,
   },
   {
