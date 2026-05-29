@@ -106,6 +106,10 @@ export default function ConsultoresPage() {
       toast.error("Informe o nome do consultor.");
       return;
     }
+    if (!form.email.trim()) {
+      toast.error("Informe o e-mail (login do consultor). A senha temporária é enviada nele.");
+      return;
+    }
 
     const rate = form.commissionRate.trim() ? Number(form.commissionRate.replace(",", ".")) : undefined;
     if (rate !== undefined && (Number.isNaN(rate) || rate < 0 || rate > 100)) {
@@ -353,7 +357,7 @@ export default function ConsultoresPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email (login do consultor) *</Label>
               <Input
                 id="email"
                 type="email"
