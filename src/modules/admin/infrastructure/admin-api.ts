@@ -185,6 +185,8 @@ export interface VacancyItem {
     hasContractorFeedback?: boolean;
     hasProviderFeedback?: boolean;
   } | null;
+  /** Consultor que indicou o contratante desta vaga (null quando não indicado). */
+  referringConsultant?: { id: string; name: string; code: string } | null;
 }
 
 export interface ProviderPixKey {
@@ -193,13 +195,17 @@ export interface ProviderPixKey {
   isDefault: boolean;
 }
 
-export async function getAdminOpenVacancies(): Promise<VacancyItem[]> {
-  const res = await adminApi.get("/open-vacancies");
+export async function getAdminOpenVacancies(consultantId?: string): Promise<VacancyItem[]> {
+  const res = await adminApi.get("/open-vacancies", {
+    params: consultantId ? { consultantId } : undefined,
+  });
   return res.data.data;
 }
 
-export async function getAdminClosedVacancies(): Promise<VacancyItem[]> {
-  const res = await adminApi.get("/closed-vacancies");
+export async function getAdminClosedVacancies(consultantId?: string): Promise<VacancyItem[]> {
+  const res = await adminApi.get("/closed-vacancies", {
+    params: consultantId ? { consultantId } : undefined,
+  });
   return res.data.data;
 }
 
@@ -275,10 +281,10 @@ export async function adminRemoveCandidacy(
   return res.data.data;
 }
 
-export async function getAdminAllVacancies(): Promise<VacancyItem[]> {
+export async function getAdminAllVacancies(consultantId?: string): Promise<VacancyItem[]> {
   const [open, closed] = await Promise.all([
-    getAdminOpenVacancies(),
-    getAdminClosedVacancies(),
+    getAdminOpenVacancies(consultantId),
+    getAdminClosedVacancies(consultantId),
   ]);
   return [...open, ...closed];
 }

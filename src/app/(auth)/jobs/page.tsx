@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminVacancies } from "@/modules/admin/application/use-admin-vacancies";
 import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
+import { useAdminConsultants } from "@/modules/admin/application/use-admin-consultants";
+import { useAuth } from "@/modules/auth/application/use-auth";
 import { useVacancyCandidacies } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
 import { useAdminCancelVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
@@ -127,6 +129,7 @@ function mapVacancyToRow(v: VacancyItem) {
     status: mapVacancyStatus(v.status),
     bucket: resolveVacancyBucket(v),
     providerName: v.providerName ?? null,
+    consultor: v.referringConsultant?.name ?? null,
     raw: v,
   };
 }
@@ -184,8 +187,14 @@ const tabs = ["Todas as Vagas", "Vagas Urgentes"] as const;
 type Tab = typeof tabs[number];
 
 export default function JobsPage() {
-  const { data: vacancies, isLoading, isError } = useAdminVacancies();
+  const { isSuperAdmin } = useAuth();
+  const [selectedConsultantId, setSelectedConsultantId] = useState<string>("");
+  const { data: vacancies, isLoading, isError } = useAdminVacancies(
+    selectedConsultantId || undefined,
+  );
   const { data: contractors } = useAdminContractors();
+  // Dropdown de consultor é exclusivo do super-admin (mesma regra da tela de consultores).
+  const { data: consultants } = useAdminConsultants();
   const [tab, setTab] = useState<Tab>("Todas as Vagas");
   const [enviando, setEnviando] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<
@@ -333,6 +342,22 @@ export default function JobsPage() {
     { header: "Empresa", accessor: "empresa" as const, sortable: true, sortAccessor: (r: Row) => r.empresa },
     { header: "Lugar", accessor: "cidade" as const, className: "hidden md:table-cell", sortable: true, sortAccessor: (r: Row) => r.cidade },
     { header: "Cargo", accessor: "cargo" as const, sortable: true, sortAccessor: (r: Row) => r.cargo },
+    ...(isSuperAdmin
+      ? [
+          {
+            header: "Consultor",
+            accessor: (row: Row) =>
+              row.consultor ? (
+                <span className="text-[#1d1d1b]">{row.consultor}</span>
+              ) : (
+                <span className="text-[#a3a3a3]">—</span>
+              ),
+            className: "hidden md:table-cell",
+            sortable: true,
+            sortAccessor: (r: Row) => r.consultor ?? "",
+          },
+        ]
+      : []),
     { header: "Qtd", accessor: "qtd" as const },
     {
       header: "Candidatos",
@@ -451,7 +476,28 @@ export default function JobsPage() {
           searchKey="empresa"
           defaultSort={{ index: 5, direction: "desc" }}
           filters={
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-col gap-3">
+              {isSuperAdmin && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="consultor-filter" className="text-xs font-medium text-[#737373]">
+                    Consultor:
+                  </label>
+                  <select
+                    id="consultor-filter"
+                    value={selectedConsultantId}
+                    onChange={(e) => setSelectedConsultantId(e.target.value)}
+                    className="rounded-lg border border-[#e5e5e5] bg-white px-3 py-1.5 text-xs font-medium text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+                  >
+                    <option value="">Todos os consultores</option>
+                    {consultants?.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="flex gap-2 flex-wrap">
               {(
                 [
                   {
@@ -500,6 +546,7 @@ export default function JobsPage() {
                   {f.label}
                 </button>
               ))}
+              </div>
             </div>
           }
         />
