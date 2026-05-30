@@ -17,7 +17,6 @@ import {
   DollarSign,
   BarChart3,
   Shield,
-  UserPlus,
   Handshake,
   MessageCircle,
   Settings,
@@ -51,12 +50,6 @@ const navItems: NavItem[] = [
   { label: "Financeiro", icon: DollarSign, path: "/financeiro" },
   { label: "Relatórios", icon: BarChart3, path: "/relatorios" },
   { label: "Usuários", icon: Shield, path: "/usuarios" },
-  {
-    label: "Recrutadores",
-    icon: UserPlus,
-    path: "/usuarios/recrutadores",
-    superAdminOnly: true,
-  },
   {
     label: "Consultores",
     icon: Handshake,

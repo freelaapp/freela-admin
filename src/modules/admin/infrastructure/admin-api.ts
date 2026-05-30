@@ -395,33 +395,4 @@ export async function getProviderHistory(providerId: string): Promise<ProviderHi
   return res.data.data;
 }
 
-// ─── Recruiters ────────────────────────────────────────────────────────────
-
-export interface RecruiterItem {
-  id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  createdAt: string;
-  contractorsCount: number;
-}
-
-export interface CreateRecruiterPayload {
-  name: string;
-  email: string;
-  phone: string;
-}
-
-export async function getAdminRecruiters(): Promise<RecruiterItem[]> {
-  const res = await adminApi.get("/recruiters");
-  return res.data.data;
-}
-
-export async function createAdminRecruiter(
-  payload: CreateRecruiterPayload,
-): Promise<RecruiterItem> {
-  const res = await adminApi.post("/recruiters", payload);
-  return res.data.data;
-}
-
 export default adminApi;
