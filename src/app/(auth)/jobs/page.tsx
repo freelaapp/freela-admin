@@ -136,6 +136,144 @@ function mapVacancyToRow(v: VacancyItem) {
 
 type Row = ReturnType<typeof mapVacancyToRow>;
 
+// ─── Roadmap da vaga ────────────────────────────────────────────────────────
+// Caminho feliz da vaga, derivado apenas dos dados já disponíveis no VacancyItem
+// (status da vaga + status do job + feedbacks + candidaturas). Sem chamadas extras.
+const ROADMAP_STEPS = [
+  { key: "created", label: "Vaga criada", hint: "Publicada e aberta a candidaturas" },
+  { key: "candidates", label: "Candidaturas recebidas", hint: "Freelancers se candidataram à vaga" },
+  { key: "hired", label: "Freelancer contratado", hint: "Contratante escolheu um freelancer" },
+  { key: "paid", label: "Pagamento confirmado · agendada", hint: "Job agendado após o pagamento" },
+  { key: "inProgress", label: "Serviço em andamento", hint: "Freelancer fez check-in no local" },
+  { key: "completed", label: "Serviço concluído", hint: "Check-out realizado" },
+  { key: "reviewed", label: "Avaliações concluídas", hint: "Contratante e freelancer se avaliaram" },
+] as const;
+
+// Índice do passo mais avançado que a vaga já alcançou no caminho feliz.
+function resolveRoadmapReached(v: VacancyItem): number {
+  const status = v.status?.toUpperCase();
+  const jobStatus = v.job?.status?.toUpperCase();
+  const jobExists = Boolean(jobStatus);
+  const hasCandidates = (v.candidacyCount ?? 0) > 0;
+  const isClosed = status === "CLOSED";
+  const reviewedBoth = Boolean(v.job?.hasContractorFeedback && v.job?.hasProviderFeedback);
+
+  let reached = 0; // sempre criada
+  if (hasCandidates || isClosed || jobExists) reached = 1;
+  if (isClosed || jobExists) reached = 2;
+  if (jobExists) reached = 3; // job só é criado pós-pagamento
+  if (jobStatus === "IN_PROGRESS" || jobStatus === "COMPLETED") reached = 4;
+  if (jobStatus === "COMPLETED") reached = 5;
+  if (reviewedBoth) reached = 6;
+  return reached;
+}
+
+type RoadmapNodeState = "done" | "current" | "pending" | "cancelled" | "lost";
+
+function VacancyRoadmap({ vacancy }: { vacancy: VacancyItem }) {
+  const reached = resolveRoadmapReached(vacancy);
+  const bucket = resolveVacancyBucket(vacancy);
+  const terminal =
+    bucket === "cancelled" ? "cancelled" : bucket === "lost" ? "lost" : null;
+
+  // Caminho terminal (cancelada/perdida) corta o caminho feliz no passo alcançado.
+  const lastStep = terminal ? reached : ROADMAP_STEPS.length - 1;
+
+  const nodes: { key: string; label: string; hint: string; state: RoadmapNodeState }[] =
+    ROADMAP_STEPS.slice(0, lastStep + 1).map((step, i) => ({
+      key: step.key,
+      label: step.label,
+      hint: step.hint,
+      state: i < reached ? "done" : i === reached && !terminal ? "current" : "done",
+    }));
+
+  if (terminal === "cancelled") {
+    nodes.push({
+      key: "cancelled",
+      label: "Vaga cancelada",
+      hint: "Fluxo encerrado · estorno processado",
+      state: "cancelled",
+    });
+  } else if (terminal === "lost") {
+    nodes.push({
+      key: "lost",
+      label: "Expirou sem contratação",
+      hint: "O prazo da vaga passou sem freelancer contratado",
+      state: "lost",
+    });
+  }
+
+  return (
+    <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
+      <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
+        Roadmap da vaga
+      </p>
+      <ol className="mt-1">
+        {nodes.map((node, i) => {
+          const isLast = i === nodes.length - 1;
+          return (
+            <li key={node.key} className="relative flex gap-3 pb-3 last:pb-0">
+              {!isLast && (
+                <span
+                  className={`absolute left-[11px] top-6 bottom-0 w-px ${
+                    node.state === "done" ? "bg-[#eca826]" : "bg-[#e5e5e5]"
+                  }`}
+                />
+              )}
+              <span
+                className={`relative z-10 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border ${
+                  node.state === "done"
+                    ? "bg-[#eca826] border-[#eca826]"
+                    : node.state === "current"
+                    ? "bg-white border-[#eca826] ring-2 ring-[#eca826]/30"
+                    : node.state === "cancelled"
+                    ? "bg-red-500 border-red-500"
+                    : node.state === "lost"
+                    ? "bg-[#a3a3a3] border-[#a3a3a3]"
+                    : "bg-white border-[#e5e5e5]"
+                }`}
+              >
+                {node.state === "done" && <Check className="h-3 w-3 text-white" />}
+                {node.state === "current" && (
+                  <span className="h-2 w-2 rounded-full bg-[#eca826] animate-pulse" />
+                )}
+                {node.state === "cancelled" && <XCircle className="h-3.5 w-3.5 text-white" />}
+                {node.state === "lost" && <Clock className="h-3 w-3 text-white" />}
+                {node.state === "pending" && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#d4d4d4]" />
+                )}
+              </span>
+              <div className="pt-0.5">
+                <p
+                  className={`text-sm leading-tight ${
+                    node.state === "current"
+                      ? "font-semibold text-[#1d1d1b]"
+                      : node.state === "cancelled"
+                      ? "font-semibold text-red-600"
+                      : node.state === "lost"
+                      ? "font-semibold text-[#737373]"
+                      : node.state === "done"
+                      ? "font-medium text-[#1d1d1b]"
+                      : "text-[#a3a3a3]"
+                  }`}
+                >
+                  {node.label}
+                  {node.state === "current" && (
+                    <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-[#eca826]">
+                      Estágio atual
+                    </span>
+                  )}
+                </p>
+                <p className="text-[11px] text-[#737373]">{node.hint}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 function FeedbackPanel({
   title,
   entry,
@@ -809,6 +947,8 @@ export default function JobsPage() {
                   <div className="mt-1"><StatusBadge status={modalDetalhes.status} /></div>
                 </div>
               </div>
+
+              <VacancyRoadmap vacancy={modalDetalhes.raw} />
 
               {modalDetalhes.raw?.id && (() => {
                 const shareUrl = `https://www.freelaservicosapp.com.br/freelancer/vagas/${modalDetalhes.raw.id}`;
