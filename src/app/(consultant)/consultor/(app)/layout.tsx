@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2, LogOut, LayoutDashboard, UserPlus } from "lucide-react";
+import { Loader2, LogOut, LayoutDashboard, UserPlus, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useConsultantAuth } from "@/modules/consultant/application/use-consultant-auth";
 
@@ -43,6 +43,9 @@ export default function ConsultorAppLayout({ children }: { children: React.React
           <nav className="ml-6 flex items-center gap-1">
             <NavLink href="/consultor" active={pathname === "/consultor"} icon={LayoutDashboard}>
               Meus cadastros
+            </NavLink>
+            <NavLink href="/consultor/vagas" active={pathname === "/consultor/vagas"} icon={Briefcase}>
+              Vagas
             </NavLink>
             <NavLink
               href="/consultor/cadastrar"
