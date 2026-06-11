@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -20,12 +21,15 @@ import {
 import {
   useAdminProviders,
   useProvidersFilterOptions,
+  useAdminHardDeleteProvider,
 } from "@/modules/admin/application/use-admin-providers";
+import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { ProviderItem, ProviderHistoryItem } from "@/modules/admin/infrastructure/admin-api";
 import { getProviderHistory } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate } from "@/lib/date.utils";
 
-type ModalType = "view" | "edit" | "ban" | "history" | "cargos" | null;
+type ModalType = "view" | "edit" | "ban" | "history" | "cargos" | "delete" | null;
+const DELETE_CONFIRM_WORD = "EXCLUIR";
 const PAGE_SIZE = 100;
 
 function formatCargo(value: string): string {
@@ -125,6 +129,9 @@ export default function FreelancersPage() {
   const [selectedItem, setSelectedItem] = useState<Row | null>(null);
   const [historyData, setHistoryData] = useState<ProviderHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const hardDelete = useAdminHardDeleteProvider();
 
   const rows: Row[] = (data?.data ?? []).map(mapProviderToRow);
   const total = data?.total ?? 0;
@@ -143,6 +150,10 @@ export default function FreelancersPage() {
     setModalType(type);
     setSelectedItem(item);
     setModalOpen(true);
+    if (type === "delete") {
+      setDeleteReason("");
+      setDeleteConfirm("");
+    }
     if (type === "history") {
       setHistoryLoading(true);
       setHistoryData([]);
@@ -162,6 +173,25 @@ export default function FreelancersPage() {
     setModalType(null);
     setSelectedItem(null);
   };
+
+  const handleHardDelete = async () => {
+    if (!selectedItem) return;
+    const userId = selectedItem.raw.userId;
+    if (!userId) {
+      toast.error("Usuário deste freelancer não encontrado.");
+      return;
+    }
+    try {
+      await hardDelete.mutateAsync({ userId, reason: deleteReason.trim() });
+      toast.success(`${selectedItem.nome} foi excluído permanentemente.`);
+      closeModal();
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível excluir o freelancer."));
+    }
+  };
+
+  const canConfirmDelete =
+    deleteReason.trim().length >= 20 && deleteConfirm.trim().toUpperCase() === DELETE_CONFIRM_WORD;
 
   if (isLoading) {
     return (
@@ -247,6 +277,7 @@ export default function FreelancersPage() {
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
           <button onClick={() => openModal("ban", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Bloquear"><Ban className="w-4 h-4" /></button>
           <button onClick={() => openModal("history", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Histórico"><History className="w-4 h-4" /></button>
+          <button onClick={() => openModal("delete", row)} className="p-1.5 rounded-md hover:bg-red-50 hover:text-red-600 text-red-500 cursor-pointer transition-colors" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /></button>
         </div>
       ),
     },
@@ -442,6 +473,72 @@ export default function FreelancersPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
+            </DialogFooter>
+          </>
+        );
+      case "delete":
+        return (
+          <>
+            <DialogHeader>
+              <DialogTitle><span className="text-red-600">Excluir freelancer permanentemente</span></DialogTitle>
+              <DialogDescription>
+                Esta ação é irreversível e apaga todos os dados do usuário.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+                <ShieldAlert className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <div className="text-sm text-red-700">
+                  <p className="font-medium">Hard delete — sem volta</p>
+                  <p className="mt-1">
+                    <strong>{selectedItem.nome}</strong> e tudo vinculado (perfis, vagas, jobs,
+                    candidaturas, avaliações e chat) serão removidos do banco. Repasses já
+                    liquidados são mantidos para rastro financeiro. A exclusão é bloqueada se houver
+                    job em andamento ou pagamento/repasse pendente.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="delete-reason">Motivo da exclusão (mín. 20 caracteres)</Label>
+                <textarea
+                  id="delete-reason"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  rows={3}
+                  placeholder="Descreva o motivo desta exclusão definitiva..."
+                  className="w-full rounded-lg border border-[#e5e5e5] bg-[#f7f7f7] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400/30 resize-none"
+                />
+                <p className="text-xs text-[#a3a3a3]">{deleteReason.trim().length}/20</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="delete-confirm">
+                  Digite <span className="font-bold text-red-600">{DELETE_CONFIRM_WORD}</span> para confirmar
+                </Label>
+                <Input
+                  id="delete-confirm"
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  placeholder={DELETE_CONFIRM_WORD}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={closeModal} disabled={hardDelete.isPending} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
+              <Button
+                onClick={handleHardDelete}
+                disabled={!canConfirmDelete || hardDelete.isPending}
+                className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {hardDelete.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Excluindo...
+                  </>
+                ) : (
+                  "Excluir permanentemente"
+                )}
+              </Button>
             </DialogFooter>
           </>
         );
