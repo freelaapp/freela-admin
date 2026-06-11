@@ -395,4 +395,18 @@ export async function getProviderHistory(providerId: string): Promise<ProviderHi
   return res.data.data;
 }
 
+// ─── Hard delete (permanent, irreversible) ───────────────────────────────────
+
+/**
+ * Permanently deletes a user (hard delete). Hits the global admin route, not the
+ * bars-restaurants-scoped base — so we pass an absolute URL to override baseURL
+ * while still going through the auth interceptor.
+ * Backend returns 422 when blocked (active job / pending payment / pending repasse).
+ */
+export async function adminHardDeleteUser(userId: string, reason: string): Promise<void> {
+  await adminApi.delete(`${API_BASE_URL}/v1/admin/users/${userId}/hard-delete`, {
+    data: { reason },
+  });
+}
+
 export default adminApi;
