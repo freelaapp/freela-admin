@@ -27,6 +27,7 @@ import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-canc
 import type { ProviderItem, ProviderHistoryItem } from "@/modules/admin/infrastructure/admin-api";
 import { getProviderHistory } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate } from "@/lib/date.utils";
+import { formatPhoneBr } from "@/lib/utils";
 
 type ModalType = "view" | "edit" | "ban" | "history" | "cargos" | "delete" | null;
 const DELETE_CONFIRM_WORD = "EXCLUIR";
@@ -44,7 +45,8 @@ function mapProviderToRow(p: ProviderItem) {
   return {
     id: p.id,
     nome: p.name || (p.jobTitle ? `Profissional (${p.jobTitle})` : "Sem nome"),
-    telefone: p.phone || "N/A",
+    // formatPhoneBr: phone vem em E.164 (+55...) — exibe nacional
+    telefone: p.phone ? formatPhoneBr(p.phone) : "N/A",
     cidade: p.city || "N/A",
     estado: p.uf || "N/A",
     cargo: p.jobTitle || "N/A",

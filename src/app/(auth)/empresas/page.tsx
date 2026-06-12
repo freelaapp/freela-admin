@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
+import { formatPhoneBr } from "@/lib/utils";
 
 type ModalType = "view" | "edit" | null;
 
@@ -27,7 +28,8 @@ function mapContractorToRow(c: ContractorItem) {
     id: c.id,
     nome: c.companyName || c.contactName || "Sem nome",
     responsavel: c.contactName,
-    telefone: c.contactPhone || "N/A",
+    // formatPhoneBr: contactPhone pode vir em E.164 (+55...) — exibe nacional
+    telefone: c.contactPhone ? formatPhoneBr(c.contactPhone) : "N/A",
     cidade: c.city || "N/A",
     segmento: c.segment || "N/A",
     jobs: c.jobs,
