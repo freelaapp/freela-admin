@@ -397,15 +397,23 @@ export async function getProviderHistory(providerId: string): Promise<ProviderHi
 
 // ─── Hard delete (permanent, irreversible) ───────────────────────────────────
 
+/** Tipo de conta — define a redação da notificação de exclusão (empresa vs freelancer). */
+export type HardDeleteAccountType = "contractor" | "freelancer";
+
 /**
  * Permanently deletes a user (hard delete). Hits the global admin route, not the
  * bars-restaurants-scoped base — so we pass an absolute URL to override baseURL
  * while still going through the auth interceptor.
+ * `accountType` tailors the user-facing notification (company vs freelancer).
  * Backend returns 422 when blocked (active job / pending payment / pending repasse).
  */
-export async function adminHardDeleteUser(userId: string, reason: string): Promise<void> {
+export async function adminHardDeleteUser(
+  userId: string,
+  reason: string,
+  accountType?: HardDeleteAccountType,
+): Promise<void> {
   await adminApi.delete(`${API_BASE_URL}/v1/admin/users/${userId}/hard-delete`, {
-    data: { reason },
+    data: { reason, ...(accountType ? { accountType } : {}) },
   });
 }
 

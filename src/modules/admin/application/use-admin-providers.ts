@@ -34,7 +34,7 @@ export function useAdminHardDeleteProvider() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
-      adminHardDeleteUser(userId, reason),
+      adminHardDeleteUser(userId, reason, "freelancer"),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "providers"] });
     },

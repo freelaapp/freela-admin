@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2 } from "lucide-react";
+import { Plus, Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -17,11 +18,16 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
+import {
+  useAdminContractors,
+  useAdminHardDeleteContractor,
+} from "@/modules/admin/application/use-admin-contractors";
+import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
 import { formatPhoneBr } from "@/lib/utils";
 
-type ModalType = "view" | "edit" | null;
+type ModalType = "view" | "edit" | "delete" | null;
+const DELETE_CONFIRM_WORD = "EXCLUIR";
 
 function mapContractorToRow(c: ContractorItem) {
   return {
@@ -47,6 +53,9 @@ export default function EmpresasPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedItem, setSelectedItem] = useState<Row | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const hardDelete = useAdminHardDeleteContractor();
 
   const rows: Row[] = contractors?.map(mapContractorToRow) ?? [];
 
@@ -54,6 +63,10 @@ export default function EmpresasPage() {
     setModalType(type);
     setSelectedItem(item);
     setModalOpen(true);
+    if (type === "delete") {
+      setDeleteReason("");
+      setDeleteConfirm("");
+    }
   };
 
   const closeModal = () => {
@@ -61,6 +74,25 @@ export default function EmpresasPage() {
     setModalType(null);
     setSelectedItem(null);
   };
+
+  const handleHardDelete = async () => {
+    if (!selectedItem) return;
+    const userId = selectedItem.raw.userId;
+    if (!userId) {
+      toast.error("Usuário deste contratante não encontrado.");
+      return;
+    }
+    try {
+      await hardDelete.mutateAsync({ userId, reason: deleteReason.trim() });
+      toast.success(`${selectedItem.nome} foi excluído permanentemente.`);
+      closeModal();
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível excluir o contratante."));
+    }
+  };
+
+  const canConfirmDelete =
+    deleteReason.trim().length >= 20 && deleteConfirm.trim().toUpperCase() === DELETE_CONFIRM_WORD;
 
   if (isLoading) {
     return (
@@ -105,6 +137,7 @@ export default function EmpresasPage() {
         <div className="flex items-center gap-1">
           <button onClick={() => openModal("view", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
+          <button onClick={() => openModal("delete", row)} className="p-1.5 rounded-md hover:bg-red-50 hover:text-red-600 text-red-500 cursor-pointer transition-colors" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /></button>
         </div>
       ),
     },
@@ -206,6 +239,72 @@ export default function EmpresasPage() {
             <DialogFooter>
               <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
               <Button onClick={closeModal} className="bg-[#eca826] text-white hover:bg-[#d4951e]">Salvar alterações</Button>
+            </DialogFooter>
+          </>
+        );
+      case "delete":
+        return (
+          <>
+            <DialogHeader>
+              <DialogTitle><span className="text-red-600">Excluir contratante permanentemente</span></DialogTitle>
+              <DialogDescription>
+                Esta ação é irreversível e apaga todos os dados do usuário.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+                <ShieldAlert className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <div className="text-sm text-red-700">
+                  <p className="font-medium">Hard delete — sem volta</p>
+                  <p className="mt-1">
+                    <strong>{selectedItem.nome}</strong> e tudo vinculado (perfis, vagas, jobs,
+                    candidaturas, avaliações e chat) serão removidos do banco. Repasses já
+                    liquidados são mantidos para rastro financeiro. A exclusão é bloqueada se houver
+                    job em andamento ou pagamento/repasse pendente.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="delete-reason">Motivo da exclusão (mín. 20 caracteres)</Label>
+                <textarea
+                  id="delete-reason"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  rows={3}
+                  placeholder="Descreva o motivo desta exclusão definitiva..."
+                  className="w-full rounded-lg border border-[#e5e5e5] bg-[#f7f7f7] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400/30 resize-none"
+                />
+                <p className="text-xs text-[#a3a3a3]">{deleteReason.trim().length}/20</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="delete-confirm">
+                  Digite <span className="font-bold text-red-600">{DELETE_CONFIRM_WORD}</span> para confirmar
+                </Label>
+                <Input
+                  id="delete-confirm"
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  placeholder={DELETE_CONFIRM_WORD}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={closeModal} disabled={hardDelete.isPending} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
+              <Button
+                onClick={handleHardDelete}
+                disabled={!canConfirmDelete || hardDelete.isPending}
+                className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {hardDelete.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Excluindo...
+                  </>
+                ) : (
+                  "Excluir permanentemente"
+                )}
+              </Button>
             </DialogFooter>
           </>
         );
