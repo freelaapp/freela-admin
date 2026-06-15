@@ -403,9 +403,15 @@ export default function JobsPage() {
         vacancyId: cancelTarget.raw.id,
         reason: cancelReason.trim(),
       });
-      const valor = (result.refundAmount / 100).toFixed(2).replace(".", ",");
-      const tipo = result.refundType === "FULL" ? "integral" : "parcial (50%)";
-      toast.success(`Vaga cancelada. Estorno ${tipo} de R$ ${valor} processado.`);
+      // Vaga sem pagamento confirmado (ex.: nenhum freelancer aceito) cancela sem
+      // estorno — não fala de pagamento. Só mostra o estorno quando houve devolução.
+      if (result.refundAmount > 0) {
+        const valor = (result.refundAmount / 100).toFixed(2).replace(".", ",");
+        const tipo = result.refundType === "FULL" ? "integral" : "parcial (50%)";
+        toast.success(`Vaga cancelada. Estorno ${tipo} de R$ ${valor} processado.`);
+      } else {
+        toast.success("Vaga cancelada com sucesso.");
+      }
       setCancelTarget(null);
       setCancelReason("");
       setModalDetalhes(null);
