@@ -250,7 +250,7 @@ export async function getVacancyFeedbacks(
 export interface AdminCancelVacancyResult {
   vacancyId: string;
   refundAmount: number;
-  refundType: "FULL" | "PARTIAL_50";
+  refundType: "FULL" | "PARTIAL_50" | "NONE";
   cancelledCandidacies: number;
 }
 
