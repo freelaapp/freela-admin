@@ -83,6 +83,7 @@ export interface ContractorItem {
   jobs: number;
   ticketMedio: number | null;
   avaliacao: number | null;
+  referredByConsultant?: { id: string; name: string; code: string } | null;
 }
 
 export async function getAdminContractors(): Promise<ContractorItem[]> {

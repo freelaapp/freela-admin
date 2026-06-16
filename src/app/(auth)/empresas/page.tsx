@@ -42,6 +42,9 @@ function mapContractorToRow(c: ContractorItem) {
     jobs: c.jobs,
     ticket: c.ticketMedio ? `R$ ${(c.ticketMedio / 100).toFixed(2)}` : "N/A",
     avaliacao: c.avaliacao ?? 0,
+    origem: c.referredByConsultant
+      ? `${c.referredByConsultant.name}${c.referredByConsultant.code ? ` (${c.referredByConsultant.code})` : ""}`
+      : "—",
     status: c.isActive ? ("active" as const) : ("inactive" as const),
     raw: c,
   };
@@ -142,6 +145,7 @@ export default function EmpresasPage() {
     { header: "Telefone", accessor: "telefone" as const, className: "hidden lg:table-cell" },
     { header: "Cidade", accessor: "cidade" as const },
     { header: "Segmento", accessor: "segmento" as const, className: "hidden md:table-cell" },
+    { header: "Origem do cadastro", accessor: "origem" as const, className: "hidden lg:table-cell" },
     { header: "Jobs", accessor: "jobs" as const },
     { header: "Ticket Médio", accessor: "ticket" as const, className: "hidden lg:table-cell" },
     {
@@ -215,6 +219,10 @@ export default function EmpresasPage() {
                   <Star className="w-4 h-4 text-[#eca826]" />
                   {selectedItem.avaliacao > 0 ? `${selectedItem.avaliacao} / 5.0` : "—"}
                 </div>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
+                <User className="w-4 h-4 text-[#737373]" />
+                Origem do cadastro: {selectedItem.origem}
               </div>
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                 Status: <StatusBadge status={selectedItem.status} />
