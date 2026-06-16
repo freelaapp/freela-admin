@@ -90,6 +90,14 @@ export async function getAdminContractors(): Promise<ContractorItem[]> {
   return res.data.data;
 }
 
+export async function updateAdminContractor(
+  id: string,
+  payload: { companyName?: string; segment?: string },
+): Promise<ContractorItem> {
+  const res = await adminApi.patch(`/contractors/${id}`, payload);
+  return res.data.data;
+}
+
 // ─── Providers (Freelancers) ────────────────────────────────────────────────
 
 export interface ProviderItem {

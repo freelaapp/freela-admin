@@ -1,13 +1,33 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAdminContractors, adminHardDeleteUser } from "../infrastructure/admin-api";
+import {
+  getAdminContractors,
+  adminHardDeleteUser,
+  updateAdminContractor,
+} from "../infrastructure/admin-api";
 
 export function useAdminContractors() {
   return useQuery({
     queryKey: ["admin", "contractors"],
     queryFn: getAdminContractors,
     staleTime: 30000,
+  });
+}
+
+export function useAdminUpdateContractor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: { companyName?: string; segment?: string };
+    }) => updateAdminContractor(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "contractors"] });
+    },
   });
 }
 

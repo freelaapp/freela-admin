@@ -21,6 +21,7 @@ import {
 import {
   useAdminContractors,
   useAdminHardDeleteContractor,
+  useAdminUpdateContractor,
 } from "@/modules/admin/application/use-admin-contractors";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
@@ -56,6 +57,8 @@ export default function EmpresasPage() {
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const hardDelete = useAdminHardDeleteContractor();
+  const updateContractor = useAdminUpdateContractor();
+  const [editForm, setEditForm] = useState({ companyName: "", segment: "" });
 
   const rows: Row[] = contractors?.map(mapContractorToRow) ?? [];
 
@@ -66,6 +69,12 @@ export default function EmpresasPage() {
     if (type === "delete") {
       setDeleteReason("");
       setDeleteConfirm("");
+    }
+    if (type === "edit") {
+      setEditForm({
+        companyName: item.raw.companyName ?? "",
+        segment: item.raw.segment ?? "",
+      });
     }
   };
 
@@ -88,6 +97,23 @@ export default function EmpresasPage() {
       closeModal();
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Não foi possível excluir o contratante."));
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedItem) return;
+    try {
+      await updateContractor.mutateAsync({
+        id: selectedItem.id,
+        payload: {
+          companyName: editForm.companyName.trim() || undefined,
+          segment: editForm.segment.trim() || undefined,
+        },
+      });
+      toast.success("Empresa atualizada com sucesso.");
+      closeModal();
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível atualizar a empresa."));
     }
   };
 
@@ -204,41 +230,41 @@ export default function EmpresasPage() {
           <>
             <DialogHeader>
               <DialogTitle>Editar Empresa</DialogTitle>
-              <DialogDescription>Altere os dados da empresa. (Apenas visual)</DialogDescription>
+              <DialogDescription>Edite o nome e o segmento da empresa. (Responsável, telefone e cidade em breve.)</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="nome-emp">Nome da empresa</Label>
-                <Input id="nome-emp" defaultValue={selectedItem.nome} />
+                <Input id="nome-emp" value={editForm.companyName} onChange={(e) => setEditForm((f) => ({ ...f, companyName: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="responsavel">Responsável</Label>
-                <Input id="responsavel" defaultValue={selectedItem.responsavel} />
+                <Input id="responsavel" defaultValue={selectedItem.responsavel} disabled />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="telefone-emp">Telefone</Label>
-                  <Input id="telefone-emp" defaultValue={selectedItem.telefone} />
+                  <Input id="telefone-emp" defaultValue={selectedItem.telefone} disabled />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="cidade-emp">Cidade</Label>
-                  <Input id="cidade-emp" defaultValue={selectedItem.cidade} />
+                  <Input id="cidade-emp" defaultValue={selectedItem.cidade} disabled />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="segmento">Segmento</Label>
-                  <Input id="segmento" defaultValue={selectedItem.segmento} />
+                  <Input id="segmento" value={editForm.segment} onChange={(e) => setEditForm((f) => ({ ...f, segment: e.target.value }))} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="ticket">Ticket Médio</Label>
-                  <Input id="ticket" defaultValue={selectedItem.ticket} />
+                  <Input id="ticket" defaultValue={selectedItem.ticket} disabled />
                 </div>
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
-              <Button onClick={closeModal} className="bg-[#eca826] text-white hover:bg-[#d4951e]">Salvar alterações</Button>
+              <Button onClick={handleSaveEdit} disabled={updateContractor.isPending} className="bg-[#eca826] text-white hover:bg-[#d4951e]">{updateContractor.isPending ? "Salvando..." : "Salvar alterações"}</Button>
             </DialogFooter>
           </>
         );
