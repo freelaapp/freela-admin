@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert } from "lucide-react";
+import { Plus, Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -25,9 +25,13 @@ import {
 } from "@/modules/admin/application/use-admin-contractors";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
+import {
+  useAdminContractorEmployee,
+  useAdminContractorEmployeeMutations,
+} from "@/modules/admin/application/use-admin-contractor-employee";
 import { formatPhoneBr } from "@/lib/utils";
 
-type ModalType = "view" | "edit" | "delete" | null;
+type ModalType = "view" | "edit" | "delete" | "employee" | null;
 const DELETE_CONFIRM_WORD = "EXCLUIR";
 
 function mapContractorToRow(c: ContractorItem) {
@@ -167,6 +171,7 @@ export default function EmpresasPage() {
         <div className="flex items-center gap-1">
           <button onClick={() => openModal("view", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
+          <button onClick={() => openModal("employee", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Gerenciar funcionário" : "Usuário da empresa não encontrado"}><UserCog className="w-4 h-4" /></button>
           <button onClick={() => openModal("delete", row)} className="p-1.5 rounded-md hover:bg-red-50 hover:text-red-600 text-red-500 cursor-pointer transition-colors" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /></button>
         </div>
       ),
@@ -342,6 +347,37 @@ export default function EmpresasPage() {
             </DialogFooter>
           </>
         );
+      case "employee": {
+        const ownerUserId = selectedItem.raw.userId;
+        if (!ownerUserId) {
+          return (
+            <>
+              <DialogHeader>
+                <DialogTitle>Gerenciar funcionário</DialogTitle>
+                <DialogDescription>
+                  Credencial compartilhada da equipe da empresa, restrita ao fluxo de vagas.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                <ShieldAlert className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                <p className="text-sm text-amber-700">
+                  Usuário desta empresa não encontrado. Não é possível gerenciar a credencial de funcionário.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
+              </DialogFooter>
+            </>
+          );
+        }
+        return (
+          <EmployeeManager
+            ownerUserId={ownerUserId}
+            companyName={selectedItem.nome}
+            onClose={closeModal}
+          />
+        );
+      }
       default:
         return null;
     }
@@ -367,5 +403,237 @@ export default function EmpresasPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function EmployeeManager({
+  ownerUserId,
+  companyName,
+  onClose,
+}: {
+  ownerUserId: string;
+  companyName: string;
+  onClose: () => void;
+}) {
+  const { data: employee, isLoading, isError } = useAdminContractorEmployee(ownerUserId, true);
+  const { create, update, rotate, remove } = useAdminContractorEmployeeMutations(ownerUserId);
+
+  // form de criação
+  const [createForm, setCreateForm] = useState({ loginEmail: "", password: "", label: "" });
+  // troca de senha
+  const [newPassword, setNewPassword] = useState("");
+  // confirmação de remoção
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const handleCreate = async () => {
+    const loginEmail = createForm.loginEmail.trim();
+    const password = createForm.password;
+    const label = createForm.label.trim();
+    if (!loginEmail) {
+      toast.error("Informe o e-mail de login.");
+      return;
+    }
+    if (password.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+    try {
+      await create.mutateAsync({ loginEmail, password, label: label || undefined });
+      toast.success("Credencial de funcionário criada.");
+      setCreateForm({ loginEmail: "", password: "", label: "" });
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível criar a credencial."));
+    }
+  };
+
+  const handleToggleActive = async () => {
+    if (!employee) return;
+    try {
+      await update.mutateAsync({ isActive: !employee.isActive });
+      toast.success(employee.isActive ? "Credencial desativada." : "Credencial ativada.");
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível atualizar a credencial."));
+    }
+  };
+
+  const handleRotate = async () => {
+    if (newPassword.length < 6) {
+      toast.error("A nova senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+    try {
+      await rotate.mutateAsync(newPassword);
+      toast.success("Senha atualizada.");
+      setNewPassword("");
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível trocar a senha."));
+    }
+  };
+
+  const handleRemove = async () => {
+    try {
+      await remove.mutateAsync();
+      toast.success("Credencial removida.");
+      setConfirmRemove(false);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível remover a credencial."));
+    }
+  };
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Gerenciar funcionário — {companyName}</DialogTitle>
+        <DialogDescription>
+          Credencial compartilhada da equipe da empresa, restrita ao fluxo de vagas.
+        </DialogDescription>
+      </DialogHeader>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin text-[#eca826]" />
+        </div>
+      ) : isError ? (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+          <ShieldAlert className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+          <p className="text-sm text-red-700">Erro ao carregar a credencial de funcionário.</p>
+        </div>
+      ) : !employee ? (
+        <div className="space-y-4">
+          <p className="text-sm text-[#737373]">
+            Esta empresa ainda não possui uma credencial de funcionário. Crie uma abaixo.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="emp-email">E-mail de login</Label>
+            <Input
+              id="emp-email"
+              type="email"
+              value={createForm.loginEmail}
+              onChange={(e) => setCreateForm((f) => ({ ...f, loginEmail: e.target.value }))}
+              placeholder="equipe@empresa.com.br"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="emp-password">Senha (mín. 6 caracteres)</Label>
+            <Input
+              id="emp-password"
+              type="password"
+              value={createForm.password}
+              onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="emp-label">Apelido (opcional)</Label>
+            <Input
+              id="emp-label"
+              value={createForm.label}
+              onChange={(e) => setCreateForm((f) => ({ ...f, label: e.target.value }))}
+              placeholder="Ex.: Equipe de salão"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose} disabled={create.isPending} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
+            <Button onClick={handleCreate} disabled={create.isPending} className="bg-[#eca826] text-white hover:bg-[#d4951e]">
+              {create.isPending ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando...</>) : "Criar"}
+            </Button>
+          </DialogFooter>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>E-mail de login</Label>
+              <p className="text-sm text-[#1d1d1b] break-all">{employee.loginEmail ?? "—"}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Apelido</Label>
+              <p className="text-sm text-[#1d1d1b]">{employee.label ?? "—"}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <div>
+                <StatusBadge status={employee.isActive ? "active" : "inactive"} />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-[#e5e5e5] pt-4 space-y-1.5">
+            <Label htmlFor="emp-new-password">Trocar senha (mín. 6 caracteres)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="emp-new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+                placeholder="Nova senha"
+              />
+              <Button
+                onClick={handleRotate}
+                disabled={rotate.isPending || newPassword.length < 6}
+                className="bg-[#eca826] text-white hover:bg-[#d4951e] shrink-0"
+              >
+                {rotate.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Trocar senha"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="border-t border-[#e5e5e5] pt-4 flex flex-col gap-3">
+            <Button
+              variant="outline"
+              onClick={handleToggleActive}
+              disabled={update.isPending}
+              className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7]"
+            >
+              {update.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Atualizando...</>
+              ) : employee.isActive ? "Desativar" : "Ativar"}
+            </Button>
+
+            {confirmRemove ? (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+                <ShieldAlert className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <div className="flex-1 text-sm text-red-700">
+                  <p className="font-medium">Remover credencial?</p>
+                  <p className="mt-1">A equipe perderá o acesso compartilhado ao fluxo de vagas.</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      onClick={handleRemove}
+                      disabled={remove.isPending}
+                      className="bg-red-600 text-white hover:bg-red-700"
+                    >
+                      {remove.isPending ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Removendo...</>) : "Confirmar remoção"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmRemove(false)}
+                      disabled={remove.isPending}
+                      className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="destructive"
+                onClick={() => setConfirmRemove(true)}
+                disabled={remove.isPending}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Remover credencial
+              </Button>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
+          </DialogFooter>
+        </div>
+      )}
+    </>
   );
 }
