@@ -271,6 +271,35 @@ export async function adminCancelVacancy(
   return res.data.data;
 }
 
+export interface AdminRestartVacancyResult {
+  vacancyId: string;
+  reopened: boolean;
+  /** O valor pago NÃO é estornado — fica retido para o freelancer substituto. */
+  retainedPayment: boolean;
+  cancelledCandidacies: number;
+  restoredCandidacies: number;
+  jobReset: boolean;
+  checkinsCleared: number;
+}
+
+/** Reabre a vaga do zero (no-show): tira o aceito, reseta job/check-ins, mantém o valor. */
+export async function adminRestartVacancy(
+  vacancyId: string,
+  reason: string,
+): Promise<AdminRestartVacancyResult> {
+  const res = await adminApi.post(`/vacancies/${vacancyId}/restart`, { reason });
+  return res.data.data;
+}
+
+/** Banir (definitivo) ou desbanir um freelancer pelo userId. Bloqueia/libera o login. */
+export async function adminSetFreelancerBanned(
+  userId: string,
+  banned: boolean,
+): Promise<{ userId: string; banned: boolean }> {
+  const res = await adminApi.post(`/providers/${userId}/${banned ? "ban" : "unban"}`);
+  return res.data.data;
+}
+
 export interface AdminRemoveCandidacyResult {
   vacancyId: string;
   candidacyId: string;

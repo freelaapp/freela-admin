@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users } from "lucide-react";
+import { Plus, Eye, Pencil, UserPlus, AlertTriangle, Clock, Send, MessageCircle, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -22,7 +22,7 @@ import { useAdminConsultants } from "@/modules/admin/application/use-admin-consu
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { useVacancyCandidacies } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
-import { useAdminCancelVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
+import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
 import type { VacancyItem, VacancyFeedbackEntry } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate, formatVacancyTime } from "@/lib/date.utils";
@@ -364,6 +364,7 @@ export default function JobsPage() {
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const cancelMutation = useAdminCancelVacancy();
+  const restartMutation = useAdminRestartVacancy();
 
   const [removeTarget, setRemoveTarget] = useState<{
     vacancyId: string;
@@ -417,6 +418,27 @@ export default function JobsPage() {
       setModalDetalhes(null);
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Falha ao cancelar a vaga."));
+    }
+  };
+
+  const handleRestartVacancy = async () => {
+    if (!modalDetalhes) return;
+    if (
+      !window.confirm(
+        "Reabrir esta vaga do ZERO?\n\nO freelancer aceito sai, a vaga volta a aceitar candidatos e o job/check-in são resetados. O valor pago FICA RETIDO (sem estorno) para o substituto. Use quando o freelancer não compareceu/desistiu.",
+      )
+    ) {
+      return;
+    }
+    try {
+      await restartMutation.mutateAsync({
+        vacancyId: modalDetalhes.raw.id,
+        reason: "Freelancer nao compareceu/desistiu (no-show) — reabrir para substituto",
+      });
+      toast.success("Vaga reaberta. Aceite um novo freelancer (sem nova cobrança).");
+      setModalDetalhes(null);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Falha ao reabrir a vaga."));
     }
   };
 
@@ -1107,6 +1129,18 @@ export default function JobsPage() {
               >
                 <XCircle className="w-4 h-4 mr-2" />
                 Cancelar Vaga
+              </Button>
+            )}
+            {modalDetalhes && modalDetalhes.status !== "cancelled" && (
+              <Button
+                variant="outline"
+                onClick={handleRestartVacancy}
+                disabled={restartMutation.isPending}
+                className="border-[#eca826]/40 text-[#c97b0e] hover:bg-[#eca826]/10"
+                title="No-show: reabre a vaga mantendo o valor pago (sem estorno)"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Reiniciar (no-show)
               </Button>
             )}
             <Button variant="outline" onClick={() => setModalDetalhes(null)} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">

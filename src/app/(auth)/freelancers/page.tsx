@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   useAdminProviders,
+  useAdminBanFreelancer,
   useProvidersFilterOptions,
   useAdminHardDeleteProvider,
 } from "@/modules/admin/application/use-admin-providers";
@@ -134,6 +135,7 @@ export default function FreelancersPage() {
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const hardDelete = useAdminHardDeleteProvider();
+  const banFreelancer = useAdminBanFreelancer();
 
   const rows: Row[] = (data?.data ?? []).map(mapProviderToRow);
   const total = data?.total ?? 0;
@@ -189,6 +191,22 @@ export default function FreelancersPage() {
       closeModal();
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Não foi possível excluir o freelancer."));
+    }
+  };
+
+  const handleConfirmBan = async () => {
+    if (!selectedItem) return;
+    const userId = selectedItem.raw.userId;
+    if (!userId) {
+      toast.error("Usuário deste freelancer não encontrado.");
+      return;
+    }
+    try {
+      await banFreelancer.mutateAsync({ userId, banned: true });
+      toast.success(`${selectedItem.nome} foi banido — não consegue mais entrar na plataforma.`);
+      closeModal();
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível banir o freelancer."));
     }
   };
 
@@ -382,19 +400,19 @@ export default function FreelancersPage() {
         return (
           <>
             <DialogHeader>
-              <DialogTitle>Bloquear Freelancer</DialogTitle>
-              <DialogDescription>Você está prestes a bloquear este freelancer.</DialogDescription>
+              <DialogTitle>Banir Freelancer</DialogTitle>
+              <DialogDescription>Bloqueio definitivo de acesso (reversível).</DialogDescription>
             </DialogHeader>
             <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
               <ShieldAlert className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
               <div className="text-sm text-red-700">
                 <p className="font-medium">Confirmação necessária</p>
-                <p className="mt-1">Tem certeza que deseja bloquear <strong>{selectedItem.nome}</strong>? Esta ação impedirá que ele receba novos jobs na plataforma.</p>
+                <p className="mt-1">Banir <strong>{selectedItem.nome}</strong> definitivamente? Ele <strong>não conseguirá mais entrar</strong> na plataforma (login bloqueado) e some dos feeds. A conta e o histórico são mantidos; dá pra reverter depois. Para apagar de vez, use a opção Excluir permanentemente.</p>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
-              <Button onClick={closeModal} className="bg-red-500 text-white hover:bg-red-600">Bloquear</Button>
+              <Button variant="outline" onClick={closeModal} disabled={banFreelancer.isPending} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
+              <Button onClick={handleConfirmBan} disabled={banFreelancer.isPending} className="bg-red-500 text-white hover:bg-red-600">{banFreelancer.isPending ? "Banindo…" : "Banir definitivamente"}</Button>
             </DialogFooter>
           </>
         );

@@ -10,6 +10,7 @@ import {
   getAdminProviders,
   getProvidersFilterOptions,
   adminHardDeleteUser,
+  adminSetFreelancerBanned,
   type GetAdminProvidersParams,
 } from "../infrastructure/admin-api";
 
@@ -35,6 +36,18 @@ export function useAdminHardDeleteProvider() {
   return useMutation({
     mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
       adminHardDeleteUser(userId, reason, "freelancer"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "providers"] });
+    },
+  });
+}
+
+/** Banir (definitivo) / desbanir um freelancer — bloqueia/libera o login. */
+export function useAdminBanFreelancer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, banned }: { userId: string; banned: boolean }) =>
+      adminSetFreelancerBanned(userId, banned),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "providers"] });
     },
