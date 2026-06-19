@@ -1,30 +1,6 @@
-import axios from "axios";
+import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
-const catalogApi = axios.create({
-  baseURL: `${API_BASE_URL}/v1/admin/catalog`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-catalogApi.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("authUser");
-    if (stored) {
-      try {
-        const user = JSON.parse(stored);
-        if (user.accessToken) {
-          config.headers.Authorization = `Bearer ${user.accessToken}`;
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-  return config;
-});
+const catalogApi = createAuthedClient("/v1/admin/catalog");
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 

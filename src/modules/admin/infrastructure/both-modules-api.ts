@@ -1,36 +1,12 @@
-import axios from "axios";
+import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 import type { ServiceModule } from "./catalog-api";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 /**
  * Endpoints admin que existem por módulo (`/v1/{module}/admin/...`) agregados
  * nos dois módulos (Empresa + Casa). O admin-api.ts é fixo em bars-restaurants;
  * este client deixa o módulo no path de cada chamada.
  */
-const bothModulesApi = axios.create({
-  baseURL: `${API_BASE_URL}/v1`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-bothModulesApi.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("authUser");
-    if (stored) {
-      try {
-        const user = JSON.parse(stored);
-        if (user.accessToken) {
-          config.headers.Authorization = `Bearer ${user.accessToken}`;
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-  return config;
-});
+const bothModulesApi = createAuthedClient("/v1");
 
 const MODULES: ServiceModule[] = ["bars-restaurants", "home-services"];
 

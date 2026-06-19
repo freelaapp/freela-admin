@@ -1,31 +1,7 @@
-import axios from "axios";
+import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 
 // Vagas Fixas (FixedJobPost) — listagem admin sob /v1/fixed-jobs/admin.
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
-const fixedJobsAdminApi = axios.create({
-  baseURL: `${API_BASE_URL}/v1/fixed-jobs/admin`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-fixedJobsAdminApi.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("authUser");
-    if (stored) {
-      try {
-        const user = JSON.parse(stored);
-        if (user.accessToken) {
-          config.headers.Authorization = `Bearer ${user.accessToken}`;
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-  return config;
-});
+const fixedJobsAdminApi = createAuthedClient("/v1/fixed-jobs/admin");
 
 export interface FixedJobItem {
   id: string;

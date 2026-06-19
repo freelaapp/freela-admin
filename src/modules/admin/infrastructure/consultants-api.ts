@@ -1,32 +1,8 @@
-import axios from "axios";
+import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 
 // Os endpoints de consultores vivem sob /v1/admins (shared kernel), e não sob a base
 // de bares-restaurantes usada por `adminApi`. Mesma env + mesmo esquema de token.
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
-const adminsRootApi = axios.create({
-  baseURL: `${API_BASE_URL}/v1/admins`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-adminsRootApi.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("authUser");
-    if (stored) {
-      try {
-        const user = JSON.parse(stored);
-        if (user.accessToken) {
-          config.headers.Authorization = `Bearer ${user.accessToken}`;
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-  return config;
-});
+const adminsRootApi = createAuthedClient("/v1/admins");
 
 export interface ConsultantItem {
   id: string;

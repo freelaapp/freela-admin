@@ -1,4 +1,4 @@
-import axios, { type InternalAxiosRequestConfig } from "axios";
+import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 import type {
   ConsultantVacancy,
   ConsultantVacancyCandidacy,
@@ -7,47 +7,21 @@ import type {
   VacancyModule,
 } from "@/modules/consultant/domain/types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
 /** Sessão do consultor — chave própria, isolada do `authUser` do staff. */
 export const CONSULTANT_STORAGE_KEY = "consultantUser";
 
-/** Anexa o Bearer token do consultor (sessão própria, isolada do staff). */
-function attachConsultantToken(config: InternalAxiosRequestConfig) {
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem(CONSULTANT_STORAGE_KEY);
-    if (stored) {
-      try {
-        const session = JSON.parse(stored);
-        if (session.accessToken) {
-          config.headers.Authorization = `Bearer ${session.accessToken}`;
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-  return config;
-}
-
-const consultantApi = axios.create({
-  baseURL: `${API_BASE_URL}/v1/consultants`,
-  headers: { "Content-Type": "application/json" },
+const consultantApi = createAuthedClient("/v1/consultants", {
+  tokenStorageKey: CONSULTANT_STORAGE_KEY,
 });
-
-consultantApi.interceptors.request.use(attachConsultantToken);
 
 /**
  * Endpoints consultor-scoped que vivem sob os módulos de produto
  * (`/v1/bars-restaurants/consultant`, `/v1/home-services/consultant`) — base distinta
  * da de `consultantApi`, mesma sessão de token.
  */
-const consultantModulesApi = axios.create({
-  baseURL: `${API_BASE_URL}/v1`,
-  headers: { "Content-Type": "application/json" },
+const consultantModulesApi = createAuthedClient("/v1", {
+  tokenStorageKey: CONSULTANT_STORAGE_KEY,
 });
-
-consultantModulesApi.interceptors.request.use(attachConsultantToken);
 
 export interface ConsultantLoginResponse {
   accessToken: string;
