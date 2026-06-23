@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog } from "lucide-react";
+import { Plus, Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -25,13 +25,15 @@ import {
 } from "@/modules/admin/application/use-admin-contractors";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
+import { getContractorReport } from "@/modules/admin/infrastructure/admin-api";
+import { generateContractorReportPdf } from "@/modules/admin/infrastructure/contractor-report-pdf";
 import {
   useAdminContractorEmployee,
   useAdminContractorEmployeeMutations,
 } from "@/modules/admin/application/use-admin-contractor-employee";
 import { formatPhoneBr } from "@/lib/utils";
 
-type ModalType = "view" | "edit" | "delete" | "employee" | null;
+type ModalType = "view" | "edit" | "delete" | "employee" | "report" | null;
 const DELETE_CONFIRM_WORD = "EXCLUIR";
 
 function mapContractorToRow(c: ContractorItem) {
@@ -66,6 +68,9 @@ export default function EmpresasPage() {
   const hardDelete = useAdminHardDeleteContractor();
   const updateContractor = useAdminUpdateContractor();
   const [editForm, setEditForm] = useState({ companyName: "", segment: "" });
+  const [reportFrom, setReportFrom] = useState("");
+  const [reportTo, setReportTo] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   const rows: Row[] = contractors?.map(mapContractorToRow) ?? [];
 
@@ -82,6 +87,37 @@ export default function EmpresasPage() {
         companyName: item.raw.companyName ?? "",
         segment: item.raw.segment ?? "",
       });
+    }
+    if (type === "report") {
+      setReportFrom(item.raw.createdAt ? item.raw.createdAt.slice(0, 10) : "");
+      setReportTo(new Date().toISOString().slice(0, 10));
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!selectedItem) return;
+    setGenerating(true);
+    try {
+      const result = await getContractorReport(
+        selectedItem.raw.id,
+        reportFrom || undefined,
+        reportTo || undefined,
+      );
+      const hired = result.rows.filter((r) => r.candidacy_status === "ACCEPTED").length;
+      if (hired === 0) {
+        toast.info("Nenhum freelancer contratado no período selecionado.");
+        return;
+      }
+      generateContractorReportPdf(result, {
+        from: reportFrom || undefined,
+        to: reportTo || undefined,
+      });
+      toast.success(`Relatório gerado (${hired} contratado${hired > 1 ? "s" : ""}).`);
+      closeModal();
+    } catch (e) {
+      toast.error(getAxiosErrorMessage(e) || "Não foi possível gerar o relatório.");
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -172,6 +208,7 @@ export default function EmpresasPage() {
           <button onClick={() => openModal("view", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
           <button onClick={() => openModal("employee", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Gerenciar funcionário" : "Usuário da empresa não encontrado"}><UserCog className="w-4 h-4" /></button>
+          <button onClick={() => openModal("report", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Gerar relatório (PDF)"><FileText className="w-4 h-4" /></button>
           <button onClick={() => openModal("delete", row)} className="p-1.5 rounded-md hover:bg-red-50 hover:text-red-600 text-red-500 cursor-pointer transition-colors" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /></button>
         </div>
       ),
@@ -182,6 +219,39 @@ export default function EmpresasPage() {
     if (!selectedItem) return null;
 
     switch (modalType) {
+      case "report":
+        return (
+          <>
+            <DialogHeader>
+              <DialogTitle>Gerar relatório de contratados</DialogTitle>
+              <DialogDescription>
+                {selectedItem.nome} — selecione o período (por data da vaga). O PDF lista os
+                freelancers contratados com nome, CPF, vaga, data, valor do repasse, taxa e valor pago.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="report-from">De</Label>
+                  <Input id="report-from" type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="report-to">Até</Label>
+                  <Input id="report-to" type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} />
+                </div>
+              </div>
+              <p className="text-xs text-[#737373]">
+                Deixe as datas como estão para cobrir desde a entrada da empresa até hoje.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
+              <Button onClick={handleGenerateReport} disabled={generating} className="bg-[#eca826] hover:bg-[#d8961f] text-white">
+                {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Gerando...</> : "Gerar PDF"}
+              </Button>
+            </DialogFooter>
+          </>
+        );
       case "view":
         return (
           <>

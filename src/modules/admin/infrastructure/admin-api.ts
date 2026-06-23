@@ -77,6 +77,67 @@ export async function updateAdminContractor(
   return res.data.data;
 }
 
+// ─── Relatório do contratante (vagas + freelancers) ──────────────────────────
+
+export interface ContractorReportHeader {
+  id: string;
+  companyName: string | null;
+  cnpj: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  city: string | null;
+  uf: string | null;
+  createdAt: string;
+}
+
+export interface ContractorReportRepasse {
+  amount: number;
+  status: string;
+  pixKey: string | null;
+  pixKeyType: string | null;
+  confirmedAt: string | null;
+}
+
+export interface ContractorReportRow {
+  vacancy_id: string;
+  title: string | null;
+  vacancy_service: string | null;
+  vacancy_status: string;
+  date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  created_at: string;
+  base_amount_in_cents: number | null;
+  freelancer_amount_in_cents: number | null;
+  platform_fee_in_cents: number | null;
+  provides_meal: boolean | null;
+  contractor_payment: { status: string; value: number } | string | null;
+  candidacy_id: string | null;
+  candidacy_status: string | null;
+  freelancer_name: string | null;
+  freelancer_email: string | null;
+  freelancer_phone: string | null;
+  freelancer_cpf_casa: string | null;
+  candidacy_role: string | null;
+  repasse: ContractorReportRepasse | string | null;
+}
+
+export interface ContractorReportResult {
+  contractor: ContractorReportHeader;
+  range: { from: string | null; to: string | null };
+  rows: ContractorReportRow[];
+}
+
+export async function getContractorReport(
+  id: string,
+  from?: string,
+  to?: string,
+): Promise<ContractorReportResult> {
+  const res = await adminApi.get(`/contractors/${id}/report`, { params: { from, to } });
+  return res.data.data;
+}
+
 // ─── Providers (Freelancers) ────────────────────────────────────────────────
 
 export interface ProviderItem {
