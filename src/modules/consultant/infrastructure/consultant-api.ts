@@ -44,9 +44,13 @@ export async function changeConsultantPasswordApi(
   await consultantApi.post("/me/change-password", { currentPassword, newPassword });
 }
 
-export async function createRegistrationApi(
-  payload: CreateRegistrationPayload,
-): Promise<{ userId: string; inviteSentByWhatsApp: boolean; inviteSentByEmail: boolean }> {
+export async function createRegistrationApi(payload: CreateRegistrationPayload): Promise<{
+  userId: string;
+  inviteSentByWhatsApp: boolean;
+  inviteSentByEmail: boolean;
+  /** Senha padrão de 1º acesso (o contratante troca no primeiro login). */
+  firstAccessPassword?: string;
+}> {
   const res = await consultantApi.post("/me/registrations", payload);
   return res.data.data;
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { CheckCircle2, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,13 @@ import type {
   RegistrationPersona,
 } from "@/modules/consultant/domain/types";
 
+type SuccessInfo = {
+  name: string;
+  login: string;
+  firstAccessPassword: string;
+  channel: string | null;
+};
+
 export default function ConsultorCadastrarPage() {
   const router = useRouter();
   const createMutation = useCreateRegistration();
@@ -22,6 +29,7 @@ export default function ConsultorCadastrarPage() {
   const [persona, setPersona] = useState<RegistrationPersona>("provider");
   const [module, setModule] = useState<RegistrationModule>("bars-restaurants");
   const [form, setForm] = useState({ name: "", phone: "", email: "" });
+  const [success, setSuccess] = useState<SuccessInfo | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,22 +50,79 @@ export default function ConsultorCadastrarPage() {
         : result.inviteSentByEmail
           ? "e-mail"
           : null;
-      toast.success(
-        channel
-          ? `Cadastro criado! Convite enviado por ${channel}.`
-          : "Cadastro criado! (não foi possível enviar o convite automaticamente)",
-      );
-      router.push("/consultor");
+      setSuccess({
+        name: form.name.trim(),
+        login: form.email.trim() || form.phone.trim(),
+        firstAccessPassword: result.firstAccessPassword ?? "Mudar@123",
+        channel,
+      });
+      toast.success("Cadastro criado com sucesso!");
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Erro ao criar cadastro"));
     }
+  }
+
+  function handleNewRegistration() {
+    setForm({ name: "", phone: "", email: "" });
+    setPersona("provider");
+    setModule("bars-restaurants");
+    setSuccess(null);
+  }
+
+  if (success) {
+    return (
+      <div>
+        <PageHeader
+          title="Cadastro criado"
+          description="Passe o login e a senha de primeiro acesso para a pessoa"
+        />
+        <div className="bg-white border border-[#e5e5e5] rounded-xl p-5 space-y-4 max-w-md">
+          <div className="flex items-center gap-2 text-[#16a34a]">
+            <CheckCircle2 className="w-5 h-5" />
+            <span className="font-semibold">{success.name} cadastrado(a)!</span>
+          </div>
+
+          <div className="rounded-lg border border-[#eca826]/40 bg-[#eca826]/10 p-4 space-y-3">
+            <CredentialRow label="Login" value={success.login} />
+            <CredentialRow label="Senha de 1º acesso" value={success.firstAccessPassword} mono />
+            <p className="text-xs text-[#a8670a]">
+              No primeiro acesso a pessoa troca a senha e completa o perfil.
+            </p>
+          </div>
+
+          <p className="text-sm text-[#737373]">
+            {success.channel
+              ? `Também enviamos um convite por ${success.channel} com um link para definir a senha.`
+              : "Não foi possível enviar o convite automaticamente — passe a senha acima manualmente."}
+          </p>
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleNewRegistration}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Novo cadastro
+            </Button>
+            <Button
+              type="button"
+              onClick={() => router.push("/consultor")}
+              className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium"
+            >
+              Ver meus cadastros
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div>
       <PageHeader
         title="Novo cadastro"
-        description="Cadastro rápido — a pessoa recebe um convite para definir a senha e completar o perfil"
+        description="Cadastro rápido — a pessoa entra com a senha padrão e a troca no primeiro acesso"
       />
 
       <form
@@ -144,11 +209,48 @@ export default function ConsultorCadastrarPage() {
                 Cadastrando...
               </>
             ) : (
-              "Cadastrar e enviar convite"
+              "Cadastrar"
             )}
           </Button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function CredentialRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copiado.`);
+    } catch {
+      toast.error("Não foi possível copiar.");
+    }
+  }
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-[11px] uppercase tracking-wide text-[#a8670a]">{label}</p>
+        <p className={`truncate text-sm text-[#1d1d1b] ${mono ? "font-mono font-semibold" : ""}`}>
+          {value}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={copy}
+        aria-label={`Copiar ${label}`}
+        className="shrink-0 rounded-md p-1.5 text-[#a8670a] transition-colors hover:bg-[#eca826]/20"
+      >
+        <Copy className="w-4 h-4" />
+      </button>
     </div>
   );
 }
