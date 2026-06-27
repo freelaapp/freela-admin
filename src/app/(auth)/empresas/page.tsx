@@ -40,6 +40,9 @@ function mapContractorToRow(c: ContractorItem) {
   return {
     id: c.id,
     nome: c.companyName || c.contactName || "Sem nome",
+    email: c.registrationEmail ?? "",
+    _search:
+      `${c.companyName ?? ""} ${c.contactName ?? ""} ${c.registrationEmail ?? ""}`.toLowerCase(),
     responsavel: c.contactName,
     // formatPhoneBr: contactPhone pode vir em E.164 (+55...) — exibe nacional
     telefone: c.contactPhone ? formatPhoneBr(c.contactPhone) : "N/A",
@@ -297,6 +300,10 @@ export default function EmpresasPage() {
               </div>
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                 <User className="w-4 h-4 text-[#737373]" />
+                E-mail (login): {selectedItem.raw.registrationEmail || "—"}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
+                <User className="w-4 h-4 text-[#737373]" />
                 Origem do cadastro: {selectedItem.origem}
               </div>
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
@@ -465,7 +472,7 @@ export default function EmpresasPage() {
           </Button>
         }
       />
-      <DataTable columns={columns} data={rows} searchPlaceholder="Buscar empresa..." searchKey="nome" />
+      <DataTable columns={columns} data={rows} searchPlaceholder="Buscar por empresa ou e-mail..." searchKey="_search" />
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="relative">
           <DialogClose onClick={closeModal} />

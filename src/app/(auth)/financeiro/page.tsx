@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { DataTable } from "@/components/shared/data-table";
 import {
-  DollarSign, TrendingUp, TrendingDown, CreditCard, RotateCcw,
+  DollarSign, TrendingDown, CreditCard, RotateCcw,
   XCircle, Receipt, Loader2, AlertTriangle
 } from "lucide-react";
 import { useAdminPayments } from "@/modules/admin/application/use-admin-payments";
@@ -24,11 +24,17 @@ function formatCurrency(cents: number) {
 const formatDate = formatInstantDate;
 
 function mapPaymentToRow(p: PaymentItem) {
+  // serviceAmountInCents é Int @default(0) no backend (pagamentos antigos/sem
+  // breakdown vêm 0, não null). Só mostramos o breakdown quando há valor real —
+  // senão exibiríamos serviço=R$0 e a cobrança inteira como taxa (taxa inventada).
+  const hasBreakdown = (p.serviceAmountInCents ?? 0) > 0;
   return {
     id: p.id,
     freelancer: p.correlationId.slice(0, 12),
     empresa: "—",
     valor: formatCurrency(p.value),
+    valorServico: hasBreakdown ? formatCurrency(p.serviceAmountInCents) : "—",
+    taxa: hasBreakdown ? formatCurrency(p.value - p.serviceAmountInCents) : "—",
     tipo: "Diária",
     data: formatDate(p.createdAt),
     status: p.status === "COMPLETED" ? "Pago" : "Pendente",
@@ -74,6 +80,8 @@ export default function FinanceiroPage() {
 
   const pagamentoColumns = [
     { header: "ID", accessor: "freelancer" as const },
+    { header: "Valor do serviço", accessor: "valorServico" as const, className: "hidden lg:table-cell" },
+    { header: "Taxa", accessor: "taxa" as const, className: "hidden lg:table-cell" },
     { header: "Valor", accessor: "valor" as const },
     { header: "Tipo", accessor: "tipo" as const, className: "hidden lg:table-cell" },
     { header: "Data", accessor: "data" as const, className: "hidden md:table-cell" },
@@ -138,8 +146,7 @@ export default function FinanceiroPage() {
       {tab === "Visão Geral" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard title="Faturamento Bruto" value={totalRevenue} icon={DollarSign} />
-            <KpiCard title="Receita Líquida" value={totalRevenue} icon={TrendingUp} />
+            <KpiCard title="Faturamento" value={totalRevenue} icon={DollarSign} />
             <KpiCard title="Serviços Concluídos" value={String(completedJobs)} icon={Receipt} />
             <KpiCard title="Repasse Pendentes" value={String(metrics?.pendingRepasses ?? 0)} icon={CreditCard} />
           </div>

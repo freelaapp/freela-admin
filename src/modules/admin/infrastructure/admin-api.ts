@@ -50,6 +50,7 @@ export interface ContractorItem {
   companyName: string | null;
   contactName: string;
   contactEmail: string | null;
+  registrationEmail: string | null;
   contactPhone: string;
   city: string;
   uf: string;
