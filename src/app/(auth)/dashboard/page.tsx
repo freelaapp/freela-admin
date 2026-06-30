@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   UserCheck,
   Building2,
@@ -47,8 +48,25 @@ function formatCurrency(cents: number) {
   }).format(cents / 100);
 }
 
+// serviceType é bagunçado no banco (slug 'auxiliar-cozinha' convive com 'Garçom/Garçonete').
+// Title-case só os slugs (minúsculo com hífen); deixa os já formatados como estão.
+function formatCargo(value: string) {
+  if (/^[a-z0-9-]+$/.test(value)) {
+    return value
+      .split("-")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+  return value;
+}
+
 export default function DashboardPage() {
-  const { data: m, isLoading, isError } = useAdminMetrics();
+  const [cidade, setCidade] = useState("");
+  const [cargo, setCargo] = useState("");
+  const { data: m, isLoading, isError } = useAdminMetrics({
+    city: cidade || undefined,
+    role: cargo || undefined,
+  });
 
   if (isLoading) {
     return (
@@ -126,28 +144,44 @@ export default function DashboardPage() {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <select className="h-9 px-3 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30">
-          <option>Cidade: Todas</option>
-          <option>São Paulo</option>
-          <option>Rio de Janeiro</option>
-          <option>Belo Horizonte</option>
-          <option>Curitiba</option>
+      <div className="flex flex-wrap items-center gap-3 mb-2">
+        <select
+          value={cidade}
+          onChange={(e) => setCidade(e.target.value)}
+          className="h-9 px-3 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+        >
+          <option value="">Cidade: Todas</option>
+          {(m.filterOptions?.cities ?? []).map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </select>
-        <select className="h-9 px-3 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30">
-          <option>Cargo: Todos</option>
-          <option>Garçom</option>
-          <option>Bartender</option>
-          <option>Cozinheiro</option>
+        <select
+          value={cargo}
+          onChange={(e) => setCargo(e.target.value)}
+          className="h-9 px-3 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+        >
+          <option value="">Cargo: Todos</option>
+          {(m.filterOptions?.roles ?? []).map((r) => (
+            <option key={r} value={r}>
+              {formatCargo(r)}
+            </option>
+          ))}
         </select>
-        <select className="h-9 px-3 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30">
-          <option>Período: Últimos 7 Dias</option>
-          <option>Últimos 30 Dias</option>
-          <option>Este Mês</option>
-          <option>Este Ano</option>
-        </select>
-        <Button variant="outline">Personalizado</Button>
+        {(cidade || cargo) && (
+          <Button variant="outline" onClick={() => { setCidade(""); setCargo(""); }}>
+            Limpar filtros
+          </Button>
+        )}
       </div>
+      {(cidade || cargo) && (
+        <p className="text-xs text-[#737373] mb-6">
+          Filtro aplicado a vagas, jobs, candidaturas e gráficos. Indicadores globais de pessoas e
+          financeiro (freelancers, usuários, GMV, repasses, avaliações) não mudam com o filtro.
+        </p>
+      )}
+      {!cidade && !cargo && <div className="mb-6" />}
 
       {/* KPI Rows */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">

@@ -35,10 +35,24 @@ export interface AdminMetrics {
   totalRevenue: number;
   pendingRepasses: number;
   completedRepasses: number;
+  /** Listas completas (sempre, ignora o filtro ativo) para popular os dropdowns. */
+  filterOptions: { cities: string[]; roles: string[] };
 }
 
-export async function getAdminMetrics(): Promise<AdminMetrics> {
-  const res = await adminApi.get("/metrics");
+export interface AdminMetricsParams {
+  /** Cidade da vaga (BRVacancy.cityId — nome da cidade). */
+  city?: string;
+  /** Cargo/função da vaga (BRVacancy.serviceType). */
+  role?: string;
+}
+
+export async function getAdminMetrics(params?: AdminMetricsParams): Promise<AdminMetrics> {
+  const res = await adminApi.get("/metrics", {
+    params: {
+      ...(params?.city ? { city: params.city } : {}),
+      ...(params?.role ? { role: params.role } : {}),
+    },
+  });
   return res.data.data;
 }
 
