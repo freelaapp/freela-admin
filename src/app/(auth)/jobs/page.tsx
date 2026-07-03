@@ -865,19 +865,25 @@ export default function JobsPage() {
                 {!loadingCandidacies && candidacies && candidacies.length > 0 && (
                   <div className="flex flex-col gap-2">
                     {candidacies.map((c) => {
+                      // Nunca rotular status desconhecido como "Pendente": WITHDRAWN e
+                      // CANCELLED_BY_CONTRACTOR caíam no fallback e o admin mostrava
+                      // candidato "PENDENTE" que o contratante não via (caso Simone).
                       const statusColor =
                         c.status === "ACCEPTED"
                           ? "bg-green-100 text-green-700 border-green-200"
                           : c.status === "REJECTED"
                           ? "bg-red-100 text-red-700 border-red-200"
-                          : c.status === "CANCELLED"
-                          ? "bg-gray-200 text-gray-600 border-gray-300"
-                          : "bg-amber-100 text-amber-700 border-amber-200";
+                          : c.status === "PENDING"
+                          ? "bg-amber-100 text-amber-700 border-amber-200"
+                          : "bg-gray-200 text-gray-600 border-gray-300";
                       const statusLabel =
                         c.status === "ACCEPTED" ? "Aceito"
                           : c.status === "REJECTED" ? "Rejeitado"
                           : c.status === "CANCELLED" ? "Cancelado"
-                          : "Pendente";
+                          : c.status === "CANCELLED_BY_CONTRACTOR" ? "Desvinculado"
+                          : c.status === "WITHDRAWN" ? "Retirado"
+                          : c.status === "PENDING" ? "Pendente"
+                          : c.status;
                       return (
                         <div key={c.id} className="bg-white border border-[#e5e5e5] rounded-md p-2.5">
                           <div className="flex items-start justify-between gap-2">
