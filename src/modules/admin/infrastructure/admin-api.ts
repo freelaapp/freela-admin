@@ -77,6 +77,28 @@ export interface ContractorItem {
   ticketMedio: number | null;
   avaliacao: number | null;
   referredByConsultant?: { id: string; name: string; code: string } | null;
+  referredByPartnership?: { id: string; name: string; code: string } | null;
+}
+
+/**
+ * Formata a origem de um cadastro (Normal / Consultor / Parceria) a partir dos
+ * campos de referral anotados pelo backend. Parceria e Consultor são independentes:
+ * se ambos existirem, mostra os dois. Sem nenhum → "—".
+ */
+export function formatReferralOrigin(source: {
+  referredByPartnership?: { name: string; code?: string } | null;
+  referredByConsultant?: { name: string; code?: string } | null;
+}): string {
+  const parts: string[] = [];
+  if (source.referredByPartnership) {
+    const { name, code } = source.referredByPartnership;
+    parts.push(`Parceria: ${name}${code ? ` (${code})` : ""}`);
+  }
+  if (source.referredByConsultant) {
+    const { name, code } = source.referredByConsultant;
+    parts.push(`Consultor: ${name}${code ? ` (${code})` : ""}`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
 export async function getAdminContractors(): Promise<ContractorItem[]> {
@@ -394,6 +416,8 @@ export interface UserItem {
   deletionScheduledAt: string | null;
   deletedAt: string | null;
   createdAt: string;
+  referredByConsultant?: { id: string; name: string; code: string } | null;
+  referredByPartnership?: { id: string; name: string; code: string } | null;
 }
 
 export async function getAdminUsers(): Promise<UserItem[]> {

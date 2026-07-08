@@ -25,7 +25,7 @@ import {
 } from "@/modules/admin/application/use-admin-contractors";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
-import { getContractorReport } from "@/modules/admin/infrastructure/admin-api";
+import { getContractorReport, formatReferralOrigin } from "@/modules/admin/infrastructure/admin-api";
 import { generateContractorReportPdf } from "@/modules/admin/infrastructure/contractor-report-pdf";
 import {
   useAdminContractorEmployee,
@@ -51,9 +51,7 @@ function mapContractorToRow(c: ContractorItem) {
     jobs: c.jobs,
     ticket: c.ticketMedio ? `R$ ${(c.ticketMedio / 100).toFixed(2)}` : "N/A",
     avaliacao: c.avaliacao ?? 0,
-    origem: c.referredByConsultant
-      ? `${c.referredByConsultant.name}${c.referredByConsultant.code ? ` (${c.referredByConsultant.code})` : ""}`
-      : "—",
+    origem: formatReferralOrigin(c),
     status: c.isActive ? ("active" as const) : ("inactive" as const),
     raw: c,
   };
