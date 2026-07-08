@@ -24,3 +24,13 @@ export function buildReferralLink(code: string, env: ReferralLinkEnv): string {
   const path = `/cadastro?ref=${encodeURIComponent(code)}`;
   return base ? `${base}${path}` : path;
 }
+
+/**
+ * Monta o link de cadastro por parceria (`/cadastro?parceria=CÓDIGO`).
+ * Mesma derivação de base do link de consultor, trocando o parâmetro de query.
+ */
+export function buildPartnershipLink(code: string, env: ReferralLinkEnv): string {
+  const base = deriveWebAppBaseUrl(env);
+  const path = `/cadastro?parceria=${encodeURIComponent(code)}`;
+  return base ? `${base}${path}` : path;
+}

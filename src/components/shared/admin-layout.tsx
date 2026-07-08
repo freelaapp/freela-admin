@@ -22,6 +22,7 @@ import {
   BarChart3,
   Shield,
   Handshake,
+  Store,
   MessageCircle,
   Settings,
   Bell,
@@ -62,6 +63,12 @@ const navItems: NavItem[] = [
     label: "Consultores",
     icon: Handshake,
     path: "/consultores",
+    superAdminOnly: true,
+  },
+  {
+    label: "Parcerias",
+    icon: Store,
+    path: "/parcerias",
     superAdminOnly: true,
   },
   {
