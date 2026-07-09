@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { AuthUser } from "@/modules/auth/domain/types";
+import { isJwtExpired } from "@/modules/shared/infrastructure/jwt";
 
 interface AuthState {
   user: AuthUser | null;
@@ -28,8 +29,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (stored) {
       try {
         const user = JSON.parse(stored) as AuthUser;
-        set({ user, isHydrated: true });
-        return;
+        // Sessão com token vencido é descartada na hidratação — senão o guard
+        // considera autenticado, o /login fica inalcançável e o dashboard
+        // quebra em 401 silencioso.
+        if (isJwtExpired(user.accessToken)) {
+          localStorage.removeItem(STORAGE_KEY);
+        } else {
+          set({ user, isHydrated: true });
+          return;
+        }
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }

@@ -25,11 +25,17 @@ export interface AuthedClientOptions {
    */
   tokenStorageKey?: string;
   /**
-   * Quando `true`, instala o interceptor de resposta que, em 401, limpa a
-   * sessão e redireciona para `/login`. Default `false` para preservar o
-   * comportamento dos clients admin/consultor, que NÃO tinham esse interceptor.
+   * Quando `true` (default), instala o interceptor de resposta que, em 401,
+   * limpa a sessão e redireciona para `loginPath`. Sem isso, uma sessão com
+   * token expirado prende o usuário: os dados falham em silêncio e a página
+   * de login fica inalcançável (o guard vê `authUser` e volta pro dashboard).
    */
   redirectOn401?: boolean;
+  /**
+   * Rota da tela de login para onde o interceptor de 401 redireciona.
+   * Default `/login` (staff/admin); o consultor usa `/consultor/login`.
+   */
+  loginPath?: string;
 }
 
 /** Anexa o Bearer token lido de `tokenStorageKey` na requisição. */
@@ -63,8 +69,11 @@ export function createAuthedClient(
   pathPrefix: string,
   options: AuthedClientOptions = {},
 ): AxiosInstance {
-  const { tokenStorageKey = DEFAULT_TOKEN_STORAGE_KEY, redirectOn401 = false } =
-    options;
+  const {
+    tokenStorageKey = DEFAULT_TOKEN_STORAGE_KEY,
+    redirectOn401 = true,
+    loginPath = "/login",
+  } = options;
 
   const instance = axios.create({
     baseURL: `${API_BASE_URL}${pathPrefix}`,
@@ -82,10 +91,19 @@ export function createAuthedClient(
         const originalRequest = error.config;
         if (!originalRequest) return Promise.reject(error);
 
-        if (error.response?.status === 401) {
-          if (typeof window !== "undefined") {
+        if (error.response?.status === 401 && typeof window !== "undefined") {
+          // Só redireciona em leitura (GET/HEAD): são as queries das telas que
+          // prendem o usuário com sessão vencida. Em mutation, o erro sobe para
+          // a página — redirecionar aqui descartaria um formulário preenchido
+          // (re-logar em outra aba e tentar de novo continua funcionando, pois
+          // o token é relido do localStorage a cada request). E já na tela de
+          // login (ex.: senha errada no POST /login do consultor), não navega
+          // nem limpa nada — deixa a página tratar o erro.
+          const method = (originalRequest.method ?? "get").toLowerCase();
+          const isReadRequest = method === "get" || method === "head";
+          if (isReadRequest && window.location.pathname !== loginPath) {
             localStorage.removeItem(tokenStorageKey);
-            window.location.href = "/login";
+            window.location.assign(loginPath);
           }
         }
 

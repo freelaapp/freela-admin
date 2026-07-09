@@ -12,6 +12,7 @@ export const CONSULTANT_STORAGE_KEY = "consultantUser";
 
 const consultantApi = createAuthedClient("/v1/consultants", {
   tokenStorageKey: CONSULTANT_STORAGE_KEY,
+  loginPath: "/consultor/login",
 });
 
 /**
@@ -21,6 +22,7 @@ const consultantApi = createAuthedClient("/v1/consultants", {
  */
 const consultantModulesApi = createAuthedClient("/v1", {
   tokenStorageKey: CONSULTANT_STORAGE_KEY,
+  loginPath: "/consultor/login",
 });
 
 export interface ConsultantLoginResponse {
