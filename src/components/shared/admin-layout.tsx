@@ -23,6 +23,7 @@ import {
   Shield,
   Handshake,
   Store,
+  Megaphone,
   MessageCircle,
   Settings,
   Bell,
@@ -69,6 +70,12 @@ const navItems: NavItem[] = [
     label: "Parcerias",
     icon: Store,
     path: "/parcerias",
+    superAdminOnly: true,
+  },
+  {
+    label: "Propagandas",
+    icon: Megaphone,
+    path: "/propagandas",
     superAdminOnly: true,
   },
   {
