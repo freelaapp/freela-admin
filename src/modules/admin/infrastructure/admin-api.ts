@@ -451,6 +451,14 @@ export interface FeedbackItem {
   createdAt: string;
   authorName: string | null;
   jobTitle: string | null;
+  // Perfil do avaliador — campos aditivos; podem estar ausentes antes do deploy da API
+  authorEmail?: string | null;
+  authorPhone?: string | null;
+  authorAvatarUrl?: string | null;
+  authorCompanyName?: string | null;
+  authorCity?: string | null;
+  authorUf?: string | null;
+  authorJobTitle?: string | null;
 }
 
 export async function getAdminFeedbacks(): Promise<FeedbackItem[]> {
@@ -504,6 +512,15 @@ export interface ProviderHistoryItem {
   rating: number | null;
   comment: string | null;
   authorName: string | null;
+  // Perfil do avaliador (sempre contratante) — campos aditivos; podem estar ausentes antes do deploy da API
+  authorId?: string | null;
+  authorEmail?: string | null;
+  authorPhone?: string | null;
+  authorAvatarUrl?: string | null;
+  authorCompanyName?: string | null;
+  authorCity?: string | null;
+  authorUf?: string | null;
+  authorJobTitle?: string | null;
 }
 
 export async function getProviderHistory(providerId: string): Promise<ProviderHistoryItem[]> {

@@ -17,6 +17,11 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminFeedbacks } from "@/modules/admin/application/use-admin-feedbacks";
 import type { FeedbackItem } from "@/modules/admin/infrastructure/admin-api";
+import {
+  AuthorProfileDialog,
+  AuthorAvatar,
+  type AuthorProfile,
+} from "@/components/shared/author-profile-dialog";
 import { formatInstantDate } from "@/lib/date.utils";
 
 const formatDate = formatInstantDate;
@@ -46,6 +51,21 @@ function mapFeedbackToRow(f: FeedbackItem) {
 
 type Row = ReturnType<typeof mapFeedbackToRow>;
 
+/** role = quem ESCREVEU a avaliação (PROVIDER = freelancer, CONTRACTOR = contratante). */
+function feedbackToAuthor(f: FeedbackItem): AuthorProfile {
+  return {
+    name: f.authorName || `Usuário (${f.authorId.slice(0, 8)})`,
+    role: f.role === "PROVIDER" || f.role === "CONTRACTOR" ? f.role : undefined,
+    avatarUrl: f.authorAvatarUrl ?? null,
+    companyName: f.authorCompanyName ?? null,
+    email: f.authorEmail ?? null,
+    phone: f.authorPhone ?? null,
+    city: f.authorCity ?? null,
+    uf: f.authorUf ?? null,
+    jobTitle: f.authorJobTitle ?? null,
+  };
+}
+
 const moderacoesMock = [
   { id: 101, freelancer: "Carlos Silva", empresa: "Bar do Zé", avaliacaoOriginal: 2.0, contestacao: "Discordo da nota de pontualidade, cheguei no horário combinado.", data: "13/03/2026", status: "pendente" as const },
   { id: 102, freelancer: "Pedro Santos", empresa: "Buffet Real Festas", avaliacaoOriginal: 3.0, contestacao: "A nota de postura não condiz com meu comportamento no evento.", data: "12/03/2026", status: "pendente" as const },
@@ -57,11 +77,29 @@ export default function AvaliacoesPage() {
   const [tab, setTab] = useState<"avaliacoes" | "moderacao">("avaliacoes");
   const [modalAceitar, setModalAceitar] = useState<typeof moderacoesMock[0] | null>(null);
   const [modalRejeitar, setModalRejeitar] = useState<typeof moderacoesMock[0] | null>(null);
+  const [selectedAuthor, setSelectedAuthor] = useState<AuthorProfile | null>(null);
 
   const rows: Row[] = feedbacks?.map(mapFeedbackToRow) ?? [];
 
   const columns = [
-    { header: "Autor", accessor: "freelancer" as const },
+    {
+      header: "Autor",
+      accessor: (row: Row) => (
+        <button
+          onClick={() => setSelectedAuthor(feedbackToAuthor(row.raw))}
+          className="flex items-center gap-2.5 text-left rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-[#eca826]/10 cursor-pointer transition-colors"
+          title="Ver perfil do avaliador"
+        >
+          <AuthorAvatar name={row.freelancer} avatarUrl={row.raw.authorAvatarUrl} />
+          <span className="min-w-0">
+            <span className="block text-sm font-medium text-[#1d1d1b] truncate">{row.freelancer}</span>
+            {row.raw.authorCompanyName && (
+              <span className="block text-xs text-[#737373] truncate">{row.raw.authorCompanyName}</span>
+            )}
+          </span>
+        </button>
+      ),
+    },
     { header: "Job", accessor: "empresa" as const, className: "hidden md:table-cell" },
     {
       header: "Nota",
@@ -80,7 +118,7 @@ export default function AvaliacoesPage() {
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
           row.role === "PROVIDER" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500"
         }`}>
-          {row.role === "PROVIDER" ? "Contratante" : "Freelancer"}
+          {row.role === "PROVIDER" ? "Freelancer" : "Contratante"}
         </span>
       ),
     },
@@ -199,6 +237,13 @@ export default function AvaliacoesPage() {
       {tab === "moderacao" && (
         <DataTable columns={moderacaoColumns} data={moderacoesMock} searchPlaceholder="Buscar por freelancer..." searchKey="freelancer" />
       )}
+
+      {/* Modal Perfil do Avaliador */}
+      <AuthorProfileDialog
+        open={!!selectedAuthor}
+        onOpenChange={(open) => !open && setSelectedAuthor(null)}
+        author={selectedAuthor}
+      />
 
       {/* Modal Aceitar Contestação */}
       <Dialog open={!!modalAceitar} onOpenChange={(open) => !open && setModalAceitar(null)}>

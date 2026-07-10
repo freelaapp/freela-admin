@@ -27,6 +27,11 @@ import {
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { ProviderItem, ProviderHistoryItem } from "@/modules/admin/infrastructure/admin-api";
 import { getProviderHistory } from "@/modules/admin/infrastructure/admin-api";
+import {
+  AuthorProfileDialog,
+  AuthorAvatar,
+  type AuthorProfile,
+} from "@/components/shared/author-profile-dialog";
 import { formatVacancyDate } from "@/lib/date.utils";
 import { formatPhoneBr } from "@/lib/utils";
 
@@ -61,6 +66,20 @@ function mapProviderToRow(p: ProviderItem) {
 }
 
 type Row = ReturnType<typeof mapProviderToRow>;
+
+/** No histórico, quem avaliou o freelancer é sempre o contratante. */
+function historyToAuthor(job: ProviderHistoryItem): AuthorProfile {
+  return {
+    name: job.authorName ?? "Contratante",
+    role: "CONTRACTOR",
+    avatarUrl: job.authorAvatarUrl ?? null,
+    companyName: job.authorCompanyName ?? null,
+    email: job.authorEmail ?? null,
+    phone: job.authorPhone ?? null,
+    city: job.authorCity ?? null,
+    uf: job.authorUf ?? null,
+  };
+}
 
 function FilterSelect({
   value,
@@ -132,6 +151,7 @@ export default function FreelancersPage() {
   const [selectedItem, setSelectedItem] = useState<Row | null>(null);
   const [historyData, setHistoryData] = useState<ProviderHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedAuthor, setSelectedAuthor] = useState<AuthorProfile | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const hardDelete = useAdminHardDeleteProvider();
@@ -481,7 +501,19 @@ export default function FreelancersPage() {
                             <Star key={i} className={`w-3.5 h-3.5 ${i < job.rating! ? "text-[#eca826] fill-[#eca826]" : "text-[#d4d4d4]"}`} />
                           ))}
                         </div>
-                        {job.authorName && <span className="text-xs text-[#737373]">por {job.authorName}</span>}
+                        {job.authorName && (
+                          <span className="flex items-center gap-1 text-xs text-[#737373] min-w-0">
+                            por
+                            <button
+                              onClick={() => setSelectedAuthor(historyToAuthor(job))}
+                              className="flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-[#eca826]/10 hover:text-[#1d1d1b] cursor-pointer transition-colors min-w-0"
+                              title="Ver perfil do avaliador"
+                            >
+                              <AuthorAvatar name={job.authorName} avatarUrl={job.authorAvatarUrl} className="h-5 w-5 text-[9px]" />
+                              <span className="truncate font-medium">{job.authorName}</span>
+                            </button>
+                          </span>
+                        )}
                       </div>
                     )}
                     {job.comment && (
@@ -651,6 +683,12 @@ export default function FreelancersPage() {
           {renderModalContent()}
         </DialogContent>
       </Dialog>
+      {/* Modal Perfil do Avaliador — renderizado depois do Dialog principal para sobrepor o drawer de histórico */}
+      <AuthorProfileDialog
+        open={!!selectedAuthor}
+        onOpenChange={(open) => !open && setSelectedAuthor(null)}
+        author={selectedAuthor}
+      />
     </div>
   );
 }
