@@ -1,4 +1,5 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { FeedbackItem } from "./admin-api";
 
 // Vagas do Freela em Casa vivem sob /v1/home-services/admin (base distinta da de
 // bares-restaurantes usada por `adminApi`). Mesma env + mesmo esquema de token.
@@ -48,4 +49,12 @@ export async function getAdminCasaAllVacancies(consultantId?: string): Promise<C
     getAdminCasaClosedVacancies(consultantId),
   ]);
   return [...open, ...closed];
+}
+
+// ─── Feedbacks (Casa) ───────────────────────────────────────────────────────
+// Mesmo shape do FeedbackItem do BR (campos author*/target* null-safe).
+
+export async function getCasaAdminFeedbacks(): Promise<FeedbackItem[]> {
+  const res = await casaAdminApi.get("/feedbacks");
+  return res.data.data;
 }

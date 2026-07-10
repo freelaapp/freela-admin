@@ -16,6 +16,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { useAdminFeedbacks } from "@/modules/admin/application/use-admin-feedbacks";
+import { useCasaAdminFeedbacks } from "@/modules/admin/application/use-casa-admin-feedbacks";
 import type { FeedbackItem } from "@/modules/admin/infrastructure/admin-api";
 import {
   AuthorProfileDialog,
@@ -88,8 +89,19 @@ const moderacoesMock = [
   { id: 103, freelancer: "Fernanda Lima", empresa: "Restaurante Fogo & Brasa", avaliacaoOriginal: 2.5, contestacao: "Não concordo com a avaliação de comunicação, sempre respondi rápido.", data: "11/03/2026", status: "pendente" as const },
 ];
 
+const FEEDBACK_MODULES = [
+  { id: "br", label: "Bares e Restaurantes" },
+  { id: "casa", label: "Freela em Casa" },
+] as const;
+
+type FeedbackModuleId = (typeof FEEDBACK_MODULES)[number]["id"];
+
 export default function AvaliacoesPage() {
-  const { data: feedbacks, isLoading, isError } = useAdminFeedbacks();
+  const [feedbackModule, setFeedbackModule] = useState<FeedbackModuleId>("br");
+  const brFeedbacks = useAdminFeedbacks();
+  const casaFeedbacks = useCasaAdminFeedbacks(feedbackModule === "casa");
+  const { data: feedbacks, isLoading, isError } =
+    feedbackModule === "br" ? brFeedbacks : casaFeedbacks;
   const [tab, setTab] = useState<"avaliacoes" | "moderacao">("avaliacoes");
   const [modalAceitar, setModalAceitar] = useState<typeof moderacoesMock[0] | null>(null);
   const [modalRejeitar, setModalRejeitar] = useState<typeof moderacoesMock[0] | null>(null);
@@ -214,22 +226,6 @@ export default function AvaliacoesPage() {
     },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <p className="text-red-500">Erro ao carregar avaliações.</p>
-      </div>
-    );
-  }
-
   return (
     <div>
       <PageHeader title="Avaliações" description="Sistema de reputação dos freelancers" />
@@ -261,7 +257,36 @@ export default function AvaliacoesPage() {
       </div>
 
       {tab === "avaliacoes" ? (
-        <DataTable columns={columns} data={rows} searchPlaceholder="Buscar por autor..." searchKey="freelancer" />
+        <>
+          {/* Seletor de módulo (BR | Casa) — a tabela reflete o módulo selecionado */}
+          <div className="inline-flex rounded-lg bg-[#f7f7f7] p-1 mb-4" role="group" aria-label="Módulo">
+            {FEEDBACK_MODULES.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setFeedbackModule(m.id)}
+                className={`px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  feedbackModule === m.id
+                    ? "bg-[#eca826] text-white"
+                    : "text-[#737373] hover:text-[#1d1d1b]"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+            </div>
+          ) : isError ? (
+            <div className="flex items-center justify-center py-24">
+              <p className="text-red-500">Erro ao carregar avaliações.</p>
+            </div>
+          ) : (
+            <DataTable key={feedbackModule} columns={columns} data={rows} searchPlaceholder="Buscar por autor..." searchKey="freelancer" />
+          )}
+        </>
       ) : (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 mb-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
