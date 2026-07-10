@@ -193,6 +193,14 @@ export interface ProviderItem {
   trabalhos: number;
   avaliacao: number | null;
   score: number;
+  /**
+   * Lista de baixa prioridade (avaliação < 3⭐ de contratante): candidaturas
+   * dele aparecem por último pro contratante. Ausente/undefined = prioridade normal
+   * (compatível com API anterior ao deploy do campo).
+   */
+  lowPriority?: boolean;
+  /** Desde quando está em baixa prioridade (ISO), quando `lowPriority` = true. */
+  lowPrioritySince?: string | null;
 }
 
 export interface GetAdminProvidersParams {
@@ -374,6 +382,14 @@ export async function adminSetFreelancerBanned(
 ): Promise<{ userId: string; banned: boolean }> {
   const res = await adminApi.post(`/providers/${userId}/${banned ? "ban" : "unban"}`);
   return res.data.data;
+}
+
+/**
+ * Restaura a prioridade normal do freelancer (remove da lista de baixa
+ * prioridade). Mesma resolução de id do ban (userId). Retorna 204.
+ */
+export async function clearProviderLowPriority(id: string): Promise<void> {
+  await adminApi.delete(`/providers/${id}/low-priority`);
 }
 
 export interface AdminRemoveCandidacyResult {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Plus, Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2, ArrowUpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -23,6 +23,7 @@ import {
   useAdminBanFreelancer,
   useProvidersFilterOptions,
   useAdminHardDeleteProvider,
+  useClearLowPriority,
 } from "@/modules/admin/application/use-admin-providers";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { ProviderItem, ProviderHistoryItem } from "@/modules/admin/infrastructure/admin-api";
@@ -32,7 +33,7 @@ import {
   AuthorAvatar,
   type AuthorProfile,
 } from "@/components/shared/author-profile-dialog";
-import { formatVacancyDate } from "@/lib/date.utils";
+import { formatVacancyDate, formatInstantDate } from "@/lib/date.utils";
 import { formatPhoneBr } from "@/lib/utils";
 
 type ModalType = "view" | "edit" | "ban" | "history" | "cargos" | "delete" | null;
@@ -60,6 +61,9 @@ function mapProviderToRow(p: ProviderItem) {
     avaliacao: p.avaliacao ?? 0,
     trabalhos: p.trabalhos,
     status: p.isActive ? ("active" as const) : ("inactive" as const),
+    // Null-safe: API antiga não manda o campo → ausente = prioridade normal.
+    lowPriority: p.lowPriority === true,
+    lowPrioritySince: p.lowPrioritySince ?? null,
     score: p.score,
     raw: p,
   };
@@ -130,10 +134,11 @@ export default function FreelancersPage() {
   const [cidadeFilter, setCidadeFilter] = useState("");
   const [cargoFilter, setCargoFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [prioridadeFilter, setPrioridadeFilter] = useState("");
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, estadoFilter, cidadeFilter, cargoFilter, statusFilter]);
+  }, [debouncedSearch, estadoFilter, cidadeFilter, cargoFilter, statusFilter, prioridadeFilter]);
 
   const { data, isLoading, isError, isFetching } = useAdminProviders({
     page,
@@ -156,8 +161,18 @@ export default function FreelancersPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const hardDelete = useAdminHardDeleteProvider();
   const banFreelancer = useAdminBanFreelancer();
+  const clearLowPriority = useClearLowPriority();
 
-  const rows: Row[] = (data?.data ?? []).map(mapProviderToRow);
+  // Prioridade filtra client-side (a API não tem esse parâmetro na listagem).
+  const rows: Row[] = (data?.data ?? [])
+    .map(mapProviderToRow)
+    .filter((row) =>
+      prioridadeFilter === ""
+        ? true
+        : prioridadeFilter === "low"
+          ? row.lowPriority
+          : !row.lowPriority,
+    );
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const fromIndex = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -230,6 +245,16 @@ export default function FreelancersPage() {
     }
   };
 
+  const handleRestorePriority = (row: Row) => {
+    const userId = row.raw.userId;
+    if (!userId) {
+      toast.error("Usuário deste freelancer não encontrado.");
+      return;
+    }
+    if (!confirm("Restaurar a prioridade normal deste freelancer?")) return;
+    clearLowPriority.mutate({ userId });
+  };
+
   const canConfirmDelete =
     deleteReason.trim().length >= 20 && deleteConfirm.trim().toUpperCase() === DELETE_CONFIRM_WORD;
 
@@ -300,6 +325,26 @@ export default function FreelancersPage() {
       sortAccessor: (row: Row) => row.status,
     },
     {
+      header: "Prioridade",
+      accessor: (row: Row) =>
+        row.lowPriority ? (
+          <span
+            className="inline-flex items-center px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-100 text-xs font-medium"
+            title={
+              row.lowPrioritySince
+                ? `Em baixa prioridade desde ${formatInstantDate(row.lowPrioritySince)}`
+                : "Em baixa prioridade"
+            }
+          >
+            Baixa
+          </span>
+        ) : (
+          <span className="text-xs text-[#a3a3a3]">Normal</span>
+        ),
+      sortable: true,
+      sortAccessor: (row: Row) => (row.lowPriority ? 1 : 0),
+    },
+    {
       header: "Score",
       accessor: (row: Row) => (
         <span className={`text-sm font-semibold ${row.score >= 80 ? "text-green-500" : row.score >= 60 ? "text-[#eca826]" : "text-red-500"}`}>
@@ -317,6 +362,16 @@ export default function FreelancersPage() {
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
           <button onClick={() => openModal("ban", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Bloquear"><Ban className="w-4 h-4" /></button>
           <button onClick={() => openModal("history", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Histórico"><History className="w-4 h-4" /></button>
+          {row.lowPriority && (
+            <button
+              onClick={() => handleRestorePriority(row)}
+              disabled={clearLowPriority.isPending}
+              className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Restaurar prioridade"
+            >
+              <ArrowUpCircle className="w-4 h-4" />
+            </button>
+          )}
           <button onClick={() => openModal("delete", row)} className="p-1.5 rounded-md hover:bg-red-50 hover:text-red-600 text-red-500 cursor-pointer transition-colors" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /></button>
         </div>
       ),
@@ -631,13 +686,23 @@ export default function FreelancersPage() {
               ]}
               placeholder="Status"
             />
-            {(estadoFilter || cidadeFilter || cargoFilter || statusFilter) && (
+            <FilterSelect
+              value={prioridadeFilter}
+              onChange={setPrioridadeFilter}
+              options={[
+                { value: "low", label: "Baixa" },
+                { value: "normal", label: "Normal" },
+              ]}
+              placeholder="Prioridade"
+            />
+            {(estadoFilter || cidadeFilter || cargoFilter || statusFilter || prioridadeFilter) && (
               <button
                 onClick={() => {
                   setEstadoFilter("");
                   setCidadeFilter("");
                   setCargoFilter("");
                   setStatusFilter("");
+                  setPrioridadeFilter("");
                 }}
                 className="h-9 px-3 rounded-lg text-sm text-[#737373] hover:text-[#1d1d1b] hover:bg-[#f7f7f7] cursor-pointer transition-colors"
               >
