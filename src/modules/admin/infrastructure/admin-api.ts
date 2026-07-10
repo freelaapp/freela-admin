@@ -459,6 +459,16 @@ export interface FeedbackItem {
   authorCity?: string | null;
   authorUf?: string | null;
   authorJobTitle?: string | null;
+  // Perfil do AVALIADO (outra ponta do job) — campos aditivos; podem estar ausentes antes do deploy da API
+  targetUserId?: string | null;
+  targetName?: string | null;
+  targetEmail?: string | null;
+  targetPhone?: string | null;
+  targetAvatarUrl?: string | null;
+  targetCompanyName?: string | null;
+  targetCity?: string | null;
+  targetUf?: string | null;
+  targetJobTitle?: string | null;
 }
 
 export async function getAdminFeedbacks(): Promise<FeedbackItem[]> {

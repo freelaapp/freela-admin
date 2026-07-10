@@ -66,6 +66,22 @@ function feedbackToAuthor(f: FeedbackItem): AuthorProfile {
   };
 }
 
+/** Avaliado = outra ponta do job; papel é o OPOSTO de quem escreveu. Null se a API ainda não enviar. */
+function feedbackToTarget(f: FeedbackItem): AuthorProfile | null {
+  if (!f.targetName) return null;
+  return {
+    name: f.targetName,
+    role: f.role === "PROVIDER" ? "CONTRACTOR" : f.role === "CONTRACTOR" ? "PROVIDER" : undefined,
+    avatarUrl: f.targetAvatarUrl ?? null,
+    companyName: f.targetCompanyName ?? null,
+    email: f.targetEmail ?? null,
+    phone: f.targetPhone ?? null,
+    city: f.targetCity ?? null,
+    uf: f.targetUf ?? null,
+    jobTitle: f.targetJobTitle ?? null,
+  };
+}
+
 const moderacoesMock = [
   { id: 101, freelancer: "Carlos Silva", empresa: "Bar do Zé", avaliacaoOriginal: 2.0, contestacao: "Discordo da nota de pontualidade, cheguei no horário combinado.", data: "13/03/2026", status: "pendente" as const },
   { id: 102, freelancer: "Pedro Santos", empresa: "Buffet Real Festas", avaliacaoOriginal: 3.0, contestacao: "A nota de postura não condiz com meu comportamento no evento.", data: "12/03/2026", status: "pendente" as const },
@@ -99,6 +115,28 @@ export default function AvaliacoesPage() {
           </span>
         </button>
       ),
+    },
+    {
+      header: "Avaliado",
+      accessor: (row: Row) => {
+        const target = feedbackToTarget(row.raw);
+        if (!target) return <span className="text-sm text-[#737373]">—</span>;
+        return (
+          <button
+            onClick={() => setSelectedAuthor(target)}
+            className="flex items-center gap-2.5 text-left rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-[#eca826]/10 cursor-pointer transition-colors"
+            title="Ver perfil do avaliado"
+          >
+            <AuthorAvatar name={target.name} avatarUrl={target.avatarUrl} />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-[#1d1d1b] truncate">{target.name}</span>
+              {target.companyName && (
+                <span className="block text-xs text-[#737373] truncate">{target.companyName}</span>
+              )}
+            </span>
+          </button>
+        );
+      },
     },
     { header: "Job", accessor: "empresa" as const, className: "hidden md:table-cell" },
     {
