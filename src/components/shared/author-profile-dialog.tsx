@@ -101,7 +101,7 @@ export function AuthorProfileDialog({ open, onOpenChange, author }: AuthorProfil
       <DialogContent className="relative">
         <DialogClose onClick={() => onOpenChange(false)} />
         <DialogHeader>
-          <DialogTitle>Perfil do avaliador</DialogTitle>
+          <DialogTitle>Perfil</DialogTitle>
         </DialogHeader>
 
         <div className="flex items-center gap-4">
