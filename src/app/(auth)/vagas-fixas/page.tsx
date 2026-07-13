@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Loader2, Plus, Users } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -533,10 +534,14 @@ export default function VagasFixasPage() {
     {
       header: "Candidatos",
       accessor: (row: Row) => (
-        <span className="inline-flex items-center gap-1.5">
-          <Users className="w-4 h-4 text-[#737373]" />
+        <Link
+          href={`/vagas-fixas/${row.id}`}
+          className="inline-flex items-center gap-1.5 font-medium text-[#eca826] transition-colors hover:underline"
+          title="Ver candidatos"
+        >
+          <Users className="w-4 h-4" />
           {row.candidatos}
-        </span>
+        </Link>
       ),
       sortable: true,
       sortAccessor: (r: Row) => r.candidatos,

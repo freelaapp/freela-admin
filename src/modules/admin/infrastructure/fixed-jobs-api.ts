@@ -65,3 +65,67 @@ export async function createAdminFixedJob(
   const res = await fixedJobsAdminApi.post("/posts", payload);
   return res.data.data;
 }
+
+// ---------------------------------------------------------------------------
+// Candidaturas de vagas fixas (viewer de candidatos no admin)
+// ---------------------------------------------------------------------------
+
+/** Status de uma candidatura de vaga fixa. `ACTIVE` = em consideração; `REJECTED` = negada. */
+export type FixedJobApplicationStatus = "ACTIVE" | "REJECTED";
+
+/**
+ * Currículo profissional preenchido pelo freelancer (JSON livre). Espelha o
+ * shape lido pelo `FreelancerCurriculumReadonly` do web. Todos os campos são
+ * opcionais — o renderer ignora entradas vazias.
+ */
+export interface FixedJobProfessionalCurriculum {
+  experiences?: Array<{ workplace?: string; role?: string; durationLabel?: string }>;
+  courses?: Array<{ title?: string; durationLabel?: string; completionYear?: number | string }>;
+  skills?: string;
+  competitiveEdge?: string;
+}
+
+/** Perfil global do provider anexado à candidatura (null quando `providerGlobalId` é null). */
+export interface FixedJobApplicationProvider {
+  avatarUrl: string | null;
+  presentationVideoUrl: string | null;
+  professionalCurriculum: FixedJobProfessionalCurriculum | null;
+}
+
+/** Uma candidatura a uma vaga fixa, na visão do admin. */
+export interface FixedJobAdminApplication {
+  id: string;
+  fixedJobPostId: string;
+  providerUserId: string;
+  providerGlobalId: string | null;
+  applicantName: string;
+  applicantEmail: string | null;
+  applicantPhone: string | null;
+  message: string | null;
+  curriculumSnapshot: FixedJobProfessionalCurriculum | null;
+  curriculumPdfUrl: string | null;
+  curriculumPdfName: string | null;
+  status: FixedJobApplicationStatus;
+  rejectedAt: string | null;
+  createdAt: string;
+  provider: FixedJobApplicationProvider | null;
+}
+
+/** Candidaturas de uma vaga fixa (ordenadas por `createdAt` desc). */
+export async function getFixedJobApplications(
+  postId: string,
+): Promise<FixedJobAdminApplication[]> {
+  const res = await fixedJobsAdminApi.get(`/posts/${postId}/applications`);
+  return res.data.data;
+}
+
+/** Atualiza o status de uma candidatura (ACTIVE ⇄ REJECTED). */
+export async function setFixedJobApplicationStatus(
+  applicationId: string,
+  status: FixedJobApplicationStatus,
+): Promise<FixedJobAdminApplication> {
+  const res = await fixedJobsAdminApi.patch(`/applications/${applicationId}/status`, {
+    status,
+  });
+  return res.data.data;
+}
