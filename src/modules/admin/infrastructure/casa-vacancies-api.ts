@@ -1,5 +1,5 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
-import type { FeedbackItem } from "./admin-api";
+import type { AdminCancelVacancyResult, FeedbackItem, RefundType } from "./admin-api";
 
 // Vagas do Freela em Casa vivem sob /v1/home-services/admin (base distinta da de
 // bares-restaurantes usada por `adminApi`). Mesma env + mesmo esquema de token.
@@ -56,5 +56,25 @@ export async function getAdminCasaAllVacancies(consultantId?: string): Promise<C
 
 export async function getCasaAdminFeedbacks(): Promise<FeedbackItem[]> {
   const res = await casaAdminApi.get("/feedbacks");
+  return res.data.data;
+}
+
+// ─── Cancelar vaga (Casa) ───────────────────────────────────────────────────
+// Espelha `adminCancelVacancy` do BR, mas na base /v1/home-services/admin.
+
+/**
+ * Cancela uma vaga do Freela em Casa. Quando `refundType` é informado, força o
+ * estorno escolhido (NONE = sem estorno); omitido, o backend aplica a regra
+ * legada por tempo.
+ */
+export async function adminCancelCasaVacancy(
+  vacancyId: string,
+  reason: string,
+  refundType?: RefundType,
+): Promise<AdminCancelVacancyResult> {
+  const res = await casaAdminApi.post(`/vacancies/${vacancyId}/cancel`, {
+    reason,
+    ...(refundType ? { refundType } : {}),
+  });
   return res.data.data;
 }

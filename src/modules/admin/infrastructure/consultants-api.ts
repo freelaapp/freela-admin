@@ -40,6 +40,11 @@ export async function getAdminConsultants(): Promise<ConsultantItem[]> {
   return res.data.data;
 }
 
+export async function getAdminConsultant(id: string): Promise<ConsultantItem> {
+  const res = await adminsRootApi.get(`/consultants/${id}`);
+  return res.data.data;
+}
+
 export async function createAdminConsultant(
   payload: CreateConsultantPayload,
 ): Promise<ConsultantItem> {

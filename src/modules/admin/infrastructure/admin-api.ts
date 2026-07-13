@@ -340,18 +340,31 @@ export async function getVacancyFeedbacks(
   return res.data.data;
 }
 
+/**
+ * Tipo de estorno escolhido pelo admin ao cancelar a vaga:
+ * - `FULL`: devolve tudo (menos a taxa Pix).
+ * - `PARTIAL_50`: devolve metade.
+ * - `NONE`: sem estorno.
+ * Quando omitido, o backend aplica a regra legada por tempo.
+ */
+export type RefundType = "FULL" | "PARTIAL_50" | "NONE";
+
 export interface AdminCancelVacancyResult {
   vacancyId: string;
   refundAmount: number;
-  refundType: "FULL" | "PARTIAL_50" | "NONE";
+  refundType: RefundType;
   cancelledCandidacies: number;
 }
 
 export async function adminCancelVacancy(
   vacancyId: string,
   reason: string,
+  refundType?: RefundType,
 ): Promise<AdminCancelVacancyResult> {
-  const res = await adminApi.post(`/vacancies/${vacancyId}/cancel`, { reason });
+  const res = await adminApi.post(`/vacancies/${vacancyId}/cancel`, {
+    reason,
+    ...(refundType ? { refundType } : {}),
+  });
   return res.data.data;
 }
 

@@ -24,7 +24,8 @@ import { useVacancyCandidacies } from "@/modules/admin/application/use-vacancy-c
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
 import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
-import type { VacancyItem, VacancyFeedbackEntry } from "@/modules/admin/infrastructure/admin-api";
+import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
+import type { VacancyItem, VacancyFeedbackEntry, RefundType } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate, formatVacancyTime } from "@/lib/date.utils";
 
 const formatDate = formatVacancyDate;
@@ -341,6 +342,7 @@ export default function JobsPage() {
 
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelRefundType, setCancelRefundType] = useState<RefundType>("FULL");
   const cancelMutation = useAdminCancelVacancy();
   const restartMutation = useAdminRestartVacancy();
 
@@ -369,6 +371,7 @@ export default function JobsPage() {
       const result = await cancelMutation.mutateAsync({
         vacancyId: cancelTarget.raw.id,
         reason: cancelReason.trim(),
+        refundType: cancelRefundType,
       });
       // Vaga sem pagamento confirmado (ex.: nenhum freelancer aceito) cancela sem
       // estorno — não fala de pagamento. Só mostra o estorno quando houve devolução.
@@ -965,6 +968,7 @@ export default function JobsPage() {
                 onClick={() => {
                   setCancelTarget(modalDetalhes);
                   setCancelReason("");
+                  setCancelRefundType("FULL");
                 }}
                 className="border-red-200 text-red-600 hover:bg-red-50"
               >
@@ -1013,8 +1017,8 @@ export default function JobsPage() {
           <DialogHeader>
             <DialogTitle>Cancelar Vaga</DialogTitle>
             <DialogDescription>
-              Esta acao cancela todas as candidaturas e dispara o estorno via Pix conforme a regra:
-              100% se faltam 2h ou mais para o inicio, 50% se faltar menos. A acao nao pode ser desfeita.
+              Esta ação cancela todas as candidaturas e, quando houver pagamento, aplica o estorno
+              que você escolher abaixo. A ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           {cancelTarget && (
@@ -1026,6 +1030,11 @@ export default function JobsPage() {
                   {cancelTarget.cargo} • {cancelTarget.data} • {cancelTarget.horario}
                 </p>
               </div>
+              <RefundTypeSelector
+                value={cancelRefundType}
+                onChange={setCancelRefundType}
+                disabled={cancelMutation.isPending}
+              />
               <div>
                 <label className="block text-sm font-medium text-[#1d1d1b] mb-1">
                   Motivo do cancelamento <span className="text-red-500">*</span>

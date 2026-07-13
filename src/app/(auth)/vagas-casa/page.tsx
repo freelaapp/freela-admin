@@ -1,14 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Users } from "lucide-react";
+import { Loader2, Users, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { useAdminCasaVacancies } from "@/modules/admin/application/use-admin-casa-vacancies";
+import { useAdminCancelCasaVacancy } from "@/modules/admin/application/use-admin-cancel-casa-vacancy";
+import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminConsultants } from "@/modules/admin/application/use-admin-consultants";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import type { CasaVacancyItem } from "@/modules/admin/infrastructure/casa-vacancies-api";
+import type { RefundType } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate, formatVacancyTime } from "@/lib/date.utils";
 
 function mapVacancyStatus(status: string) {
@@ -60,6 +75,49 @@ export default function VagasCasaPage() {
   const { data: consultants } = useAdminConsultants();
   const [statusFilter, setStatusFilter] = useState<StatusKey>("all");
 
+  const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelRefundType, setCancelRefundType] = useState<RefundType>("FULL");
+  const cancelMutation = useAdminCancelCasaVacancy();
+
+  const openCancelModal = (row: Row) => {
+    setCancelTarget(row);
+    setCancelReason("");
+    setCancelRefundType("FULL");
+  };
+
+  const closeCancelModal = () => {
+    if (cancelMutation.isPending) return;
+    setCancelTarget(null);
+    setCancelReason("");
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelTarget) return;
+    if (cancelReason.trim().length < 5) {
+      toast.error("Informe um motivo com pelo menos 5 caracteres.");
+      return;
+    }
+    try {
+      const result = await cancelMutation.mutateAsync({
+        vacancyId: cancelTarget.raw.id,
+        reason: cancelReason.trim(),
+        refundType: cancelRefundType,
+      });
+      if (result.refundAmount > 0) {
+        const valor = (result.refundAmount / 100).toFixed(2).replace(".", ",");
+        const tipo = result.refundType === "FULL" ? "integral" : "parcial (50%)";
+        toast.success(`Vaga cancelada. Estorno ${tipo} de R$ ${valor} processado.`);
+      } else {
+        toast.success("Vaga cancelada com sucesso.");
+      }
+      setCancelTarget(null);
+      setCancelReason("");
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Falha ao cancelar a vaga."));
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -104,6 +162,21 @@ export default function VagasCasaPage() {
     { header: "Data", accessor: "data" as const, sortable: true, sortAccessor: (r: Row) => new Date(r.raw.date) },
     { header: "Horário", accessor: "horario" as const, className: "hidden lg:table-cell" },
     { header: "Status", accessor: (row: Row) => <StatusBadge status={row.status} /> },
+    {
+      header: "Ações",
+      accessor: (row: Row) =>
+        row.status !== "cancelled" ? (
+          <button
+            onClick={() => openCancelModal(row)}
+            className="p-1.5 rounded-md text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
+            title="Cancelar vaga"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        ) : (
+          <span className="text-[#a3a3a3] text-xs">—</span>
+        ),
+    },
   ];
 
   return (
@@ -168,6 +241,84 @@ export default function VagasCasaPage() {
           </span>
         }
       />
+
+      {/* Modal Cancelar Vaga (admin — Casa) */}
+      <Dialog
+        open={!!cancelTarget}
+        onOpenChange={(open) => {
+          if (!open) closeCancelModal();
+        }}
+      >
+        <DialogContent>
+          <DialogClose onClick={closeCancelModal} />
+          <DialogHeader>
+            <DialogTitle>Cancelar Vaga</DialogTitle>
+            <DialogDescription>
+              Esta ação cancela todas as candidaturas e, quando houver pagamento, aplica o estorno
+              que você escolher abaixo. A ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          {cancelTarget && (
+            <div className="space-y-3">
+              <div className="bg-[#f7f7f7] rounded-lg p-3 text-sm">
+                <p className="text-[#737373] text-xs uppercase tracking-wide">Vaga</p>
+                <p className="font-semibold text-[#1d1d1b]">{cancelTarget.empresa}</p>
+                <p className="text-xs text-[#737373]">
+                  {cancelTarget.cargo} • {cancelTarget.data} • {cancelTarget.horario}
+                </p>
+              </div>
+              <RefundTypeSelector
+                value={cancelRefundType}
+                onChange={setCancelRefundType}
+                disabled={cancelMutation.isPending}
+              />
+              <div>
+                <label className="block text-sm font-medium text-[#1d1d1b] mb-1">
+                  Motivo do cancelamento <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  rows={3}
+                  placeholder="Ex.: Fraude detectada no contratante; vaga duplicada por erro; solicitação formal do contratante via suporte..."
+                  className="w-full rounded-lg border border-[#e5e5e5] px-3 py-2 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                  disabled={cancelMutation.isPending}
+                />
+                <p className="text-xs text-[#737373] mt-1">
+                  Mínimo 5 caracteres. Ficará registrado em auditoria.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closeCancelModal}
+              disabled={cancelMutation.isPending}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Voltar
+            </Button>
+            <Button
+              onClick={handleConfirmCancel}
+              disabled={cancelMutation.isPending || cancelReason.trim().length < 5}
+              className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {cancelMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processando...
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Confirmar cancelamento
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, UserPlus, Copy, Power } from "lucide-react";
+import { Plus, Loader2, UserPlus, Copy, Power, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -139,7 +140,19 @@ export default function ConsultoresPage() {
   }
 
   const columns = [
-    { header: "Nome", accessor: "name" as const },
+    {
+      header: "Nome",
+      accessor: (row: ConsultantItem) => (
+        <Link
+          href={`/consultores/${row.id}`}
+          className="font-medium text-[#1d1d1b] hover:text-[#eca826] transition-colors"
+        >
+          {row.name}
+        </Link>
+      ),
+      sortAccessor: (row: ConsultantItem) => row.name,
+      sortable: true,
+    },
     {
       header: "Código",
       accessor: (row: ConsultantItem) => (
@@ -190,6 +203,15 @@ export default function ConsultoresPage() {
       header: "Ações",
       accessor: (row: ConsultantItem) => (
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(`/consultores/${row.id}`)}
+            title="Ver perfil"
+            className="text-[#737373] hover:text-[#1d1d1b]"
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"

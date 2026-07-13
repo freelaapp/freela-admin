@@ -2,7 +2,11 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { adminCancelVacancy, adminRestartVacancy } from "../infrastructure/admin-api";
+import {
+  adminCancelVacancy,
+  adminRestartVacancy,
+  type RefundType,
+} from "../infrastructure/admin-api";
 
 function invalidateVacancies(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["admin", "vacancies"] });
@@ -12,8 +16,15 @@ function invalidateVacancies(qc: ReturnType<typeof useQueryClient>) {
 export function useAdminCancelVacancy() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ vacancyId, reason }: { vacancyId: string; reason: string }) =>
-      adminCancelVacancy(vacancyId, reason),
+    mutationFn: ({
+      vacancyId,
+      reason,
+      refundType,
+    }: {
+      vacancyId: string;
+      reason: string;
+      refundType?: RefundType;
+    }) => adminCancelVacancy(vacancyId, reason, refundType),
     onSuccess: () => invalidateVacancies(qc),
   });
 }

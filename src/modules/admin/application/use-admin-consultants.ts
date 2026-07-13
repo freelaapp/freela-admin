@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createAdminConsultant,
+  getAdminConsultant,
   getAdminConsultants,
   updateAdminConsultant,
   type CreateConsultantPayload,
@@ -13,6 +14,15 @@ export function useAdminConsultants() {
   return useQuery({
     queryKey: ["admin", "consultants"],
     queryFn: getAdminConsultants,
+    staleTime: 30000,
+  });
+}
+
+export function useAdminConsultant(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ["admin", "consultants", id],
+    queryFn: () => getAdminConsultant(id!),
+    enabled: !!id,
     staleTime: 30000,
   });
 }
