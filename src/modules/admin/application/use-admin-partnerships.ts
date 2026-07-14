@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createAdminPartnership,
   getAdminPartnerships,
+  getAdminPartnershipAdLeads,
   getAdminPartnershipReport,
   updateAdminPartnership,
   type CreatePartnershipPayload,
@@ -43,6 +44,15 @@ export function useAdminPartnershipReport(id: string | null) {
   return useQuery({
     queryKey: ["admin", "partnerships", id, "report"],
     queryFn: () => getAdminPartnershipReport(id as string),
+    enabled: !!id,
+    staleTime: 30000,
+  });
+}
+
+export function useAdminPartnershipAdLeads(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "partnerships", id, "ad-leads"],
+    queryFn: () => getAdminPartnershipAdLeads(id as string),
     enabled: !!id,
     staleTime: 30000,
   });

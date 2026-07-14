@@ -23,6 +23,9 @@ export interface AdvertisementItem {
   endsAt: string | null;
   viewsCount: number;
   clicksCount: number;
+  /** Parceria vinculada (captura leads no clique logado); null = sem parceria. */
+  partnerId: string | null;
+  partnerName: string | null;
   createdAt: string;
 }
 
@@ -37,9 +40,11 @@ export interface CreateAdPayload {
   /** ISO-8601 com offset -03:00 (convenção Brasília, spec §2.3). */
   startsAt?: string;
   endsAt?: string;
+  /** UUID de uma parceria; omitido = sem parceria. */
+  partnerId?: string;
 }
 
-/** PATCH parcial — `null` limpa os campos opcionais (link/datas). */
+/** PATCH parcial — `null` limpa os campos opcionais (link/datas/parceria). */
 export type UpdateAdPayload = Partial<{
   title: string;
   imageKey: string;
@@ -49,6 +54,7 @@ export type UpdateAdPayload = Partial<{
   active: boolean;
   startsAt: string | null;
   endsAt: string | null;
+  partnerId: string | null;
 }>;
 
 export interface AdImageUpload {

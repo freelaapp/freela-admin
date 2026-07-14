@@ -7,7 +7,7 @@ import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Store, Copy, Power, BarChart3 } from "lucide-react";
+import { Plus, Loader2, Store, Copy, Power, BarChart3, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -23,6 +23,7 @@ import {
   useCreateAdminPartnership,
   useUpdateAdminPartnership,
   useAdminPartnershipReport,
+  useAdminPartnershipAdLeads,
 } from "@/modules/admin/application/use-admin-partnerships";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
@@ -66,6 +67,12 @@ export default function ParceriasPage() {
     isLoading: reportLoading,
     isError: reportError,
   } = useAdminPartnershipReport(reportPartner?.id ?? null);
+  const [leadsPartner, setLeadsPartner] = useState<PartnershipItem | null>(null);
+  const {
+    data: adLeads,
+    isLoading: leadsLoading,
+    isError: leadsError,
+  } = useAdminPartnershipAdLeads(leadsPartner?.id ?? null);
 
   useEffect(() => {
     if (isHydrated && !isSuperAdmin) {
@@ -187,6 +194,15 @@ export default function ParceriasPage() {
       header: "Ações",
       accessor: (row: PartnershipItem) => (
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLeadsPartner(row)}
+            title="Ver leads de anúncio"
+            className="text-[#737373] hover:text-[#1d1d1b]"
+          >
+            <Users className="w-4 h-4" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -500,6 +516,91 @@ export default function ParceriasPage() {
             <Button
               variant="outline"
               onClick={() => setReportPartner(null)}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!leadsPartner}
+        onOpenChange={(open) => !open && setLeadsPartner(null)}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogClose onClick={() => setLeadsPartner(null)} />
+          <DialogHeader>
+            <DialogTitle>Leads de anúncio</DialogTitle>
+            <DialogDescription>
+              {leadsPartner
+                ? `${leadsPartner.name} — usuários que clicaram no anúncio desta parceria`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {leadsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-[#eca826]" />
+            </div>
+          ) : leadsError ? (
+            <div className="py-6 text-center text-sm text-red-500">
+              Erro ao carregar os leads da parceria.
+            </div>
+          ) : adLeads && adLeads.total > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs text-[#737373]">
+                <span className="font-semibold text-[#1d1d1b]">{adLeads.total}</span>{" "}
+                {adLeads.total === 1 ? "pessoa clicou" : "pessoas clicaram"} no anúncio.
+              </p>
+              <div className="max-h-[55vh] overflow-auto rounded-lg border border-[#e5e5e5]">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-[#f7f7f7] text-[#737373]">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Nome</th>
+                      <th className="px-3 py-2 text-left font-medium">E-mail</th>
+                      <th className="px-3 py-2 text-left font-medium">Telefone</th>
+                      <th className="px-3 py-2 text-left font-medium">CPF</th>
+                      <th className="px-3 py-2 text-right font-medium">Cliques</th>
+                      <th className="px-3 py-2 text-left font-medium whitespace-nowrap">
+                        Último acesso
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#f1f1f1]">
+                    {adLeads.leads.map((lead) => (
+                      <tr key={lead.id} className="hover:bg-[#fafafa]">
+                        <td className="px-3 py-2 text-[#1d1d1b]">{lead.name || "—"}</td>
+                        <td className="px-3 py-2 text-[#737373]">{lead.email || "—"}</td>
+                        <td className="px-3 py-2 text-[#737373] whitespace-nowrap">
+                          {lead.phone || "—"}
+                        </td>
+                        <td className="px-3 py-2 text-[#737373] whitespace-nowrap">
+                          {lead.cpf || "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold text-[#1d1d1b]">
+                          {lead.clicksCount}
+                        </td>
+                        <td className="px-3 py-2 text-[#737373] whitespace-nowrap">
+                          {formatInstantDate(lead.lastClickedAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-sm text-[#737373]">
+              Nenhum lead ainda. Vincule um anúncio a esta parceria na aba Propagandas —
+              cada clique de usuário logado aparecerá aqui.
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setLeadsPartner(null)}
               className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
             >
               Fechar

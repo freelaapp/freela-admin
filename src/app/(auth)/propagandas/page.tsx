@@ -39,6 +39,7 @@ import {
   useAdminAds,
   useAdminAdMutations,
 } from "@/modules/admin/application/use-admin-ads";
+import { useAdminPartnerships } from "@/modules/admin/application/use-admin-partnerships";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
   uploadAdImage,
@@ -363,11 +364,13 @@ function AdDialog({
   onClose: () => void;
 }) {
   const { create, update } = useAdminAdMutations();
+  const { data: partnerships = [] } = useAdminPartnerships();
   const isEdit = ad !== null;
 
   const [title, setTitle] = useState(ad?.title ?? "");
   const [targetUrl, setTargetUrl] = useState(ad?.targetUrl ?? "");
   const [audience, setAudience] = useState<AdAudience>(ad?.audience ?? "BOTH");
+  const [partnerId, setPartnerId] = useState(ad?.partnerId ?? "");
   const [startDate, setStartDate] = useState(isoToDateInput(ad?.startsAt));
   const [endDate, setEndDate] = useState(isoToDateInput(ad?.endsAt));
   const [displayOrder, setDisplayOrder] = useState(String(ad?.displayOrder ?? 0));
@@ -442,6 +445,7 @@ function AdDialog({
             active,
             startsAt,
             endsAt,
+            partnerId: partnerId || null,
           },
         });
       } else {
@@ -454,6 +458,7 @@ function AdDialog({
           ...(trimmedUrl ? { targetUrl: trimmedUrl } : {}),
           ...(startsAt ? { startsAt } : {}),
           ...(endsAt ? { endsAt } : {}),
+          ...(partnerId ? { partnerId } : {}),
         };
         await create.mutateAsync(payload);
       }
@@ -556,6 +561,26 @@ function AdDialog({
               <option value="FREELANCER">Freelancer</option>
               <option value="CONTRACTOR">Contratante</option>
             </NativeSelect>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ad-partner">Parceria (opcional)</Label>
+            <NativeSelect
+              id="ad-partner"
+              value={partnerId}
+              onChange={(e) => setPartnerId(e.target.value)}
+            >
+              <option value="">Nenhuma</option>
+              {partnerships.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </NativeSelect>
+            <p className="text-xs text-[#a3a3a3]">
+              Ao vincular uma parceria, cada clique de usuário logado vira um lead (nome,
+              e-mail, telefone, CPF) no painel da parceria.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -80,4 +80,30 @@ export async function getAdminPartnershipReport(
   return res.data.data;
 }
 
+/** Lead capturado ao clicar num anúncio vinculado à parceria (usuário logado). */
+export interface PartnerAdLeadItem {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  cpf: string | null;
+  clicksCount: number;
+  advertisementTitle: string | null;
+  firstClickedAt: string;
+  lastClickedAt: string;
+}
+
+export interface PartnerAdLeadsReport {
+  partner: { id: string; name: string; code: string };
+  total: number;
+  leads: PartnerAdLeadItem[];
+}
+
+export async function getAdminPartnershipAdLeads(
+  id: string,
+): Promise<PartnerAdLeadsReport> {
+  const res = await adminsRootApi.get(`/partnerships/${id}/ad-leads`);
+  return res.data.data;
+}
+
 export default adminsRootApi;
