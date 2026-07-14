@@ -80,13 +80,17 @@ export async function getAdminPartnershipReport(
   return res.data.data;
 }
 
-/** Lead capturado ao clicar num anúncio vinculado à parceria (usuário logado). */
+/** Lead capturado num anúncio de parceria (clique logado ou formulário da home). */
 export interface PartnerAdLeadItem {
   id: string;
   name: string | null;
   email: string | null;
   phone: string | null;
   cpf: string | null;
+  cnpj: string | null;
+  /** false = lead "sem cadastro" (ainda não vinculado a uma conta). */
+  registered: boolean;
+  source: string;
   clicksCount: number;
   advertisementTitle: string | null;
   firstClickedAt: string;

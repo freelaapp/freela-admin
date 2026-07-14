@@ -560,7 +560,7 @@ export default function ParceriasPage() {
                       <th className="px-3 py-2 text-left font-medium">Nome</th>
                       <th className="px-3 py-2 text-left font-medium">E-mail</th>
                       <th className="px-3 py-2 text-left font-medium">Telefone</th>
-                      <th className="px-3 py-2 text-left font-medium">CPF</th>
+                      <th className="px-3 py-2 text-left font-medium">CPF/CNPJ</th>
                       <th className="px-3 py-2 text-right font-medium">Cliques</th>
                       <th className="px-3 py-2 text-left font-medium whitespace-nowrap">
                         Último acesso
@@ -570,13 +570,22 @@ export default function ParceriasPage() {
                   <tbody className="divide-y divide-[#f1f1f1]">
                     {adLeads.leads.map((lead) => (
                       <tr key={lead.id} className="hover:bg-[#fafafa]">
-                        <td className="px-3 py-2 text-[#1d1d1b]">{lead.name || "—"}</td>
+                        <td className="px-3 py-2 text-[#1d1d1b]">
+                          <div className="flex items-center gap-2">
+                            <span>{lead.name || "—"}</span>
+                            {!lead.registered && (
+                              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                Sem cadastro
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-[#737373]">{lead.email || "—"}</td>
                         <td className="px-3 py-2 text-[#737373] whitespace-nowrap">
                           {lead.phone || "—"}
                         </td>
                         <td className="px-3 py-2 text-[#737373] whitespace-nowrap">
-                          {lead.cpf || "—"}
+                          {lead.cpf || lead.cnpj || "—"}
                         </td>
                         <td className="px-3 py-2 text-right font-semibold text-[#1d1d1b]">
                           {lead.clicksCount}
