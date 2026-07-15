@@ -540,6 +540,88 @@ export async function getAdminRepasses(): Promise<RepasseItem[]> {
   return res.data.data;
 }
 
+// ─── Dashboard financeiro (saldo ao vivo + fluxo) ────────────────────────────
+
+/**
+ * Resumo financeiro (centavos). Saldos vêm AO VIVO dos gateways (Woovi + Asaas);
+ * `null` = indisponível no momento (fail-open, não quebra o painel). O resto é
+ * calculado do nosso banco, cross-módulo, filtrado pelo período.
+ */
+export interface FinanceSummary {
+  saldoWooviCents: number | null;
+  saldoAsaasCents: number | null;
+  saldoTotalCents: number | null;
+  entradasCents: number;
+  saidasCents: number;
+  estornosCents: number;
+  /** Taxa da plataforma das vagas pagas − taxa de gateway − bônus pagos. */
+  lucroCents: number;
+  gatewayFeesCents: number;
+  entradasCount: number;
+  saidasCount: number;
+  estornosCount: number;
+}
+
+export interface FinanceTransaction {
+  id: string;
+  type: "entrada" | "saida" | "estorno";
+  /** charge | repasse | bonus | refund_admin_br | refund_admin_casa | refund_cancel */
+  kind: string;
+  amountInCents: number;
+  status: string;
+  provider: string | null;
+  method: string | null;
+  vacancyId: string | null;
+  reference: string | null;
+  createdAt: string;
+}
+
+export interface FinancePeriodParams {
+  /** Dia local (YYYY-MM-DD). Vazio/omitido = sem limite inferior. */
+  from?: string;
+  /** Dia local (YYYY-MM-DD), inclusivo. Vazio/omitido = sem limite superior. */
+  to?: string;
+}
+
+export interface FinanceTransactionParams extends FinancePeriodParams {
+  type?: "entrada" | "saida" | "estorno";
+  provider?: string;
+  vacancyId?: string;
+}
+
+/**
+ * Converte um dia local (YYYY-MM-DD) nos extremos do dia em Brasília (UTC-3),
+ * pro filtro de data ser inclusivo do dia inteiro escolhido (o backend faz
+ * `new Date(...)`, então mandamos o instante ISO com offset explícito).
+ */
+function toRangeParams(p: FinancePeriodParams): Record<string, string> {
+  return {
+    ...(p.from ? { from: `${p.from}T00:00:00.000-03:00` } : {}),
+    ...(p.to ? { to: `${p.to}T23:59:59.999-03:00` } : {}),
+  };
+}
+
+export async function getFinanceSummary(
+  params: FinancePeriodParams = {},
+): Promise<FinanceSummary> {
+  const res = await adminApi.get("/finance/summary", { params: toRangeParams(params) });
+  return res.data.data;
+}
+
+export async function getFinanceTransactions(
+  params: FinanceTransactionParams = {},
+): Promise<{ items: FinanceTransaction[]; truncated: boolean }> {
+  const res = await adminApi.get("/finance/transactions", {
+    params: {
+      ...toRangeParams(params),
+      ...(params.type ? { type: params.type } : {}),
+      ...(params.provider ? { provider: params.provider } : {}),
+      ...(params.vacancyId ? { vacancyId: params.vacancyId } : {}),
+    },
+  });
+  return res.data.data;
+}
+
 // ─── Provider Job History ──────────────────────────────────────────────────────
 
 export interface ProviderHistoryItem {
