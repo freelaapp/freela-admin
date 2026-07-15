@@ -280,6 +280,19 @@ export interface VacancyItem {
   } | null;
   /** Consultor que indicou o contratante desta vaga (null quando não indicado). */
   referringConsultant?: { id: string; name: string; code: string } | null;
+  /**
+   * Horários de cada etapa da linha do tempo (ISO). Presente nas vagas fechadas;
+   * ausente nas abertas (que ainda não têm job). Campo nulo = evento não ocorreu.
+   */
+  timeline?: {
+    createdAt: string;
+    firstCandidacyAt: string | null;
+    hiredAt: string | null;
+    scheduledAt: string | null;
+    startedAt: string | null;
+    endedAt: string | null;
+    reviewedAt: string | null;
+  };
 }
 
 export interface ProviderPixKey {

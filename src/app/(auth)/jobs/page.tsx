@@ -26,7 +26,7 @@ import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } f
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
 import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
 import type { VacancyItem, VacancyFeedbackEntry, RefundType } from "@/modules/admin/infrastructure/admin-api";
-import { formatVacancyDate, formatVacancyTime } from "@/lib/date.utils";
+import { formatVacancyDate, formatVacancyTime, formatInstantDate } from "@/lib/date.utils";
 
 const formatDate = formatVacancyDate;
 const formatTime = formatVacancyTime;
@@ -155,6 +155,31 @@ function resolveRoadmapReached(v: VacancyItem): number {
   return reached;
 }
 
+// Etapa do roadmap → campo de horário correspondente no timeline da vaga.
+const STEP_TIMELINE_FIELD: Record<string, keyof NonNullable<VacancyItem["timeline"]>> = {
+  created: "createdAt",
+  candidates: "firstCandidacyAt",
+  hired: "hiredAt",
+  paid: "scheduledAt",
+  inProgress: "startedAt",
+  completed: "endedAt",
+  reviewed: "reviewedAt",
+};
+
+/** Horário (ISO) da etapa, ou null. "created" cai no createdAt da vaga (vagas abertas não têm timeline). */
+function stepTimestamp(vacancy: VacancyItem, key: string): string | null {
+  const tl = vacancy.timeline;
+  if (key === "created") return tl?.createdAt ?? vacancy.createdAt ?? null;
+  const field = STEP_TIMELINE_FIELD[key];
+  if (!tl || !field) return null;
+  return tl[field] ?? null;
+}
+
+/** Formata um instante ISO como "dd/mm/aaaa · HH:MM" no fuso de Brasília. */
+function formatStepAt(iso: string): string {
+  return `${formatInstantDate(iso)} · ${formatVacancyTime(iso)}`;
+}
+
 type RoadmapNodeState = "done" | "current" | "pending" | "cancelled" | "lost";
 
 function VacancyRoadmap({ vacancy }: { vacancy: VacancyItem }) {
@@ -166,13 +191,19 @@ function VacancyRoadmap({ vacancy }: { vacancy: VacancyItem }) {
   // Caminho terminal (cancelada/perdida) corta o caminho feliz no passo alcançado.
   const lastStep = terminal ? reached : ROADMAP_STEPS.length - 1;
 
-  const nodes: { key: string; label: string; hint: string; state: RoadmapNodeState }[] =
-    ROADMAP_STEPS.slice(0, lastStep + 1).map((step, i) => ({
-      key: step.key,
-      label: step.label,
-      hint: step.hint,
-      state: i < reached ? "done" : i === reached && !terminal ? "current" : "done",
-    }));
+  const nodes: {
+    key: string;
+    label: string;
+    hint: string;
+    state: RoadmapNodeState;
+    at: string | null;
+  }[] = ROADMAP_STEPS.slice(0, lastStep + 1).map((step, i) => ({
+    key: step.key,
+    label: step.label,
+    hint: step.hint,
+    state: i < reached ? "done" : i === reached && !terminal ? "current" : "done",
+    at: stepTimestamp(vacancy, step.key),
+  }));
 
   if (terminal === "cancelled") {
     nodes.push({
@@ -180,6 +211,7 @@ function VacancyRoadmap({ vacancy }: { vacancy: VacancyItem }) {
       label: "Vaga cancelada",
       hint: "Fluxo encerrado · estorno processado",
       state: "cancelled",
+      at: null,
     });
   } else if (terminal === "lost") {
     nodes.push({
@@ -187,6 +219,7 @@ function VacancyRoadmap({ vacancy }: { vacancy: VacancyItem }) {
       label: "Expirou sem contratação",
       hint: "O prazo da vaga passou sem freelancer contratado",
       state: "lost",
+      at: null,
     });
   }
 
@@ -252,6 +285,11 @@ function VacancyRoadmap({ vacancy }: { vacancy: VacancyItem }) {
                   )}
                 </p>
                 <p className="text-[11px] text-[#737373]">{node.hint}</p>
+                {node.at && (
+                  <p className="mt-0.5 text-[11px] font-medium tabular-nums text-[#eca826]">
+                    {formatStepAt(node.at)}
+                  </p>
+                )}
               </div>
             </li>
           );
