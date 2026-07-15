@@ -467,6 +467,19 @@ export async function getAdminUsers(): Promise<UserItem[]> {
   return res.data.data;
 }
 
+/**
+ * Altera o e-mail de login de uma conta. O backend valida unicidade e mantém a
+ * conta confirmada (o titular loga com o novo e-mail + a senha atual). 409 = e-mail
+ * já em uso; 404 = usuário não encontrado.
+ */
+export async function changeUserEmail(
+  userId: string,
+  email: string,
+): Promise<{ id: string; email: string }> {
+  const res = await adminApi.patch(`/users/${userId}/email`, { email });
+  return res.data.data;
+}
+
 export interface DeletionStats {
   totalDeleted: number;
   pendingDeletion: number;

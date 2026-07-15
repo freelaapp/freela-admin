@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -19,7 +20,7 @@ import {
 import { useAdminUsers } from "@/modules/admin/application/use-admin-users";
 import { useAdminDeletionStats } from "@/modules/admin/application/use-admin-deletion-stats";
 import type { UserItem } from "@/modules/admin/infrastructure/admin-api";
-import { formatReferralOrigin } from "@/modules/admin/infrastructure/admin-api";
+import { formatReferralOrigin, changeUserEmail } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate } from "@/lib/date.utils";
 
 function mapUserStatus(status: string) {
@@ -68,6 +69,31 @@ export default function UsuariosPage() {
   const { data: deletionStats } = useAdminDeletionStats();
   const [modalEditar, setModalEditar] = useState<Row | null>(null);
   const [tab, setTab] = useState<Tab>("Todos");
+  const [emailDraft, setEmailDraft] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const changeEmail = useMutation({
+    mutationFn: (vars: { userId: string; email: string }) =>
+      changeUserEmail(vars.userId, vars.email),
+    onSuccess: (data) => {
+      toast.success(`E-mail alterado para ${data.email}`);
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      setModalEditar((prev) =>
+        prev ? { ...prev, email: data.email, emailConfirmado: true } : prev,
+      );
+      setEmailDraft(null);
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message;
+      toast.error(msg ?? "Não foi possível alterar o e-mail.");
+    },
+  });
+
+  const closeModal = () => {
+    setModalEditar(null);
+    setEmailDraft(null);
+  };
 
   const rows: Row[] = users?.map(mapUserToRow) ?? [];
 
@@ -253,26 +279,76 @@ export default function UsuariosPage() {
 
       <DataTable columns={columns} data={filteredRows} searchPlaceholder="Buscar por email..." searchKey="email" />
 
-      <Dialog open={!!modalEditar} onOpenChange={(open) => !open && setModalEditar(null)}>
+      <Dialog open={!!modalEditar} onOpenChange={(open) => !open && closeModal()}>
         <DialogContent>
-          <DialogClose onClick={() => setModalEditar(null)} />
+          <DialogClose onClick={closeModal} />
           <DialogHeader>
             <DialogTitle>Detalhes do Usuário</DialogTitle>
             <DialogDescription>Informações completas do usuário selecionado.</DialogDescription>
           </DialogHeader>
           {modalEditar && (
             <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-[#f7f7f7] rounded-lg p-3">
-                  <p className="text-[#737373]">Email</p>
-                  <p className="font-semibold text-[#1d1d1b]">{modalEditar.email}</p>
+              <div className="bg-[#f7f7f7] rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[#737373]">E-mail de login</p>
+                  {emailDraft === null && (
+                    <button
+                      onClick={() => setEmailDraft(modalEditar.email)}
+                      className="text-xs font-medium text-[#eca826] hover:underline cursor-pointer"
+                    >
+                      Alterar
+                    </button>
+                  )}
                 </div>
-                <div className="bg-[#f7f7f7] rounded-lg p-3">
-                  <p className="text-[#737373]">Email Confirmado</p>
-                  <p className={`font-semibold ${modalEditar.emailConfirmado ? "text-green-600" : "text-red-500"}`}>
-                    {modalEditar.emailConfirmado ? "Sim" : "Não"}
-                  </p>
-                </div>
+                {emailDraft === null ? (
+                  <p className="font-semibold text-[#1d1d1b] break-all">{modalEditar.email}</p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    <input
+                      type="email"
+                      value={emailDraft}
+                      onChange={(e) => setEmailDraft(e.target.value)}
+                      placeholder="novo@email.com"
+                      autoFocus
+                      className="w-full h-9 px-3 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() =>
+                          changeEmail.mutate({ userId: modalEditar.raw.id, email: emailDraft.trim() })
+                        }
+                        disabled={
+                          changeEmail.isPending ||
+                          !emailDraft.trim() ||
+                          emailDraft.trim().toLowerCase() === modalEditar.email.toLowerCase()
+                        }
+                        className="bg-[#eca826] text-white hover:bg-[#d4951e] h-8 text-xs"
+                      >
+                        {changeEmail.isPending ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          "Salvar e-mail"
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setEmailDraft(null)}
+                        className="border-[#e5e5e5] text-[#737373] h-8 text-xs hover:bg-[#eee]"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-[#737373]">
+                      O titular passa a entrar com o novo e-mail e a senha atual.
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="bg-[#f7f7f7] rounded-lg p-3">
+                <p className="text-[#737373]">Email Confirmado</p>
+                <p className={`font-semibold ${modalEditar.emailConfirmado ? "text-green-600" : "text-red-500"}`}>
+                  {modalEditar.emailConfirmado ? "Sim" : "Não"}
+                </p>
               </div>
               <div className="bg-[#f7f7f7] rounded-lg p-3">
                 <p className="text-[#737373]">Status</p>
@@ -322,7 +398,7 @@ export default function UsuariosPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setModalEditar(null)} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">
+            <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">
               Fechar
             </Button>
           </DialogFooter>
