@@ -14,7 +14,6 @@ import {
   Ban,
   DollarSign,
   Wallet,
-  Receipt,
   Star,
   ListChecks,
   Users,
@@ -153,11 +152,32 @@ export default function DashboardPage() {
     { title: "Serviços Concluídos", value: String(m.completedJobs), icon: ListChecks, iconColor: "text-green-500", meta: "BR · acumulado" },
   ];
 
+  // Avaliações separadas POR DIREÇÃO (o antigo "Feedbacks 200" somava as duas
+  // direções, incluía pré-go-live e ignorava a Casa). Cada card traz a média
+  // da própria fatia na meta.
+  const fbAvg = (v: number | null | undefined) =>
+    v != null ? `média ${v.toFixed(2).replace(".", ",")} ⭐` : "sem notas";
+  const fbProviders = m.feedbacksReceivedByProviders;
+  const fbContractors = m.feedbacksReceivedByContractors;
   const row4 = [
     { title: "GMV (Volume Bruto)", value: formatCurrency(m.totalRevenue), icon: DollarSign, iconColor: "text-green-500", meta: "Global · acumulado · líquido de estornos" },
     { title: "Repasse Pendentes", value: String(m.pendingRepasses), icon: Wallet, meta: "Global · agora" },
-    { title: "Feedbacks", value: String(m.totalFeedbacks), icon: Receipt, meta: "BR · nas duas direções" },
-    { title: "Avaliação Média", value: m.averageRating ? `${m.averageRating.toFixed(2)} ⭐` : "N/A", icon: Star, meta: "BR · média de todos os feedbacks" },
+    {
+      title: "Avaliações Recebidas por Freelancers",
+      value: fbProviders ? String(fbProviders.count) : "N/A",
+      icon: Star,
+      meta: fbProviders
+        ? `BR+Casa · desde ${launchLabel} · ${fbAvg(fbProviders.averageRating)}`
+        : `BR+Casa · desde ${launchLabel}`,
+    },
+    {
+      title: "Avaliações Recebidas por Contratantes",
+      value: fbContractors ? String(fbContractors.count) : "N/A",
+      icon: Building2,
+      meta: fbContractors
+        ? `BR+Casa · desde ${launchLabel} · ${fbAvg(fbContractors.averageRating)}`
+        : `BR+Casa · desde ${launchLabel}`,
+    },
   ];
 
   const jobsPorCidade = m.jobsByCity.length > 0

@@ -43,6 +43,11 @@ export interface AdminMetrics {
   newUsersThisMonth: number;
   totalFeedbacks: number;
   averageRating: number | null;
+  /** Avaliações contratante→freelancer (recebidas pelos freelancers),
+   * BR+Casa, desde o go-live. Opcional durante janela de deploy da API. */
+  feedbacksReceivedByProviders?: { count: number; averageRating: number | null };
+  /** Avaliações freelancer→contratante (recebidas pelos contratantes). */
+  feedbacksReceivedByContractors?: { count: number; averageRating: number | null };
   totalRevenue: number;
   pendingRepasses: number;
   completedRepasses: number;
