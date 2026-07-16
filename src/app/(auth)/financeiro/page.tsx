@@ -413,7 +413,11 @@ function mapRepasseToRow(r: RepasseItem) {
 
 export default function FinanceiroPage() {
   const [tab, setTab] = useState<Tab>("Visão Geral");
-  const [range, setRange] = useState<Range>({ from: "", to: "" });
+  // Default "Este mês": o acumulado desde sempre (preset "Tudo") inclui o
+  // piloto de maio/2026 e induzia leitura de "números altos demais".
+  const [range, setRange] = useState<Range>(
+    () => (PRESETS.find((p) => p.label === "Este mês") ?? PRESETS[PRESETS.length - 1]).compute(),
+  );
 
   const { data: summary, isLoading: loadingSummary, isFetching: fetchingSummary } =
     useFinanceSummary({ from: range.from, to: range.to });
@@ -526,13 +530,13 @@ export default function FinanceiroPage() {
                   <span className="text-xs text-[#737373]">{periodLabel}</span>
                   {fetchingSummary && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#eca826]" />}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                   <KpiCard
-                    title="Entradas"
+                    title="Entradas (bruto transacionado)"
                     value={formatCurrency(summary?.entradasCents ?? 0)}
                     icon={TrendingUp}
                     iconColor="text-green-600"
-                    meta={`${summary?.entradasCount ?? 0} pagamentos`}
+                    meta={`${summary?.entradasCount ?? 0} pagamentos · inclui repasse e estornados`}
                   />
                   <KpiCard
                     title="Saídas (repasses + bônus)"
@@ -546,7 +550,25 @@ export default function FinanceiroPage() {
                     value={formatCurrency(summary?.estornosCents ?? 0)}
                     icon={RotateCcw}
                     iconColor="text-[#eca826]"
-                    meta={`${summary?.estornosCount ?? 0} cancelamentos`}
+                    meta={`${summary?.estornosCount ?? 0} pagamentos estornados (inclui manuais)`}
+                  />
+                  <KpiCard
+                    title="Líquido no período"
+                    value={formatCurrency(
+                      (summary?.entradasCents ?? 0) -
+                        (summary?.saidasCents ?? 0) -
+                        (summary?.estornosCents ?? 0),
+                    )}
+                    icon={PiggyBank}
+                    iconColor={
+                      (summary?.entradasCents ?? 0) -
+                        (summary?.saidasCents ?? 0) -
+                        (summary?.estornosCents ?? 0) >=
+                      0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }
+                    meta="entradas − saídas − estornos"
                   />
                   <KpiCard
                     title="Lucro (taxa da plataforma)"
