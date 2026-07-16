@@ -196,7 +196,9 @@ function VideoDialog({ video, onClose }: { video: TrainingVideo | null; onClose:
   async function save() {
     const dto = {
       title: title.trim(),
-      description: description.trim() || undefined,
+      // "" limpa a descrição no backend; undefined significaria "não mexer"
+      // e apagar o texto + salvar era silenciosamente ignorado.
+      description: description.trim(),
       category: category.trim(),
       targetAudience,
       externalVideoUrl: externalVideoUrl.trim(),

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatVacancyDate } from "@/lib/date.utils";
 import { useState } from "react";
 import { Check, Trash2, CalendarClock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +58,7 @@ export function TasksPanel({ onOpenCompany }: { onOpenCompany: (id: string) => v
             {t.dueAt && (
               <span className="flex items-center gap-1 text-xs text-[#737373]">
                 <CalendarClock className="w-3.5 h-3.5" />
-                {new Date(t.dueAt).toLocaleDateString("pt-BR")}
+                {formatVacancyDate(t.dueAt)}
               </span>
             )}
             <Badge variant={PRIORITY_META[t.priority].variant} className="text-[10px] px-1.5 py-0">

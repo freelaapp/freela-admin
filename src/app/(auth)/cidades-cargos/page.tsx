@@ -46,13 +46,25 @@ export default function CidadesCargosPage() {
     return map;
   }, [catalogRoles]);
 
-  const filteredProviders = useMemo(
-    () =>
-      providers.filter(
-        (p) => (moduleFilter === "all" || p.module === moduleFilter) && (!activeOnly || p.isActive),
-      ),
-    [providers, moduleFilter, activeOnly],
-  );
+  const filteredProviders = useMemo(() => {
+    const base = providers.filter(
+      (p) => (moduleFilter === "all" || p.module === moduleFilter) && (!activeOnly || p.isActive),
+    );
+    if (moduleFilter !== "all") return base;
+    // "Todos": a mesma pessoa pode ter perfil nos DOIS módulos (identidade é
+    // global) — dedup por userId fundindo os serviços, senão conta 2x.
+    const byUser = new Map<string, (typeof base)[number]>();
+    for (const p of base) {
+      const existing = byUser.get(p.userId);
+      if (!existing) {
+        byUser.set(p.userId, { ...p, services: [...(p.services ?? [])] });
+      } else {
+        const merged = new Set([...(existing.services ?? []), ...(p.services ?? [])]);
+        existing.services = [...merged];
+      }
+    }
+    return [...byUser.values()];
+  }, [providers, moduleFilter, activeOnly]);
 
   const { cityRows, roleOptions, totals } = useMemo(() => {
     const canon = (s: string) => roleLabel.get(s.trim().toLowerCase()) ?? s.trim();

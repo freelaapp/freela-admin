@@ -82,6 +82,11 @@ function resolveVacancyBucket(v: VacancyItem, now: Date = new Date()): VacancyBu
     return "inProgress";
   }
 
+  // Job cancelado (vaga fechou mas o serviço foi cancelado) não é "aguardando".
+  if (jobStatus === "CANCELLED") {
+    return "cancelled";
+  }
+
   // CLOSED sem job ainda (aguardando pagamento) OU job SCHEDULED (pago, ainda não começou).
   if (status === "CLOSED") {
     return "awaitingHire";
@@ -642,7 +647,7 @@ export default function JobsPage() {
                   },
                   {
                     key: "awaitingHire",
-                    label: `Aguardando contratação (${allRows.filter((r) => r.bucket === "awaitingHire").length})`,
+                    label: `Contratada · aguardando início (${allRows.filter((r) => r.bucket === "awaitingHire").length})`,
                   },
                   {
                     key: "inProgress",

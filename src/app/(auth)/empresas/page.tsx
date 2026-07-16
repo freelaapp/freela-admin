@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays } from "lucide-react";
+import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -94,8 +94,10 @@ export default function EmpresasPage() {
       });
     }
     if (type === "report") {
-      setReportFrom(item.raw.createdAt ? item.raw.createdAt.slice(0, 10) : "");
-      setReportTo(new Date().toISOString().slice(0, 10));
+      // Dia de Brasília (slice de ISO-UTC troca o dia após as 21h locais).
+      const spDay = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+      setReportFrom(item.raw.createdAt ? spDay(new Date(item.raw.createdAt)) : "");
+      setReportTo(spDay(new Date()));
     }
   };
 
@@ -351,7 +353,7 @@ export default function EmpresasPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <Star className="w-4 h-4 text-[#eca826]" />
-                  {selectedItem.avaliacao > 0 ? `${selectedItem.avaliacao} / 5.0` : "—"}
+                  {selectedItem.avaliacao > 0 ? `${selectedItem.avaliacao.toFixed(1)} / 5.0` : "—"}
                 </div>
               </div>
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
@@ -524,22 +526,15 @@ export default function EmpresasPage() {
     <div>
       <PageHeader
         title="Empresas"
-        description="Empresas contratantes cadastradas na plataforma"
+        description="Empresas contratantes do módulo Bares & Restaurantes (Freela em Casa fica fora desta lista)"
         action={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={handleExport}
-              className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Exportar Excel
-            </Button>
-            <Button className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium">
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Empresa
-            </Button>
-          </div>
+          <Button
+            onClick={handleExport}
+            className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Exportar Excel
+          </Button>
         }
       />
       <DataTable columns={columns} data={rows} searchPlaceholder="Buscar por empresa ou e-mail..." searchKey="_search" />

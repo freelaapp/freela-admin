@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { Plus, Pencil, Loader2, UserX, Clock, AlertTriangle, Trash2 } from "lucide-react";
+import { Pencil, Loader2, UserX, Clock, AlertTriangle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -44,11 +44,14 @@ function formatStatusLabel(status: string) {
 }
 
 function mapUserToRow(u: UserItem) {
+  // Ban/desativação vive em isActive (status continua ACTIVE) — sem esta
+  // checagem a conta banida aparecia com badge verde "Ativo".
+  const blocked = u.status === "ACTIVE" && u.isActive === false;
   return {
     id: u.id,
     email: u.email,
-    status: mapUserStatus(u.status),
-    statusLabel: formatStatusLabel(u.status),
+    status: blocked ? ("blocked" as const) : mapUserStatus(u.status),
+    statusLabel: blocked ? "Bloqueado" : formatStatusLabel(u.status),
     emailConfirmado: u.emailConfirmed,
     feedback: u.deletionFeedback,
     deletionRequestedAt: u.deletionRequestedAt,
@@ -170,12 +173,6 @@ export default function UsuariosPage() {
       <PageHeader
         title="Usuários"
         description="Gerencie os usuários da plataforma"
-        action={
-          <Button className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium">
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Usuário
-          </Button>
-        }
       />
 
       {deletionStats && (
@@ -270,8 +267,8 @@ export default function UsuariosPage() {
             {t === "Excluídos" && deletionStats && deletionStats.totalDeleted > 0 && (
               <span className="ml-1.5 text-xs">({deletionStats.totalDeleted})</span>
             )}
-            {t === "Exclusão Pendente" && deletionStats && deletionStats.pendingDeletion > 0 && (
-              <span className="ml-1.5 text-xs">({deletionStats.pendingDeletion})</span>
+            {t === "Exclusão Pendente" && deletionStats && deletionStats.pendingDeletion + deletionStats.suspendedDeletion > 0 && (
+              <span className="ml-1.5 text-xs">({deletionStats.pendingDeletion + deletionStats.suspendedDeletion})</span>
             )}
           </button>
         ))}

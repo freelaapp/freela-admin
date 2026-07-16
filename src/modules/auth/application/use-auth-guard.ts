@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "./use-auth";
 
 export function useAuthGuard(requireAdmin = true) {
-  const { isAuthenticated, isAdmin, isHydrated } = useAuth();
+  const { isAuthenticated, isAdmin, isHydrated, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -17,10 +17,13 @@ export function useAuthGuard(requireAdmin = true) {
     }
 
     if (requireAdmin && !isAdmin) {
-      router.replace("/login");
+      // Autenticado mas sem papel de admin (ex.: RECRUITER): sem limpar a
+      // sessão, o /login via isAuthenticated devolvia pro /dashboard e a
+      // conta ficava num loop infinito login↔dashboard.
+      logout();
       return;
     }
-  }, [isAuthenticated, isAdmin, isHydrated, requireAdmin, router]);
+  }, [isAuthenticated, isAdmin, isHydrated, requireAdmin, router, logout]);
 
   return { isHydrated, isAuthenticated, isAdmin };
 }

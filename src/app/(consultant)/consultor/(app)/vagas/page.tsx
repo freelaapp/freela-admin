@@ -95,7 +95,7 @@ export default function ConsultorVagasPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <KpiCard title="Vagas em aberto" value={String(open.length)} icon={Briefcase} />
         <KpiCard
-          title="Candidaturas"
+          title="Candidaturas (Bares & Restaurantes)"
           value={String(totalCandidacies)}
           icon={Users}
           iconColor="text-blue-500"
@@ -206,7 +206,11 @@ function VacancyCard({
         <div className="flex items-center justify-between mt-1">
           <span className="inline-flex items-center gap-1 text-xs text-[#737373]">
             <Users className="w-3.5 h-3.5" />
-            {v.candidacyCount ?? 0} candidatura{(v.candidacyCount ?? 0) === 1 ? "" : "s"}
+            {/* A API da Casa não devolve candidacyCount — mostrar "0" seria
+                afirmar um fato falso; exibe "—" até o campo existir lá. */}
+            {v.module === "home-services" && v.candidacyCount == null
+              ? "— candidaturas"
+              : `${v.candidacyCount ?? 0} candidatura${(v.candidacyCount ?? 0) === 1 ? "" : "s"}`}
           </span>
           {onViewCandidacies && (v.candidacyCount ?? 0) > 0 && (
             <Button

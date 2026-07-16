@@ -21,11 +21,11 @@ import html2canvas from "html2canvas";
 
 const reports = [
   { key: "overview", title: "Visão Geral da Plataforma", description: "Métricas consolidadas de usuários, jobs e receita", icon: DollarSign },
-  { key: "freelancers", title: "Freelancers mais ativos", description: "Top freelancers por número de jobs realizados", icon: Users },
+  { key: "freelancers", title: "Freelancers mais ativos", description: "Top 50 por jobs concluídos (base: 500 cadastros mais recentes, só Bares & Restaurantes)", icon: Users },
   { key: "empresas", title: "Empresas que mais contratam", description: "Ranking de empresas por volume de contratações", icon: Building2 },
   { key: "cidades", title: "Cidades com maior demanda", description: "Análise geográfica de demanda por freelancers", icon: MapPin },
-  { key: "cargos", title: "Cargos mais demandados", description: "Cargos com maior volume de vagas abertas", icon: Briefcase },
-  { key: "cancelamentos", title: "Taxa de cancelamento", description: "Análise de jobs cancelados e motivos", icon: XCircle },
+  { key: "cargos", title: "Cargos com mais freelancers", description: "Oferta de profissionais por cargo (não é demanda de vagas)", icon: Briefcase },
+  { key: "cancelamentos", title: "Cancelamentos", description: "Vagas e jobs cancelados + taxa sobre o total (Bares & Restaurantes)", icon: XCircle },
 ];
 
 export default function RelatoriosPage() {
@@ -148,27 +148,27 @@ export default function RelatoriosPage() {
                 <h3 className="font-semibold text-[#1d1d1b]">Métricas Gerais</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#f7f7f7] rounded-lg p-3">
-                    <p className="text-xs text-[#737373]">Total Freelancers</p>
+                    <p className="text-xs text-[#737373]">Total Freelancers (global)</p>
                     <p className="text-lg font-bold text-[#1d1d1b]">{metrics.totalFreelancers}</p>
                   </div>
                   <div className="bg-[#f7f7f7] rounded-lg p-3">
-                    <p className="text-xs text-[#737373]">Total Empresas</p>
+                    <p className="text-xs text-[#737373]">Total Empresas (global)</p>
                     <p className="text-lg font-bold text-[#1d1d1b]">{metrics.totalCompanies}</p>
                   </div>
                   <div className="bg-[#f7f7f7] rounded-lg p-3">
-                    <p className="text-xs text-[#737373]">Vagas Abertas</p>
+                    <p className="text-xs text-[#737373]">Vagas Abertas (só Bares & Restaurantes)</p>
                     <p className="text-lg font-bold text-[#1d1d1b]">{metrics.openVacancies}</p>
                   </div>
                   <div className="bg-[#f7f7f7] rounded-lg p-3">
-                    <p className="text-xs text-[#737373]">Jobs Concluídos</p>
+                    <p className="text-xs text-[#737373]">Jobs Concluídos (só Bares & Restaurantes)</p>
                     <p className="text-lg font-bold text-[#1d1d1b]">{metrics.completedJobs}</p>
                   </div>
                   <div className="bg-[#f7f7f7] rounded-lg p-3">
-                    <p className="text-xs text-[#737373]">Total Usuários</p>
+                    <p className="text-xs text-[#737373]">Total Usuários (global)</p>
                     <p className="text-lg font-bold text-[#1d1d1b]">{metrics.totalUsers}</p>
                   </div>
                   <div className="bg-[#f7f7f7] rounded-lg p-3">
-                    <p className="text-xs text-[#737373]">Faturamento</p>
+                    <p className="text-xs text-[#737373]">Faturamento bruto (global, acumulado)</p>
                     <p className="text-lg font-bold text-[#1d1d1b]">R$ {(metrics.totalRevenue / 100).toFixed(2)}</p>
                   </div>
                 </div>
@@ -177,10 +177,11 @@ export default function RelatoriosPage() {
 
             {openReport === "freelancers" && (
               <div className="space-y-4">
-                <h3 className="font-semibold text-[#1d1d1b]">Freelancers Cadastrados</h3>
+                <h3 className="font-semibold text-[#1d1d1b]">Freelancers mais ativos (top 50 por jobs concluídos)</h3>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[#e5e5e5]">
+                      <th className="text-left py-2 text-[#737373] font-medium">Freelancer</th>
                       <th className="text-left py-2 text-[#737373] font-medium">Cargo</th>
                       <th className="text-left py-2 text-[#737373] font-medium">Cidade</th>
                       <th className="text-left py-2 text-[#737373] font-medium">Trabalhos</th>
@@ -188,8 +189,12 @@ export default function RelatoriosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(providers ?? []).map((p) => (
+                    {[...(providers ?? [])]
+                      .sort((a, b) => b.trabalhos - a.trabalhos)
+                      .slice(0, 50)
+                      .map((p) => (
                       <tr key={p.id} className="border-b border-[#e5e5e5]/50">
+                        <td className="py-2">{p.name || "Sem nome"}</td>
                         <td className="py-2">{p.jobTitle || "N/A"}</td>
                         <td className="py-2">{p.city || "N/A"}</td>
                         <td className="py-2">{p.trabalhos}</td>
@@ -203,7 +208,7 @@ export default function RelatoriosPage() {
 
             {openReport === "empresas" && (
               <div className="space-y-4">
-                <h3 className="font-semibold text-[#1d1d1b]">Empresas Cadastradas</h3>
+                <h3 className="font-semibold text-[#1d1d1b]">Empresas que mais contratam (por jobs concluídos)</h3>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[#e5e5e5]">
@@ -214,7 +219,7 @@ export default function RelatoriosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(contractors ?? []).map((c) => (
+                    {[...(contractors ?? [])].sort((a, b) => b.jobs - a.jobs).map((c) => (
                       <tr key={c.id} className="border-b border-[#e5e5e5]/50">
                         <td className="py-2">{c.companyName || c.contactName || "N/A"}</td>
                         <td className="py-2">{c.city || "N/A"}</td>
@@ -243,8 +248,8 @@ export default function RelatoriosPage() {
                       ...(providers ?? []).map((p) => p.city || "N/A"),
                       ...(contractors ?? []).map((c) => c.city || "N/A"),
                     ])).map((city, i) => {
-                      const fCount = (providers ?? []).filter((p) => p.city === city).length;
-                      const eCount = (contractors ?? []).filter((c) => c.city === city).length;
+                      const fCount = (providers ?? []).filter((p) => (p.city || "N/A") === city).length;
+                      const eCount = (contractors ?? []).filter((c) => (c.city || "N/A") === city).length;
                       return (
                         <tr key={i} className="border-b border-[#e5e5e5]/50">
                           <td className="py-2">{city}</td>
@@ -260,7 +265,7 @@ export default function RelatoriosPage() {
 
             {openReport === "cargos" && (
               <div className="space-y-4">
-                <h3 className="font-semibold text-[#1d1d1b]">Cargos na Plataforma</h3>
+                <h3 className="font-semibold text-[#1d1d1b]">Freelancers por cargo (oferta, só Bares & Restaurantes)</h3>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[#e5e5e5]">
@@ -297,6 +302,16 @@ export default function RelatoriosPage() {
                   <div className="bg-[#f7f7f7] rounded-lg p-3">
                     <p className="text-xs text-[#737373]">Jobs Cancelados</p>
                     <p className="text-lg font-bold text-[#1d1d1b]">{metrics.cancelledJobs}</p>
+                  </div>
+                  <div className="bg-[#f7f7f7] rounded-lg p-3">
+                    <p className="text-xs text-[#737373]">Taxa de cancelamento de vagas</p>
+                    <p className="text-lg font-bold text-[#1d1d1b]">
+                      {(() => {
+                        const total = metrics.openVacancies + metrics.closedVacancies + metrics.cancelledVacancies;
+                        return total > 0 ? `${((metrics.cancelledVacancies / total) * 100).toFixed(1)}%` : "N/A";
+                      })()}
+                    </p>
+                    <p className="text-[10px] text-[#a3a3a3]">canceladas ÷ (abertas + fechadas + canceladas)</p>
                   </div>
                 </div>
               </div>

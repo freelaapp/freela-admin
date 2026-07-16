@@ -23,6 +23,9 @@ export interface CasaVacancyItem {
   contractorCompanyName: string | null;
   freelancerAmountInCents: number | null;
   platformFeeInCents: number | null;
+  /** Rótulo da faixa (vaga TIERED). Quando presente, endTime é placeholder —
+   * exibir "Chegada: HH:MM" + faixa. Opcional durante deploy da API. */
+  pricingTierLabel?: string | null;
   /** Consultor que indicou o contratante desta vaga (null quando não indicado). */
   referringConsultant?: { id: string; name: string; code: string } | null;
 }

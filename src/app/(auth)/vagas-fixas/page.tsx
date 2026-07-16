@@ -25,7 +25,7 @@ import { useAdminContractors } from "@/modules/admin/application/use-admin-contr
 import { useAuth } from "@/modules/auth/application/use-auth";
 import type { FixedJobItem, FixedJobWorkScheduleSlot } from "@/modules/admin/infrastructure/fixed-jobs-api";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
-import { formatVacancyDate } from "@/lib/date.utils";
+import { formatInstantDate } from "@/lib/date.utils";
 
 function formatSalary(
   min: number | null,
@@ -54,7 +54,9 @@ function mapToRow(v: FixedJobItem) {
     lugar: v.location,
     salario: formatSalary(v.salaryMinInCents, v.salaryMaxInCents, v.salaryProposalInCents),
     candidatos: v.applicationCount,
-    data: formatVacancyDate(v.createdAt),
+    // createdAt é INSTANTE UTC — formatVacancyDate (data pura) mostrava o dia
+    // seguinte para posts criados após as 21h de Brasília.
+    data: formatInstantDate(v.createdAt),
     status: mapStatus(v.status),
     statusKey: v.status.toUpperCase(),
     consultor: v.referringConsultant?.name ?? null,
@@ -157,7 +159,13 @@ function contractorLocation(c: ContractorItem): string {
 
 function formatScheduleSlots(slots: FixedJobWorkScheduleSlot[]): string | undefined {
   if (!slots.length) return undefined;
-  return slots.map((slot) => `${slot.day} ${slot.start}-${slot.end}`).join(" • ");
+  // Ordena por dia da semana — a ordem de clique nos checkboxes gerava
+  // "Sexta • Segunda" no texto que vai pros candidatos.
+  const order = new Map(WEEK_DAYS.map((d, i) => [d.label, i]));
+  return [...slots]
+    .sort((a, b) => (order.get(a.day) ?? 99) - (order.get(b.day) ?? 99))
+    .map((slot) => `${slot.day} ${slot.start}-${slot.end}`)
+    .join(" • ");
 }
 
 function getApiErrorMessage(error: unknown): string | null {

@@ -20,50 +20,36 @@ export default function CidadesPage() {
     );
   }
 
-  // Agrupar por cidade
+  // Agrupar por cidade|UF (cidades homônimas de UFs diferentes eram fundidas
+  // numa linha só). Colunas fabricadas "Jobs realizados" (sempre 0) e "Taxa
+  // preenchimento" (sempre — verde) foram removidas.
   const cityMap = new Map<string, { cidade: string; estado: string; freelancers: number; empresas: number }>();
 
-  for (const p of providers ?? []) {
-    const city = p.city || "N/A";
-    const uf = p.uf || "N/A";
-    const existing = cityMap.get(city) ?? { cidade: city, estado: uf, freelancers: 0, empresas: 0 };
-    existing.freelancers += 1;
-    cityMap.set(city, existing);
-  }
+  const bump = (city: string | null, uf: string | null, kind: "freelancers" | "empresas") => {
+    const cidade = city || "N/A";
+    const estado = uf || "N/A";
+    const key = `${cidade}|${estado}`;
+    const existing = cityMap.get(key) ?? { cidade, estado, freelancers: 0, empresas: 0 };
+    existing[kind] += 1;
+    cityMap.set(key, existing);
+  };
+  for (const p of providers ?? []) bump(p.city, p.uf, "freelancers");
+  for (const c of contractors ?? []) bump(c.city, c.uf, "empresas");
 
-  for (const c of contractors ?? []) {
-    const city = c.city || "N/A";
-    const uf = c.uf || "N/A";
-    const existing = cityMap.get(city) ?? { cidade: city, estado: uf, freelancers: 0, empresas: 0 };
-    existing.empresas += 1;
-    if (existing.estado === "N/A" && uf !== "N/A") existing.estado = uf;
-    cityMap.set(city, existing);
-  }
-
-  const cidades = Array.from(cityMap.values()).map((c, i) => ({
-    id: i + 1,
-    ...c,
-    jobs: 0,
-    taxa: "—",
-  }));
+  const cidades = Array.from(cityMap.values())
+    .sort((a, b) => b.freelancers + b.empresas - (a.freelancers + a.empresas))
+    .map((c, i) => ({ id: i + 1, ...c }));
 
   const columns = [
     { header: "Cidade", accessor: "cidade" as const },
     { header: "Estado", accessor: "estado" as const },
     { header: "Freelancers", accessor: "freelancers" as const },
     { header: "Empresas", accessor: "empresas" as const },
-    { header: "Jobs realizados", accessor: "jobs" as const },
-    {
-      header: "Taxa preenchimento",
-      accessor: (row: typeof cidades[0]) => (
-        <span className="text-sm font-semibold text-green-500">{row.taxa}</span>
-      ),
-    },
   ];
 
   return (
     <div>
-      <PageHeader title="Cidades" description="Métricas por cidade de operação" />
+      <PageHeader title="Cidades" description="Freelancers e empresas por cidade — módulo Bares & Restaurantes (freelancers: 500 cadastros mais recentes)" />
       <DataTable columns={columns} data={cidades} searchPlaceholder="Buscar cidade..." searchKey="cidade" />
     </div>
   );

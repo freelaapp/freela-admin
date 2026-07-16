@@ -36,10 +36,16 @@ async function fetchModuleContractors(
 }
 
 export async function getAllContractors(): Promise<ContractorAcrossModules[]> {
+  // Falha de UM módulo degrada (metade dos dados > nada); falha de TODOS
+  // rejeita — antes virava lista vazia e um outage era exibido como
+  // "Nenhum resultado encontrado".
   const results = await Promise.all(
-    MODULES.map((m) => fetchModuleContractors(m).catch(() => [])),
+    MODULES.map((m) => fetchModuleContractors(m).catch(() => null)),
   );
-  return results.flat();
+  if (results.every((r) => r === null)) {
+    throw new Error("Falha ao carregar contratantes dos dois módulos.");
+  }
+  return results.filter((r): r is ContractorAcrossModules[] => r !== null).flat();
 }
 
 // ─── Prestadores (Empresa + Casa) ───────────────────────────────────────────
@@ -78,7 +84,10 @@ async function fetchModuleProviders(
 
 export async function getAllProviders(): Promise<ProviderAcrossModules[]> {
   const results = await Promise.all(
-    MODULES.map((m) => fetchModuleProviders(m).catch(() => [])),
+    MODULES.map((m) => fetchModuleProviders(m).catch(() => null)),
   );
-  return results.flat();
+  if (results.every((r) => r === null)) {
+    throw new Error("Falha ao carregar prestadores dos dois módulos.");
+  }
+  return results.filter((r): r is ProviderAcrossModules[] => r !== null).flat();
 }

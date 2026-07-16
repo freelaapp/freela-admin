@@ -48,7 +48,11 @@ function mapToRow(v: CasaVacancyItem) {
     lugar: v.address || "N/A",
     valor: `R$ ${(v.payment / 100).toFixed(2).replace(".", ",")}`,
     data: formatVacancyDate(v.date),
-    horario: `${formatVacancyTime(v.startTime)} - ${formatVacancyTime(v.endTime)}`,
+    // TIERED (diarista, piscineiro…): endTime é placeholder (start+1h) — mostrar
+    // "12:00 - 13:00" afirmaria uma janela falsa; exibe chegada + faixa.
+    horario: v.pricingTierLabel
+      ? `Chegada: ${formatVacancyTime(v.startTime)} · ${v.pricingTierLabel}`
+      : `${formatVacancyTime(v.startTime)} - ${formatVacancyTime(v.endTime)}`,
     status: mapVacancyStatus(v.status),
     consultor: v.referringConsultant?.name ?? null,
     raw: v,

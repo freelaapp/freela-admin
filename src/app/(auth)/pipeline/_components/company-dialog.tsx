@@ -1,5 +1,6 @@
 "use client";
 
+import { formatVacancyDate } from "@/lib/date.utils";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Check, Phone, Mail, MapPin, Building2, Link2 } from "lucide-react";
@@ -183,7 +184,7 @@ export function CompanyDialog({
                     <Badge variant={PRIORITY_META[t.priority].variant} className="text-[10px] px-1.5 py-0">
                       {PRIORITY_META[t.priority].label}
                     </Badge>
-                    {t.dueAt && <span className="text-xs text-[#737373]">{new Date(t.dueAt).toLocaleDateString("pt-BR")}</span>}
+                    {t.dueAt && <span className="text-xs text-[#737373]">{formatVacancyDate(t.dueAt)}</span>}
                     <button className="ml-auto text-[#737373] hover:text-red-600" onClick={() => m.deleteTask.mutate(t.id)}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

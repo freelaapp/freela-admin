@@ -80,6 +80,8 @@ function getAdStatus(ad: AdvertisementItem, now: Date): AdStatus {
 function formatCtr(clicks: number, views: number): string {
   if (!views) return "—";
   const pct = (clicks / views) * 100;
+  // CTR minúsculo mas real não pode virar "0%" (ficava igual a zero cliques).
+  if (clicks > 0 && pct < 0.05) return "<0,1%";
   return `${pct.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 }
 

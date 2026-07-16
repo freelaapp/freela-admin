@@ -534,7 +534,7 @@ export default function ParceriasPage() {
             <DialogTitle>Leads de anúncio</DialogTitle>
             <DialogDescription>
               {leadsPartner
-                ? `${leadsPartner.name} — usuários que clicaram no anúncio desta parceria`
+                ? `${leadsPartner.name} — quem interagiu com o anúncio desta parceria (clique logado ou formulário da home)`
                 : ""}
             </DialogDescription>
           </DialogHeader>
@@ -551,7 +551,7 @@ export default function ParceriasPage() {
             <div className="space-y-3">
               <p className="text-xs text-[#737373]">
                 <span className="font-semibold text-[#1d1d1b]">{adLeads.total}</span>{" "}
-                {adLeads.total === 1 ? "pessoa clicou" : "pessoas clicaram"} no anúncio.
+                {adLeads.total === 1 ? "pessoa interagiu" : "pessoas interagiram"} com o anúncio.
               </p>
               <div className="max-h-[55vh] overflow-auto rounded-lg border border-[#e5e5e5]">
                 <table className="w-full text-xs">
@@ -561,7 +561,8 @@ export default function ParceriasPage() {
                       <th className="px-3 py-2 text-left font-medium">E-mail</th>
                       <th className="px-3 py-2 text-left font-medium">Telefone</th>
                       <th className="px-3 py-2 text-left font-medium">CPF/CNPJ</th>
-                      <th className="px-3 py-2 text-right font-medium">Cliques</th>
+                      <th className="px-3 py-2 text-left font-medium">Origem</th>
+                      <th className="px-3 py-2 text-right font-medium">Interações</th>
                       <th className="px-3 py-2 text-left font-medium whitespace-nowrap">
                         Último acesso
                       </th>
@@ -587,6 +588,11 @@ export default function ParceriasPage() {
                         <td className="px-3 py-2 text-[#737373] whitespace-nowrap">
                           {lead.cpf || lead.cnpj || "—"}
                         </td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${lead.source === "AD_CLICK" ? "bg-[#eca826]/10 text-[#b07708]" : "bg-blue-50 text-blue-700"}`}>
+                            {lead.source === "AD_CLICK" ? "Clique" : "Formulário"}
+                          </span>
+                        </td>
                         <td className="px-3 py-2 text-right font-semibold text-[#1d1d1b]">
                           {lead.clicksCount}
                         </td>
@@ -602,7 +608,7 @@ export default function ParceriasPage() {
           ) : (
             <div className="py-8 text-center text-sm text-[#737373]">
               Nenhum lead ainda. Vincule um anúncio a esta parceria na aba Propagandas —
-              cada clique de usuário logado aparecerá aqui.
+              cliques de usuários logados e formulários da home aparecerão aqui.
             </div>
           )}
 

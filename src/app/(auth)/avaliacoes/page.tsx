@@ -228,7 +228,7 @@ export default function AvaliacoesPage() {
 
   return (
     <div>
-      <PageHeader title="Avaliações" description="Sistema de reputação dos freelancers" />
+      <PageHeader title="Avaliações" description="Avaliações entre freelancers e contratantes (nas duas direções)" />
 
       <div className="flex gap-2 mb-6">
         <button
@@ -250,9 +250,7 @@ export default function AvaliacoesPage() {
           }`}
         >
           Aguardando Moderação
-          <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
-            {moderacoesMock.length}
-          </span>
+          <span className="ml-2 text-xs opacity-70">(demo)</span>
         </button>
       </div>
 
@@ -343,7 +341,7 @@ export default function AvaliacoesPage() {
             <Button variant="outline" onClick={() => setModalAceitar(null)} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">
               Cancelar
             </Button>
-            <Button className="bg-green-500 text-white hover:bg-green-600" onClick={() => { toast.success("Contestação aceita!"); setModalAceitar(null); }}>
+            <Button className="bg-green-500 text-white hover:bg-green-600" onClick={() => { toast.info("Módulo de moderação ainda não existe — nada foi alterado (dados de demonstração)."); setModalAceitar(null); }}>
               <Check className="w-4 h-4 mr-2" />
               Confirmar
             </Button>
@@ -386,7 +384,7 @@ export default function AvaliacoesPage() {
             <Button variant="outline" onClick={() => setModalRejeitar(null)} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">
               Cancelar
             </Button>
-            <Button className="bg-red-500 text-white hover:bg-red-600" onClick={() => { toast.success("Contestação rejeitada!"); setModalRejeitar(null); }}>
+            <Button className="bg-red-500 text-white hover:bg-red-600" onClick={() => { toast.info("Módulo de moderação ainda não existe — nada foi alterado (dados de demonstração)."); setModalRejeitar(null); }}>
               <X className="w-4 h-4 mr-2" />
               Confirmar
             </Button>

@@ -37,12 +37,27 @@ export default function ConsultorCadastrarPage() {
       toast.error("Informe nome e telefone.");
       return;
     }
+    // A API valida /^\+?[1-9]\d{7,14}$/ — digitar como o placeholder
+    // ("+55 85 99999-9999") dava 400 em inglês, e número sem DDI passava e
+    // corrompia o cadastro (convite de WhatsApp ia pro nada). Normaliza:
+    // só dígitos; 10-11 dígitos = nacional → prefixa 55.
+    const digits = form.phone.replace(/\D/g, "");
+    const phoneE164 =
+      digits.length === 10 || digits.length === 11
+        ? `+55${digits}`
+        : digits.length >= 12 && digits.length <= 15
+          ? `+${digits}`
+          : null;
+    if (!phoneE164) {
+      toast.error("Telefone inválido — use DDD + número (ex.: 85 99999-9999).");
+      return;
+    }
     try {
       const result = await createMutation.mutateAsync({
         persona,
         ...(persona === "contractor" ? { module } : {}),
         name: form.name.trim(),
-        phone: form.phone.trim(),
+        phone: phoneE164,
         ...(form.email.trim() ? { email: form.email.trim() } : {}),
       });
       const channel = result.inviteSentByWhatsApp
@@ -52,7 +67,7 @@ export default function ConsultorCadastrarPage() {
           : null;
       setSuccess({
         name: form.name.trim(),
-        login: form.email.trim() || form.phone.trim(),
+        login: form.email.trim() || phoneE164,
         firstAccessPassword: result.firstAccessPassword ?? "Mudar@123",
         channel,
       });

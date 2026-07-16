@@ -86,7 +86,7 @@ export default function CuponsPage() {
             />
             <StatCard
               icon={<TicketCheck className="w-4 h-4 text-muted-foreground" />}
-              label="Usados"
+              label="Usados (só uso único)"
               value={stats.used}
             />
           </div>

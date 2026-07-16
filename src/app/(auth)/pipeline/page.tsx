@@ -56,7 +56,10 @@ export default function PipelinePage() {
     const current = companies.find((c) => c.id === draggingId);
     setDraggingId(null);
     if (!current || current.status === status) return;
-    moveCompany.mutate({ id: draggingId, status, boardOrder: byStatus[status].length });
+    // Ordem calculada da lista COMPLETA da coluna: com busca/filtro ativo,
+    // byStatus só vê os cards visíveis e a posição salva colidia com os ocultos.
+    const fullColumnLength = companies.filter((c) => c.status === status).length;
+    moveCompany.mutate({ id: draggingId, status, boardOrder: fullColumnLength });
   }
 
   return (

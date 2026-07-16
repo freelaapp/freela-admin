@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2, ArrowUpCircle } from "lucide-react";
+import { Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2, ArrowUpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -364,8 +364,8 @@ export default function FreelancersPage() {
     {
       header: "Score",
       accessor: (row: Row) => (
-        <span className={`text-sm font-semibold ${row.score >= 80 ? "text-green-500" : row.score >= 60 ? "text-[#eca826]" : "text-red-500"}`}>
-          {row.score > 0 ? row.score : "—"}
+        <span className={`text-sm font-semibold ${row.trabalhos === 0 && !row.avaliacao ? "text-[#a3a3a3]" : row.score >= 80 ? "text-green-500" : row.score >= 60 ? "text-[#eca826]" : "text-red-500"}`}>
+          {row.trabalhos === 0 && !row.avaliacao ? "—" : row.score}
         </span>
       ),
       sortable: true,
@@ -428,7 +428,7 @@ export default function FreelancersPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <Star className="w-4 h-4 text-[#eca826]" />
-                  {selectedItem.avaliacao > 0 ? `${selectedItem.avaliacao} / 5.0` : "—"}
+                  {selectedItem.avaliacao > 0 ? `${selectedItem.avaliacao.toFixed(1)} / 5.0` : "—"}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <Briefcase className="w-4 h-4 text-[#737373]" />
@@ -436,7 +436,7 @@ export default function FreelancersPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <Award className="w-4 h-4 text-[#737373]" />
-                  Score: <span className={selectedItem.score >= 80 ? "text-green-500" : selectedItem.score >= 60 ? "text-[#eca826]" : "text-red-500"}>{selectedItem.score > 0 ? selectedItem.score : "—"}</span>
+                  Score: <span className={selectedItem.trabalhos === 0 && !selectedItem.avaliacao ? "text-[#a3a3a3]" : selectedItem.score >= 80 ? "text-green-500" : selectedItem.score >= 60 ? "text-[#eca826]" : "text-red-500"}>{selectedItem.trabalhos === 0 && !selectedItem.avaliacao ? "—" : selectedItem.score}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <User className="w-4 h-4 text-[#737373]" />
@@ -454,7 +454,7 @@ export default function FreelancersPage() {
           <>
             <DialogHeader>
               <DialogTitle>Editar Freelancer</DialogTitle>
-              <DialogDescription>Altere os dados do freelancer. (Apenas visual)</DialogDescription>
+              <DialogDescription>Somente visualização — a edição de dados do freelancer ainda não existe no admin.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-1.5">
@@ -483,8 +483,7 @@ export default function FreelancersPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
-              <Button onClick={closeModal} className="bg-[#eca826] text-white hover:bg-[#d4951e]">Salvar alterações</Button>
+              <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
             </DialogFooter>
           </>
         );
@@ -691,13 +690,7 @@ export default function FreelancersPage() {
     <div>
       <PageHeader
         title="Freelancers"
-        description="Gerencie todos os freelancers cadastrados na plataforma"
-        action={
-          <Button className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium">
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Freelancer
-          </Button>
-        }
+        description="Freelancers do módulo Bares & Restaurantes (trabalhos/avaliações contam só este módulo)"
       />
       <DataTable
         columns={columns}
@@ -749,7 +742,9 @@ export default function FreelancersPage() {
             <span>
               {total === 0
                 ? "Nenhum freelancer"
-                : `Mostrando ${fromIndex}–${toIndex} de ${total.toLocaleString("pt-BR")}`}
+                : prioridadeFilter !== ""
+                  ? `${rows.length} nesta página após o filtro de prioridade · ${total.toLocaleString("pt-BR")} no total (filtro vale só na página atual)`
+                  : `Mostrando ${fromIndex}–${toIndex} de ${total.toLocaleString("pt-BR")}`}
             </span>
             <div className="flex items-center gap-2">
               <button
