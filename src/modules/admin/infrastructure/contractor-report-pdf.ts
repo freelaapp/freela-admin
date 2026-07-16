@@ -85,7 +85,10 @@ export function generateContractorReportPdf(
       repasseCents: rp ? rp.amount : f.freelancer_amount_in_cents,
       repassePending: !isPaid(rp),
       taxaCents: f.platform_fee_in_cents, // taxa real da plataforma (não calcular por proxy)
-      pagoCents: pay ? pay.value : null,
+      // "Valor pago" só quando o pagamento LIQUIDOU: o backend devolve a
+      // cobrança mais recente de QUALQUER status (preferindo COMPLETED), e
+      // cobrança pendente/expirada entrava no total de um PDF que vai pro cliente.
+      pagoCents: pay && pay.status === "COMPLETED" ? pay.value : null,
     };
   });
 

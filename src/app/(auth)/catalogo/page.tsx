@@ -37,7 +37,24 @@ import { Field, RoleDialog, slugify } from "./role-dialog";
 
 // ── helpers de dinheiro (centavos ↔ reais) ──────────────────
 const toReais = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
-const toCents = (reais: string) => Math.round(parseFloat(reais.replace(",", ".") || "0") * 100);
+// Aceita pt-BR ("1.200,00") E ponto decimal ("1200.00"). O parser antigo só
+// trocava vírgula por ponto: "1.200,00" virava parseFloat("1.200.00") = 1.2.
+const toCents = (reais: string) => {
+  const trimmed = reais.trim();
+  if (!trimmed) return 0;
+  let normalized = trimmed;
+  if (trimmed.includes(",")) {
+    normalized = trimmed.replace(/\./g, "").replace(",", ".");
+  } else {
+    const dots = trimmed.match(/\./g)?.length ?? 0;
+    const afterLastDot = trimmed.split(".").pop() ?? "";
+    if (dots > 1 || (dots === 1 && afterLastDot.length === 3)) {
+      normalized = trimmed.replace(/\./g, "");
+    }
+  }
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+};
 const brl = (cents: number) => `R$ ${toReais(cents)}`;
 
 const MODULES: ServiceModule[] = ["bars-restaurants", "home-services"];
@@ -447,10 +464,12 @@ function PriceDialog({
   const [minHours, setMinHours] = useState(String(categoryRole?.minimumJourneyHours ?? 4));
   const [daytime, setDaytime] = useState(categoryRole?.isDaytimeOnly ?? false);
   const [tierLabel, setTierLabel] = useState(categoryRole?.tierQualifierLabel ?? "");
-  const [tiers, setTiers] = useState<CategoryRoleTier[]>(
+  // priceText fica livre enquanto digita (o valor era re-formatado a cada
+  // tecla — "50" virava "5,00" no segundo dígito); converte só no salvar.
+  const [tiers, setTiers] = useState<(CategoryRoleTier & { priceText: string })[]>(
     categoryRole?.tiers?.length
-      ? categoryRole.tiers.map((t) => ({ ...t }))
-      : [{ label: "", totalInCents: 0 }],
+      ? categoryRole.tiers.map((t) => ({ ...t, priceText: toReais(t.totalInCents) }))
+      : [{ label: "", totalInCents: 0, priceText: "" }],
   );
 
   const busy = setCategoryRole.isPending || removeCategoryRole.isPending;
@@ -472,7 +491,7 @@ function PriceDialog({
           pricingModel === "TIERED"
             ? tiers
                 .filter((t) => t.label.trim())
-                .map((t, i) => ({ label: t.label.trim(), totalInCents: t.totalInCents, displayOrder: i }))
+                .map((t, i) => ({ label: t.label.trim(), totalInCents: toCents(t.priceText), displayOrder: i }))
             : [],
       },
     });
@@ -554,10 +573,10 @@ function PriceDialog({
                       className="pl-7"
                       inputMode="decimal"
                       placeholder="0,00"
-                      value={toReais(t.totalInCents)}
+                      value={t.priceText}
                       onChange={(e) =>
                         setTiers((p) =>
-                          p.map((x, j) => (j === i ? { ...x, totalInCents: toCents(e.target.value) } : x)),
+                          p.map((x, j) => (j === i ? { ...x, priceText: e.target.value } : x)),
                         )
                       }
                     />
@@ -575,7 +594,7 @@ function PriceDialog({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setTiers((p) => [...p, { label: "", totalInCents: 0 }])}
+                onClick={() => setTiers((p) => [...p, { label: "", totalInCents: 0, priceText: "" }])}
               >
                 <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar faixa
               </Button>

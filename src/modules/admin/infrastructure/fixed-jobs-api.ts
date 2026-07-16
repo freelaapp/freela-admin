@@ -14,6 +14,9 @@ export interface FixedJobItem {
   status: string;
   salaryMinInCents: number | null;
   salaryMaxInCents: number | null;
+  /** Proposta salarial única — o campo que os fluxos de criação realmente
+   * preenchem (min/max ficam nulos). Opcional durante deploy da API. */
+  salaryProposalInCents?: number | null;
   closeReason: string | null;
   closedAt: string | null;
   expiresAt: string | null;

@@ -27,8 +27,15 @@ import type { FixedJobItem, FixedJobWorkScheduleSlot } from "@/modules/admin/inf
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate } from "@/lib/date.utils";
 
-function formatSalary(min: number | null, max: number | null): string {
+function formatSalary(
+  min: number | null,
+  max: number | null,
+  proposal?: number | null,
+): string {
   const fmt = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
+  // Proposta única primeiro: é o campo que web e admin realmente gravam —
+  // min/max ficam nulos nesses fluxos e a coluna vivia em "—".
+  if (proposal != null) return fmt(proposal);
   if (min != null && max != null) return min === max ? fmt(min) : `${fmt(min)} – ${fmt(max)}`;
   if (min != null) return `A partir de ${fmt(min)}`;
   if (max != null) return `Até ${fmt(max)}`;
@@ -45,7 +52,7 @@ function mapToRow(v: FixedJobItem) {
     empresa: v.companyName,
     cargo: v.role,
     lugar: v.location,
-    salario: formatSalary(v.salaryMinInCents, v.salaryMaxInCents),
+    salario: formatSalary(v.salaryMinInCents, v.salaryMaxInCents, v.salaryProposalInCents),
     candidatos: v.applicationCount,
     data: formatVacancyDate(v.createdAt),
     status: mapStatus(v.status),
@@ -120,8 +127,22 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
 const FIXED_JOB_MAX_SALARY_IN_CENTS = 5_000_000;
 
 function toCents(value: string): number | undefined {
-  const normalized = value.replace(/\./g, "").replace(",", ".").trim();
-  if (!normalized) return undefined;
+  // Aceita pt-BR ("3.500,00" / "3500,00") E ponto decimal ("3500.00").
+  // O parser antigo descartava TODO ponto: "350.50" virava 35050 reais (100x).
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  let normalized = trimmed;
+  if (trimmed.includes(",")) {
+    // vírgula é o decimal; pontos são milhar
+    normalized = trimmed.replace(/\./g, "").replace(",", ".");
+  } else {
+    const dots = trimmed.match(/\./g)?.length ?? 0;
+    const afterLastDot = trimmed.split(".").pop() ?? "";
+    // um ponto só com 1-2 casas = decimal ("350.5"/"350.50"); resto = milhar
+    if (dots > 1 || (dots === 1 && afterLastDot.length === 3)) {
+      normalized = trimmed.replace(/\./g, "");
+    }
+  }
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : undefined;
 }

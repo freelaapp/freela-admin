@@ -33,6 +33,7 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
   aprovado: { label: "Aprovado", variant: "success" },
   reprovado: { label: "Reprovado", variant: "destructive" },
   cancelado: { label: "Cancelado", variant: "destructive" },
+  cancelled: { label: "Cancelado", variant: "destructive" },
   concluido: { label: "Concluído", variant: "success" },
   "em-andamento": { label: "Em Andamento", variant: "default" },
   urgente: { label: "Urgente", variant: "destructive" },

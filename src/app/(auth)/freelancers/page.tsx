@@ -60,7 +60,14 @@ function mapProviderToRow(p: ProviderItem) {
     cargos: p.services ?? [],
     avaliacao: p.avaliacao ?? 0,
     trabalhos: p.trabalhos,
-    status: p.isActive ? ("active" as const) : ("inactive" as const),
+    // banned vem de shared.users (o ban não toca o perfil BR) — sem ele o
+    // banido aparecia "Ativo". Ausente = API antiga → cai no isActive.
+    banned: p.banned === true,
+    status: p.banned
+      ? ("blocked" as const)
+      : p.isActive
+        ? ("active" as const)
+        : ("inactive" as const),
     // Null-safe: API antiga não manda o campo → ausente = prioridade normal.
     lowPriority: p.lowPriority === true,
     lowPrioritySince: p.lowPrioritySince ?? null,
@@ -236,12 +243,22 @@ export default function FreelancersPage() {
       toast.error("Usuário deste freelancer não encontrado.");
       return;
     }
+    const unban = selectedItem.banned;
     try {
-      await banFreelancer.mutateAsync({ userId, banned: true });
-      toast.success(`${selectedItem.nome} foi banido — não consegue mais entrar na plataforma.`);
+      await banFreelancer.mutateAsync({ userId, banned: !unban });
+      toast.success(
+        unban
+          ? `${selectedItem.nome} foi desbanido — o login está liberado de novo.`
+          : `${selectedItem.nome} foi banido — não consegue mais entrar na plataforma.`,
+      );
       closeModal();
     } catch (err) {
-      toast.error(getAxiosErrorMessage(err, "Não foi possível banir o freelancer."));
+      toast.error(
+        getAxiosErrorMessage(
+          err,
+          unban ? "Não foi possível desbanir o freelancer." : "Não foi possível banir o freelancer.",
+        ),
+      );
     }
   };
 
@@ -360,7 +377,7 @@ export default function FreelancersPage() {
         <div className="flex items-center gap-1">
           <button onClick={() => openModal("view", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Ver perfil"><Eye className="w-4 h-4" /></button>
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
-          <button onClick={() => openModal("ban", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Bloquear"><Ban className="w-4 h-4" /></button>
+          <button onClick={() => openModal("ban", row)} className={`p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors ${row.banned ? "text-red-500" : ""}`} title={row.banned ? "Desbanir" : "Bloquear"}><Ban className="w-4 h-4" /></button>
           <button onClick={() => openModal("history", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Histórico"><History className="w-4 h-4" /></button>
           {row.lowPriority && (
             <button
@@ -475,19 +492,35 @@ export default function FreelancersPage() {
         return (
           <>
             <DialogHeader>
-              <DialogTitle>Banir Freelancer</DialogTitle>
-              <DialogDescription>Bloqueio definitivo de acesso (reversível).</DialogDescription>
+              <DialogTitle>{selectedItem.banned ? "Desbanir Freelancer" : "Banir Freelancer"}</DialogTitle>
+              <DialogDescription>
+                {selectedItem.banned ? "Reativa o login e a presença nos feeds." : "Bloqueio definitivo de acesso (reversível)."}
+              </DialogDescription>
             </DialogHeader>
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
-              <ShieldAlert className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-              <div className="text-sm text-red-700">
-                <p className="font-medium">Confirmação necessária</p>
-                <p className="mt-1">Banir <strong>{selectedItem.nome}</strong> definitivamente? Ele <strong>não conseguirá mais entrar</strong> na plataforma (login bloqueado) e some dos feeds. A conta e o histórico são mantidos; dá pra reverter depois. Para apagar de vez, use a opção Excluir permanentemente.</p>
+            {selectedItem.banned ? (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 border border-green-100">
+                <ShieldAlert className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+                <div className="text-sm text-green-700">
+                  <p className="font-medium">Confirmação necessária</p>
+                  <p className="mt-1">Desbanir <strong>{selectedItem.nome}</strong>? O login volta a funcionar e o perfil reaparece nos feeds.</p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+                <ShieldAlert className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <div className="text-sm text-red-700">
+                  <p className="font-medium">Confirmação necessária</p>
+                  <p className="mt-1">Banir <strong>{selectedItem.nome}</strong> definitivamente? Ele <strong>não conseguirá mais entrar</strong> na plataforma (login bloqueado) e some dos feeds. A conta e o histórico são mantidos; dá pra reverter depois. Para apagar de vez, use a opção Excluir permanentemente.</p>
+                </div>
+              </div>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={closeModal} disabled={banFreelancer.isPending} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
-              <Button onClick={handleConfirmBan} disabled={banFreelancer.isPending} className="bg-red-500 text-white hover:bg-red-600">{banFreelancer.isPending ? "Banindo…" : "Banir definitivamente"}</Button>
+              {selectedItem.banned ? (
+                <Button onClick={handleConfirmBan} disabled={banFreelancer.isPending} className="bg-green-600 text-white hover:bg-green-700">{banFreelancer.isPending ? "Desbanindo…" : "Desbanir"}</Button>
+              ) : (
+                <Button onClick={handleConfirmBan} disabled={banFreelancer.isPending} className="bg-red-500 text-white hover:bg-red-600">{banFreelancer.isPending ? "Banindo…" : "Banir definitivamente"}</Button>
+              )}
             </DialogFooter>
           </>
         );

@@ -50,6 +50,7 @@ function mapVacancyStatus(status: string) {
     case "OPEN": return "open" as const;
     case "CLOSED": return "filled" as const;
     case "CANCELLED": return "cancelled" as const;
+    case "CANCELLED_BY_CONTRACTOR": return "cancelled" as const;
     default: return "open" as const;
   }
 }
@@ -201,7 +202,9 @@ function VacancyRoadmap({ vacancy }: { vacancy: VacancyItem }) {
     key: step.key,
     label: step.label,
     hint: step.hint,
-    state: i < reached ? "done" : i === reached && !terminal ? "current" : "done",
+    // i > reached (só existe no caminho não-terminal) = etapa FUTURA → pending.
+    // Antes caía em "done" e o roadmap marcava etapas que nunca aconteceram.
+    state: i < reached ? "done" : i === reached ? (terminal ? "done" : "current") : "pending",
     at: stepTimestamp(vacancy, step.key),
   }));
 
@@ -209,7 +212,7 @@ function VacancyRoadmap({ vacancy }: { vacancy: VacancyItem }) {
     nodes.push({
       key: "cancelled",
       label: "Vaga cancelada",
-      hint: "Fluxo encerrado · estorno processado",
+      hint: "Fluxo encerrado (estorno, se houver, na aba Financeiro)",
       state: "cancelled",
       at: null,
     });

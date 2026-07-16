@@ -43,12 +43,24 @@ export async function getAdminCasaClosedVacancies(
   return res.data.data;
 }
 
+export async function getAdminCasaCancelledVacancies(
+  consultantId?: string,
+): Promise<CasaVacancyItem[]> {
+  const res = await casaAdminApi.get("/cancelled-vacancies", {
+    params: consultantId ? { consultantId } : undefined,
+  });
+  return res.data.data;
+}
+
 export async function getAdminCasaAllVacancies(consultantId?: string): Promise<CasaVacancyItem[]> {
-  const [open, closed] = await Promise.all([
+  // Canceladas eram invisíveis (só open+closed); API antiga sem o endpoint
+  // novo devolve 404 → degrada para [].
+  const [open, closed, cancelled] = await Promise.all([
     getAdminCasaOpenVacancies(consultantId),
     getAdminCasaClosedVacancies(consultantId),
+    getAdminCasaCancelledVacancies(consultantId).catch(() => []),
   ]);
-  return [...open, ...closed];
+  return [...open, ...closed, ...cancelled];
 }
 
 // ─── Feedbacks (Casa) ───────────────────────────────────────────────────────

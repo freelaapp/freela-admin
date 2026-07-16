@@ -196,6 +196,8 @@ export async function getContractorReport(
 export interface ProviderItem {
   id: string;
   userId: string;
+  /** Conta banida (shared.users). Opcional durante janela de deploy da API. */
+  banned?: boolean;
   name: string | null;
   phone: string | null;
   email: string | null;
@@ -453,12 +455,23 @@ export async function adminRemoveCandidacy(
   return res.data.data;
 }
 
+export async function getAdminCancelledVacancies(consultantId?: string): Promise<VacancyItem[]> {
+  const res = await adminApi.get("/cancelled-vacancies", {
+    params: consultantId ? { consultantId } : undefined,
+  });
+  return res.data.data;
+}
+
 export async function getAdminAllVacancies(consultantId?: string): Promise<VacancyItem[]> {
-  const [open, closed] = await Promise.all([
+  // Canceladas eram invisiveis: so open+closed eram buscadas, o filtro
+  // "Canceladas" ficava eternamente (0) e vaga cancelada sumia da tela.
+  // A API antiga (sem /cancelled-vacancies) devolve 404 -> degrada para [].
+  const [open, closed, cancelled] = await Promise.all([
     getAdminOpenVacancies(consultantId),
     getAdminClosedVacancies(consultantId),
+    getAdminCancelledVacancies(consultantId).catch(() => []),
   ]);
-  return [...open, ...closed];
+  return [...open, ...closed, ...cancelled];
 }
 
 // ─── Users ──────────────────────────────────────────────────────────────────
