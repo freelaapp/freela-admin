@@ -103,8 +103,8 @@ export default function DashboardPage() {
   // os KPIs misturam plataforma toda vs só Bares/Restaurantes, e foto do
   // momento vs acumulado histórico — sem o rótulo o painel induz a erro.
   const row1 = [
-    { title: "Freelancers Cadastrados", value: String(m.totalFreelancers), icon: UserCheck, meta: "Global · acumulado" },
-    { title: "Contratantes Cadastrados", value: String(m.totalCompanies), icon: Building2, meta: "Global · ativos" },
+    { title: "Freelancers Cadastrados", value: String(m.totalFreelancers), icon: UserCheck, meta: "Global · acumulado", help: "Toda conta de freelancer já criada na plataforma (BR + Casa) que não foi banida. Não mede atividade — é cadastro acumulado." },
+    { title: "Contratantes Cadastrados", value: String(m.totalCompanies), icon: Building2, meta: "Global · ativos", help: "Empresas/pessoas contratantes ativas, contando cada uma só uma vez mesmo se estiver nos dois módulos." },
     { title: "Novos Freelancers (Mês)", value: String(m.newFreelancersThisMonth), icon: RefreshCw, meta: "Global · mês atual" },
     { title: "Usuários Ativos", value: String(m.activeUsers), icon: Users, meta: "Global · agora" },
   ];
@@ -118,9 +118,10 @@ export default function DashboardPage() {
     : "o início";
   const row2 = [
     { title: "Vagas Abertas", value: String(m.openVacancies), icon: Briefcase, meta: "BR · agora" },
-    { title: "Candidaturas Aceitas", value: String(m.acceptedCandidacies), icon: CheckCircle2, iconColor: "text-green-500", meta: "BR · acumulado" },
+    { title: "Candidaturas Aceitas", value: String(m.acceptedCandidacies), icon: CheckCircle2, iconColor: "text-green-500", meta: "BR · acumulado", help: "Total histórico de freelancers aceitos em vagas de Bares & Restaurantes. É acumulado desde o início — não significa vagas preenchidas agora." },
     {
       title: "Vagas Abertas e Não Concluídas",
+      help: "Das vagas criadas desde o início real da operação, quantas terminaram SEM serviço concluído: canceladas ou com o prazo encerrado sem ninguém concluir o job. Vagas ainda em andamento não contam.",
       value:
         m.vacanciesNotCompletedSinceLaunch !== undefined
           ? String(m.vacanciesNotCompletedSinceLaunch)
@@ -137,6 +138,7 @@ export default function DashboardPage() {
   const row3 = [
     {
       title: "Taxa de Preenchimento (30d)",
+      help: "Das vagas criadas nos últimos 30 dias que já tiveram desfecho (preencheram todos os postos ou expiraram sem preencher), a porcentagem que preencheu. Vagas canceladas e vagas ainda abertas ficam fora da conta.",
       value: fillRate === null ? "N/A" : `${fillRate}%`,
       icon: TrendingUp,
       iconColor: "text-green-500",
@@ -160,10 +162,11 @@ export default function DashboardPage() {
   const fbProviders = m.feedbacksReceivedByProviders;
   const fbContractors = m.feedbacksReceivedByContractors;
   const row4 = [
-    { title: "GMV (Volume Bruto)", value: formatCurrency(m.totalRevenue), icon: DollarSign, iconColor: "text-green-500", meta: "Global · acumulado · líquido de estornos" },
+    { title: "GMV (Volume Bruto)", value: formatCurrency(m.totalRevenue), icon: DollarSign, iconColor: "text-green-500", meta: "Global · acumulado · líquido de estornos", help: "Todo o dinheiro pago pelos contratantes desde o início (sem os estornados). Inclui a fatia dos freelancers — não é receita da empresa; para receita, veja o Lucro na aba Financeiro." },
     { title: "Repasse Pendentes", value: String(m.pendingRepasses), icon: Wallet, meta: "Global · agora" },
     {
       title: "Avaliações Recebidas por Freelancers",
+      help: "Notas que CONTRATANTES deram a freelancers, nos dois módulos, desde o go-live. A média ao lado é só desta direção.",
       value: fbProviders ? String(fbProviders.count) : "N/A",
       icon: Star,
       meta: fbProviders
@@ -172,6 +175,7 @@ export default function DashboardPage() {
     },
     {
       title: "Avaliações Recebidas por Contratantes",
+      help: "Notas que FREELANCERS deram a contratantes, nos dois módulos, desde o go-live. A média ao lado é só desta direção.",
       value: fbContractors ? String(fbContractors.count) : "N/A",
       icon: Building2,
       meta: fbContractors

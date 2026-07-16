@@ -6,8 +6,18 @@ import { KpiCard } from "@/components/shared/kpi-card";
 import { DataTable } from "@/components/shared/data-table";
 import {
   DollarSign, TrendingDown, TrendingUp, RotateCcw,
-  Loader2, Wallet, Landmark, PiggyBank, X,
+  Loader2, Wallet, Landmark, PiggyBank, X, HelpCircle,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useAdminPayments } from "@/modules/admin/application/use-admin-payments";
 import { useAdminRepasses } from "@/modules/admin/application/use-admin-repasses";
 import { useFinanceSummary, useFinanceTransactions } from "@/modules/admin/application/use-admin-finance";
@@ -411,8 +421,69 @@ function mapRepasseToRow(r: RepasseItem) {
 
 // ─── Página ──────────────────────────────────────────────────────────────────
 
+
+// ─── Guia de leitura (linguagem de negócio, para quem não vive no painel) ────
+
+function FinanceGuideDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const items: { title: string; text: string }[] = [
+    {
+      title: "Quanto a empresa ganhou? → Lucro (taxa da plataforma)",
+      text: "É a nossa receita: as taxas de serviço cobradas nas vagas pagas do período, já descontando a tarifa do gateway (~R$ 0,85 por PIX) e os bônus pagos a freelancers.",
+    },
+    {
+      title: "Entradas (bruto transacionado) NÃO é faturamento",
+      text: "É todo o dinheiro que passou pela plataforma: inclui a fatia que pertence ao freelancer (repasse) e pagamentos que depois foram devolvidos. Serve para medir volume de negócio (GMV), não ganho.",
+    },
+    {
+      title: "Líquido no período",
+      text: "Entradas − Saídas − Estornos: o que sobrou no caixa das operações do período selecionado.",
+    },
+    {
+      title: "Estornos",
+      text: "Devoluções a contratantes (vaga cancelada, no-show etc.), inclusive as feitas manualmente direto na Woovi. Cada estorno também está dentro das Entradas — por isso o Líquido desconta.",
+    },
+    {
+      title: "Saldos Woovi/Asaas (ao vivo)",
+      text: "Quanto há AGORA nas contas dos gateways. Não fecham com Entradas−Saídas do período: cartão/boleto demoram a liquidar e há movimentos feitos fora do painel.",
+    },
+    {
+      title: "O período",
+      text: "A tela abre em 'Este mês'. O preset 'Tudo' soma desde o início, incluindo o piloto de maio/2026 — bom para histórico, ruim para acompanhar o mês. O filtro usa a data de criação da cobrança (boleto pago dias depois conta no dia da emissão).",
+    },
+    {
+      title: "Aba Transações",
+      text: "Lista TODAS as movimentações, inclusive cobranças que expiraram sem pagamento e repasses que falharam (importante para operação). O rodapé soma só o que liquidou de verdade.",
+    },
+  ];
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogClose onClick={onClose} />
+        <DialogHeader>
+          <DialogTitle>Como ler estes números</DialogTitle>
+          <DialogDescription>
+            Guia rápido dos cards do Financeiro — cada card também tem um ⓘ com a explicação no hover.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          {items.map((it) => (
+            <div key={it.title} className="rounded-lg bg-[#f7f7f7] p-3">
+              <p className="text-sm font-semibold text-[#1d1d1b]">{it.title}</p>
+              <p className="mt-1 text-sm text-[#737373]">{it.text}</p>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function FinanceiroPage() {
   const [tab, setTab] = useState<Tab>("Visão Geral");
+  const [guideOpen, setGuideOpen] = useState(false);
   // Default "Este mês": o acumulado desde sempre (preset "Tudo") inclui o
   // piloto de maio/2026 e induzia leitura de "números altos demais".
   const [range, setRange] = useState<Range>(
@@ -470,7 +541,21 @@ export default function FinanceiroPage() {
 
   return (
     <div>
-      <PageHeader title="Financeiro" description="Saldo ao vivo, fluxo de caixa e transações por vaga" />
+      <PageHeader
+        title="Financeiro"
+        description="Saldo ao vivo, fluxo de caixa e transações por vaga"
+        action={
+          <Button
+            variant="outline"
+            onClick={() => setGuideOpen(true)}
+            className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium"
+          >
+            <HelpCircle className="w-4 h-4 mr-2" />
+            Como ler estes números
+          </Button>
+        }
+      />
+      <FinanceGuideDialog open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
         {tabs.map((t) => (
@@ -509,16 +594,19 @@ export default function FinanceiroPage() {
                     title="Saldo Woovi (OpenPix)"
                     value={formatCurrencyNullable(summary?.saldoWooviCents ?? null)}
                     icon={Wallet}
+                    help="Dinheiro parado AGORA na conta do gateway de PIX (consulta ao vivo). Não é a soma dos cards abaixo: inclui liquidações em trânsito e movimentos feitos direto na Woovi."
                   />
                   <KpiCard
                     title="Saldo Asaas"
                     value={formatCurrencyNullable(summary?.saldoAsaasCents ?? null)}
                     icon={Landmark}
+                    help="Dinheiro parado AGORA na conta do gateway de cartão/boleto (consulta ao vivo). Cartão e boleto demoram dias para liquidar, então oscila em relação às vendas."
                   />
                   <KpiCard
                     title="Saldo total"
                     value={formatCurrencyNullable(summary?.saldoTotalCents ?? null)}
                     icon={PiggyBank}
+                    help="Woovi + Asaas somados. É quanto a plataforma tem em conta neste instante — não confundir com lucro."
                   />
                 </div>
               </div>
@@ -537,6 +625,7 @@ export default function FinanceiroPage() {
                     icon={TrendingUp}
                     iconColor="text-green-600"
                     meta={`${summary?.entradasCount ?? 0} pagamentos · inclui repasse e estornados`}
+                    help="Tudo que os contratantes PAGARAM no período. A maior parte não é nossa: inclui a fatia que vai para o freelancer (repasse) e pagamentos que depois foram devolvidos (estornos). Para saber quanto a empresa ganhou, olhe o card Lucro."
                   />
                   <KpiCard
                     title="Saídas (repasses + bônus)"
@@ -544,6 +633,7 @@ export default function FinanceiroPage() {
                     icon={TrendingDown}
                     iconColor="text-red-600"
                     meta={`${summary?.saidasCount ?? 0} transações`}
+                    help="Dinheiro que saiu para freelancers no período: repasses pagos + bônus. Não inclui estornos (card próprio)."
                   />
                   <KpiCard
                     title="Estornos"
@@ -551,6 +641,7 @@ export default function FinanceiroPage() {
                     icon={RotateCcw}
                     iconColor="text-[#eca826]"
                     meta={`${summary?.estornosCount ?? 0} pagamentos estornados (inclui manuais)`}
+                    help="Pagamentos devolvidos aos contratantes no período (vaga cancelada, no-show etc.), inclusive estornos feitos manualmente direto na Woovi. Esses valores aparecem nas Entradas e são descontados aqui."
                   />
                   <KpiCard
                     title="Líquido no período"
@@ -569,6 +660,7 @@ export default function FinanceiroPage() {
                         : "text-red-600"
                     }
                     meta="entradas − saídas − estornos"
+                    help="O que sobrou no caixa das operações do período: entrou, menos o que foi para freelancers, menos o que foi devolvido. Ainda não desconta a tarifa do gateway (~R$ 0,85 por PIX) — esta já está abatida no Lucro."
                   />
                   <KpiCard
                     title="Lucro (taxa da plataforma)"
@@ -576,6 +668,7 @@ export default function FinanceiroPage() {
                     icon={DollarSign}
                     iconColor={(summary?.lucroCents ?? 0) >= 0 ? "text-green-600" : "text-red-600"}
                     meta={`taxa − gateway (${formatCurrency(summary?.gatewayFeesCents ?? 0)}) − bônus`}
+                    help="A RECEITA da plataforma no período: soma das nossas taxas de serviço nas vagas pagas, menos a tarifa do gateway e os bônus que pagamos. Se a pergunta é 'quanto a empresa ganhou?', o número é este."
                   />
                 </div>
               </div>
