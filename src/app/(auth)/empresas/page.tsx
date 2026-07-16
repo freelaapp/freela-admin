@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText } from "lucide-react";
+import { Plus, Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -32,6 +32,8 @@ import {
   useAdminContractorEmployeeMutations,
 } from "@/modules/admin/application/use-admin-contractor-employee";
 import { formatPhoneBr } from "@/lib/utils";
+import { formatInstantDate } from "@/lib/date.utils";
+import { downloadCsv } from "@/lib/csv";
 
 type ModalType = "view" | "edit" | "delete" | "employee" | "report" | null;
 const DELETE_CONFIRM_WORD = "EXCLUIR";
@@ -52,6 +54,8 @@ function mapContractorToRow(c: ContractorItem) {
     ticket: c.ticketMedio ? `R$ ${(c.ticketMedio / 100).toFixed(2)}` : "N/A",
     avaliacao: c.avaliacao ?? 0,
     origem: formatReferralOrigin(c),
+    // createdAt é instante UTC — formatInstantDate fixa Brasília.
+    cadastro: c.createdAt ? formatInstantDate(c.createdAt) : "—",
     status: c.isActive ? ("active" as const) : ("inactive" as const),
     raw: c,
   };
@@ -128,6 +132,52 @@ export default function EmpresasPage() {
     setSelectedItem(null);
   };
 
+  // Exporta a base COMPLETA (ignora a busca da tabela), em CSV compatível
+  // com Excel pt-BR. Números com vírgula decimal para o Excel reconhecer.
+  const handleExport = () => {
+    if (!contractors?.length) {
+      toast.info("Nada para exportar.");
+      return;
+    }
+    const header = [
+      "Empresa",
+      "Responsável",
+      "E-mail (login)",
+      "Telefone",
+      "Cidade",
+      "UF",
+      "Segmento",
+      "CNPJ",
+      "CPF",
+      "Origem do cadastro",
+      "Jobs concluídos",
+      "Ticket médio (R$)",
+      "Avaliação",
+      "Status",
+      "Data de cadastro",
+    ];
+    const body = contractors.map((c) => [
+      c.companyName || c.contactName || "Sem nome",
+      c.contactName,
+      c.registrationEmail ?? "",
+      c.contactPhone ? formatPhoneBr(c.contactPhone) : "",
+      c.city ?? "",
+      c.uf ?? "",
+      c.segment ?? "",
+      c.cnpj ?? "",
+      c.cpf ?? "",
+      formatReferralOrigin(c),
+      c.jobs,
+      c.ticketMedio != null ? (c.ticketMedio / 100).toFixed(2).replace(".", ",") : "",
+      c.avaliacao != null ? c.avaliacao.toFixed(1).replace(".", ",") : "",
+      c.isActive ? "Ativo" : "Inativo",
+      c.createdAt ? formatInstantDate(c.createdAt) : "",
+    ]);
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+    downloadCsv(`empresas-${today}.csv`, header, body);
+    toast.success(`${contractors.length} empresa(s) exportada(s).`);
+  };
+
   const handleHardDelete = async () => {
     if (!selectedItem) return;
     const userId = selectedItem.raw.userId;
@@ -187,6 +237,14 @@ export default function EmpresasPage() {
     { header: "Cidade", accessor: "cidade" as const },
     { header: "Segmento", accessor: "segmento" as const, className: "hidden md:table-cell" },
     { header: "Origem do cadastro", accessor: "origem" as const, className: "hidden lg:table-cell" },
+    {
+      header: "Cadastro",
+      accessor: "cadastro" as const,
+      sortable: true,
+      // ISO UTC ordena certo lexicograficamente; a célula mostra dd/mm/aaaa.
+      sortAccessor: (row: Row) => row.raw.createdAt ?? "",
+      className: "hidden md:table-cell",
+    },
     { header: "Jobs", accessor: "jobs" as const },
     { header: "Ticket Médio", accessor: "ticket" as const, className: "hidden lg:table-cell" },
     {
@@ -303,6 +361,10 @@ export default function EmpresasPage() {
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                 <User className="w-4 h-4 text-[#737373]" />
                 Origem do cadastro: {selectedItem.origem}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
+                <CalendarDays className="w-4 h-4 text-[#737373]" />
+                Data de cadastro: {selectedItem.cadastro}
               </div>
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                 Status: <StatusBadge status={selectedItem.status} />
@@ -464,10 +526,20 @@ export default function EmpresasPage() {
         title="Empresas"
         description="Empresas contratantes cadastradas na plataforma"
         action={
-          <Button className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium">
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Empresa
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Exportar Excel
+            </Button>
+            <Button className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium">
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Empresa
+            </Button>
+          </div>
         }
       />
       <DataTable columns={columns} data={rows} searchPlaceholder="Buscar por empresa ou e-mail..." searchKey="_search" />
