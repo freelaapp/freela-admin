@@ -213,9 +213,22 @@ function TransactionsView({
 
   const rows = useMemo(() => (data?.items ?? []).map(mapTxToRow), [data]);
 
+  // A lista traz TODAS as situações (inclusive cobrança pendente/expirada e
+  // repasse falho — importante para operação), mas o rodapé soma só o que
+  // LIQUIDOU, senão os totais estouram e contradizem a Visão Geral (que usa
+  // COMPLETED/REFUNDED para entradas e COMPLETED/PAID para saídas).
   const totals = useMemo(() => {
-    const t = { entrada: 0, saida: 0, estorno: 0 };
-    for (const it of data?.items ?? []) t[it.type] += it.amountInCents;
+    const settled = (it: FinanceTransaction) =>
+      it.type === "entrada"
+        ? it.status === "COMPLETED" || it.status === "REFUNDED"
+        : it.type === "saida"
+          ? it.status === "COMPLETED" || it.status === "PAID"
+          : true; // estornos são registros de estorno já decididos
+    const t = { entrada: 0, saida: 0, estorno: 0, foraDaSoma: 0 };
+    for (const it of data?.items ?? []) {
+      if (settled(it)) t[it.type] += it.amountInCents;
+      else t.foraDaSoma += 1;
+    }
     return t;
   }, [data]);
 
@@ -266,11 +279,17 @@ function TransactionsView({
     },
     {
       header: "Status",
-      accessor: (r: TxRow) => (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#f7f7f7] text-[#737373]">
-          {r.raw.status}
-        </span>
-      ),
+      accessor: (r: TxRow) => {
+        const s = TX_STATUS[r.raw.status] ?? {
+          label: r.raw.status,
+          cls: "bg-[#f7f7f7] text-[#737373]",
+        };
+        return (
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>
+            {s.label}
+          </span>
+        );
+      },
     },
   ];
 
@@ -312,9 +331,14 @@ function TransactionsView({
   const footer = (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-[#737373]">
       <span>{rows.length} transações{data?.truncated ? " (limitado a 1000)" : ""}</span>
-      <span className="text-green-600 font-medium">Entradas {formatCurrency(totals.entrada)}</span>
-      <span className="text-red-600 font-medium">Saídas {formatCurrency(totals.saida)}</span>
+      <span className="text-green-600 font-medium">Entradas liquidadas {formatCurrency(totals.entrada)}</span>
+      <span className="text-red-600 font-medium">Saídas liquidadas {formatCurrency(totals.saida)}</span>
       <span className="text-[#eca826] font-medium">Estornos {formatCurrency(totals.estorno)}</span>
+      {totals.foraDaSoma > 0 && (
+        <span>
+          {totals.foraDaSoma} não liquidada{totals.foraDaSoma > 1 ? "s" : ""} (pendente/expirada/falha) fora da soma
+        </span>
+      )}
     </div>
   );
 
@@ -332,7 +356,31 @@ function TransactionsView({
   );
 }
 
+// Tradução dos status crus da API. Nos ESTORNOS o campo status carrega o TIPO
+// de estorno (FULL/PARTIAL_50/NONE) — rotulado de acordo.
+const TX_STATUS: Record<string, { label: string; cls: string }> = {
+  COMPLETED: { label: "Concluído", cls: "bg-green-50 text-green-700" },
+  PAID: { label: "Pago", cls: "bg-green-50 text-green-700" },
+  PENDING: { label: "Pendente", cls: "bg-amber-50 text-amber-700" },
+  PROCESSING: { label: "Processando", cls: "bg-amber-50 text-amber-700" },
+  FAILED: { label: "Falhou", cls: "bg-red-50 text-red-700" },
+  EXPIRED: { label: "Expirado", cls: "bg-[#f7f7f7] text-[#737373]" },
+  CANCELLED: { label: "Cancelado", cls: "bg-[#f7f7f7] text-[#737373]" },
+  REFUNDED: { label: "Estornado", cls: "bg-[#eca826]/10 text-[#b07708]" },
+  FULL: { label: "Estorno integral", cls: "bg-[#eca826]/10 text-[#b07708]" },
+  PARTIAL_50: { label: "Estorno 50%", cls: "bg-[#eca826]/10 text-[#b07708]" },
+  NONE: { label: "Sem estorno", cls: "bg-[#f7f7f7] text-[#737373]" },
+};
+
 // ─── Legado: Pagamentos / Repasses (endpoints antigos, sem filtro de data) ────
+
+const LEGACY_PAYMENT_STATUS: Record<string, string> = {
+  COMPLETED: "Pago",
+  PENDING: "Pendente",
+  REFUNDED: "Estornado",
+  EXPIRED: "Expirado",
+  FAILED: "Falhou",
+};
 
 function mapPaymentToRow(p: PaymentItem) {
   const hasBreakdown = (p.serviceAmountInCents ?? 0) > 0;
@@ -344,7 +392,7 @@ function mapPaymentToRow(p: PaymentItem) {
     taxa: hasBreakdown ? formatCurrency(p.value - p.serviceAmountInCents) : "—",
     tipo: "Diária",
     data: formatDate(p.createdAt),
-    status: p.status === "COMPLETED" ? "Pago" : "Pendente",
+    status: LEGACY_PAYMENT_STATUS[p.status] ?? p.status,
     raw: p,
   };
 }

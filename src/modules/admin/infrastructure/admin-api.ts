@@ -23,6 +23,12 @@ export interface AdminMetrics {
   vacanciesFilled30d?: number;
   /** Vagas criadas nos últimos 30 dias que expiraram sem preencher. */
   vacanciesExpiredUnfilled30d?: number;
+  /** Vagas criadas desde o início real da operação (go-live). */
+  vacanciesCreatedSinceLaunch?: number;
+  /** Dessas, as que tiveram desfecho sem serviço concluído. */
+  vacanciesNotCompletedSinceLaunch?: number;
+  /** Data de corte do go-live (YYYY-MM-DD). */
+  launchDate?: string;
   scheduledJobs: number;
   inProgressJobs: number;
   completedJobs: number;

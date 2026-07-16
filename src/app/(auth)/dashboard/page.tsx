@@ -110,10 +110,28 @@ export default function DashboardPage() {
     { title: "Usuários Ativos", value: String(m.activeUsers), icon: Users, meta: "Global · agora" },
   ];
 
+  // "Desde o início" = go-live real da operação (corte vem da API em launchDate;
+  // vagas de teste anteriores ficam fora). "Não concluídas" = tiveram desfecho
+  // sem serviço concluído (canceladas ou janela encerrada sem job COMPLETED);
+  // vagas ainda em aberto não contam.
+  const launchLabel = m.launchDate
+    ? m.launchDate.split("-").reverse().join("/")
+    : "o início";
   const row2 = [
     { title: "Vagas Abertas", value: String(m.openVacancies), icon: Briefcase, meta: "BR · agora" },
     { title: "Candidaturas Aceitas", value: String(m.acceptedCandidacies), icon: CheckCircle2, iconColor: "text-green-500", meta: "BR · acumulado" },
-    { title: "Candidaturas Pendentes", value: String(m.pendingCandidacies), icon: Hourglass, meta: "BR · acumulado (inclui vagas antigas)" },
+    {
+      title: "Vagas Abertas e Não Concluídas",
+      value:
+        m.vacanciesNotCompletedSinceLaunch !== undefined
+          ? String(m.vacanciesNotCompletedSinceLaunch)
+          : "N/A",
+      icon: Hourglass,
+      meta:
+        m.vacanciesCreatedSinceLaunch !== undefined
+          ? `BR · de ${m.vacanciesCreatedSinceLaunch} criadas desde ${launchLabel}`
+          : `BR · desde ${launchLabel}`,
+    },
     { title: "Vagas Canceladas", value: String(m.cancelledVacancies), icon: Ban, iconColor: "text-red-500", meta: "BR · acumulado" },
   ];
 
