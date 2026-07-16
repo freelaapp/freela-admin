@@ -18,6 +18,7 @@ import {
   ListChecks,
   Users,
   Loader2,
+  HelpCircle,
 } from "lucide-react";
 import {
   BarChart,
@@ -34,6 +35,15 @@ import {
   Line,
 } from "recharts";
 import { PageHeader } from "@/components/shared/page-header";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { Button } from "@/components/ui/button";
 import { useAdminMetrics } from "@/modules/admin/application/use-admin-metrics";
@@ -59,9 +69,70 @@ function formatCargo(value: string) {
   return value;
 }
 
+
+// ─── Guia de leitura do dashboard (linguagem de negócio) ─────────────────────
+
+function DashboardGuideDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const items: { title: string; text: string }[] = [
+    {
+      title: "Global vs BR — o escopo de cada card",
+      text: "\"Global\" soma a plataforma toda (Bares & Restaurantes + Freela em Casa). \"BR\" é só Bares & Restaurantes — vagas, jobs e candidaturas são deste módulo. O rótulo cinza embaixo de cada card diz qual é.",
+    },
+    {
+      title: "Acumulado, agora ou mês — a janela de tempo",
+      text: "\"Acumulado\" conta desde o início da plataforma (inclui o piloto de maio/2026). \"Agora\" é a foto deste instante. \"Mês atual\" zera todo dia 1º. Não compare cards de janelas diferentes entre si.",
+    },
+    {
+      title: "A saúde da operação em 3 cards",
+      text: "Vagas Abertas (o que está no ar), Taxa de Preenchimento 30d (das vagas que encerraram no último mês, quantas preencheram — meta 80%) e Vagas Abertas e Não Concluídas (as que terminaram sem serviço desde o go-live). Esses três contam a história do funil.",
+    },
+    {
+      title: "Dinheiro: aqui é só o volume",
+      text: "O GMV mostra tudo que os contratantes pagaram (inclui a fatia dos freelancers — não é receita). Receita, saídas, estornos e saldo em conta vivem na aba Financeiro, que tem o próprio guia.",
+    },
+    {
+      title: "Avaliações em duas direções",
+      text: "Um card conta as notas que os freelancers RECEBERAM (dadas por contratantes) e o outro as que os contratantes receberam. Cada um mostra a própria média — não existe mais uma média única misturada.",
+    },
+    {
+      title: "Os filtros de Cidade e Cargo",
+      text: "Filtram só vagas, jobs, candidaturas e gráficos. Os indicadores de pessoas e dinheiro (freelancers, usuários, GMV, repasses, avaliações) são globais e não mudam com o filtro.",
+    },
+    {
+      title: "O gráfico Freelancers por Cargo",
+      text: "A pizza usa só os perfis de Bares & Restaurantes que informaram cargo — os percentuais são desse grupo, não dos milhares de cadastros globais.",
+    },
+  ];
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogClose onClick={onClose} />
+        <DialogHeader>
+          <DialogTitle>Como ler estes números</DialogTitle>
+          <DialogDescription>
+            Guia rápido do painel — cada card também tem um ⓘ com a explicação no hover.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          {items.map((it) => (
+            <div key={it.title} className="rounded-lg bg-[#f7f7f7] p-3">
+              <p className="text-sm font-semibold text-[#1d1d1b]">{it.title}</p>
+              <p className="mt-1 text-sm text-[#737373]">{it.text}</p>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function DashboardPage() {
   const [cidade, setCidade] = useState("");
   const [cargo, setCargo] = useState("");
+  const [guideOpen, setGuideOpen] = useState(false);
   const { data: m, isLoading, isError } = useAdminMetrics({
     city: cidade || undefined,
     role: cargo || undefined,
@@ -105,8 +176,8 @@ export default function DashboardPage() {
   const row1 = [
     { title: "Freelancers Cadastrados", value: String(m.totalFreelancers), icon: UserCheck, meta: "Global · acumulado", help: "Toda conta de freelancer já criada na plataforma (BR + Casa) que não foi banida. Não mede atividade — é cadastro acumulado." },
     { title: "Contratantes Cadastrados", value: String(m.totalCompanies), icon: Building2, meta: "Global · ativos", help: "Empresas/pessoas contratantes ativas, contando cada uma só uma vez mesmo se estiver nos dois módulos." },
-    { title: "Novos Freelancers (Mês)", value: String(m.newFreelancersThisMonth), icon: RefreshCw, meta: "Global · mês atual" },
-    { title: "Usuários Ativos", value: String(m.activeUsers), icon: Users, meta: "Global · agora" },
+    { title: "Novos Freelancers (Mês)", value: String(m.newFreelancersThisMonth), icon: RefreshCw, meta: "Global · mês atual", help: "Contas de freelancer criadas do dia 1º deste mês até agora (mês-calendário, não 30 dias corridos)." },
+    { title: "Usuários Ativos", value: String(m.activeUsers), icon: Users, meta: "Global · agora", help: "Contas (freelancers + contratantes) que não estão banidas nem em processo de exclusão. É status da conta, não uso recente — a plataforma ainda não mede login/engajamento." },
   ];
 
   // "Desde o início" = go-live real da operação (corte vem da API em launchDate;
@@ -117,7 +188,7 @@ export default function DashboardPage() {
     ? m.launchDate.split("-").reverse().join("/")
     : "o início";
   const row2 = [
-    { title: "Vagas Abertas", value: String(m.openVacancies), icon: Briefcase, meta: "BR · agora" },
+    { title: "Vagas Abertas", value: String(m.openVacancies), icon: Briefcase, meta: "BR · agora", help: "Vagas de Bares & Restaurantes abertas NESTE momento, ainda dentro do prazo, aceitando candidaturas." },
     { title: "Candidaturas Aceitas", value: String(m.acceptedCandidacies), icon: CheckCircle2, iconColor: "text-green-500", meta: "BR · acumulado", help: "Total histórico de freelancers aceitos em vagas de Bares & Restaurantes. É acumulado desde o início — não significa vagas preenchidas agora." },
     {
       title: "Vagas Abertas e Não Concluídas",
@@ -132,7 +203,7 @@ export default function DashboardPage() {
           ? `BR · de ${m.vacanciesCreatedSinceLaunch} criadas desde ${launchLabel}`
           : `BR · desde ${launchLabel}`,
     },
-    { title: "Vagas Canceladas", value: String(m.cancelledVacancies), icon: Ban, iconColor: "text-red-500", meta: "BR · acumulado" },
+    { title: "Vagas Canceladas", value: String(m.cancelledVacancies), icon: Ban, iconColor: "text-red-500", meta: "BR · acumulado", help: "Total histórico de vagas canceladas (pelo contratante, admin ou sistema) desde o início, incluindo o período de testes." },
   ];
 
   const row3 = [
@@ -149,9 +220,9 @@ export default function DashboardPage() {
       metaColor: fillRate !== null && fillRate >= 80 ? "text-green-500" : "text-red-500",
       ...(fillRate !== null ? { progress: fillRate } : {}),
     },
-    { title: "Jobs Agendados", value: String(m.scheduledJobs), icon: Timer, meta: "BR · agora" },
-    { title: "Jobs em Andamento", value: String(m.inProgressJobs), icon: Clock, meta: "BR · agora" },
-    { title: "Serviços Concluídos", value: String(m.completedJobs), icon: ListChecks, iconColor: "text-green-500", meta: "BR · acumulado" },
+    { title: "Jobs Agendados", value: String(m.scheduledJobs), icon: Timer, meta: "BR · agora", help: "Serviços já pagos e confirmados aguardando o dia/horário de início (freelancer contratado, check-in ainda não feito)." },
+    { title: "Jobs em Andamento", value: String(m.inProgressJobs), icon: Clock, meta: "BR · agora", help: "Serviços acontecendo AGORA: o freelancer fez check-in e ainda não fez check-out." },
+    { title: "Serviços Concluídos", value: String(m.completedJobs), icon: ListChecks, iconColor: "text-green-500", meta: "BR · acumulado", help: "Total histórico de serviços finalizados com check-out desde o início da plataforma." },
   ];
 
   // Avaliações separadas POR DIREÇÃO (o antigo "Feedbacks 200" somava as duas
@@ -163,7 +234,7 @@ export default function DashboardPage() {
   const fbContractors = m.feedbacksReceivedByContractors;
   const row4 = [
     { title: "GMV (Volume Bruto)", value: formatCurrency(m.totalRevenue), icon: DollarSign, iconColor: "text-green-500", meta: "Global · acumulado · líquido de estornos", help: "Todo o dinheiro pago pelos contratantes desde o início (sem os estornados). Inclui a fatia dos freelancers — não é receita da empresa; para receita, veja o Lucro na aba Financeiro." },
-    { title: "Repasse Pendentes", value: String(m.pendingRepasses), icon: Wallet, meta: "Global · agora" },
+    { title: "Repasse Pendentes", value: String(m.pendingRepasses), icon: Wallet, meta: "Global · agora", help: "Pagamentos a freelancers aguardando liberação neste momento. Zero = ninguém esperando receber. Repasses que falharam não aparecem aqui — ficam na aba Financeiro > Transações." },
     {
       title: "Avaliações Recebidas por Freelancers",
       help: "Notas que CONTRATANTES deram a freelancers, nos dois módulos, desde o go-live. A média ao lado é só desta direção.",
@@ -209,7 +280,18 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="PMO FREELA — Painel Gerencial"
+        action={
+          <Button
+            variant="outline"
+            onClick={() => setGuideOpen(true)}
+            className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium"
+          >
+            <HelpCircle className="w-4 h-4 mr-2" />
+            Como ler estes números
+          </Button>
+        }
       />
+      <DashboardGuideDialog open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-2">
