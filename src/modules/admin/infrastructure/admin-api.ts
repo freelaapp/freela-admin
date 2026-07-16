@@ -18,6 +18,11 @@ export interface AdminMetrics {
   openVacancies: number;
   closedVacancies: number;
   cancelledVacancies: number;
+  /** Vagas criadas nos últimos 30 dias que fecharam todos os slots. Opcional
+   * enquanto a API antiga (sem o campo) ainda pode estar no ar. */
+  vacanciesFilled30d?: number;
+  /** Vagas criadas nos últimos 30 dias que expiraram sem preencher. */
+  vacanciesExpiredUnfilled30d?: number;
   scheduledJobs: number;
   inProgressJobs: number;
   completedJobs: number;

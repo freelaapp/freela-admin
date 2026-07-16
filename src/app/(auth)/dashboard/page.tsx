@@ -5,10 +5,9 @@ import {
   UserCheck,
   Building2,
   Briefcase,
-  ClipboardList,
   CheckCircle2,
   Clock,
-  XCircle,
+  Hourglass,
   TrendingUp,
   Timer,
   RefreshCw,
@@ -16,8 +15,9 @@ import {
   DollarSign,
   Wallet,
   Receipt,
-  AlertCircle,
+  Star,
   ListChecks,
+  Users,
   Loader2,
 } from "lucide-react";
 import {
@@ -84,36 +84,62 @@ export default function DashboardPage() {
     );
   }
 
-  const fillRate = m.openVacancies > 0
-    ? Math.round((m.acceptedCandidacies / (m.openVacancies + m.acceptedCandidacies)) * 100)
-    : 0;
+  // Taxa de preenchimento POR PERÍODO, calculada na API: das vagas criadas nos
+  // últimos 30 dias que já tiveram desfecho (fecharam todos os slots ou
+  // expiraram sem preencher), quantas fecharam. A fórmula antiga misturava
+  // aceites acumulados desde o início com as vagas abertas do momento e
+  // tendia a 100% conforme a história crescia. Campos opcionais enquanto a
+  // API sem eles ainda puder estar no ar.
+  const filled30d = m.vacanciesFilled30d;
+  const decided30d =
+    filled30d !== undefined && m.vacanciesExpiredUnfilled30d !== undefined
+      ? filled30d + m.vacanciesExpiredUnfilled30d
+      : undefined;
+  const fillRate =
+    filled30d !== undefined && decided30d
+      ? Math.round((filled30d / decided30d) * 100)
+      : null;
 
+  // Rótulo de escopo/janela em cada card (legenda logo abaixo dos filtros):
+  // os KPIs misturam plataforma toda vs só Bares/Restaurantes, e foto do
+  // momento vs acumulado histórico — sem o rótulo o painel induz a erro.
   const row1 = [
-    { title: "Freelancers Cadastrados", value: String(m.totalFreelancers), icon: UserCheck },
-    { title: "Contratantes Cadastrados", value: String(m.totalCompanies), icon: Building2 },
-    { title: "Vagas Abertas", value: String(m.openVacancies), icon: Briefcase },
+    { title: "Freelancers Cadastrados", value: String(m.totalFreelancers), icon: UserCheck, meta: "Global · acumulado" },
+    { title: "Contratantes Cadastrados", value: String(m.totalCompanies), icon: Building2, meta: "Global · ativos" },
+    { title: "Novos Freelancers (Mês)", value: String(m.newFreelancersThisMonth), icon: RefreshCw, meta: "Global · mês atual" },
+    { title: "Usuários Ativos", value: String(m.activeUsers), icon: Users, meta: "Global · agora" },
   ];
 
   const row2 = [
-    { title: "Vagas Abertas", value: String(m.openVacancies), icon: ClipboardList },
-    { title: "Vagas Preenchidas", value: String(m.acceptedCandidacies), icon: CheckCircle2, iconColor: "text-green-500" },
-    { title: "Jobs em Andamento", value: String(m.inProgressJobs), icon: Clock },
-    { title: "Candidaturas Pendentes", value: String(m.pendingCandidacies), icon: XCircle, iconColor: "text-red-500" },
+    { title: "Vagas Abertas", value: String(m.openVacancies), icon: Briefcase, meta: "BR · agora" },
+    { title: "Candidaturas Aceitas", value: String(m.acceptedCandidacies), icon: CheckCircle2, iconColor: "text-green-500", meta: "BR · acumulado" },
+    { title: "Candidaturas Pendentes", value: String(m.pendingCandidacies), icon: Hourglass, meta: "BR · acumulado (inclui vagas antigas)" },
+    { title: "Vagas Canceladas", value: String(m.cancelledVacancies), icon: Ban, iconColor: "text-red-500", meta: "BR · acumulado" },
   ];
 
   const row3 = [
-    { title: "Taxa de Preenchimento", value: `${fillRate}%`, icon: TrendingUp, iconColor: "text-green-500", meta: "Meta: 80%", metaColor: fillRate >= 80 ? "text-green-500" : "text-red-500", progress: fillRate },
-    { title: "Jobs Agendados", value: String(m.scheduledJobs), icon: Timer },
-    { title: "Novos Freelancers (Mês)", value: String(m.newFreelancersThisMonth), icon: RefreshCw },
-    { title: "Vagas Canceladas", value: String(m.cancelledVacancies), icon: Ban, iconColor: "text-red-500" },
+    {
+      title: "Taxa de Preenchimento (30d)",
+      value: fillRate === null ? "N/A" : `${fillRate}%`,
+      icon: TrendingUp,
+      iconColor: "text-green-500",
+      meta:
+        fillRate === null
+          ? "Sem vagas encerradas nos últimos 30 dias"
+          : `Meta: 80% · ${filled30d}/${decided30d} vagas encerradas`,
+      metaColor: fillRate !== null && fillRate >= 80 ? "text-green-500" : "text-red-500",
+      ...(fillRate !== null ? { progress: fillRate } : {}),
+    },
+    { title: "Jobs Agendados", value: String(m.scheduledJobs), icon: Timer, meta: "BR · agora" },
+    { title: "Jobs em Andamento", value: String(m.inProgressJobs), icon: Clock, meta: "BR · agora" },
+    { title: "Serviços Concluídos", value: String(m.completedJobs), icon: ListChecks, iconColor: "text-green-500", meta: "BR · acumulado" },
   ];
 
   const row4 = [
-    { title: "GMV (Volume Bruto)", value: formatCurrency(m.totalRevenue), icon: DollarSign, iconColor: "text-green-500" },
-    { title: "Repasse Pendentes", value: String(m.pendingRepasses), icon: Wallet },
-    { title: "Feedbacks", value: String(m.totalFeedbacks), icon: Receipt },
-    { title: "Avaliação Média", value: m.averageRating ? `${m.averageRating.toFixed(1)} ⭐` : "N/A", icon: AlertCircle },
-    { title: "Serviços Concluídos", value: String(m.completedJobs), icon: ListChecks, iconColor: "text-green-500" },
+    { title: "GMV (Volume Bruto)", value: formatCurrency(m.totalRevenue), icon: DollarSign, iconColor: "text-green-500", meta: "Global · acumulado · líquido de estornos" },
+    { title: "Repasse Pendentes", value: String(m.pendingRepasses), icon: Wallet, meta: "Global · agora" },
+    { title: "Feedbacks", value: String(m.totalFeedbacks), icon: Receipt, meta: "BR · nas duas direções" },
+    { title: "Avaliação Média", value: m.averageRating ? `${m.averageRating.toFixed(2)} ⭐` : "N/A", icon: Star, meta: "BR · média de todos os feedbacks" },
   ];
 
   const jobsPorCidade = m.jobsByCity.length > 0
@@ -176,12 +202,16 @@ export default function DashboardPage() {
         )}
       </div>
       {(cidade || cargo) && (
-        <p className="text-xs text-[#737373] mb-6">
+        <p className="text-xs text-[#737373] mb-2">
           Filtro aplicado a vagas, jobs, candidaturas e gráficos. Indicadores globais de pessoas e
           financeiro (freelancers, usuários, GMV, repasses, avaliações) não mudam com o filtro.
         </p>
       )}
-      {!cidade && !cargo && <div className="mb-6" />}
+      <p className="text-xs text-[#737373] mb-6">
+        Nos cards: <strong>Global</strong> = plataforma toda (Bares/Restaurantes + Freela em Casa);{" "}
+        <strong>BR</strong> = só Bares/Restaurantes. <strong>Acumulado</strong> = desde o início da
+        plataforma; <strong>agora</strong> = situação atual.
+      </p>
 
       {/* KPI Rows */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -199,9 +229,9 @@ export default function DashboardPage() {
           <KpiCard key={k.title} {...k} />
         ))}
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        {row4.map((k, i) => (
-          <KpiCard key={k.title + i} {...k} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {row4.map((k) => (
+          <KpiCard key={k.title} {...k} />
         ))}
       </div>
 
@@ -221,7 +251,11 @@ export default function DashboardPage() {
         </div>
 
         <div className="bg-white rounded-xl border border-[#e5e5e5] p-5">
-          <h3 className="font-semibold text-[#1d1d1b] mb-4">Freelancers por Cargo</h3>
+          <h3 className="font-semibold text-[#1d1d1b] mb-1">Freelancers por Cargo</h3>
+          <p className="text-xs text-[#737373] mb-4">
+            Só perfis Bares/Restaurantes com cargo informado — população menor que o total global
+            de freelancers.
+          </p>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie
