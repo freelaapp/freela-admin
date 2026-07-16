@@ -198,6 +198,8 @@ export interface ProviderItem {
   userId: string;
   /** Conta banida (shared.users). Opcional durante janela de deploy da API. */
   banned?: boolean;
+  /** Identidade global do freelancer (chave de favoritos/bloqueios). */
+  providerGlobalId?: string | null;
   name: string | null;
   phone: string | null;
   email: string | null;

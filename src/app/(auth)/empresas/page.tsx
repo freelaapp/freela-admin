@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays, ShieldOff, Search } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -32,10 +33,16 @@ import {
   useAdminContractorEmployeeMutations,
 } from "@/modules/admin/application/use-admin-contractor-employee";
 import { formatPhoneBr } from "@/lib/utils";
+import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
+import {
+  adminBlockProvider,
+  adminUnblockProvider,
+  getContractorBlockedProviders,
+} from "@/modules/admin/infrastructure/blocked-providers-api";
 import { formatInstantDate } from "@/lib/date.utils";
 import { downloadCsv } from "@/lib/csv";
 
-type ModalType = "view" | "edit" | "delete" | "employee" | "report" | null;
+type ModalType = "view" | "edit" | "delete" | "employee" | "report" | "blocked" | null;
 const DELETE_CONFIRM_WORD = "EXCLUIR";
 
 function mapContractorToRow(c: ContractorItem) {
@@ -269,6 +276,7 @@ export default function EmpresasPage() {
           <button onClick={() => openModal("view", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
           <button onClick={() => openModal("employee", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Gerenciar funcionário" : "Usuário da empresa não encontrado"}><UserCog className="w-4 h-4" /></button>
+          <button onClick={() => openModal("blocked", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Freelancers bloqueados"><ShieldOff className="w-4 h-4" /></button>
           <button onClick={() => openModal("report", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Gerar relatório (PDF)"><FileText className="w-4 h-4" /></button>
           <button onClick={() => openModal("delete", row)} className="p-1.5 rounded-md hover:bg-red-50 hover:text-red-600 text-red-500 cursor-pointer transition-colors" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /></button>
         </div>
@@ -486,6 +494,17 @@ export default function EmpresasPage() {
             </DialogFooter>
           </>
         );
+      case "blocked": {
+        const contractorUserId = selectedItem.raw.userId;
+        if (!contractorUserId) return null;
+        return (
+          <BlockedManager
+            contractorUserId={contractorUserId}
+            companyName={selectedItem.nome}
+            onClose={closeModal}
+          />
+        );
+      }
       case "employee": {
         const ownerUserId = selectedItem.raw.userId;
         if (!ownerUserId) {
@@ -768,6 +787,193 @@ function EmployeeManager({
                 <Trash2 className="w-4 h-4 mr-2" />
                 Remover credencial
               </Button>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
+          </DialogFooter>
+        </div>
+      )}
+    </>
+  );
+}
+/**
+ * Gestão dos freelancers bloqueados de um contratante (em nome dele — ex.:
+ * pedido via suporte). Bloqueio silencioso: o freelancer não fica sabendo e
+ * as candidaturas dele deixam de aparecer para este contratante; candidatura
+ * já ACEITA nunca é escondida.
+ */
+function BlockedManager({
+  contractorUserId,
+  companyName,
+  onClose,
+}: {
+  contractorUserId: string;
+  companyName: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const { data: blocked, isLoading, isError } = useQuery({
+    queryKey: ["admin", "blocked-providers", contractorUserId],
+    queryFn: () => getContractorBlockedProviders(contractorUserId),
+  });
+
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(search.trim()), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+  const { data: providersPage, isFetching: searching } = useAdminProviders(
+    debounced.length >= 2 ? { page: 1, limit: 20, search: debounced } : { page: 1, limit: 1 },
+  );
+  const candidates = debounced.length >= 2 ? (providersPage?.data ?? []) : [];
+  const blockedIds = new Set((blocked ?? []).map((b) => b.providerGlobalId));
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["admin", "blocked-providers", contractorUserId] });
+
+  const blockMutation = useMutation({
+    mutationFn: (providerGlobalId: string) =>
+      adminBlockProvider({ contractorUserId, providerGlobalId }),
+    onSuccess: invalidate,
+  });
+  const unblockMutation = useMutation({
+    mutationFn: (providerGlobalId: string) =>
+      adminUnblockProvider(contractorUserId, providerGlobalId),
+    onSuccess: invalidate,
+  });
+
+  const handleBlock = async (providerGlobalId: string, name: string | null) => {
+    try {
+      await blockMutation.mutateAsync(providerGlobalId);
+      toast.success(`${name ?? "Freelancer"} bloqueado para ${companyName}.`);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível bloquear."));
+    }
+  };
+  const handleUnblock = async (providerGlobalId: string, name: string | null) => {
+    try {
+      await unblockMutation.mutateAsync(providerGlobalId);
+      toast.success(`${name ?? "Freelancer"} desbloqueado.`);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível desbloquear."));
+    }
+  };
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Freelancers bloqueados — {companyName}</DialogTitle>
+        <DialogDescription>
+          Bloqueio silencioso: o freelancer não fica sabendo e as candidaturas dele não aparecem
+          para este contratante. Candidatura já aceita continua visível.
+        </DialogDescription>
+      </DialogHeader>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-[#eca826]" />
+        </div>
+      ) : isError ? (
+        <p className="py-4 text-center text-sm text-red-500">Erro ao carregar a lista.</p>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <Label className="mb-1.5 block">Bloqueados ({blocked?.length ?? 0})</Label>
+            {!blocked || blocked.length === 0 ? (
+              <p className="text-sm text-[#737373]">Nenhum freelancer bloqueado.</p>
+            ) : (
+              <ul className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
+                {blocked.map((b) => (
+                  <li
+                    key={b.providerGlobalId}
+                    className="flex items-center justify-between gap-2 rounded-lg bg-[#f7f7f7] px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[#1d1d1b]">
+                        {b.name ?? "Freelancer"}
+                      </p>
+                      {b.blockedAt && (
+                        <p className="text-xs text-[#737373]">
+                          desde {formatInstantDate(b.blockedAt)}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleUnblock(b.providerGlobalId, b.name)}
+                      disabled={unblockMutation.isPending}
+                      className="h-7 border-[#e5e5e5] px-2 text-xs text-[#1d1d1b] hover:bg-white"
+                    >
+                      Desbloquear
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="border-t border-[#e5e5e5] pt-4">
+            <Label htmlFor="block-search" className="mb-1.5 block">
+              Bloquear um freelancer
+            </Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a3a3a3]" />
+              <Input
+                id="block-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por nome, e-mail ou telefone…"
+                className="pl-9"
+              />
+            </div>
+            {debounced.length >= 2 && (
+              <ul className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
+                {searching && candidates.length === 0 ? (
+                  <li className="py-2 text-center text-xs text-[#737373]">Buscando…</li>
+                ) : candidates.length === 0 ? (
+                  <li className="py-2 text-center text-xs text-[#737373]">
+                    Nenhum freelancer encontrado.
+                  </li>
+                ) : (
+                  candidates.map((p) => {
+                    const already = p.providerGlobalId
+                      ? blockedIds.has(p.providerGlobalId)
+                      : false;
+                    return (
+                      <li
+                        key={p.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-[#e5e5e5] px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-[#1d1d1b]">
+                            {p.name ?? "Sem nome"}
+                          </p>
+                          <p className="truncate text-xs text-[#737373]">
+                            {[p.city, p.uf].filter(Boolean).join("/") || "—"}
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => p.providerGlobalId && handleBlock(p.providerGlobalId, p.name)}
+                          disabled={!p.providerGlobalId || already || blockMutation.isPending}
+                          title={
+                            !p.providerGlobalId
+                              ? "Cadastro sem identidade global — não é possível bloquear"
+                              : already
+                                ? "Já bloqueado"
+                                : undefined
+                          }
+                          className="h-7 bg-red-500 px-2 text-xs text-white hover:bg-red-600 disabled:opacity-50"
+                        >
+                          {already ? "Bloqueado" : "Bloquear"}
+                        </Button>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
             )}
           </div>
 
