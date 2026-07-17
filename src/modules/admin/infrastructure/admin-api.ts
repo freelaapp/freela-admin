@@ -335,6 +335,15 @@ export async function getAdminClosedVacancies(consultantId?: string): Promise<Va
   return res.data.data;
 }
 
+/** Quem aprovou o freelancer (autoria do aceite). Ausente em aceites antigos. */
+export interface VacancyCandidacyApprovedBy {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  role: "OWNER" | "EMPLOYEE";
+  employeeLabel: string | null;
+}
+
 export interface VacancyCandidacyItem {
   id: string;
   providerId: string;
@@ -343,6 +352,9 @@ export interface VacancyCandidacyItem {
   providerEmail: string | null;
   status: string;
   createdAt: string;
+  // Opcionais: só presentes após o deploy da API de autoria do aceite (2026-07-17).
+  acceptedAt?: string | null;
+  approvedBy?: VacancyCandidacyApprovedBy | null;
 }
 
 export async function getVacancyCandidacies(vacancyId: string): Promise<VacancyCandidacyItem[]> {

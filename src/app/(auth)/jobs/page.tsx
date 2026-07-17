@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Clock, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw } from "lucide-react";
+import { Plus, Eye, Clock, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -957,6 +957,29 @@ export default function JobsPage() {
                               </a>
                             )}
                           </div>
+                          {c.approvedBy && (
+                            <div className="mt-2 flex items-start gap-1.5 rounded-md border border-green-200 bg-green-50 px-2 py-1.5">
+                              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-600" />
+                              <div className="text-[11px] leading-tight text-green-900">
+                                <span className="font-semibold">
+                                  Aprovado por {c.approvedBy.name ?? c.approvedBy.email ?? "credencial do contratante"}
+                                </span>
+                                <span className="ml-1 rounded bg-green-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-green-700">
+                                  {c.approvedBy.role === "EMPLOYEE"
+                                    ? `Funcionário${c.approvedBy.employeeLabel ? ` · ${c.approvedBy.employeeLabel}` : ""}`
+                                    : "Dono"}
+                                </span>
+                                {c.approvedBy.email && c.approvedBy.name && (
+                                  <span className="block text-green-700">{c.approvedBy.email}</span>
+                                )}
+                                {c.acceptedAt && (
+                                  <span className="block text-green-700">
+                                    {formatInstantDate(c.acceptedAt)} · {formatVacancyTime(c.acceptedAt)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                           {(c.status === "ACCEPTED" || c.status === "PENDING") &&
                             modalDetalhes?.raw.id && (
                               <button
