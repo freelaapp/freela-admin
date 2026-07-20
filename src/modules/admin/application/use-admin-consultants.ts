@@ -6,6 +6,7 @@ import {
   getAdminConsultant,
   getAdminConsultants,
   updateAdminConsultant,
+  resetConsultantAccess,
   type CreateConsultantPayload,
   type UpdateConsultantPayload,
 } from "../infrastructure/consultants-api";
@@ -44,6 +45,17 @@ export function useUpdateAdminConsultant() {
       updateAdminConsultant(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "consultants"] });
+    },
+  });
+}
+
+export function useResetConsultantAccess() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => resetConsultantAccess(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["admin", "consultants"] });
+      qc.invalidateQueries({ queryKey: ["admin", "consultants", id] });
     },
   });
 }

@@ -14,6 +14,10 @@ import {
   Hash,
   Percent,
   Users,
+  KeyRound,
+  Copy,
+  Check,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -29,7 +33,10 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { useAdminConsultant } from "@/modules/admin/application/use-admin-consultants";
+import {
+  useAdminConsultant,
+  useResetConsultantAccess,
+} from "@/modules/admin/application/use-admin-consultants";
 import { useCreateWhatsappGroup } from "@/modules/admin/application/use-admin-whatsapp-groups";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
@@ -42,11 +49,55 @@ export default function ConsultorProfilePage() {
   const { isHydrated, isSuperAdmin } = useAuth();
   const { data: consultant, isLoading, isError } = useAdminConsultant(consultantId);
   const createGroup = useCreateWhatsappGroup();
+  const resetAccess = useResetConsultantAccess();
 
   const [open, setOpen] = useState(false);
   const [city, setCity] = useState("");
   const [uf, setUf] = useState("");
   const [participants, setParticipants] = useState("");
+
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetResult, setResetResult] = useState<{ tempPassword: string; emailSent: boolean } | null>(
+    null,
+  );
+  const [copied, setCopied] = useState(false);
+
+  const openReset = () => {
+    setResetResult(null);
+    setCopied(false);
+    setResetOpen(true);
+  };
+
+  const closeReset = () => {
+    setResetOpen(false);
+    setResetResult(null);
+    setCopied(false);
+  };
+
+  const handleReset = async () => {
+    try {
+      const res = await resetAccess.mutateAsync(consultantId);
+      setResetResult({ tempPassword: res.tempPassword, emailSent: res.emailSent });
+      toast.success(
+        res.emailSent
+          ? "Acesso reenviado por e-mail."
+          : "Senha redefinida (o e-mail falhou — repasse a senha abaixo).",
+      );
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível reenviar o acesso."));
+    }
+  };
+
+  const copyTemp = async () => {
+    if (!resetResult) return;
+    try {
+      await navigator.clipboard.writeText(resetResult.tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Não foi possível copiar. Selecione e copie manualmente.");
+    }
+  };
 
   useEffect(() => {
     if (isHydrated && !isSuperAdmin) {
@@ -131,14 +182,30 @@ export default function ConsultorProfilePage() {
         title={consultant?.name ?? "Perfil do consultor"}
         description="Perfil do consultor e ações rápidas."
         action={
-          <Button
-            onClick={openModal}
-            disabled={!consultant}
-            className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium"
-          >
-            <MessageCircle className="w-4 h-4 mr-2" />
-            Criar grupo WhatsApp
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={openReset}
+              disabled={!consultant?.email}
+              title={
+                consultant?.email
+                  ? "Gera nova senha temporária e reenvia o e-mail de acesso"
+                  : "Cadastre um e-mail no consultor primeiro"
+              }
+              className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium disabled:opacity-40"
+            >
+              <KeyRound className="w-4 h-4 mr-2" />
+              Reenviar acesso
+            </Button>
+            <Button
+              onClick={openModal}
+              disabled={!consultant}
+              className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium"
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Criar grupo WhatsApp
+            </Button>
+          </div>
         }
       />
 
@@ -299,6 +366,120 @@ export default function ConsultorProfilePage() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Reenviar acesso / resetar senha */}
+      <Dialog open={resetOpen} onOpenChange={(v) => (v ? setResetOpen(true) : closeReset())}>
+        <DialogContent>
+          <DialogClose onClick={closeReset} />
+          {!resetResult ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Reenviar acesso do consultor</DialogTitle>
+                <DialogDescription>
+                  Gera uma nova senha temporária para {consultant?.name ?? "o consultor"} e reenvia o
+                  e-mail com as credenciais.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                <div className="text-sm text-amber-700">
+                  <p>
+                    A senha temporária atual deixa de valer e a sessão ativa do consultor é
+                    encerrada — ele entra com a nova senha e a troca no primeiro acesso.
+                  </p>
+                  <p className="mt-1">
+                    E-mail de destino: <strong className="break-all">{consultant?.email}</strong>
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={closeReset}
+                  disabled={resetAccess.isPending}
+                  className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleReset}
+                  disabled={resetAccess.isPending}
+                  className="bg-[#eca826] text-white hover:bg-[#d4951e]"
+                >
+                  {resetAccess.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Reenviando...
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4 mr-2" />
+                      Reenviar acesso
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Acesso redefinido</DialogTitle>
+                <DialogDescription>
+                  {resetResult.emailSent
+                    ? "As credenciais foram enviadas por e-mail. A senha abaixo é um fallback caso precise repassar manualmente."
+                    : "O e-mail NÃO foi enviado. Repasse a senha temporária abaixo ao consultor por um canal seguro."}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div
+                  className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+                    resetResult.emailSent
+                      ? "bg-green-50 border border-green-100 text-green-700"
+                      : "bg-red-50 border border-red-100 text-red-700"
+                  }`}
+                >
+                  {resetResult.emailSent ? (
+                    <Check className="w-5 h-5 mt-0.5 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
+                  )}
+                  <span>
+                    {resetResult.emailSent
+                      ? `E-mail enviado para ${consultant?.email}.`
+                      : "Falha no envio do e-mail — use a senha abaixo."}
+                  </span>
+                </div>
+                <div>
+                  <Label>Senha temporária</Label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <code className="flex-1 rounded-lg bg-[#f7f7f7] border border-[#e5e5e5] px-3 py-2 font-mono text-sm text-[#1d1d1b] break-all select-all">
+                      {resetResult.tempPassword}
+                    </code>
+                    <Button
+                      variant="outline"
+                      onClick={copyTemp}
+                      className="border-[#e5e5e5] text-[#525252] hover:bg-[#f7f7f7] h-9 shrink-0"
+                    >
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-[#737373] mt-1">
+                    O consultor troca esta senha no primeiro acesso, em /consultor/login.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  onClick={closeReset}
+                  className="bg-[#eca826] text-white hover:bg-[#d4951e]"
+                >
+                  Fechar
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

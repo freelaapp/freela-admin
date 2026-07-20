@@ -60,4 +60,21 @@ export async function updateAdminConsultant(
   return res.data.data;
 }
 
+export interface ResetConsultantAccessResult {
+  consultant: ConsultantItem;
+  /** Nova senha temporária em claro (fallback para repassar se o e-mail não sair). */
+  tempPassword: string;
+  /** `true` se o e-mail de credenciais foi enviado com sucesso. */
+  emailSent: boolean;
+}
+
+/**
+ * Reenvia o acesso do consultor: gera nova senha temporária (trocada no próximo
+ * login), invalida a sessão atual e reenvia o e-mail com as credenciais.
+ */
+export async function resetConsultantAccess(id: string): Promise<ResetConsultantAccessResult> {
+  const res = await adminsRootApi.post(`/consultants/${id}/reset-access`);
+  return res.data.data;
+}
+
 export default adminsRootApi;
