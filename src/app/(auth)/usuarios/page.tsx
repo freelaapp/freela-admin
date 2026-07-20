@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -67,13 +67,41 @@ type Row = ReturnType<typeof mapUserToRow>;
 const tabs = ["Todos", "Excluídos", "Exclusão Pendente"] as const;
 type Tab = typeof tabs[number];
 
+const PAGE_SIZE = 50;
+
 export default function UsuariosPage() {
-  const { data: users, isLoading, isError } = useAdminUsers();
+  const [tab, setTab] = useState<Tab>("Todos");
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  const statusParam =
+    tab === "Excluídos" ? "DELETED" : tab === "Exclusão Pendente" ? "PENDING" : undefined;
+
+  // Debounce da busca por e-mail (server-side) — e volta pra página 1 a cada mudança.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
+  const { data, isLoading, isError, isFetching } = useAdminUsers({
+    page,
+    limit: PAGE_SIZE,
+    search: search || undefined,
+    status: statusParam,
+  });
   const { data: deletionStats } = useAdminDeletionStats();
   const [modalEditar, setModalEditar] = useState<Row | null>(null);
-  const [tab, setTab] = useState<Tab>("Todos");
   const [emailDraft, setEmailDraft] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  const selectTab = (t: Tab) => {
+    setTab(t);
+    setPage(1);
+  };
 
   const changeEmail = useMutation({
     mutationFn: (vars: { userId: string; email: string }) =>
@@ -98,13 +126,9 @@ export default function UsuariosPage() {
     setEmailDraft(null);
   };
 
-  const rows: Row[] = users?.map(mapUserToRow) ?? [];
-
-  const filteredRows = tab === "Todos"
-    ? rows
-    : tab === "Excluídos"
-      ? rows.filter((r) => r.raw.status === "DELETED")
-      : rows.filter((r) => r.raw.status === "PENDING_DELETION" || r.raw.status === "DELETION_SUSPENDED");
+  const rows: Row[] = data?.data.map(mapUserToRow) ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   if (isLoading) {
     return (
@@ -256,7 +280,7 @@ export default function UsuariosPage() {
         {tabs.map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => selectTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === t
                 ? "bg-[#eca826] text-white"
@@ -274,7 +298,39 @@ export default function UsuariosPage() {
         ))}
       </div>
 
-      <DataTable columns={columns} data={filteredRows} searchPlaceholder="Buscar por email..." searchKey="email" />
+      <DataTable
+        columns={columns}
+        data={rows}
+        searchPlaceholder="Buscar por email..."
+        controlledSearch={{ value: searchInput, onChange: setSearchInput }}
+        isFetching={isFetching}
+        footer={
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span className="text-xs text-[#737373]">
+              {total.toLocaleString("pt-BR")} usuário(s)
+              {search ? " no filtro" : ""} · página {page} de {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || isFetching}
+                className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7] h-8 disabled:opacity-40"
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || isFetching}
+                className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7] h-8 disabled:opacity-40"
+              >
+                Próxima
+              </Button>
+            </div>
+          </div>
+        }
+      />
 
       <Dialog open={!!modalEditar} onOpenChange={(open) => !open && closeModal()}>
         <DialogContent>

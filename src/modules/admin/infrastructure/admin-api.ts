@@ -505,9 +505,42 @@ export interface UserItem {
   referredByPartnership?: { id: string; name: string; code: string } | null;
 }
 
-export async function getAdminUsers(): Promise<UserItem[]> {
-  const res = await adminApi.get("/users");
-  return res.data.data;
+export interface AdminUsersQuery {
+  page?: number;
+  limit?: number;
+  /** Busca por e-mail (substring, case-insensitive). */
+  search?: string;
+  /** Filtro das abas: "DELETED" = excluídos; "PENDING" = exclusão pendente/suspensa. */
+  status?: "DELETED" | "PENDING";
+}
+
+export interface AdminUsersPage {
+  data: UserItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/**
+ * Lista usuários PAGINADA. A base passou de 190k — o endpoint antigo puxava tudo e
+ * travava a tela ("carregando infinito"). Agora page/limit/search/status são
+ * server-side.
+ */
+export async function getAdminUsers(params: AdminUsersQuery = {}): Promise<AdminUsersPage> {
+  const res = await adminApi.get("/users", {
+    params: {
+      page: params.page,
+      limit: params.limit,
+      search: params.search || undefined,
+      status: params.status,
+    },
+  });
+  return {
+    data: res.data.data ?? [],
+    total: res.data.total ?? res.data.data?.length ?? 0,
+    page: res.data.page ?? params.page ?? 1,
+    limit: res.data.limit ?? params.limit ?? 50,
+  };
 }
 
 /**
