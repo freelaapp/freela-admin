@@ -32,6 +32,7 @@ import {
   Menu,
   X,
   LogOut,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/modules/auth/application/use-auth";
@@ -60,6 +61,7 @@ const navItems: NavItem[] = [
   { label: "Treinamentos", icon: GraduationCap, path: "/treinamentos" },
   { label: "Avaliações", icon: Star, path: "/avaliacoes" },
   { label: "Financeiro", icon: DollarSign, path: "/financeiro" },
+  { label: "Carteiras", icon: Wallet, path: "/carteiras" },
   { label: "Relatórios", icon: BarChart3, path: "/relatorios" },
   { label: "Usuários", icon: Shield, path: "/usuarios" },
   {
