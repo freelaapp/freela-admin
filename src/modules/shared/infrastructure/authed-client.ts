@@ -18,6 +18,14 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 /** Chave de sessão padrão do staff/admin no localStorage. */
 const DEFAULT_TOKEN_STORAGE_KEY = "authUser";
 
+/**
+ * Teto de tempo de qualquer request admin. Sem timeout (axios default = 0 = espera
+ * infinita), uma rota/consulta que trava no backend deixa a tela "carregando infinito"
+ * para sempre (spinner de `isLoading`/`isPending` nunca vira). Com o teto, o request
+ * falha em ~30s e a página cai no ramo de erro tratado em vez de girar sem fim.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export interface AuthedClientOptions {
   /**
    * Chave do localStorage de onde ler `{ accessToken }`. Default: `authUser`
@@ -77,6 +85,7 @@ export function createAuthedClient(
 
   const instance = axios.create({
     baseURL: `${API_BASE_URL}${pathPrefix}`,
+    timeout: REQUEST_TIMEOUT_MS,
     headers: {
       "Content-Type": "application/json",
     },
