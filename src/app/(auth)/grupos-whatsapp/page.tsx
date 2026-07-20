@@ -12,11 +12,13 @@ import {
   Pencil,
   Trash2,
   MessageSquarePlus,
+  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useGroupDiagnostics,
   useCreateWhatsappGroup,
+  useAddGroupParticipants,
 } from "@/modules/admin/application/use-admin-whatsapp-groups";
 import {
   useDedicatedGroups,
@@ -50,11 +52,16 @@ export default function GruposWhatsappPage() {
   const { isHydrated, isSuperAdmin } = useAuth();
   const { data: groups, isLoading, isError } = useGroupDiagnostics();
   const createGroup = useCreateWhatsappGroup();
+  const addMembers = useAddGroupParticipants();
 
   const [open, setOpen] = useState(false);
   const [city, setCity] = useState("");
   const [uf, setUf] = useState("");
   const [participants, setParticipants] = useState("");
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [addTarget, setAddTarget] = useState<GroupDiagnostic | null>(null);
+  const [addPhones, setAddPhones] = useState("");
 
   useEffect(() => {
     if (isHydrated && !isSuperAdmin) router.replace("/dashboard");
@@ -116,6 +123,45 @@ export default function GruposWhatsappPage() {
     }
   };
 
+  const openAdd = (g: GroupDiagnostic) => {
+    setAddTarget(g);
+    setAddPhones("");
+    setAddOpen(true);
+  };
+
+  const closeAdd = () => {
+    setAddOpen(false);
+    setAddTarget(null);
+    setAddPhones("");
+  };
+
+  const handleAddMembers = async () => {
+    if (!addTarget) return;
+    const parsed = addPhones
+      .split(/[\n,;]+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parsed.length === 0) {
+      toast.error("Informe ao menos um telefone (com DDD).");
+      return;
+    }
+    try {
+      const res = await addMembers.mutateAsync({
+        groupId: addTarget.jid,
+        participants: parsed,
+      });
+      toast.success(
+        `${res.requested} ${res.requested === 1 ? "número enviado" : "números enviados"} para "${addTarget.name}".`,
+      );
+      closeAdd();
+    } catch (err) {
+      toast.error(
+        getAxiosErrorMessage(err) ??
+          "Não foi possível adicionar. Verifique se o bot é admin do grupo e se os números têm WhatsApp.",
+      );
+    }
+  };
+
   const columns = [
     { header: "Grupo", accessor: "name" as const },
     {
@@ -150,6 +196,21 @@ export default function GruposWhatsappPage() {
         <span className="font-mono text-xs text-[#737373]">{g.jid}</span>
       ),
       className: "hidden lg:table-cell",
+    },
+    {
+      header: "Ações",
+      accessor: (g: GroupDiagnostic) => (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => openAdd(g)}
+          className="border-[#e5e5e5] text-[#525252] hover:bg-[#f7f7f7] h-8"
+          title="Adicionar membros a este grupo"
+        >
+          <UserPlus className="w-4 h-4 mr-1" /> Adicionar
+        </Button>
+      ),
+      className: "text-right",
     },
   ];
 
@@ -268,6 +329,56 @@ export default function GruposWhatsappPage() {
                 </>
               ) : (
                 "Criar grupo"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addOpen} onOpenChange={(v) => (v ? setAddOpen(true) : closeAdd())}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar membros</DialogTitle>
+            <DialogDescription>
+              Adiciona telefones ao grupo {addTarget ? `"${addTarget.name}"` : ""}. Mesmo campo da
+              criação — o bot precisa ser admin do grupo; quem não puder ser adicionado direto
+              recebe um convite.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="add-participants">Telefones (com DDD)</Label>
+              <Input
+                id="add-participants"
+                value={addPhones}
+                onChange={(e) => setAddPhones(e.target.value)}
+                placeholder="11999999999, 11988888888"
+              />
+              <p className="text-xs text-[#737373]">
+                Separe por vírgula. Os números precisam ter WhatsApp.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closeAdd}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAddMembers}
+              disabled={addMembers.isPending}
+              className="bg-[#eca826] hover:bg-[#d8961f] text-white"
+            >
+              {addMembers.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Adicionando...
+                </>
+              ) : (
+                "Adicionar"
               )}
             </Button>
           </DialogFooter>

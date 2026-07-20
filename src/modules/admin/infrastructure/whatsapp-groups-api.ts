@@ -39,3 +39,21 @@ export async function createWhatsappGroup(input: {
   const res = await whatsappApi.post("/groups", input);
   return res.data.data;
 }
+
+export interface AddGroupParticipantsResult {
+  groupId: string;
+  requested: number;
+}
+
+/**
+ * Adiciona participantes (telefones com DDD) a um grupo de WhatsApp JÁ existente — o
+ * mesmo campo de telefones da criação, mas para um grupo que já foi criado. O bot
+ * precisa ser admin do grupo.
+ */
+export async function addGroupParticipants(input: {
+  groupId: string;
+  participants: string[];
+}): Promise<AddGroupParticipantsResult> {
+  const res = await whatsappApi.post("/groups/participants", input);
+  return res.data.data;
+}
