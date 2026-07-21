@@ -11,6 +11,8 @@ import {
   Loader2,
   Download,
   FileText,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -30,6 +32,7 @@ import { useAdminCasaContractors } from "@/modules/admin/application/use-admin-c
 import type { CasaContractorItem } from "@/modules/admin/infrastructure/casa-contractors-api";
 import { formatReferralOrigin } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate } from "@/lib/date.utils";
+import { formatPhoneBr } from "@/lib/utils";
 import { downloadCsv } from "@/lib/csv";
 
 function fullAddress(c: CasaContractorItem): string {
@@ -45,8 +48,10 @@ function mapToRow(c: CasaContractorItem) {
     id: c.id,
     nome: c.name || c.companyName || "Sem nome",
     empresa: c.companyName || "—",
-    _search: `${c.name ?? ""} ${c.companyName ?? ""} ${c.document ?? ""}`.toLowerCase(),
+    _search: `${c.name ?? ""} ${c.companyName ?? ""} ${c.document ?? ""} ${c.phone ?? ""} ${c.registrationEmail ?? ""}`.toLowerCase(),
     documento: c.document || "—",
+    telefone: formatPhoneBr(c.phone),
+    email: c.registrationEmail || "—",
     cidade: c.city || "—",
     uf: c.uf || "—",
     avaliacao: c.rating ?? 0,
@@ -74,6 +79,8 @@ export default function ContratantesCasaPage() {
       "Nome",
       "Empresa",
       "Documento",
+      "Telefone",
+      "E-mail de cadastro",
       "Cidade",
       "UF",
       "Endereço",
@@ -86,6 +93,8 @@ export default function ContratantesCasaPage() {
       c.name || c.companyName || "Sem nome",
       c.companyName ?? "",
       c.document ?? "",
+      formatPhoneBr(c.phone),
+      c.registrationEmail ?? "",
       c.city ?? "",
       c.uf ?? "",
       fullAddress(c),
@@ -119,6 +128,7 @@ export default function ContratantesCasaPage() {
     { header: "Nome", accessor: "nome" as const },
     { header: "Empresa", accessor: "empresa" as const, className: "hidden md:table-cell" },
     { header: "Documento", accessor: "documento" as const, className: "hidden lg:table-cell" },
+    { header: "Telefone", accessor: "telefone" as const },
     { header: "Cidade", accessor: "cidade" as const },
     { header: "UF", accessor: "uf" as const, className: "hidden md:table-cell" },
     { header: "Origem do cadastro", accessor: "origem" as const, className: "hidden lg:table-cell" },
@@ -174,7 +184,7 @@ export default function ContratantesCasaPage() {
       <DataTable
         columns={columns}
         data={rows}
-        searchPlaceholder="Buscar por nome, empresa ou documento..."
+        searchPlaceholder="Buscar por nome, empresa, documento, telefone ou e-mail..."
         searchKey="_search"
       />
 
@@ -205,6 +215,16 @@ export default function ContratantesCasaPage() {
                   <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                     <Star className="w-4 h-4 text-[#eca826]" />
                     {selected.avaliacao > 0 ? `${selected.avaliacao.toFixed(1)} / 5.0` : "—"}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
+                    <Phone className="w-4 h-4 text-[#737373]" />
+                    {selected.telefone}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-[#1d1d1b] break-all">
+                    <Mail className="w-4 h-4 text-[#737373] shrink-0" />
+                    {selected.email}
                   </div>
                 </div>
                 <div className="flex items-start gap-2 text-sm text-[#1d1d1b]">

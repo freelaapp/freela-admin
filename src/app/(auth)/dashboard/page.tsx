@@ -19,6 +19,9 @@ import {
   Users,
   Loader2,
   HelpCircle,
+  UserX,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -57,6 +60,45 @@ function formatCurrency(cents: number) {
   }).format(cents / 100);
 }
 
+// ─── Helpers do painel simplificado (8 cards do PMO) ─────────────────────────
+
+const MONTH_NAMES = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+/** "2026-07" → "julho/2026". */
+function monthLabel(ym: string | undefined): string {
+  if (!ym) return "—";
+  const [year, month] = ym.split("-");
+  const name = MONTH_NAMES[Number(month) - 1];
+  return name ? `${name}/${year}` : ym;
+}
+
+/** Variação percentual vs. período anterior, já formatada. */
+function deltaLabel(current: number, previous: number): string {
+  if (previous === 0) return current === 0 ? "sem movimento" : "sem base de comparação";
+  const pct = ((current - previous) / previous) * 100;
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct.toFixed(0)}%`;
+}
+
+/**
+ * Cor da comparação. `higherIsBetter=false` inverte (cancelamento e no-show:
+ * cair é bom). Empate fica neutro — pintar de verde/vermelho um 0% engana.
+ */
+function deltaColor(current: number, previous: number, higherIsBetter: boolean): string {
+  if (current === previous) return "text-[#737373]";
+  const up = current > previous;
+  return up === higherIsBetter ? "text-green-500" : "text-red-500";
+}
+
+/** Percentual de um card sobre a sua base (ex.: no-show sobre jobs do mês). */
+function shareLabel(part: number, total: number): string | null {
+  if (!total) return null;
+  return `${((part / total) * 100).toFixed(1).replace(".", ",")}%`;
+}
+
 // serviceType é bagunçado no banco (slug 'auxiliar-cozinha' convive com 'Garçom/Garçonete').
 // Title-case só os slugs (minúsculo com hífen); deixa os já formatados como estão.
 function formatCargo(value: string) {
@@ -75,34 +117,42 @@ function formatCargo(value: string) {
 function DashboardGuideDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const items: { title: string; text: string }[] = [
     {
-      title: "Global vs BR — o escopo de cada card",
-      text: "\"Global\" soma a plataforma toda (Bares & Restaurantes + Freela em Casa). \"BR\" é só Bares & Restaurantes — vagas, jobs e candidaturas são deste módulo. O rótulo cinza embaixo de cada card diz qual é.",
+      title: "Leitura de segunda-feira em 30 segundos",
+      text: "Demanda (Contratantes e Vagas Geradas) → liquidez (Vagas em Aberto sem Freelancer e Canceladas sem Freelancer) → entrega e confiança (Contratações Concluídas e Não Compareceu) → dinheiro (Faturamento). Qualquer card vermelho já aponta sozinho onde agir.",
     },
     {
-      title: "Acumulado, agora ou mês — a janela de tempo",
-      text: "\"Acumulado\" conta desde o início da plataforma (inclui o piloto de maio/2026). \"Agora\" é a foto deste instante. \"Mês atual\" zera todo dia 1º. Não compare cards de janelas diferentes entre si.",
+      title: "O que entra neste painel",
+      text: "Só o que o sistema gera sozinho, sem digitação. Total de contatos e cadastros feitos pelo comercial continuam na matinal — são planilha/CRM, não têm origem no sistema.",
     },
     {
-      title: "A saúde da operação em 3 cards",
-      text: "Vagas Abertas (o que está no ar), Taxa de Preenchimento 30d (das vagas que encerraram no último mês, quantas preencheram — meta 80%) e Vagas Abertas e Não Concluídas (as que terminaram sem serviço desde o go-live). Esses três contam a história do funil.",
+      title: "Todo card é cross-módulo",
+      text: "Diferente do painel antigo, os 8 cards somam Bares & Restaurantes + Freela em Casa. Nada aqui é \"só BR\".",
     },
     {
-      title: "Dinheiro: aqui é só o volume",
-      text: "O GMV mostra tudo que os contratantes pagaram (inclui a fatia dos freelancers — não é receita). Receita, saídas, estornos e saldo em conta vivem na aba Financeiro, que tem o próprio guia.",
+      title: "A comparação embaixo de cada card",
+      text: "O número grande é o mês corrente; embaixo vem o mesmo indicador no mês anterior e a variação. Verde e vermelho respeitam o sentido do indicador — cancelamento e falta caindo é verde.",
     },
     {
-      title: "Avaliações em duas direções",
-      text: "Um card conta as notas que os freelancers RECEBERAM (dadas por contratantes) e o outro as que os contratantes receberam. Cada um mostra a própria média — não existe mais uma média única misturada.",
+      title: "Vagas em Aberto sem Freelancer",
+      text: "É o único card de tempo real: vagas publicadas, ainda no prazo, sem ninguém aceito. Substitui os dois cards ambíguos do painel antigo (\"Vagas Abertas\" e \"Vagas Abertas e Não Concluídas\").",
+    },
+    {
+      title: "Canceladas sem Freelancer — o que o sistema consegue medir hoje",
+      text: "O app ainda não pede o MOTIVO do cancelamento, então o card conta as vagas canceladas que nunca tiveram candidatura aceita. Quando o motivo virar seleção obrigatória no app, o card passa a usar o motivo real.",
+    },
+    {
+      title: "Não Compareceu (no-show)",
+      text: "Vem da régua de reputação: serviço sem check-in depois da tolerância e cancelamento do freelancer em cima da hora (menos de 6h), que a régua já trata como falta. O que o admin anulou não conta.",
+    },
+    {
+      title: "Faturamento não é GMV",
+      text: "O card mostra a taxa que fica com o Freela (percentual + taxa fixa) das vagas pagas no mês, já líquida de estornos. O GMV — tudo que passou pela plataforma — aparece como número secundário. O lucro, que ainda desconta taxa de gateway e bônus, está na aba Financeiro.",
     },
     {
       title: "Os filtros de Cidade e Cargo",
-      text: "Filtram só vagas, jobs, candidaturas e gráficos. Os indicadores de pessoas e dinheiro (freelancers, usuários, GMV, repasses, avaliações) são globais e não mudam com o filtro.",
+      text: "Escopam os cards que nascem de vaga (geradas, em aberto sem freelancer, concluídas, canceladas, no-show e faturamento). Os cards de pessoas (contratantes e freelancers) são globais e não mudam com o filtro.",
     },
-    {
-      title: "O gráfico Freelancers por Cargo",
-      text: "A pizza usa só os perfis de Bares & Restaurantes que informaram cargo — os percentuais são desse grupo, não dos milhares de cadastros globais.",
-    },
-  ];
+    ];
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-lg">
@@ -133,6 +183,9 @@ export default function DashboardPage() {
   const [cidade, setCidade] = useState("");
   const [cargo, setCargo] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
+  // Painel antigo (16 KPIs) preservado, mas fechado por padrão: o painel de
+  // primeiro nível agora são os 8 cards da matinal (documento PMO jul/2026).
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const { data: m, isLoading, isError } = useAdminMetrics({
     city: cidade || undefined,
     role: cargo || undefined,
@@ -255,6 +308,121 @@ export default function DashboardPage() {
     },
   ];
 
+  // ─── Os 8 cards do painel simplificado (PMO jul/2026) ──────────────────────
+  // Todos cross-módulo (BR + Casa). Padrão do documento: período explícito +
+  // comparação vs. período anterior. `s` é opcional enquanto a API sem o bloco
+  // ainda puder estar no ar.
+  const s = m.simplified;
+  const mesAtual = monthLabel(s?.currentMonth);
+  const mesAnterior = monthLabel(s?.previousMonth);
+
+  const mom = (
+    cur: number,
+    prev: number,
+    higherIsBetter: boolean,
+    extra?: string | null,
+  ) => ({
+    meta: [
+      `${mesAtual} · ${prev} em ${mesAnterior} (${deltaLabel(cur, prev)})`,
+      extra,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    metaColor: deltaColor(cur, prev, higherIsBetter),
+  });
+
+  const cardsSimplificados = s
+    ? [
+        {
+          title: "Total de Contratantes",
+          value: String(s.contractors.total),
+          icon: Building2,
+          meta: `Acumulado · +${s.contractors.newThisMonth} novos em ${mesAtual}`,
+          help: "Contas de contratante ativas na plataforma inteira (Bares & Restaurantes + Freela em Casa), contando cada conta uma única vez. É o tamanho da carteira de demanda.",
+        },
+        {
+          title: "Total de Freelancers",
+          value: String(s.freelancers.total),
+          icon: UserCheck,
+          meta: `Acumulado · +${s.freelancers.newThisMonth} novos em ${mesAtual}`,
+          help: "Contas de freelancer ativas na plataforma inteira. Ler sempre junto com \"Vagas em Aberto sem Freelancer\": cadastro alto com vaga parada = base dormente, não oferta real.",
+        },
+        {
+          title: "Vagas Geradas",
+          value: String(s.vacanciesCreated.current),
+          icon: Briefcase,
+          ...mom(s.vacanciesCreated.current, s.vacanciesCreated.previous, true),
+          help: "Vagas publicadas no mês corrente (BR + Casa). É o pulso da demanda — antecipa o faturamento em 1 a 2 semanas.",
+        },
+        {
+          title: "Vagas em Aberto sem Freelancer",
+          value: String(s.openVacanciesWithoutProvider),
+          icon: Hourglass,
+          iconColor: s.openVacanciesWithoutProvider > 0 ? "text-red-500" : "text-[#eca826]",
+          meta: "Agora · fila de risco (contratante esperando)",
+          metaColor: s.openVacanciesWithoutProvider > 0 ? "text-red-500" : "text-[#737373]",
+          help: "Vagas publicadas, ainda dentro do prazo e sem nenhuma candidatura aceita, NESTE momento. Cada uma é um contratante esperando: se o número cresce, acione freelancers da cidade antes de virar cancelamento.",
+        },
+        {
+          title: "Contratações Concluídas",
+          value: String(s.completedJobs.current),
+          icon: ListChecks,
+          iconColor: "text-green-500",
+          ...mom(
+            s.completedJobs.current,
+            s.completedJobs.previous,
+            true,
+            `acumulado ${s.completedJobs.total}`,
+          ),
+          help: "Serviços que chegaram ao fim (check-out) no mês corrente, nos dois módulos. Junto com \"Vagas Geradas\" forma a conversão real do marketplace.",
+        },
+        {
+          title: "Vagas Canceladas sem Freelancer",
+          value: String(s.vacanciesCancelledWithoutProvider.current),
+          icon: Ban,
+          iconColor:
+            s.vacanciesCancelledWithoutProvider.current > 0 ? "text-red-500" : "text-[#eca826]",
+          ...mom(
+            s.vacanciesCancelledWithoutProvider.current,
+            s.vacanciesCancelledWithoutProvider.previous,
+            false,
+            shareLabel(s.vacanciesCancelledWithoutProvider.current, s.vacanciesCreated.current)
+              ? `${shareLabel(s.vacanciesCancelledWithoutProvider.current, s.vacanciesCreated.current)} das vagas geradas`
+              : null,
+          ),
+          help: "Vagas canceladas no mês que NUNCA tiveram um freelancer aceito — a plataforma não entregou. O app ainda não pede o motivo do cancelamento, então este é o recorte que o sistema consegue gerar sozinho; quando o motivo virar campo obrigatório, o card passa a usá-lo.",
+        },
+        {
+          title: "Freelancer Não Compareceu",
+          value: String(s.noShows.current),
+          icon: UserX,
+          iconColor: s.noShows.current > 0 ? "text-red-500" : "text-[#eca826]",
+          ...mom(
+            s.noShows.current,
+            s.noShows.previous,
+            false,
+            shareLabel(s.noShows.current, s.noShows.jobsScheduledCurrent)
+              ? `${shareLabel(s.noShows.current, s.noShows.jobsScheduledCurrent)} dos ${s.noShows.jobsScheduledCurrent} jobs do mês`
+              : null,
+          ),
+          help: "Faltas registradas pela régua de reputação: serviço sem check-in depois da tolerância, e cancelamento do freelancer em cima da hora (menos de 6h), que a régua trata como falta. Infrações anuladas pelo admin não contam.",
+        },
+        {
+          title: "Faturamento Total",
+          value: formatCurrency(s.platformRevenue.current),
+          icon: DollarSign,
+          iconColor: "text-green-500",
+          ...mom(
+            s.platformRevenue.current,
+            s.platformRevenue.previous,
+            true,
+            `GMV ${formatCurrency(s.platformRevenue.gmvCurrent)} · acumulado ${formatCurrency(s.platformRevenue.total)}`,
+          ),
+          help: "Taxa da plataforma (percentual + taxa fixa) das vagas efetivamente pagas no mês, já líquida de estornos (pagamento estornado sai da soma). Diferente do GMV, que é todo o dinheiro que passou pela plataforma. A aba Financeiro ainda desconta as taxas de gateway para chegar ao lucro.",
+        },
+      ]
+    : [];
+
   const jobsPorCidade = m.jobsByCity.length > 0
     ? m.jobsByCity.map((j) => ({ cidade: j.city, jobs: j.count }))
     : [{ cidade: "Sem dados", jobs: 0 }];
@@ -332,31 +500,65 @@ export default function DashboardPage() {
         </p>
       )}
       <p className="text-xs text-[#737373] mb-6">
-        Nos cards: <strong>Global</strong> = plataforma toda (Bares/Restaurantes + Freela em Casa);{" "}
-        <strong>BR</strong> = só Bares/Restaurantes. <strong>Acumulado</strong> = desde o início da
-        plataforma; <strong>agora</strong> = situação atual.
+        Os 8 cards abaixo são <strong>cross-módulo</strong> (Bares/Restaurantes + Freela em Casa) e
+        comparam <strong>{mesAtual}</strong> com <strong>{mesAnterior}</strong>. Dentro de
+        &ldquo;Indicadores detalhados&rdquo;, os cards antigos seguem com o rótulo de escopo
+        (<strong>Global</strong> vs <strong>BR</strong>) e janela (<strong>acumulado</strong> vs{" "}
+        <strong>agora</strong>).
       </p>
 
-      {/* KPI Rows */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        {row1.map((k) => (
-          <KpiCard key={k.title} {...k} />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        {row2.map((k) => (
-          <KpiCard key={k.title} {...k} />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        {row3.map((k) => (
-          <KpiCard key={k.title} {...k} />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {row4.map((k) => (
-          <KpiCard key={k.title} {...k} />
-        ))}
+      {/* Painel simplificado — os 8 indicadores da matinal (PMO jul/2026). */}
+      {cardsSimplificados.length > 0 ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {cardsSimplificados.map((k) => (
+            <KpiCard key={k.title} {...k} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-[#737373] mb-6">
+          Painel simplificado indisponível nesta versão da API — mostrando apenas os indicadores
+          detalhados.
+        </p>
+      )}
+
+      {/* Painel detalhado antigo — preservado, fechado por padrão. */}
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((v) => !v)}
+          className="flex items-center gap-2 text-sm font-medium text-[#737373] hover:text-[#1d1d1b] cursor-pointer transition-colors"
+        >
+          {detailsOpen ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
+          Indicadores detalhados ({row1.length + row2.length + row3.length + row4.length} cards)
+        </button>
+        {detailsOpen && (
+          <div className="mt-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              {row1.map((k) => (
+                <KpiCard key={k.title} {...k} />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              {row2.map((k) => (
+                <KpiCard key={k.title} {...k} />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              {row3.map((k) => (
+                <KpiCard key={k.title} {...k} />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {row4.map((k) => (
+                <KpiCard key={k.title} {...k} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Charts */}

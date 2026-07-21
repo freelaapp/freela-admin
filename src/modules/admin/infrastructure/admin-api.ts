@@ -53,6 +53,29 @@ export interface AdminMetrics {
   completedRepasses: number;
   /** Listas completas (sempre, ignora o filtro ativo) para popular os dropdowns. */
   filterOptions: { cities: string[]; roles: string[] };
+  /** Os 8 indicadores do painel simplificado (PMO). Opcional enquanto a API
+   * antiga (sem o bloco) ainda puder estar no ar. */
+  simplified?: SimplifiedDashboard;
+}
+
+/** Par mês-atual / mês-anterior dos cards do painel simplificado. */
+export interface MonthOverMonth {
+  current: number;
+  previous: number;
+}
+
+/** Bloco dos 8 indicadores do painel gerencial simplificado (cross-módulo). */
+export interface SimplifiedDashboard {
+  currentMonth: string;
+  previousMonth: string;
+  contractors: { total: number; newThisMonth: number };
+  freelancers: { total: number; newThisMonth: number };
+  vacanciesCreated: MonthOverMonth;
+  openVacanciesWithoutProvider: number;
+  completedJobs: MonthOverMonth & { total: number };
+  vacanciesCancelledWithoutProvider: MonthOverMonth;
+  noShows: MonthOverMonth & { jobsScheduledCurrent: number; jobsScheduledPrevious: number };
+  platformRevenue: MonthOverMonth & { total: number; gmvCurrent: number };
 }
 
 export interface AdminMetricsParams {

@@ -4,7 +4,7 @@ import { createAuthedClient } from "@/modules/shared/infrastructure/authed-clien
  * Client admin do módulo Freela em Casa (home-services). Base distinta do client de
  * Bares & Restaurantes (`/v1/bars-restaurants/admin`) — aqui os contratantes vêm do
  * schema `freela_em_casa`. Espelha a listagem admin de Empresas (BR), porém com o
- * shape do CasaContractor (endereço + rating; sem jobs/ticket/telefone no payload).
+ * shape do CasaContractor (endereço + rating; sem jobs/ticket no payload).
  */
 const casaAdminApi = createAuthedClient("/v1/home-services/admin");
 
@@ -27,6 +27,10 @@ export interface CasaContractorItem {
   cityId: string | null;
   avatarUrl: string | null;
   rating: number | null;
+  /** Telefone da CONTA (shared.users) — o CasaContractor não tem telefone próprio. */
+  phone?: string | null;
+  /** E-mail de login/cadastro (shared.users). */
+  registrationEmail?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
