@@ -21,10 +21,15 @@ import { NextRequest, NextResponse } from "next/server";
 /** Só estas rotas são repassadas — proxy aberto viraria porta dos fundos. */
 const ALLOWED_PATHS = new Set(["v1/registrations/drivers", "v1/registrations/companies"]);
 
-const ADMIN_API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001").replace(
-  /\/+$/,
-  "",
-);
+// `NEXT_PUBLIC_API_URL` é a base SEM o `/v1` — os clients admin montam o prefixo
+// nos paths (ex.: createAuthedClient("/v1/home-services/admin")). Reproduzimos
+// isso aqui: base normalizada, com o `/v1` reanexado (e tolerante caso a env já
+// venha com ele). Sem o `/v1`, `/admins/me` dá 404 e o proxy negaria TODO admin,
+// inclusive os válidos.
+const ADMIN_API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001")
+  .replace(/\/+$/, "")
+  .replace(/\/v1$/, "");
+const ADMIN_ME_URL = `${ADMIN_API_BASE}/v1/admins/me`;
 
 /** Valida o Bearer do chamador contra o api-freela. Retorna o papel do admin. */
 async function assertAdmin(req: NextRequest): Promise<{ ok: boolean; status: number }> {
@@ -32,7 +37,7 @@ async function assertAdmin(req: NextRequest): Promise<{ ok: boolean; status: num
   if (!authorization) return { ok: false, status: 401 };
 
   try {
-    const res = await fetch(`${ADMIN_API_URL}/admins/me`, {
+    const res = await fetch(ADMIN_ME_URL, {
       headers: { Authorization: authorization },
       cache: "no-store",
     });
