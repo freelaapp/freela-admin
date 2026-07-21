@@ -33,17 +33,17 @@ import {
   X,
   LogOut,
   Wallet,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/modules/auth/application/use-auth";
+import {
+  buildProducts,
+  productIdFromPath,
+  type NavItem,
+} from "@/modules/shared/domain/products";
 
-type NavItem = {
-  label: string;
-  icon: typeof LayoutDashboard;
-  path: string;
-  superAdminOnly?: boolean;
-};
-
+/** Nav da vertical de SERVIÇOS (as rotas ficam na raiz por retrocompatibilidade). */
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { label: "Freelancers", icon: Users, path: "/freelancers" },
@@ -102,8 +102,16 @@ function getInitials(value: string): string {
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [productMenuOpen, setProductMenuOpen] = useState(false);
   const { user, logout, isSuperAdmin } = useAuth();
-  const visibleNavItems = navItems.filter(
+
+  // A vertical vem da URL (não de estado guardado): link compartilhado e refresh
+  // caem sempre na mesma tela.
+  const products = buildProducts(navItems);
+  const activeProductId = productIdFromPath(pathname);
+  const activeProduct =
+    products.find((p) => p.id === activeProductId) ?? products[0];
+  const visibleNavItems = activeProduct.nav.filter(
     (item) => !item.superAdminOnly || isSuperAdmin,
   );
 
@@ -134,7 +142,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             FREELA
           </span>
           <span className="text-xs font-medium text-[#eca826] bg-[#eca826]/10 px-1.5 py-0.5 rounded">
-            ADMIN
+            {activeProduct.badge}
           </span>
           <button
             className="ml-auto lg:hidden text-[#d4d4d4]"
@@ -142,6 +150,52 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Seletor de vertical */}
+        <div className="px-3 pt-3 relative">
+          <button
+            type="button"
+            onClick={() => setProductMenuOpen((v) => !v)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-[#2e2e2e] text-sm font-medium text-white hover:bg-[#3a3a3a] transition-colors cursor-pointer"
+          >
+            <activeProduct.icon className="w-4 h-4 shrink-0 text-[#eca826]" />
+            <span className="truncate">{activeProduct.label}</span>
+            <ChevronDown
+              className={cn(
+                "w-4 h-4 ml-auto shrink-0 transition-transform",
+                productMenuOpen && "rotate-180",
+              )}
+            />
+          </button>
+          {productMenuOpen && (
+            <div className="absolute left-3 right-3 mt-1 z-10 rounded-lg bg-[#2e2e2e] border border-[#3a3a3a] overflow-hidden shadow-lg">
+              {products.map((product) => (
+                <Link
+                  key={product.id}
+                  href={product.basePath}
+                  onClick={() => {
+                    setProductMenuOpen(false);
+                    setSidebarOpen(false);
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2.5 text-sm transition-colors",
+                    product.id === activeProduct.id
+                      ? "bg-[#eca826] text-white"
+                      : "text-[#d4d4d4] hover:bg-[#3a3a3a] hover:text-white",
+                  )}
+                >
+                  <product.icon className="w-4 h-4 shrink-0" />
+                  {product.label}
+                  {product.comingSoon && (
+                    <span className="ml-auto text-[10px] uppercase tracking-wide opacity-70">
+                      em breve
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Nav */}
@@ -162,6 +216,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               >
                 <item.icon className="w-5 h-5 shrink-0" />
                 {item.label}
+                {item.comingSoon && (
+                  <span className="ml-auto text-[10px] uppercase tracking-wide opacity-60">
+                    em breve
+                  </span>
+                )}
               </Link>
             );
           })}
