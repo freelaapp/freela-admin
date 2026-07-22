@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2, ArrowUpCircle } from "lucide-react";
+import { Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2, ArrowUpCircle, Download, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -26,8 +26,17 @@ import {
   useClearLowPriority,
 } from "@/modules/admin/application/use-admin-providers";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
-import type { ProviderItem, ProviderHistoryItem } from "@/modules/admin/infrastructure/admin-api";
+import {
+  useExportProviders,
+  formatCargo,
+  type PriorityFilter,
+} from "@/modules/admin/application/use-export-providers";
+import type { ProviderHistoryItem } from "@/modules/admin/infrastructure/admin-api";
 import { getProviderHistory } from "@/modules/admin/infrastructure/admin-api";
+import {
+  providerSignupDate,
+  type ProviderExportItem,
+} from "@/modules/admin/infrastructure/providers-export-api";
 import {
   AuthorProfileDialog,
   AuthorAvatar,
@@ -41,15 +50,10 @@ type ModalType = "view" | "edit" | "ban" | "history" | "cargos" | "delete" | nul
 const DELETE_CONFIRM_WORD = "EXCLUIR";
 const PAGE_SIZE = 100;
 
-function formatCargo(value: string): string {
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-function mapProviderToRow(p: ProviderItem) {
+function mapProviderToRow(p: ProviderExportItem) {
+  // Data de cadastro = criação da CONTA (shared.users). Se a API ainda não
+  // mandar o campo, cai na criação do perfil B&R — e a célula avisa disso.
+  const signup = providerSignupDate(p);
   return {
     id: p.id,
     nome: p.name || (p.jobTitle ? `Profissional (${p.jobTitle})` : "Sem nome"),
@@ -73,6 +77,8 @@ function mapProviderToRow(p: ProviderItem) {
     lowPriority: p.lowPriority === true,
     lowPrioritySince: p.lowPrioritySince ?? null,
     score: p.score,
+    cadastro: signup.value,
+    cadastroIsConta: signup.isAccount,
     raw: p,
   };
 }
@@ -144,22 +150,28 @@ export default function FreelancersPage() {
   const [cidadeFilter, setCidadeFilter] = useState("");
   const [cargoFilter, setCargoFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [prioridadeFilter, setPrioridadeFilter] = useState("");
+  const [prioridadeFilter, setPrioridadeFilter] = useState<PriorityFilter>("");
 
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, estadoFilter, cidadeFilter, cargoFilter, statusFilter, prioridadeFilter]);
 
-  const { data, isLoading, isError, isFetching } = useAdminProviders({
-    page,
-    limit: PAGE_SIZE,
+  // Filtros aplicados no servidor — os mesmos da listagem e da exportação.
+  const serverFilters = {
     search: debouncedSearch || undefined,
     uf: estadoFilter || undefined,
     city: cidadeFilter || undefined,
     service: cargoFilter || undefined,
     status: (statusFilter as "active" | "inactive") || undefined,
+  };
+
+  const { data, isLoading, isError, isFetching } = useAdminProviders({
+    page,
+    limit: PAGE_SIZE,
+    ...serverFilters,
   });
   const { data: filterOptions } = useProvidersFilterOptions();
+  const { exportCsv, isExporting } = useExportProviders();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<ModalType>(null);
@@ -275,6 +287,10 @@ export default function FreelancersPage() {
     clearLowPriority.mutate({ userId });
   };
 
+  // Exporta o conjunto FILTRADO INTEIRO (todas as páginas), não só a visível.
+  const handleExport = () =>
+    exportCsv({ filters: serverFilters, priority: prioridadeFilter });
+
   const canConfirmDelete =
     deleteReason.trim().length >= 20 && deleteConfirm.trim().toUpperCase() === DELETE_CONFIRM_WORD;
 
@@ -338,6 +354,32 @@ export default function FreelancersPage() {
       sortAccessor: (row: Row) => row.avaliacao,
     },
     { header: "Trabalhos", accessor: "trabalhos" as const, className: "hidden lg:table-cell", sortable: true, sortAccessor: (row: Row) => row.trabalhos },
+    {
+      // "Cadastro" = criação da CONTA do usuário. Se a API antiga não mandar
+      // esse campo, mostramos a criação do perfil B&R com o rótulo explícito
+      // no tooltip — nunca chamando de "cadastro" algo que é outra coisa.
+      header: "Cadastro",
+      accessor: (row: Row) =>
+        row.cadastro ? (
+          <span
+            className="inline-flex items-center gap-1.5 text-sm text-[#1d1d1b] whitespace-nowrap"
+            title={
+              row.cadastroIsConta
+                ? `Conta criada em ${formatInstantDate(row.cadastro)}`
+                : `Perfil de Bares & Restaurantes criado em ${formatInstantDate(row.cadastro)} (data da conta indisponível)`
+            }
+          >
+            <CalendarDays className="w-3.5 h-3.5 text-[#a3a3a3]" />
+            {formatInstantDate(row.cadastro)}
+            {!row.cadastroIsConta && <span className="text-[#a3a3a3]">*</span>}
+          </span>
+        ) : (
+          <span className="text-[#a3a3a3]">—</span>
+        ),
+      className: "hidden lg:table-cell",
+      sortable: true,
+      sortAccessor: (row: Row) => (row.cadastro ? new Date(row.cadastro) : null),
+    },
     {
       header: "Status",
       accessor: (row: Row) => <StatusBadge status={row.status} />,
@@ -702,6 +744,26 @@ export default function FreelancersPage() {
       <PageHeader
         title="Freelancers"
         description="Freelancers do módulo Bares & Restaurantes (trabalhos/avaliações contam só este módulo)"
+        action={
+          <Button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Exporta todos os freelancers que atendem aos filtros atuais (não só esta página)"
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Exportando…
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                Exportar CSV
+              </>
+            )}
+          </Button>
+        }
       />
       <DataTable
         columns={columns}
@@ -725,7 +787,7 @@ export default function FreelancersPage() {
             />
             <FilterSelect
               value={prioridadeFilter}
-              onChange={setPrioridadeFilter}
+              onChange={(v) => setPrioridadeFilter(v as PriorityFilter)}
               options={[
                 { value: "low", label: "Baixa" },
                 { value: "normal", label: "Normal" },
