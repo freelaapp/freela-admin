@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatInstantDate } from "@/lib/date.utils";
 import { useAuth } from "@/modules/auth/application/use-auth";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import {
   useAdjustWallet,
   useAdminWalletLedger,
@@ -66,7 +67,9 @@ const ENTRY_STATUS_LABEL: Record<WalletLedgerEntry["status"], string> = {
 type Row = WalletItem & { id: string; badge: string };
 
 export default function CarteirasPage() {
+  // Área controlada por permissão; o ajuste manual de saldo segue super-admin.
   const { isSuperAdmin } = useAuth();
+  const { isChecking, allowed } = useAreaGuard("WALLETS");
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -137,6 +140,14 @@ export default function CarteirasPage() {
       ),
     },
   ];
+
+  if (isChecking || !allowed) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

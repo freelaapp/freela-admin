@@ -22,6 +22,7 @@ import { useAdminDeletionStats } from "@/modules/admin/application/use-admin-del
 import type { UserItem } from "@/modules/admin/infrastructure/admin-api";
 import { formatReferralOrigin, changeUserEmail } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate } from "@/lib/date.utils";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 
 function mapUserStatus(status: string) {
   switch (status) {
@@ -70,6 +71,8 @@ type Tab = typeof tabs[number];
 const PAGE_SIZE = 50;
 
 export default function UsuariosPage() {
+  // Área controlada por permissão (USERS); sem ela, volta para o dashboard.
+  const { isChecking: isAreaChecking, allowed: isAreaAllowed } = useAreaGuard("USERS");
   const [tab, setTab] = useState<Tab>("Todos");
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -191,6 +194,14 @@ export default function UsuariosPage() {
       ),
     },
   ];
+
+  if (isAreaChecking || !isAreaAllowed) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
 
   return (
     <div>

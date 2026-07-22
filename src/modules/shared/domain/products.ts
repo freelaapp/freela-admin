@@ -12,6 +12,7 @@ import {
   Truck,
   Users,
 } from "lucide-react";
+import type { AdminPermission } from "@/modules/auth/domain/permissions";
 
 /**
  * As verticais do ecossistema Freela dentro de um painel só.
@@ -33,6 +34,12 @@ export type NavItem = {
   icon: typeof LayoutDashboard;
   path: string;
   superAdminOnly?: boolean;
+  /**
+   * Área controlada por permissão (`admins.permissions`). Sem a chave, o item
+   * some do menu e a página redireciona. Itens sem `permission` seguem abertos
+   * a qualquer usuário do painel — ver `modules/auth/domain/permissions.ts`.
+   */
+  permission?: AdminPermission;
   /** Tela ainda sem backend — navega, mas avisa que o produto não existe ainda. */
   comingSoon?: boolean;
 };

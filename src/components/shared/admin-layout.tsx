@@ -33,6 +33,7 @@ import {
   X,
   LogOut,
   Wallet,
+  UserCog,
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,15 +44,21 @@ import {
   type NavItem,
 } from "@/modules/shared/domain/products";
 
-/** Nav da vertical de SERVIÇOS (as rotas ficam na raiz por retrocompatibilidade). */
+/**
+ * Nav da vertical de SERVIÇOS (as rotas ficam na raiz por retrocompatibilidade).
+ *
+ * `permission` marca as áreas controladas por `admins.permissions`: sem a chave,
+ * o item some do menu (e a página redireciona para o dashboard). Itens sem
+ * `permission` seguem abertos a qualquer usuário do painel logado.
+ */
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
-  { label: "Freelancers", icon: Users, path: "/freelancers" },
-  { label: "Empresas", icon: Building2, path: "/empresas" },
+  { label: "Freelancers", icon: Users, path: "/freelancers", permission: "FREELANCERS" },
+  { label: "Empresas", icon: Building2, path: "/empresas", permission: "COMPANIES" },
   { label: "Contratantes — Casa", icon: Building, path: "/contratantes-casa" },
-  { label: "Vagas / Jobs", icon: Briefcase, path: "/jobs" },
-  { label: "Vagas — Casa", icon: Home, path: "/vagas-casa" },
-  { label: "Vagas Fixas / CLT", icon: ClipboardList, path: "/vagas-fixas" },
+  { label: "Vagas / Jobs", icon: Briefcase, path: "/jobs", permission: "JOBS" },
+  { label: "Vagas — Casa", icon: Home, path: "/vagas-casa", permission: "CASA_VACANCIES" },
+  { label: "Vagas Fixas / CLT", icon: ClipboardList, path: "/vagas-fixas", permission: "FIXED_JOBS" },
   { label: "Pipeline", icon: TrendingUp, path: "/pipeline" },
   { label: "Cidades", icon: MapPin, path: "/cidades" },
   { label: "Cargos", icon: UserCheck, path: "/cargos" },
@@ -60,11 +67,14 @@ const navItems: NavItem[] = [
   { label: "Cupons", icon: Ticket, path: "/cupons" },
   { label: "Treinamentos", icon: GraduationCap, path: "/treinamentos" },
   { label: "Avaliações", icon: Star, path: "/avaliacoes" },
-  { label: "Financeiro", icon: DollarSign, path: "/financeiro" },
-  { label: "Carteiras", icon: Wallet, path: "/carteiras" },
+  { label: "Financeiro", icon: DollarSign, path: "/financeiro", permission: "FINANCE" },
+  { label: "Carteiras", icon: Wallet, path: "/carteiras", permission: "WALLETS" },
   { label: "Relatórios", icon: BarChart3, path: "/relatorios" },
-  { label: "Usuários", icon: Shield, path: "/usuarios" },
+  { label: "Usuários", icon: Shield, path: "/usuarios", permission: "USERS" },
   {
+    // Consultores continua super-admin-only (a tela mexe em comissão e acesso do
+    // consultor). A permissão CONSULTANTS existe no catálogo, mas só passa a
+    // valer aqui quando a página deixar de ser exclusiva do super-admin.
     label: "Consultores",
     icon: Handshake,
     path: "/consultores",
@@ -74,18 +84,24 @@ const navItems: NavItem[] = [
     label: "Parcerias",
     icon: Store,
     path: "/parcerias",
-    superAdminOnly: true,
+    permission: "PARTNERSHIPS",
   },
   {
     label: "Propagandas",
     icon: Megaphone,
     path: "/propagandas",
-    superAdminOnly: true,
+    permission: "ADVERTISEMENTS",
   },
   {
     label: "Grupos WhatsApp",
     icon: MessageCircle,
     path: "/grupos-whatsapp",
+    permission: "WHATSAPP_GROUPS",
+  },
+  {
+    label: "Usuários do painel",
+    icon: UserCog,
+    path: "/usuarios-painel",
     superAdminOnly: true,
   },
   { label: "Configurações", icon: Settings, path: "/configuracoes" },
@@ -103,7 +119,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productMenuOpen, setProductMenuOpen] = useState(false);
-  const { user, logout, isSuperAdmin } = useAuth();
+  const { user, logout, isSuperAdmin, hasPermission } = useAuth();
 
   // A vertical vem da URL (não de estado guardado): link compartilhado e refresh
   // caem sempre na mesma tela.
@@ -111,8 +127,13 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const activeProductId = productIdFromPath(pathname);
   const activeProduct =
     products.find((p) => p.id === activeProductId) ?? products[0];
+  // Item some do menu quando o admin não tem a permissão da área. Enquanto
+  // `GET /v1/admins/me` não responde, `hasPermission` é falso — o item aparece
+  // logo que a sessão resolve (preferimos "aparecer depois" a "sumir depois").
   const visibleNavItems = activeProduct.nav.filter(
-    (item) => !item.superAdminOnly || isSuperAdmin,
+    (item) =>
+      (!item.superAdminOnly || isSuperAdmin) &&
+      (!item.permission || hasPermission(item.permission)),
   );
 
   const displayName = user?.name || "Admin";

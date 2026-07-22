@@ -35,6 +35,7 @@ import {
 } from "@/components/shared/author-profile-dialog";
 import { formatVacancyDate, formatInstantDate } from "@/lib/date.utils";
 import { formatPhoneBr } from "@/lib/utils";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 
 type ModalType = "view" | "edit" | "ban" | "history" | "cargos" | "delete" | null;
 const DELETE_CONFIRM_WORD = "EXCLUIR";
@@ -134,6 +135,8 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 export default function FreelancersPage() {
+  // Área controlada por permissão (FREELANCERS); sem ela, volta para o dashboard.
+  const { isChecking: isAreaChecking, allowed: isAreaAllowed } = useAreaGuard("FREELANCERS");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounced(search, 300);
@@ -685,6 +688,14 @@ export default function FreelancersPage() {
         return null;
     }
   };
+
+  if (isAreaChecking || !isAreaAllowed) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
 
   return (
     <div>

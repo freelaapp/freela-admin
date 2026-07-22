@@ -23,6 +23,7 @@ import { useAdminFixedJobs, useCreateAdminFixedJob } from "@/modules/admin/appli
 import { useAdminConsultants } from "@/modules/admin/application/use-admin-consultants";
 import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
 import { useAuth } from "@/modules/auth/application/use-auth";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import type { FixedJobItem, FixedJobWorkScheduleSlot } from "@/modules/admin/infrastructure/fixed-jobs-api";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate } from "@/lib/date.utils";
@@ -512,12 +513,22 @@ function CreateFixedJobDialog({
 }
 
 export default function VagasFixasPage() {
+  // Área controlada por permissão; criar vaga on-behalf segue super-admin.
   const { isSuperAdmin } = useAuth();
+  const { isChecking, allowed } = useAreaGuard("FIXED_JOBS");
   const [selectedConsultantId, setSelectedConsultantId] = useState<string>("");
   const { data: posts, isLoading, isError } = useAdminFixedJobs(selectedConsultantId || undefined);
   const { data: consultants } = useAdminConsultants();
   const [statusFilter, setStatusFilter] = useState<StatusKey>("all");
   const [createOpen, setCreateOpen] = useState(false);
+
+  if (isChecking || !allowed) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

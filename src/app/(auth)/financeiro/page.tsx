@@ -25,6 +25,7 @@ import type {
   PaymentItem, RepasseItem, FinanceTransaction,
 } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 
 const tabs = ["Visão Geral", "Transações", "Pagamentos", "Repasses", "Estornos & Cancelamentos"] as const;
 type Tab = typeof tabs[number];
@@ -482,6 +483,8 @@ function FinanceGuideDialog({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 export default function FinanceiroPage() {
+  // Área controlada por permissão (FINANCE); sem ela, volta para o dashboard.
+  const { isChecking: isAreaChecking, allowed: isAreaAllowed } = useAreaGuard("FINANCE");
   const [tab, setTab] = useState<Tab>("Visão Geral");
   const [guideOpen, setGuideOpen] = useState(false);
   // Default "Este mês": o acumulado desde sempre (preset "Tudo") inclui o
@@ -538,6 +541,14 @@ export default function FinanceiroPage() {
     range.from || range.to
       ? `Período: ${range.from ? formatVacancyDateLabel(range.from) : "início"} → ${range.to ? formatVacancyDateLabel(range.to) : "hoje"}`
       : "Período: todo o histórico";
+
+  if (isAreaChecking || !isAreaAllowed) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
 
   return (
     <div>

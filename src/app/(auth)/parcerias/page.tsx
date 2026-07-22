@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,7 @@ import {
   useAdminPartnershipReport,
   useAdminPartnershipAdLeads,
 } from "@/modules/admin/application/use-admin-partnerships";
-import { useAuth } from "@/modules/auth/application/use-auth";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { formatInstantDate } from "@/lib/date.utils";
 import type {
@@ -52,8 +51,7 @@ function formatCurrency(cents: number) {
 }
 
 export default function ParceriasPage() {
-  const router = useRouter();
-  const { isHydrated, isSuperAdmin } = useAuth();
+  const { isChecking, allowed } = useAreaGuard("PARTNERSHIPS");
   const { data: partnerships, isLoading, isError } = useAdminPartnerships();
   const createMutation = useCreateAdminPartnership();
   const updateMutation = useUpdateAdminPartnership();
@@ -74,13 +72,7 @@ export default function ParceriasPage() {
     isError: leadsError,
   } = useAdminPartnershipAdLeads(leadsPartner?.id ?? null);
 
-  useEffect(() => {
-    if (isHydrated && !isSuperAdmin) {
-      router.replace("/dashboard");
-    }
-  }, [isHydrated, isSuperAdmin, router]);
-
-  if (!isHydrated || !isSuperAdmin) {
+  if (isChecking || !allowed) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />

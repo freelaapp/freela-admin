@@ -22,6 +22,7 @@ import { useAdminCancelCasaVacancy } from "@/modules/admin/application/use-admin
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminConsultants } from "@/modules/admin/application/use-admin-consultants";
 import { useAuth } from "@/modules/auth/application/use-auth";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import type { CasaVacancyItem } from "@/modules/admin/infrastructure/casa-vacancies-api";
 import type { RefundType } from "@/modules/admin/infrastructure/admin-api";
 import { formatVacancyDate, formatVacancyTime } from "@/lib/date.utils";
@@ -71,7 +72,9 @@ const statusFilters = [
 type StatusKey = (typeof statusFilters)[number]["key"];
 
 export default function VagasCasaPage() {
+  // Área controlada por permissão; o filtro por consultor segue super-admin.
   const { isSuperAdmin } = useAuth();
+  const { isChecking, allowed } = useAreaGuard("CASA_VACANCIES");
   const [selectedConsultantId, setSelectedConsultantId] = useState<string>("");
   const { data: vacancies, isLoading, isError } = useAdminCasaVacancies(
     selectedConsultantId || undefined,
@@ -121,6 +124,14 @@ export default function VagasCasaPage() {
       toast.error(getAxiosErrorMessage(err, "Falha ao cancelar a vaga."));
     }
   };
+
+  if (isChecking || !allowed) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

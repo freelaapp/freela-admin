@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import {
@@ -27,7 +26,7 @@ import {
   useDeleteDedicatedGroup,
   useCreateDedicatedWhatsappGroup,
 } from "@/modules/admin/application/use-admin-dedicated-groups";
-import { useAuth } from "@/modules/auth/application/use-auth";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import type { GroupDiagnostic } from "@/modules/admin/infrastructure/whatsapp-groups-api";
 import type { DedicatedGroupRule } from "@/modules/admin/infrastructure/dedicated-groups-api";
 import { Button } from "@/components/ui/button";
@@ -48,8 +47,7 @@ function getAxiosErrorMessage(err: unknown): string | null {
 }
 
 export default function GruposWhatsappPage() {
-  const router = useRouter();
-  const { isHydrated, isSuperAdmin } = useAuth();
+  const { isChecking, allowed } = useAreaGuard("WHATSAPP_GROUPS");
   const { data: groups, isLoading, isError } = useGroupDiagnostics();
   const createGroup = useCreateWhatsappGroup();
   const addMembers = useAddGroupParticipants();
@@ -63,11 +61,7 @@ export default function GruposWhatsappPage() {
   const [addTarget, setAddTarget] = useState<GroupDiagnostic | null>(null);
   const [addPhones, setAddPhones] = useState("");
 
-  useEffect(() => {
-    if (isHydrated && !isSuperAdmin) router.replace("/dashboard");
-  }, [isHydrated, isSuperAdmin, router]);
-
-  if (!isHydrated || !isSuperAdmin) {
+  if (isChecking || !allowed) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />

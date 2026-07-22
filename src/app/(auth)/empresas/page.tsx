@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays, ShieldOff, Search } from "lucide-react";
+import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays, CalendarPlus, ShieldOff, Search } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -32,7 +32,8 @@ import {
   useAdminContractorEmployee,
   useAdminContractorEmployeeMutations,
 } from "@/modules/admin/application/use-admin-contractor-employee";
-import { formatPhoneBr } from "@/lib/utils";
+import { AbrirVagaDialog } from "./_components/abrir-vaga-dialog";
+import { cn, formatPhoneBr } from "@/lib/utils";
 import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
 import {
   adminBlockProvider,
@@ -41,8 +42,9 @@ import {
 } from "@/modules/admin/infrastructure/blocked-providers-api";
 import { formatInstantDate } from "@/lib/date.utils";
 import { downloadCsv } from "@/lib/csv";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 
-type ModalType = "view" | "edit" | "delete" | "employee" | "report" | "blocked" | null;
+type ModalType = "view" | "edit" | "delete" | "employee" | "report" | "blocked" | "vaga" | null;
 const DELETE_CONFIRM_WORD = "EXCLUIR";
 
 function mapContractorToRow(c: ContractorItem) {
@@ -71,6 +73,8 @@ function mapContractorToRow(c: ContractorItem) {
 type Row = ReturnType<typeof mapContractorToRow>;
 
 export default function EmpresasPage() {
+  // Área controlada por permissão (COMPANIES); sem ela, volta para o dashboard.
+  const { isChecking: isAreaChecking, allowed: isAreaAllowed } = useAreaGuard("COMPANIES");
   const { data: contractors, isLoading, isError } = useAdminContractors();
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<ModalType>(null);
@@ -275,6 +279,7 @@ export default function EmpresasPage() {
         <div className="flex items-center gap-1">
           <button onClick={() => openModal("view", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
+          <button onClick={() => openModal("vaga", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Abrir vaga em nome da empresa" : "Usuário da empresa não encontrado"}><CalendarPlus className="w-4 h-4" /></button>
           <button onClick={() => openModal("employee", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Gerenciar funcionário" : "Usuário da empresa não encontrado"}><UserCog className="w-4 h-4" /></button>
           <button onClick={() => openModal("blocked", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Freelancers bloqueados"><ShieldOff className="w-4 h-4" /></button>
           <button onClick={() => openModal("report", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Gerar relatório (PDF)"><FileText className="w-4 h-4" /></button>
@@ -494,6 +499,41 @@ export default function EmpresasPage() {
             </DialogFooter>
           </>
         );
+      case "vaga": {
+        // `contractorUserId` sai do próprio registro da listagem: a API admin de
+        // contratantes já devolve o `userId` (dono da conta) em cada linha.
+        const vacancyOwnerUserId = selectedItem.raw.userId;
+        if (!vacancyOwnerUserId) {
+          return (
+            <>
+              <DialogHeader>
+                <DialogTitle>Abrir vaga</DialogTitle>
+                <DialogDescription>
+                  Publica uma vaga por hora em nome do contratante.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                <ShieldAlert className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                <p className="text-sm text-amber-700">
+                  Usuário desta empresa não encontrado. Não é possível abrir uma vaga em nome dela.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
+              </DialogFooter>
+            </>
+          );
+        }
+        return (
+          <AbrirVagaDialog
+            contractorUserId={vacancyOwnerUserId}
+            companyName={selectedItem.nome}
+            contractorCity={selectedItem.raw.city || null}
+            cityOptions={(contractors ?? []).map((c) => c.city).filter(Boolean)}
+            onClose={closeModal}
+          />
+        );
+      }
       case "blocked": {
         const contractorUserId = selectedItem.raw.userId;
         if (!contractorUserId) return null;
@@ -541,6 +581,14 @@ export default function EmpresasPage() {
     }
   };
 
+  if (isAreaChecking || !isAreaAllowed) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -558,7 +606,9 @@ export default function EmpresasPage() {
       />
       <DataTable columns={columns} data={rows} searchPlaceholder="Buscar por empresa ou e-mail..." searchKey="_search" />
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="relative">
+        <DialogContent
+          className={cn("relative", modalType === "vaga" && "max-h-[85vh] overflow-y-auto")}
+        >
           <DialogClose onClick={closeModal} />
           {renderModalContent()}
         </DialogContent>

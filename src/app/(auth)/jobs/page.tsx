@@ -20,6 +20,7 @@ import { useAdminVacancies } from "@/modules/admin/application/use-admin-vacanci
 import { useAdminContractors } from "@/modules/admin/application/use-admin-contractors";
 import { useAdminConsultants } from "@/modules/admin/application/use-admin-consultants";
 import { useAuth } from "@/modules/auth/application/use-auth";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { useVacancyCandidacies } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
 import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
@@ -355,7 +356,9 @@ function FeedbackPanel({
 }
 
 export default function JobsPage() {
+  // Área controlada por permissão; o filtro por consultor segue super-admin.
   const { isSuperAdmin } = useAuth();
+  const { isChecking, allowed } = useAreaGuard("JOBS");
   const [selectedConsultantId, setSelectedConsultantId] = useState<string>("");
   const { data: vacancies, isLoading, isError } = useAdminVacancies(
     selectedConsultantId || undefined,
@@ -492,6 +495,14 @@ export default function JobsPage() {
     setModalBuscarId(false);
     setBuscaIdInput("");
   };
+
+  if (isChecking || !allowed) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

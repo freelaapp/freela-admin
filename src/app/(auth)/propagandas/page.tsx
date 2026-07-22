@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useRef, useState } from "react";
 import {
   Eye,
   Image as ImageIcon,
@@ -34,7 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAuth } from "@/modules/auth/application/use-auth";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import {
   useAdminAds,
   useAdminAdMutations,
@@ -104,19 +103,12 @@ function isoToDateInput(iso: string | null | undefined): string {
 
 /** Propagandas (Ads v1) — CRUD + métricas de anúncios exibidos no web e no app. */
 export default function PropagandasPage() {
-  const router = useRouter();
-  const { isHydrated, isSuperAdmin } = useAuth();
+  const { isChecking, allowed } = useAreaGuard("ADVERTISEMENTS");
   const { data: ads = [], isLoading, isError } = useAdminAds();
   const { update, remove } = useAdminAdMutations();
 
   const [editing, setEditing] = useState<AdvertisementItem | "new" | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isHydrated && !isSuperAdmin) {
-      router.replace("/dashboard");
-    }
-  }, [isHydrated, isSuperAdmin, router]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -126,7 +118,7 @@ export default function PropagandasPage() {
     return { running, views, clicks };
   }, [ads]);
 
-  if (!isHydrated || !isSuperAdmin) {
+  if (isChecking || !allowed) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
