@@ -50,6 +50,10 @@ import {
 import { KpiCard } from "@/components/shared/kpi-card";
 import { Button } from "@/components/ui/button";
 import { useAdminMetrics } from "@/modules/admin/application/use-admin-metrics";
+import type {
+  AdminMetricsPeriodPreset,
+  ModuleSplit,
+} from "@/modules/admin/infrastructure/admin-api";
 
 const COLORS = ["#eca826", "#f0b040", "#f4c060", "#16a34a", "#737373", "#dc2626"];
 
@@ -58,6 +62,44 @@ function formatCurrency(cents: number) {
     style: "currency",
     currency: "BRL",
   }).format(cents / 100);
+}
+
+// ─── Barra de período ────────────────────────────────────────────────────────
+// Move a janela dos indicadores de FLUXO (vagas geradas, concluídas, canceladas,
+// no-show, faturamento). Os cards de FOTO ("agora") e os acumulados seguem fixos
+// — cada card diz no rodapé a que janela pertence.
+
+const PERIOD_PRESETS: { id: AdminMetricsPeriodPreset; label: string }[] = [
+  { id: "7d", label: "7 dias" },
+  { id: "30d", label: "30 dias" },
+  { id: "90d", label: "90 dias" },
+  { id: "this_month", label: "Este mês" },
+  { id: "last_month", label: "Mês passado" },
+  { id: "custom", label: "Personalizado" },
+];
+
+/** "YYYY-MM-DD" de hoje (ou de N dias atrás) no fuso de Brasília. */
+function isoDayBrasilia(daysAgo = 0): string {
+  const d = new Date(Date.now() - daysAgo * 86_400_000 - 3 * 3_600_000);
+  return d.toISOString().slice(0, 10);
+}
+
+// ─── Quebra Empresa × Casa ───────────────────────────────────────────────────
+// O pedido do dono: nenhum número de módulo pode aparecer sem dizer de onde vem.
+// Onde a API devolve o par, o card mostra o total no número grande e "Empresa N ·
+// Casa N" logo abaixo. Onde o indicador é de PESSOA (cadastro, usuário ativo), o
+// rótulo continua "Global" — a conta é da plataforma e a mesma pessoa pode atuar
+// nos dois produtos, então quebrar por módulo contaria gente duas vezes.
+
+function moduleBreakdown(
+  split: ModuleSplit | undefined,
+  format: (value: number) => string = (v) => String(v),
+): { label: string; value: string }[] | undefined {
+  if (!split) return undefined;
+  return [
+    { label: "Empresa", value: format(split.barsRestaurants) },
+    { label: "Casa", value: format(split.homeServices) },
+  ];
 }
 
 // ─── Helpers do painel simplificado (8 cards do PMO) ─────────────────────────
@@ -125,12 +167,24 @@ function DashboardGuideDialog({ open, onClose }: { open: boolean; onClose: () =>
       text: "Só o que o sistema gera sozinho, sem digitação. Total de contatos e cadastros feitos pelo comercial continuam na matinal — são planilha/CRM, não têm origem no sistema.",
     },
     {
-      title: "Todo card é cross-módulo",
-      text: "Diferente do painel antigo, os 8 cards somam Bares & Restaurantes + Freela em Casa. Nada aqui é \"só BR\".",
+      title: "Empresa e Casa em todo card de vaga",
+      text: "O número grande soma os dois produtos; logo abaixo vem a quebra \"Empresa\" (Bares & Restaurantes) e \"Casa\" (Freela em Casa). Assim dá para ver de qual produto veio o movimento sem trocar de tela.",
+    },
+    {
+      title: "Por que os cards de pessoas não têm Empresa/Casa",
+      text: "Contratantes, freelancers e usuários ativos são contas da PLATAFORMA, e a mesma pessoa pode atuar nos dois produtos. Quebrar por módulo contaria gente duas vezes, então esses cards seguem marcados como Global.",
+    },
+    {
+      title: "A barra de período",
+      text: "Escolha a janela (7, 30 ou 90 dias, este mês, mês passado ou um intervalo próprio) e os indicadores de fluxo — vagas geradas, concluídas, canceladas, não compareceu e faturamento — passam a medir esse recorte. A comparação embaixo de cada card é sempre a janela anterior de MESMO tamanho.",
+    },
+    {
+      title: "O que a barra de período NÃO muda",
+      text: "\"Vagas em Aberto sem Freelancer\" é foto do momento e os cadastros são acumulados: esses cards ignoram a janela de propósito e dizem isso no rodapé.",
     },
     {
       title: "A comparação embaixo de cada card",
-      text: "O número grande é o mês corrente; embaixo vem o mesmo indicador no mês anterior e a variação. Verde e vermelho respeitam o sentido do indicador — cancelamento e falta caindo é verde.",
+      text: "O número grande é o período escolhido; embaixo vem o mesmo indicador na janela anterior e a variação. Verde e vermelho respeitam o sentido do indicador — cancelamento e falta caindo é verde.",
     },
     {
       title: "Vagas em Aberto sem Freelancer",
@@ -183,12 +237,22 @@ export default function DashboardPage() {
   const [cidade, setCidade] = useState("");
   const [cargo, setCargo] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
+  // Janela de tempo dos indicadores de fluxo. O default é o mês corrente —
+  // exatamente o que o painel já mostrava antes da barra existir.
+  const [periodo, setPeriodo] = useState<AdminMetricsPeriodPreset>("this_month");
+  // Intervalo próprio já nasce preenchido (últimos 30 dias) para o painel nunca
+  // ficar sem dado enquanto o usuário escolhe as duas datas.
+  const [dataInicio, setDataInicio] = useState(() => isoDayBrasilia(29));
+  const [dataFim, setDataFim] = useState(() => isoDayBrasilia(0));
   // Painel antigo (16 KPIs) preservado, mas fechado por padrão: o painel de
   // primeiro nível agora são os 8 cards da matinal (documento PMO jul/2026).
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { data: m, isLoading, isError } = useAdminMetrics({
     city: cidade || undefined,
     role: cargo || undefined,
+    period: periodo,
+    from: dataInicio,
+    to: dataFim,
   });
 
   if (isLoading) {
@@ -272,12 +336,39 @@ export default function DashboardPage() {
   const launchLabel = m.launchDate
     ? m.launchDate.split("-").reverse().join("/")
     : "o início";
+
+  // Quebra Empresa × Casa dos KPIs detalhados. Quando a API devolve o par, o
+  // número grande passa a ser o TOTAL dos dois produtos (antes era só o de
+  // Empresa, rotulado "BR ·", que era justamente a ambiguidade reclamada) e o
+  // rodapé abre Empresa/Casa. API sem o bloco → cai no comportamento antigo.
+  const bm = m.byModule;
+  const detalhado = (
+    split: ModuleSplit | undefined,
+    fallback: number,
+    janela: string,
+  ) => ({
+    value: String(split ? split.total : fallback),
+    breakdown: moduleBreakdown(split),
+    meta: split ? `Empresa + Casa · ${janela}` : `BR · ${janela}`,
+  });
+
   const row2 = [
-    { title: "Vagas Abertas", value: String(m.openVacancies), icon: Briefcase, meta: "BR · agora", help: "Vagas de Bares & Restaurantes abertas NESTE momento, ainda dentro do prazo, aceitando candidaturas." },
-    { title: "Candidaturas Aceitas", value: String(m.acceptedCandidacies), icon: CheckCircle2, iconColor: "text-green-500", meta: "BR · acumulado", help: "Total histórico de freelancers aceitos em vagas de Bares & Restaurantes. É acumulado desde o início — não significa vagas preenchidas agora." },
+    {
+      title: "Vagas Abertas",
+      icon: Briefcase,
+      ...detalhado(bm?.openVacancies, m.openVacancies, "agora"),
+      help: "Vagas abertas NESTE momento, ainda dentro do prazo, aceitando candidaturas. Não muda com a barra de período — é foto do momento.",
+    },
+    {
+      title: "Candidaturas Aceitas",
+      icon: CheckCircle2,
+      iconColor: "text-green-500",
+      ...detalhado(bm?.acceptedCandidacies, m.acceptedCandidacies, "acumulado"),
+      help: "Total histórico de freelancers aceitos em vagas, nos dois produtos. É acumulado desde o início — não significa vagas preenchidas agora, e não muda com a barra de período.",
+    },
     {
       title: "Vagas Abertas e Não Concluídas",
-      help: "Das vagas criadas desde o início real da operação, quantas terminaram SEM serviço concluído: canceladas ou com o prazo encerrado sem ninguém concluir o job. Vagas ainda em andamento não contam.",
+      help: "Das vagas de Empresa (Bares & Restaurantes) criadas desde o início real da operação, quantas terminaram SEM serviço concluído: canceladas ou com o prazo encerrado sem ninguém concluir o job. Vagas ainda em andamento não contam.",
       value:
         m.vacanciesNotCompletedSinceLaunch !== undefined
           ? String(m.vacanciesNotCompletedSinceLaunch)
@@ -285,29 +376,51 @@ export default function DashboardPage() {
       icon: Hourglass,
       meta:
         m.vacanciesCreatedSinceLaunch !== undefined
-          ? `BR · de ${m.vacanciesCreatedSinceLaunch} criadas desde ${launchLabel}`
-          : `BR · desde ${launchLabel}`,
+          ? `Empresa · de ${m.vacanciesCreatedSinceLaunch} criadas desde ${launchLabel}`
+          : `Empresa · desde ${launchLabel}`,
     },
-    { title: "Vagas Canceladas", value: String(m.cancelledVacancies), icon: Ban, iconColor: "text-red-500", meta: "BR · acumulado", help: "Total histórico de vagas canceladas (pelo contratante, admin ou sistema) desde o início, incluindo o período de testes." },
+    {
+      title: "Vagas Canceladas",
+      icon: Ban,
+      iconColor: "text-red-500",
+      ...detalhado(bm?.cancelledVacancies, m.cancelledVacancies, "acumulado"),
+      help: "Total histórico de vagas canceladas (pelo contratante, admin ou sistema) desde o início, incluindo o período de testes.",
+    },
   ];
 
   const row3 = [
     {
       title: "Taxa de Preenchimento (30d)",
-      help: "Das vagas criadas nos últimos 30 dias que já tiveram desfecho (preencheram todos os postos ou expiraram sem preencher), a porcentagem que preencheu. Vagas canceladas e vagas ainda abertas ficam fora da conta.",
+      help: "Das vagas de Empresa (Bares & Restaurantes) criadas nos últimos 30 dias que já tiveram desfecho (preencheram todos os postos ou expiraram sem preencher), a porcentagem que preencheu. Vagas canceladas e vagas ainda abertas ficam fora da conta. Janela fixa de 30 dias — não segue a barra de período.",
       value: fillRate === null ? "N/A" : `${fillRate}%`,
       icon: TrendingUp,
       iconColor: "text-green-500",
       meta:
         fillRate === null
-          ? "Sem vagas encerradas nos últimos 30 dias"
-          : `Meta: 80% · ${filled30d}/${decided30d} vagas encerradas`,
+          ? "Empresa · sem vagas encerradas nos últimos 30 dias"
+          : `Empresa · meta 80% · ${filled30d}/${decided30d} vagas encerradas`,
       metaColor: fillRate !== null && fillRate >= 80 ? "text-green-500" : "text-red-500",
       ...(fillRate !== null ? { progress: fillRate } : {}),
     },
-    { title: "Jobs Agendados", value: String(m.scheduledJobs), icon: Timer, meta: "BR · agora", help: "Serviços já pagos e confirmados aguardando o dia/horário de início (freelancer contratado, check-in ainda não feito)." },
-    { title: "Jobs em Andamento", value: String(m.inProgressJobs), icon: Clock, meta: "BR · agora", help: "Serviços acontecendo AGORA: o freelancer fez check-in e ainda não fez check-out." },
-    { title: "Serviços Concluídos", value: String(m.completedJobs), icon: ListChecks, iconColor: "text-green-500", meta: "BR · acumulado", help: "Total histórico de serviços finalizados com check-out desde o início da plataforma." },
+    {
+      title: "Jobs Agendados",
+      icon: Timer,
+      ...detalhado(bm?.scheduledJobs, m.scheduledJobs, "agora"),
+      help: "Serviços já pagos e confirmados aguardando o dia/horário de início (freelancer contratado, check-in ainda não feito).",
+    },
+    {
+      title: "Jobs em Andamento",
+      icon: Clock,
+      ...detalhado(bm?.inProgressJobs, m.inProgressJobs, "agora"),
+      help: "Serviços acontecendo AGORA: o freelancer fez check-in e ainda não fez check-out.",
+    },
+    {
+      title: "Serviços Concluídos",
+      icon: ListChecks,
+      iconColor: "text-green-500",
+      ...detalhado(bm?.completedJobs, m.completedJobs, "acumulado"),
+      help: "Total histórico de serviços finalizados com check-out desde o início da plataforma, nos dois produtos.",
+    },
   ];
 
   // Avaliações separadas POR DIREÇÃO (o antigo "Feedbacks 200" somava as duas
@@ -347,6 +460,12 @@ export default function DashboardPage() {
   const s = m.simplified;
   const mesAtual = monthLabel(s?.currentMonth);
   const mesAnterior = monthLabel(s?.previousMonth);
+  // Rótulos da janela: quem manda é o que a API DE FATO aplicou (`period`), não
+  // o que está selecionado na barra — período inválido cai no default lá e o
+  // painel precisa dizer a verdade. API sem o bloco → volta ao mês-calendário.
+  const janelaAtual = m.period?.label ?? mesAtual;
+  const janelaAnterior = m.period?.previousLabel ?? mesAnterior;
+  const sBm = s?.byModule;
 
   const mom = (
     cur: number,
@@ -355,7 +474,7 @@ export default function DashboardPage() {
     extra?: string | null,
   ) => ({
     meta: [
-      `${mesAtual} · ${prev} em ${mesAnterior} (${deltaLabel(cur, prev)})`,
+      `${janelaAtual} · ${prev} em ${janelaAnterior} (${deltaLabel(cur, prev)})`,
       extra,
     ]
       .filter(Boolean)
@@ -369,44 +488,47 @@ export default function DashboardPage() {
           title: "Total de Contratantes",
           value: String(s.contractors.total),
           icon: Building2,
-          meta: `Acumulado · +${s.contractors.newThisMonth} novos em ${mesAtual}`,
-          help: "Contas de contratante ativas na plataforma inteira (Bares & Restaurantes + Freela em Casa), contando cada conta uma única vez. É o tamanho da carteira de demanda.",
+          meta: `Global · acumulado · +${s.contractors.newInPeriod ?? s.contractors.newThisMonth} novos em ${janelaAtual}`,
+          help: "Contas de contratante ativas na plataforma inteira (Empresa + Casa), contando cada conta uma única vez. Não é quebrado por produto de propósito: a mesma conta pode publicar nos dois, e somar por módulo contaria a mesma empresa duas vezes. É o tamanho da carteira de demanda.",
         },
         {
           title: "Total de Freelancers",
           value: String(s.freelancers.total),
           icon: UserCheck,
-          meta: `Acumulado · +${s.freelancers.newThisMonth} novos em ${mesAtual}`,
-          help: "Contas de freelancer ativas na plataforma inteira. Ler sempre junto com \"Vagas em Aberto sem Freelancer\": cadastro alto com vaga parada = base dormente, não oferta real.",
+          meta: `Global · acumulado · +${s.freelancers.newInPeriod ?? s.freelancers.newThisMonth} novos em ${janelaAtual}`,
+          help: "Contas de freelancer ativas na plataforma inteira. Global por natureza — o mesmo freelancer atende Empresa e Casa. Ler sempre junto com \"Vagas em Aberto sem Freelancer\": cadastro alto com vaga parada = base dormente, não oferta real.",
         },
         {
           title: "Vagas Geradas",
           value: String(s.vacanciesCreated.current),
           icon: Briefcase,
+          breakdown: moduleBreakdown(sBm?.vacanciesCreated),
           ...mom(s.vacanciesCreated.current, s.vacanciesCreated.previous, true),
-          help: "Vagas publicadas no mês corrente (BR + Casa). É o pulso da demanda — antecipa o faturamento em 1 a 2 semanas.",
+          help: "Vagas publicadas na janela escolhida, somando Empresa (Bares & Restaurantes) e Casa (Freela em Casa) — a quebra vem logo abaixo do número. É o pulso da demanda: antecipa o faturamento em 1 a 2 semanas.",
         },
         {
           title: "Vagas em Aberto sem Freelancer",
           value: String(s.openVacanciesWithoutProvider),
           icon: Hourglass,
           iconColor: s.openVacanciesWithoutProvider > 0 ? "text-red-500" : "text-[#eca826]",
-          meta: "Agora · fila de risco (contratante esperando)",
+          breakdown: moduleBreakdown(sBm?.openVacanciesWithoutProvider),
+          meta: "Agora · não muda com o período · fila de risco (contratante esperando)",
           metaColor: s.openVacanciesWithoutProvider > 0 ? "text-red-500" : "text-[#737373]",
-          help: "Vagas publicadas, ainda dentro do prazo e sem nenhuma candidatura aceita, NESTE momento. Cada uma é um contratante esperando: se o número cresce, acione freelancers da cidade antes de virar cancelamento.",
+          help: "Vagas publicadas, ainda dentro do prazo e sem nenhuma candidatura aceita, NESTE momento. É foto do momento: a barra de período não mexe neste card. Cada uma é um contratante esperando — se o número cresce, acione freelancers da cidade antes de virar cancelamento.",
         },
         {
           title: "Contratações Concluídas",
           value: String(s.completedJobs.current),
           icon: ListChecks,
           iconColor: "text-green-500",
+          breakdown: moduleBreakdown(sBm?.completedJobs),
           ...mom(
             s.completedJobs.current,
             s.completedJobs.previous,
             true,
             `acumulado ${s.completedJobs.total}`,
           ),
-          help: "Serviços que chegaram ao fim (check-out) no mês corrente, nos dois módulos. Junto com \"Vagas Geradas\" forma a conversão real do marketplace.",
+          help: "Serviços que chegaram ao fim (check-out) na janela escolhida, com a quebra Empresa × Casa abaixo do número. Junto com \"Vagas Geradas\" forma a conversão real do marketplace.",
         },
         {
           title: "Vagas Canceladas sem Freelancer",
@@ -414,6 +536,7 @@ export default function DashboardPage() {
           icon: Ban,
           iconColor:
             s.vacanciesCancelledWithoutProvider.current > 0 ? "text-red-500" : "text-[#eca826]",
+          breakdown: moduleBreakdown(sBm?.vacanciesCancelledWithoutProvider),
           ...mom(
             s.vacanciesCancelledWithoutProvider.current,
             s.vacanciesCancelledWithoutProvider.previous,
@@ -422,35 +545,37 @@ export default function DashboardPage() {
               ? `${shareLabel(s.vacanciesCancelledWithoutProvider.current, s.vacanciesCreated.current)} das vagas geradas`
               : null,
           ),
-          help: "Vagas canceladas no mês que NUNCA tiveram um freelancer aceito — a plataforma não entregou. O app ainda não pede o motivo do cancelamento, então este é o recorte que o sistema consegue gerar sozinho; quando o motivo virar campo obrigatório, o card passa a usá-lo.",
+          help: "Vagas canceladas na janela que NUNCA tiveram um freelancer aceito — a plataforma não entregou. O app ainda não pede o motivo do cancelamento, então este é o recorte que o sistema consegue gerar sozinho; quando o motivo virar campo obrigatório, o card passa a usá-lo.",
         },
         {
           title: "Freelancer Não Compareceu",
           value: String(s.noShows.current),
           icon: UserX,
           iconColor: s.noShows.current > 0 ? "text-red-500" : "text-[#eca826]",
+          breakdown: moduleBreakdown(sBm?.noShows),
           ...mom(
             s.noShows.current,
             s.noShows.previous,
             false,
             shareLabel(s.noShows.current, s.noShows.jobsScheduledCurrent)
-              ? `${shareLabel(s.noShows.current, s.noShows.jobsScheduledCurrent)} dos ${s.noShows.jobsScheduledCurrent} jobs do mês`
+              ? `${shareLabel(s.noShows.current, s.noShows.jobsScheduledCurrent)} dos ${s.noShows.jobsScheduledCurrent} jobs da janela`
               : null,
           ),
-          help: "Faltas registradas pela régua de reputação: serviço sem check-in depois da tolerância, e cancelamento do freelancer em cima da hora (menos de 6h), que a régua trata como falta. Infrações anuladas pelo admin não contam.",
+          help: "Faltas registradas pela régua de reputação na janela escolhida: serviço sem check-in depois da tolerância, e cancelamento do freelancer em cima da hora (menos de 6h), que a régua trata como falta. A quebra abaixo diz em qual produto a falta aconteceu. Infrações anuladas pelo admin não contam.",
         },
         {
           title: "Faturamento Total",
           value: formatCurrency(s.platformRevenue.current),
           icon: DollarSign,
           iconColor: "text-green-500",
+          breakdown: moduleBreakdown(sBm?.platformRevenue, formatCurrency),
           ...mom(
             s.platformRevenue.current,
             s.platformRevenue.previous,
             true,
             `GMV ${formatCurrency(s.platformRevenue.gmvCurrent)} · acumulado ${formatCurrency(s.platformRevenue.total)}`,
           ),
-          help: "Taxa da plataforma (percentual + taxa fixa) das vagas efetivamente pagas no mês, já líquida de estornos (pagamento estornado sai da soma). Diferente do GMV, que é todo o dinheiro que passou pela plataforma. A aba Financeiro ainda desconta as taxas de gateway para chegar ao lucro.",
+          help: "Taxa da plataforma (percentual + taxa fixa) das vagas efetivamente pagas na janela, já líquida de estornos (pagamento estornado sai da soma), com a quebra Empresa × Casa abaixo. Diferente do GMV, que é todo o dinheiro que passou pela plataforma. A aba Financeiro ainda desconta as taxas de gateway para chegar ao lucro.",
         },
       ]
     : [];
@@ -493,6 +618,50 @@ export default function DashboardPage() {
       />
       <DashboardGuideDialog open={guideOpen} onClose={() => setGuideOpen(false)} />
 
+      {/* Barra de período — janela dos indicadores de fluxo. */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="text-xs font-medium text-[#737373] mr-1">Período:</span>
+        <div className="inline-flex flex-wrap rounded-lg border border-[#e5e5e5] bg-white p-0.5">
+          {PERIOD_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setPeriodo(p.id)}
+              aria-pressed={periodo === p.id}
+              className={
+                periodo === p.id
+                  ? "px-3 h-8 rounded-md text-sm font-semibold bg-[#eca826] text-[#1d1d1b] cursor-pointer"
+                  : "px-3 h-8 rounded-md text-sm text-[#737373] hover:bg-[#f7f7f7] cursor-pointer transition-colors"
+              }
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {periodo === "custom" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={dataInicio}
+              max={dataFim}
+              onChange={(e) => setDataInicio(e.target.value)}
+              aria-label="Início do período"
+              className="h-9 px-3 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+            />
+            <span className="text-xs text-[#737373]">até</span>
+            <input
+              type="date"
+              value={dataFim}
+              min={dataInicio}
+              max={isoDayBrasilia(0)}
+              onChange={(e) => setDataFim(e.target.value)}
+              aria-label="Fim do período"
+              className="h-9 px-3 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+            />
+          </div>
+        )}
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-2">
         <select
@@ -532,11 +701,14 @@ export default function DashboardPage() {
         </p>
       )}
       <p className="text-xs text-[#737373] mb-6">
-        Os 8 cards abaixo são <strong>cross-módulo</strong> (Bares/Restaurantes + Freela em Casa) e
-        comparam <strong>{mesAtual}</strong> com <strong>{mesAnterior}</strong>. Dentro de
-        &ldquo;Indicadores detalhados&rdquo;, os cards antigos seguem com o rótulo de escopo
-        (<strong>Global</strong> vs <strong>BR</strong>) e janela (<strong>acumulado</strong> vs{" "}
-        <strong>agora</strong>).
+        Os cards abaixo somam os dois produtos e abrem a quebra{" "}
+        <strong>Empresa</strong> (Bares &amp; Restaurantes) <strong>× Casa</strong> (Freela em Casa)
+        logo abaixo do número. Os indicadores de fluxo medem{" "}
+        <strong>{janelaAtual}</strong> e comparam com <strong>{janelaAnterior}</strong>; os de{" "}
+        <strong>foto do momento</strong> e os <strong>acumulados</strong> dizem isso no rodapé e não
+        mudam com o período. Cadastros e usuários seguem marcados como{" "}
+        <strong>Global</strong> — a mesma conta atende os dois produtos, então não são quebrados por
+        módulo.
       </p>
 
       {/* Painel simplificado — os 8 indicadores da matinal (PMO jul/2026). */}

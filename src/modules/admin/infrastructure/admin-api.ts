@@ -61,6 +61,53 @@ export interface AdminMetrics {
   /** Os 8 indicadores do painel simplificado (PMO). Opcional enquanto a API
    * antiga (sem o bloco) ainda puder estar no ar. */
   simplified?: SimplifiedDashboard;
+  /** Janela de tempo que a API realmente aplicou (a barra de período pode ter
+   * caído no default se o pedido veio inválido). Opcional na janela de deploy. */
+  period?: ResolvedPeriod;
+  /** Quebra Empresa × Casa dos KPIs detalhados. Os campos de topo
+   * (openVacancies, completedJobs…) continuam sendo o número de EMPRESA. */
+  byModule?: AdminMetricsByModule;
+}
+
+/** Presets da barra de período do dashboard. */
+export type AdminMetricsPeriodPreset =
+  | "7d"
+  | "30d"
+  | "90d"
+  | "this_month"
+  | "last_month"
+  | "custom";
+
+/** Janela aplicada pela API: `start` inclusivo, `end` exclusivo. */
+export interface ResolvedPeriod {
+  preset: AdminMetricsPeriodPreset;
+  start: string;
+  end: string;
+  previousStart: string;
+  previousEnd: string;
+  /** Rótulo pronto em pt-BR ("últimos 30 dias", "julho/2026", "01/07 a 10/07"). */
+  label: string;
+  previousLabel: string;
+}
+
+/** Par Empresa (Bares & Restaurantes) × Casa (Freela em Casa) de um indicador. */
+export interface ModuleSplit {
+  barsRestaurants: number;
+  homeServices: number;
+  total: number;
+}
+
+/** Quebra por módulo dos KPIs detalhados (mesma janela dos campos de topo). */
+export interface AdminMetricsByModule {
+  openVacancies: ModuleSplit;
+  closedVacancies: ModuleSplit;
+  cancelledVacancies: ModuleSplit;
+  scheduledJobs: ModuleSplit;
+  inProgressJobs: ModuleSplit;
+  completedJobs: ModuleSplit;
+  pendingCandidacies: ModuleSplit;
+  acceptedCandidacies: ModuleSplit;
+  rejectedCandidacies: ModuleSplit;
 }
 
 /**
@@ -87,16 +134,29 @@ export interface MonthOverMonth {
 
 /** Bloco dos 8 indicadores do painel gerencial simplificado (cross-módulo). */
 export interface SimplifiedDashboard {
+  /** Mês-CALENDÁRIO corrente — não muda com a barra de período (quem rotula a
+   * janela escolhida é `AdminMetrics.period.label`). */
   currentMonth: string;
   previousMonth: string;
-  contractors: { total: number; newThisMonth: number };
-  freelancers: { total: number; newThisMonth: number };
+  contractors: { total: number; newThisMonth: number; newInPeriod?: number };
+  freelancers: { total: number; newThisMonth: number; newInPeriod?: number };
   vacanciesCreated: MonthOverMonth;
+  /** Foto do momento: não responde à barra de período. */
   openVacanciesWithoutProvider: number;
   completedJobs: MonthOverMonth & { total: number };
   vacanciesCancelledWithoutProvider: MonthOverMonth;
   noShows: MonthOverMonth & { jobsScheduledCurrent: number; jobsScheduledPrevious: number };
   platformRevenue: MonthOverMonth & { total: number; gmvCurrent: number };
+  /** Quebra Empresa × Casa do valor do período corrente de cada card de vaga.
+   * Cards de pessoas ficam de fora: cadastro é da plataforma, não do módulo. */
+  byModule?: {
+    vacanciesCreated: ModuleSplit;
+    openVacanciesWithoutProvider: ModuleSplit;
+    completedJobs: ModuleSplit;
+    vacanciesCancelledWithoutProvider: ModuleSplit;
+    noShows: ModuleSplit;
+    platformRevenue: ModuleSplit;
+  };
 }
 
 export interface AdminMetricsParams {
@@ -104,13 +164,22 @@ export interface AdminMetricsParams {
   city?: string;
   /** Cargo/função da vaga (BRVacancy.serviceType). */
   role?: string;
+  /** Janela dos indicadores de fluxo. Ausente = `this_month` na API. */
+  period?: AdminMetricsPeriodPreset;
+  /** Só com `period=custom`: YYYY-MM-DD (fuso de Brasília). `to` é INCLUSIVO. */
+  from?: string;
+  to?: string;
 }
 
 export async function getAdminMetrics(params?: AdminMetricsParams): Promise<AdminMetrics> {
+  const custom = params?.period === "custom";
   const res = await adminApi.get("/metrics", {
     params: {
       ...(params?.city ? { city: params.city } : {}),
       ...(params?.role ? { role: params.role } : {}),
+      ...(params?.period ? { period: params.period } : {}),
+      ...(custom && params?.from ? { from: params.from } : {}),
+      ...(custom && params?.to ? { to: params.to } : {}),
     },
   });
   return res.data.data;
