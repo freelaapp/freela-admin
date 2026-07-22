@@ -223,6 +223,37 @@ export default function DashboardPage() {
       ? Math.round((filled30d / decided30d) * 100)
       : null;
 
+  // "Usuários Ativos" agora é USO, não cadastro: quem teve movimentação de
+  // verdade na janela da API (6 meses), aberto em freelancers × contratantes.
+  // O número antigo (m.activeUsers = só status da conta) fica na meta como
+  // comparação — a base tem muita conta herdada e a diferença é o recado.
+  // `activeUsers6m` é opcional enquanto a API sem o campo puder estar no ar.
+  const a6 = m.activeUsers6m;
+  const usuariosAtivosCard = a6
+    ? {
+        title: "Usuários Ativos",
+        value: String(a6.total),
+        icon: Users,
+        breakdown: [
+          { label: "freelancers", value: String(a6.freelancers) },
+          { label: "contratantes", value: String(a6.contractors) },
+        ],
+        meta: `Global · últimos ${a6.windowMonths} meses · ${m.activeUsers.toLocaleString("pt-BR")} contas ativas por cadastro`,
+        help:
+          `Quem realmente mexeu na conta nos últimos ${a6.windowMonths} meses, nos dois módulos (BR + Casa). ` +
+          "Do lado do FREELANCER conta: candidatar-se a uma vaga, fazer check-in ou check-out, trabalhar/concluir um serviço, escrever uma avaliação, abrir o app (token de notificação renovado) e editar o próprio perfil. " +
+          "Do lado do CONTRATANTE conta: publicar vaga, gerar pagamento, escrever avaliação, abrir o app e editar o perfil. " +
+          "Quem é freelancer E contratante aparece nos dois números, por isso o total é a união e fica abaixo da soma. " +
+          "Contas banidas ou em processo de exclusão ficam de fora. O número ao lado, bem maior, é o antigo: contas ativas por cadastro, que inclui a base herdada que nunca voltou a usar a plataforma.",
+      }
+    : {
+        title: "Usuários Ativos",
+        value: String(m.activeUsers),
+        icon: Users,
+        meta: "Global · agora · contas por status (API sem a métrica de uso)",
+        help: "Contas que não estão banidas nem em processo de exclusão. É status de cadastro, não uso recente — esta versão da API ainda não devolve a métrica de movimentação em 6 meses.",
+      };
+
   // Rótulo de escopo/janela em cada card (legenda logo abaixo dos filtros):
   // os KPIs misturam plataforma toda vs só Bares/Restaurantes, e foto do
   // momento vs acumulado histórico — sem o rótulo o painel induz a erro.
@@ -230,7 +261,7 @@ export default function DashboardPage() {
     { title: "Freelancers Cadastrados", value: String(m.totalFreelancers), icon: UserCheck, meta: "Global · acumulado", help: "Toda conta de freelancer já criada na plataforma (BR + Casa) que não foi banida. Não mede atividade — é cadastro acumulado." },
     { title: "Contratantes Cadastrados", value: String(m.totalCompanies), icon: Building2, meta: "Global · ativos", help: "Empresas/pessoas contratantes ativas, contando cada uma só uma vez mesmo se estiver nos dois módulos." },
     { title: "Novos Freelancers (Mês)", value: String(m.newFreelancersThisMonth), icon: RefreshCw, meta: "Global · mês atual", help: "Contas de freelancer criadas do dia 1º deste mês até agora (mês-calendário, não 30 dias corridos)." },
-    { title: "Usuários Ativos", value: String(m.activeUsers), icon: Users, meta: "Global · agora", help: "Contas (freelancers + contratantes) que não estão banidas nem em processo de exclusão. É status da conta, não uso recente — a plataforma ainda não mede login/engajamento." },
+    usuariosAtivosCard,
   ];
 
   // "Desde o início" = go-live real da operação (corte vem da API em launchDate;

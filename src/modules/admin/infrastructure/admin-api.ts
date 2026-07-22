@@ -39,8 +39,13 @@ export interface AdminMetrics {
   acceptedCandidacies: number;
   rejectedCandidacies: number;
   totalUsers: number;
+  /** LEGADO — só status da conta (não banida / não em exclusão). NÃO mede uso:
+   * a base tem muita conta herdada. Para "quem realmente usa", ver `activeUsers6m`. */
   activeUsers: number;
   newUsersThisMonth: number;
+  /** Usuários com MOVIMENTAÇÃO real na janela recente (6 meses), separados em
+   * freelancers e contratantes. Opcional durante a janela de deploy da API. */
+  activeUsers6m?: ActiveUsers6m;
   totalFeedbacks: number;
   averageRating: number | null;
   /** Avaliações contratante→freelancer (recebidas pelos freelancers),
@@ -56,6 +61,22 @@ export interface AdminMetrics {
   /** Os 8 indicadores do painel simplificado (PMO). Opcional enquanto a API
    * antiga (sem o bloco) ainda puder estar no ar. */
   simplified?: SimplifiedDashboard;
+}
+
+/**
+ * Usuários com movimentação REAL nos últimos `windowMonths` meses.
+ *
+ * Quem é freelancer E contratante entra nos dois grupos, então `total` é a
+ * UNIÃO DISTINCT — nunca `freelancers + contractors`.
+ */
+export interface ActiveUsers6m {
+  freelancers: number;
+  contractors: number;
+  total: number;
+  /** Tamanho da janela em meses (hoje 6). */
+  windowMonths: number;
+  /** Início da janela (ISO-8601). */
+  since: string;
 }
 
 /** Par mês-atual / mês-anterior dos cards do painel simplificado. */
