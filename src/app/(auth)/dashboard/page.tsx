@@ -241,8 +241,9 @@ export default function DashboardPage() {
         meta: `Global · últimos ${a6.windowMonths} meses · ${m.activeUsers.toLocaleString("pt-BR")} contas ativas por cadastro`,
         help:
           `Quem realmente mexeu na conta nos últimos ${a6.windowMonths} meses, nos dois módulos (BR + Casa). ` +
-          "Do lado do FREELANCER conta: candidatar-se a uma vaga, fazer check-in ou check-out, trabalhar/concluir um serviço, escrever uma avaliação, abrir o app (token de notificação renovado) e editar o próprio perfil. " +
-          "Do lado do CONTRATANTE conta: publicar vaga, gerar pagamento, escrever avaliação, abrir o app e editar o perfil. " +
+          "Do lado do FREELANCER conta: abrir o app (token de notificação renovado), candidatar-se a uma vaga, fazer check-in ou check-out, trabalhar/concluir um serviço e escrever uma avaliação. " +
+          "Do lado do CONTRATANTE conta: publicar vaga, gerar pagamento, escrever avaliação e abrir o app. " +
+          "Editar o perfil NÃO entra: um backfill de 24/05/2026 carimbou a data de atualização de 149 mil cadastros, então esse campo não distingue quem mexeu na conta de quem foi tocado por script. " +
           "Quem é freelancer E contratante aparece nos dois números, por isso o total é a união e fica abaixo da soma. " +
           "Contas banidas ou em processo de exclusão ficam de fora. O número ao lado, bem maior, é o antigo: contas ativas por cadastro, que inclui a base herdada que nunca voltou a usar a plataforma.",
       }
