@@ -110,6 +110,30 @@ export interface AdminMetricsByModule {
   rejectedCandidacies: ModuleSplit;
 }
 
+/** Uma linha da quebra por cidade de usuários ativos. `total` também é a
+ * união distinta — nunca `freelancers + contractors` — igual ao bloco pai. */
+export interface ActiveUsersByCityRow {
+  city: string;
+  freelancers: number;
+  contractors: number;
+  total: number;
+}
+
+/**
+ * Quebra por cidade dos usuários ativos na janela (top 100, desc por `total`
+ * — a API já ordena). Campo NOVO (branch `feat/ativos-por-cidade`, ainda não
+ * deployado em produção) — sempre tratar como opcional/ausente = vazio.
+ */
+export interface ActiveUsersByCity {
+  rows: ActiveUsersByCityRow[];
+  /** Quantas cidades ficaram fora de `rows` (fora do top 100). */
+  othersCities: number;
+  /** Soma de `total` dessas cidades fora do top 100. */
+  othersTotal: number;
+  /** Ativos sem cidade cadastrada — nunca some silenciosamente. */
+  withoutCity: number;
+}
+
 /**
  * Usuários com movimentação REAL nos últimos `windowMonths` meses.
  *
@@ -124,6 +148,8 @@ export interface ActiveUsers6m {
   windowMonths: number;
   /** Início da janela (ISO-8601). */
   since: string;
+  /** Quebra por cidade. Opcional — API em produção ainda pode não ter o campo. */
+  byCity?: ActiveUsersByCity;
 }
 
 /** Par mês-atual / mês-anterior dos cards do painel simplificado. */

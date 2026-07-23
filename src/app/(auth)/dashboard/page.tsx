@@ -38,6 +38,7 @@ import {
   Line,
 } from "recharts";
 import { PageHeader } from "@/components/shared/page-header";
+import { DataTable } from "@/components/shared/data-table";
 import {
   Dialog,
   DialogContent,
@@ -115,6 +116,12 @@ function monthLabel(ym: string | undefined): string {
   const [year, month] = ym.split("-");
   const name = MONTH_NAMES[Number(month) - 1];
   return name ? `${name}/${year}` : ym;
+}
+
+/** ISO-8601 ("2026-01-23" ou com hora) → "23/01/2026". Vazio se ausente. */
+function isoDateLabel(iso: string | undefined): string {
+  if (!iso) return "";
+  return iso.slice(0, 10).split("-").reverse().join("/");
 }
 
 /** Variação percentual vs. período anterior, já formatada. */
@@ -318,6 +325,49 @@ export default function DashboardPage() {
         meta: "Global · agora · contas por status (API sem a métrica de uso)",
         help: "Contas que não estão banidas nem em processo de exclusão. É status de cadastro, não uso recente — esta versão da API ainda não devolve a métrica de movimentação em 6 meses.",
       };
+
+  // Freelancers/Contratantes Ativos como cards de PRIMEIRO NÍVEL do dashboard
+  // inicial (pedido do dono: hoje o número só aparece dentro do card mesclado
+  // "Usuários Ativos", escondido atrás do "Indicadores detalhados"). Mesma
+  // fonte (`a6`) do card mesclado acima — só some se a API ainda não devolver
+  // `activeUsers6m`.
+  const sinceLabel = isoDateLabel(a6?.since);
+  const cardsAtivos = a6
+    ? [
+        {
+          title: "Freelancers Ativos",
+          value: a6.freelancers.toLocaleString("pt-BR"),
+          icon: UserCheck,
+          meta: `Global · últimos ${a6.windowMonths} meses · desde ${sinceLabel}`,
+          help: "Freelancers com movimentação real na plataforma (BR + Casa) nos últimos meses: abrir o app, candidatar-se, check-in/check-out, concluir serviço ou avaliar. Quem também é contratante conta aqui E no card de Contratantes Ativos — por isso não some com ele.",
+        },
+        {
+          title: "Contratantes Ativos",
+          value: a6.contractors.toLocaleString("pt-BR"),
+          icon: Building2,
+          meta: `Global · últimos ${a6.windowMonths} meses · desde ${sinceLabel}`,
+          help: "Contratantes com movimentação real (BR + Casa) nos últimos meses: publicar vaga, gerar pagamento, avaliar ou abrir o app. Quem também é freelancer conta aqui E no card de Freelancers Ativos — por isso não some com ele.",
+        },
+        {
+          title: "Total de Ativos (União)",
+          value: a6.total.toLocaleString("pt-BR"),
+          icon: Users,
+          meta: `Global · últimos ${a6.windowMonths} meses · quem é os dois papéis conta uma vez`,
+          help: "União distinta de Freelancers Ativos + Contratantes Ativos — NÃO é a soma dos dois cards ao lado, porque a mesma pessoa pode ser freelancer e contratante e contaria duas vezes.",
+        },
+      ]
+    : [];
+
+  // Quebra por cidade dos ativos (campo novo, aninhado em `activeUsers6m`;
+  // ainda não deployado em produção — tratar ausente como vazio, nunca quebrar).
+  const byCity = a6?.byCity;
+  const cityRows = (byCity?.rows ?? []).map((r, i) => ({
+    id: i,
+    cidade: r.city,
+    freelancers: r.freelancers,
+    contratantes: r.contractors,
+    total: r.total,
+  }));
 
   // Rótulo de escopo/janela em cada card (legenda logo abaixo dos filtros):
   // os KPIs misturam plataforma toda vs só Bares/Restaurantes, e foto do
@@ -723,6 +773,75 @@ export default function DashboardPage() {
           Painel simplificado indisponível nesta versão da API — mostrando apenas os indicadores
           detalhados.
         </p>
+      )}
+
+      {/* Freelancers/Contratantes Ativos — cards de primeiro nível (pedido do dono). */}
+      {cardsAtivos.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {cardsAtivos.map((k) => (
+            <KpiCard key={k.title} {...k} />
+          ))}
+        </div>
+      )}
+
+      {/* Ativos por cidade — quebra do card acima. */}
+      {a6 && (
+        <div className="bg-white rounded-xl border border-[#e5e5e5] p-5 mb-6">
+          <h3 className="font-semibold text-[#1d1d1b] mb-1">Ativos por Cidade</h3>
+          <p className="text-xs text-[#737373] mb-4">
+            Freelancers e contratantes com movimentação real nos últimos {a6.windowMonths} meses
+            (desde {sinceLabel || "—"}), agrupados pela cidade do cadastro. A coluna{" "}
+            <strong>Total</strong> é a união distinta de cada linha — nunca a soma de Freelancers +
+            Contratantes.
+          </p>
+          {byCity ? (
+            <DataTable
+              columns={[
+                { header: "Cidade", accessor: "cidade" as const, sortable: true, sortAccessor: (r) => r.cidade },
+                {
+                  header: "Freelancers",
+                  accessor: (r) => r.freelancers.toLocaleString("pt-BR"),
+                  sortable: true,
+                  sortAccessor: (r) => r.freelancers,
+                },
+                {
+                  header: "Contratantes",
+                  accessor: (r) => r.contratantes.toLocaleString("pt-BR"),
+                  sortable: true,
+                  sortAccessor: (r) => r.contratantes,
+                },
+                {
+                  header: "Total",
+                  accessor: (r) => r.total.toLocaleString("pt-BR"),
+                  sortable: true,
+                  sortAccessor: (r) => r.total,
+                },
+              ]}
+              data={cityRows}
+              searchPlaceholder="Buscar cidade..."
+              searchKey="cidade"
+              footer={
+                <div className="flex flex-col gap-1 text-sm text-[#737373]">
+                  <span>
+                    {cityRows.length === 0
+                      ? "Nenhuma cidade com ativos nesta janela."
+                      : `Mostrando ${cityRows.length.toLocaleString("pt-BR")} cidade${cityRows.length === 1 ? "" : "s"} (top, desc por total)`}
+                    {byCity.othersCities > 0 &&
+                      ` · + ${byCity.othersCities.toLocaleString("pt-BR")} outra${byCity.othersCities === 1 ? "" : "s"} cidade${byCity.othersCities === 1 ? "" : "s"} (${byCity.othersTotal.toLocaleString("pt-BR")} ativos)`}
+                  </span>
+                  {byCity.withoutCity > 0 && (
+                    <span>Sem cidade cadastrada: {byCity.withoutCity.toLocaleString("pt-BR")} ativos</span>
+                  )}
+                </div>
+              }
+            />
+          ) : (
+            <p className="text-sm text-[#737373]">
+              Quebra por cidade indisponível nesta versão da API — aguardando o deploy do backend
+              (branch <code>feat/ativos-por-cidade</code>).
+            </p>
+          )}
+        </div>
       )}
 
       {/* Painel detalhado antigo — preservado, fechado por padrão. */}
