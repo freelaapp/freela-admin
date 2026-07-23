@@ -227,7 +227,7 @@ export default function GruposWhatsappPage() {
       ) : isError ? (
         <div className="flex items-center justify-center h-[40vh]">
           <p className="text-red-500">
-            Erro ao carregar grupos. Verifique a conexão da instância do WhatsApp (Z-API).
+            Erro ao carregar grupos. Verifique a conexão da instância do WhatsApp (Wafly).
           </p>
         </div>
       ) : (
