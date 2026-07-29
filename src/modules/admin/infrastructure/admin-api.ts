@@ -71,6 +71,8 @@ export interface AdminMetrics {
 
 /** Presets da barra de período do dashboard. */
 export type AdminMetricsPeriodPreset =
+  | "today"
+  | "yesterday"
   | "7d"
   | "30d"
   | "90d"

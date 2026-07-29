@@ -71,6 +71,8 @@ function formatCurrency(cents: number) {
 // — cada card diz no rodapé a que janela pertence.
 
 const PERIOD_PRESETS: { id: AdminMetricsPeriodPreset; label: string }[] = [
+  { id: "today", label: "Hoje" },
+  { id: "yesterday", label: "Ontem" },
   { id: "7d", label: "7 dias" },
   { id: "30d", label: "30 dias" },
   { id: "90d", label: "90 dias" },
@@ -547,6 +549,20 @@ export default function DashboardPage() {
           icon: UserCheck,
           meta: `Global · acumulado · +${s.freelancers.newInPeriod ?? s.freelancers.newThisMonth} novos em ${janelaAtual}`,
           help: "Contas de freelancer ativas na plataforma inteira. Global por natureza — o mesmo freelancer atende Empresa e Casa. Ler sempre junto com \"Vagas em Aberto sem Freelancer\": cadastro alto com vaga parada = base dormente, não oferta real.",
+        },
+        {
+          title: "Freelancers Cadastrados",
+          value: String(s.freelancers.newInPeriod ?? s.freelancers.newThisMonth),
+          icon: UserCheck,
+          meta: `Global · ${janelaAtual} · total na base: ${s.freelancers.total}`,
+          help: `Contas de freelancer criadas DENTRO da janela escolhida na barra de período (agora: ${janelaAtual}). Diferente de "Total de Freelancers", que é o acumulado histórico e não muda com o filtro. Use este para ler o ritmo de aquisição do dia/semana; use o total para ler o tamanho da base.`,
+        },
+        {
+          title: "Contratantes Cadastrados",
+          value: String(s.contractors.newInPeriod ?? s.contractors.newThisMonth),
+          icon: Building2,
+          meta: `Global · ${janelaAtual} · total na base: ${s.contractors.total}`,
+          help: `Contas de contratante criadas DENTRO da janela escolhida na barra de período (agora: ${janelaAtual}), contando cada conta uma única vez mesmo se ela existir nos dois módulos. Diferente de "Total de Contratantes", que é o acumulado e ignora o filtro.`,
         },
         {
           title: "Vagas Geradas",
