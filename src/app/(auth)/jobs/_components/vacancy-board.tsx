@@ -131,13 +131,26 @@ function precisaDeAtencao(item: BoardVacancy, agora: number): boolean {
   return ref - agora < 2 * 60 * 60 * 1000;
 }
 
-function CardVaga({ item, agora }: { item: BoardVacancy; agora: number }) {
+function CardVaga({
+  item,
+  agora,
+  onSelect,
+}: {
+  item: BoardVacancy;
+  agora: number;
+  onSelect: (vacancyId: string) => void;
+}) {
   const ref = referenciaDeTempo(item.raw);
   const atencao = precisaDeAtencao(item, agora);
 
   return (
-    <div
-      className={`rounded-lg border bg-white px-3 py-2.5 ${
+    <button
+      type="button"
+      onClick={() => onSelect(item.id)}
+      // O quadro nasceu para TV, mas a mesma tela é usada no computador — o
+      // card abre o MESMO modal de detalhes da tabela. `text-left` porque
+      // button centraliza por padrão e desalinharia tudo.
+      className={`w-full cursor-pointer rounded-lg border bg-white px-3 py-2.5 text-left transition-colors hover:border-[#eca826] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#eca826]/50 ${
         atencao ? "border-[#f97316] ring-1 ring-[#f97316]/30" : "border-[#e5e5e5]"
       }`}
     >
@@ -178,16 +191,20 @@ function CardVaga({ item, agora }: { item: BoardVacancy; agora: number }) {
           </span>
         ) : null}
       </div>
-    </div>
+    </button>
   );
 }
 
 export function VacancyBoard({
   vacancies,
   isFetching,
+  onSelect,
 }: {
   vacancies: BoardVacancy[];
   isFetching: boolean;
+  /** Abre os detalhes da vaga. O quadro só emite o id — quem resolve a linha
+   *  e abre o modal é a página, a mesma da tabela. */
+  onSelect: (vacancyId: string) => void;
 }) {
   // Um relógio só para o painel inteiro: recalcular "há 2h" por card a cada
   // render custaria caro com centenas de vagas. Um minuto basta — a granularidade
@@ -265,7 +282,7 @@ export function VacancyBoard({
 
               <div className="flex flex-col gap-2">
                 {visiveis.map((item) => (
-                  <CardVaga key={item.id} item={item} agora={agora} />
+                  <CardVaga key={item.id} item={item} agora={agora} onSelect={onSelect} />
                 ))}
 
                 {itens.length === 0 ? (
