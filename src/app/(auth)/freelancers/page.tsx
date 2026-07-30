@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2, ArrowUpCircle, Download, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
+import { CompletenessCard } from "./_components/completeness-card";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -765,6 +766,9 @@ export default function FreelancersPage() {
           </Button>
         }
       />
+
+      <CompletenessCard />
+
       <DataTable
         columns={columns}
         data={rows}

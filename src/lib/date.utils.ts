@@ -83,3 +83,28 @@ export function formatInstantDate(value: string | Date): string {
     return "—";
   }
 }
+
+/**
+ * Como `formatInstantDate`, mas com hora (dd/mm/aaaa HH:MM) em Brasília.
+ *
+ * Existe para "aberta em": saber que a vaga foi publicada hoje é diferente de
+ * saber que foi publicada há dez minutos — a hora é o que diz se ainda dá tempo
+ * de a vaga receber candidato antes do serviço.
+ */
+export function formatInstantDateTime(value: string | Date): string {
+  if (!value) return "—";
+  try {
+    const date = typeof value === "string" ? new Date(value) : value;
+    if (isNaN(date.getTime())) return "—";
+    return date.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: SP_TZ,
+    });
+  } catch {
+    return "—";
+  }
+}

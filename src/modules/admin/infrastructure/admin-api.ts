@@ -402,6 +402,33 @@ export async function getProvidersFilterOptions(): Promise<ProvidersFilterOption
   return res.data.data;
 }
 
+/**
+ * Percentual de cadastros de freelancer completos.
+ *
+ * "Completo" = tem função, telefone, CEP, currículo e chave PIX — os cinco
+ * campos que bloqueiam alguma coisa de verdade (ver o handler na API). Vídeo e
+ * avatar ficam de fora porque são opcionais.
+ */
+export interface ProvidersCompleteness {
+  total: number;
+  complete: number;
+  /** 0–100, uma casa decimal. */
+  percent: number;
+  /** Quantos cadastros têm CADA campo — não é exclusivo. */
+  filled: {
+    services: number;
+    phone: number;
+    cep: number;
+    curriculum: number;
+    pixKey: number;
+  };
+}
+
+export async function getProvidersCompleteness(): Promise<ProvidersCompleteness> {
+  const res = await adminApi.get("/providers/completeness");
+  return res.data.data;
+}
+
 // ─── Vacancies (Jobs/Vagas) ─────────────────────────────────────────────────
 
 export interface VacancyItem {
