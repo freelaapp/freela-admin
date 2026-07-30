@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   getAdminProviders,
   getProvidersFilterOptions,
+  getProvidersCompleteness,
   adminHardDeleteUser,
   adminSetFreelancerBanned,
   clearProviderLowPriority,
@@ -23,6 +24,15 @@ export function useAdminProviders(params: GetAdminProvidersParams) {
     queryFn: () => getAdminProviders(params),
     staleTime: 30000,
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useProvidersCompleteness() {
+  return useQuery({
+    queryKey: ["admin", "providers", "completeness"],
+    queryFn: getProvidersCompleteness,
+    // Varre 184k linhas: 5 min de cache evita repetir a cada troca de página.
+    staleTime: 5 * 60 * 1000,
   });
 }
 

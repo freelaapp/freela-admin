@@ -27,7 +27,7 @@ import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } f
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
 import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
 import type { VacancyItem, VacancyFeedbackEntry, RefundType } from "@/modules/admin/infrastructure/admin-api";
-import { formatVacancyDate, formatVacancyTime, formatInstantDate } from "@/lib/date.utils";
+import { formatVacancyDate, formatVacancyTime, formatInstantDate, formatInstantDateTime } from "@/lib/date.utils";
 
 const formatDate = formatVacancyDate;
 const formatTime = formatVacancyTime;
@@ -119,6 +119,8 @@ function mapVacancyToRow(v: VacancyItem) {
     preenchidas: v.status === "CLOSED" ? 1 : 0,
     valor: `R$ ${(v.payment / 100).toFixed(2).replace(".", ",")}`,
     data: formatDate(v.date),
+    // Quando a vaga foi PUBLICADA (≠ `data`, que é o dia do serviço).
+    abertaEm: v.createdAt ? formatInstantDateTime(v.createdAt) : "—",
     horario: `${start} - ${end}`,
     status: mapVacancyStatus(v.status),
     bucket: resolveVacancyBucket(v),
@@ -560,7 +562,16 @@ export default function JobsPage() {
       sortAccessor: (r: Row) => r.raw.payment,
     },
     {
-      header: "Data",
+      header: "Aberta em",
+      accessor: "abertaEm" as const,
+      className: "hidden lg:table-cell",
+      sortable: true,
+      // Vaga sem createdAt vai para o fim na ordenação decrescente em vez de
+      // virar Invalid Date (que compara como NaN e embaralha a coluna toda).
+      sortAccessor: (r: Row) => (r.raw.createdAt ? new Date(r.raw.createdAt).getTime() : 0),
+    },
+    {
+      header: "Data do serviço",
       accessor: "data" as const,
       sortable: true,
       sortAccessor: (r: Row) => new Date(r.raw.date),
