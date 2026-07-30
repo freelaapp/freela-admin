@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Clock, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, ShieldCheck } from "lucide-react";
+import { Plus, Eye, LayoutGrid, Clock, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
+import { VacancyBoard } from "./_components/vacancy-board";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -362,8 +363,14 @@ export default function JobsPage() {
   const { isSuperAdmin } = useAuth();
   const { isChecking, allowed } = useAreaGuard("JOBS");
   const [selectedConsultantId, setSelectedConsultantId] = useState<string>("");
-  const { data: vacancies, isLoading, isError } = useAdminVacancies(
+  // Modo Painel: as vagas em colunas por etapa, para acompanhar na TV. Fica na
+  // mesma tela porque é a MESMA lista, só desenhada de outro jeito — separar em
+  // outra rota duplicaria a classificação por etapa.
+  const [modoPainel, setModoPainel] = useState(false);
+  const { data: vacancies, isLoading, isError, isFetching } = useAdminVacancies(
     selectedConsultantId || undefined,
+    // Só o painel repolla: ele fica aberto na TV sem ninguém para atualizar.
+    modoPainel ? 60_000 : undefined,
   );
   const { data: contractors } = useAdminContractors();
   // Dropdown de consultor é exclusivo do super-admin (mesma regra da tela de consultores).
@@ -612,6 +619,15 @@ export default function JobsPage() {
           <div className="flex gap-2">
             <Button
               variant="outline"
+              onClick={() => setModoPainel((v) => !v)}
+              className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium"
+              title="Vagas em colunas por etapa, para acompanhar na TV"
+            >
+              <LayoutGrid className="w-4 h-4 mr-2" />
+              {modoPainel ? "Ver tabela" : "Modo painel"}
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => setModalBuscarId(true)}
               className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium"
             >
@@ -628,6 +644,22 @@ export default function JobsPage() {
 
       <div className="mb-6" />
 
+      {modoPainel ? (
+        <VacancyBoard
+          // `allRows` e não `rows`: o painel mostra o fluxo inteiro, ignorando o
+          // filtro de status da tabela — as colunas JÁ são o recorte por etapa.
+          vacancies={allRows.map((r) => ({
+            id: r.id,
+            bucket: r.bucket,
+            empresa: r.empresa,
+            cargo: r.cargo,
+            cidade: r.cidade,
+            candidatos: r.candidatos,
+            raw: r.raw,
+          }))}
+          isFetching={isFetching}
+        />
+      ) : (
       <DataTable
           columns={columns}
           data={rows}
@@ -709,6 +741,7 @@ export default function JobsPage() {
             </div>
           }
         />
+      )}
 
       {/* Modal Detalhes da Vaga */}
       <Dialog open={!!modalDetalhes} onOpenChange={(open) => !open && setModalDetalhes(null)}>
