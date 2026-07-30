@@ -28,6 +28,8 @@ import {
   MessageCircle,
   Settings,
   Bell,
+  Volume2,
+  VolumeX,
   Search,
   Menu,
   X,
@@ -37,6 +39,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNewVacancyChime } from "@/modules/admin/application/use-new-vacancy-chime";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import {
   buildProducts,
@@ -120,6 +123,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productMenuOpen, setProductMenuOpen] = useState(false);
   const { user, logout, isSuperAdmin, hasPermission } = useAuth();
+  // Alerta de vaga nova: vive no layout para valer em qualquer tela do painel,
+  // não só na de Vagas. Ver use-new-vacancy-chime.
+  const chime = useNewVacancyChime();
 
   // A vertical vem da URL (não de estado guardado): link compartilhado e refresh
   // caem sempre na mesma tela.
@@ -292,6 +298,31 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
+            {/* Alerta sonoro de vaga nova. Fica no layout (não numa página) para
+                valer com o painel aberto em qualquer tela — inclusive na TV. */}
+            <button
+              onClick={chime.alternar}
+              className={`relative p-2 rounded-lg hover:bg-[#f7f7f7] transition-colors ${
+                chime.ativo ? "text-[#eca826]" : "text-[#a3a3a3]"
+              }`}
+              title={
+                chime.bloqueado
+                  ? "Som bloqueado pelo navegador — clique para liberar"
+                  : chime.ativo
+                    ? "Som de vaga nova ligado — clique para desligar"
+                    : "Som de vaga nova desligado — clique para ligar"
+              }
+              aria-pressed={chime.ativo}
+              aria-label="Alerta sonoro de vaga nova"
+            >
+              {chime.ativo ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+              {chime.bloqueado && chime.ativo ? (
+                <span
+                  className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#ef4444] rounded-full"
+                  aria-hidden
+                />
+              ) : null}
+            </button>
             <button className="relative p-2 rounded-lg hover:bg-[#f7f7f7] text-[#737373] transition-colors">
               <Bell className="w-5 h-5" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#eca826] rounded-full" />
