@@ -658,6 +658,11 @@ export default function JobsPage() {
             raw: r.raw,
           }))}
           isFetching={isFetching}
+          // Mesmo modal da tabela: o quadro devolve só o id e a página resolve
+          // a linha, para não haver duas telas de detalhe da vaga.
+          onSelect={(vacancyId) =>
+            setModalDetalhes(allRows.find((r) => r.id === vacancyId) ?? null)
+          }
         />
       ) : (
       <DataTable
