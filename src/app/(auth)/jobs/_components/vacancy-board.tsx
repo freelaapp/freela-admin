@@ -101,6 +101,20 @@ function referenciaDeTempo(v: VacancyItem): number | null {
 }
 
 /**
+ * Quando a vaga foi PUBLICADA — é por aqui que as colunas ordenam.
+ *
+ * Não confundir com `referenciaDeTempo`, que é o dia do SERVIÇO e alimenta o
+ * "há 2h" do card. Vaga aberta hoje para daqui a duas semanas é notícia nova
+ * mesmo com serviço distante; é ela que precisa aparecer no topo.
+ */
+function aberturaEm(v: VacancyItem): number {
+  const iso = v.createdAt || v.date || v.startTime;
+  if (!iso) return 0;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/**
  * "em 3h", "há 2 d". Sem segundos: numa TV o número muda o tempo todo e vira
  * ruído em vez de informação.
  */
@@ -222,9 +236,12 @@ export function VacancyBoard({
       lista.push(v);
       mapa.set(v.bucket, lista);
     }
-    // Mais urgente primeiro: quem começa antes aparece no topo da coluna.
+    // Mais RECENTE primeiro, pela data de abertura: a vaga que acabou de entrar
+    // é a que ninguém viu ainda, e o topo da coluna é o único lugar que se lê de
+    // longe. (Ordenava pelo dia do serviço, o que empurrava vaga velha parada
+    // para cima justamente na coluna que mais acumula resíduo.)
     for (const lista of mapa.values()) {
-      lista.sort((a, b) => (referenciaDeTempo(a.raw) ?? 0) - (referenciaDeTempo(b.raw) ?? 0));
+      lista.sort((a, b) => aberturaEm(b.raw) - aberturaEm(a.raw));
     }
     return mapa;
   }, [vacancies]);
