@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
+import type { VacancyBucket } from "./vacancy-bucket";
 
 /**
  * Modo Painel: as vagas em colunas por etapa do funil.
@@ -11,24 +12,14 @@ import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
  * a cor sinaliza a temperatura: vermelho no que está parado sem candidato,
  * verde no que fechou. Quem olha de passagem entende a direção sem legenda.
  *
- * Perdidas e canceladas ficam numa faixa no rodapé, não em colunas: elas não
- * pedem ação e comeriam a largura das que pedem.
- *
  * O componente é BURRO de propósito quanto à CLASSIFICAÇÃO: recebe as vagas já
- * com o `bucket` resolvido e só desenha (`resolveVacancyBucket` vive na página,
- * uma fonte só para a tabela e para o painel). O recorte de RECÊNCIA, esse sim,
- * mora aqui — é regra de exibição do painel, não de classificação, e a tabela
- * continua mostrando o histórico inteiro.
+ * com o `bucket` resolvido e só desenha (`resolveVacancyBucket` vive em
+ * `vacancy-bucket.ts`, uma fonte só para a tabela e para o painel). O recorte
+ * de ATIVIDADE, esse sim, mora aqui — é regra de exibição do painel, não de
+ * classificação, e a tabela continua mostrando o histórico inteiro.
  */
 
-export type BoardBucket =
-  | "open"
-  | "awaitingHire"
-  | "inProgress"
-  | "completedAwaitingReview"
-  | "completedReviewed"
-  | "lost"
-  | "cancelled";
+export type BoardBucket = VacancyBucket;
 
 export interface BoardVacancy {
   id: string;
@@ -48,7 +39,13 @@ export interface BoardVacancy {
   raw: VacancyItem;
 }
 
-/** Colunas na ordem do fluxo. `lost`/`cancelled` ficam fora — vão no rodapé. */
+/**
+ * Colunas na ordem do fluxo.
+ *
+ * `lost` e `cancelled` ficam fora: não pedem ação e comeriam a largura das que
+ * pedem. `lost` na prática nunca chega até aqui — expirou sem contratação é,
+ * por definição, serviço no passado, e o recorte de atividade já o removeu.
+ */
 const COLUNAS: Array<{
   bucket: BoardBucket;
   titulo: string;
@@ -59,17 +56,31 @@ const COLUNAS: Array<{
 }> = [
   {
     bucket: "open",
-    titulo: "Aberta · sem freelancer",
-    chamada: "publicada, ainda sem candidato aceito",
+    titulo: "Aberta · sem candidato",
+    chamada: "publicada, ninguém se candidatou ainda",
     cor: "#DC2626",
     corFundo: "#FEF2F2",
   },
   {
-    bucket: "awaitingHire",
+    bucket: "awaitingSelection",
+    titulo: "Aguardando seleção",
+    chamada: "tem candidato — o contratante precisa escolher",
+    cor: "#D97706",
+    corFundo: "#FFFBEB",
+  },
+  {
+    bucket: "awaitingPayment",
     titulo: "Aguardando pagamento",
-    chamada: "contratante escolheu, falta pagar",
+    chamada: "freelancer escolhido, falta pagar",
     cor: "#7C3AED",
     corFundo: "#F5F3FF",
+  },
+  {
+    bucket: "confirmed",
+    titulo: "Freela confirmado",
+    chamada: "pago e agendado para o turno",
+    cor: "#2563EB",
+    corFundo: "#EFF6FF",
   },
   {
     bucket: "inProgress",
@@ -82,8 +93,8 @@ const COLUNAS: Array<{
     bucket: "completedAwaitingReview",
     titulo: "Aguardando avaliação",
     chamada: "trava o repasse ao freelancer",
-    cor: "#D97706",
-    corFundo: "#FFFBEB",
+    cor: "#65A30D",
+    corFundo: "#F7FEE7",
   },
   {
     bucket: "completedReviewed",
@@ -97,20 +108,41 @@ const COLUNAS: Array<{
 /** Quantos cards por coluna antes de virar um "+N". */
 const MAX_CARDS = 8;
 
+const SP_TZ = "America/Sao_Paulo";
+
+const PARTES_DIA_BR = new Intl.DateTimeFormat("en-US", {
+  timeZone: SP_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 /**
- * Janela de recência do painel, em dias corridos a partir da data do SERVIÇO.
+ * Dia-calendário de um instante em Brasília, como "YYYY-MM-DD".
  *
- * Em 03/08/2026 o painel mostrava ~350 vagas, das quais **251 tinham mais de 30
- * dias** — havia vaga em "aguardando pagamento" há 67 dias. Não era um caso
- * isolado: eram 140 vagas `CLOSED` de datas já passadas empilhadas nessa coluna.
- * Um quadro de acompanhamento cheio de vaga morta não é acompanhamento, é
- * arquivo — e o que precisa de gente hoje some no meio.
- *
- * 14 dias porque a distribuição real deixa isso legível (~29 vagas) sem perder
- * o passado recente, que ainda rende conversa. Ajuste aqui se o volume mudar; a
- * tabela nunca foi filtrada e segue com o histórico completo.
+ * Montado por `formatToParts` e não por `toLocaleDateString`: a ordem dos
+ * campos muda com o locale da máquina, e aqui o formato precisa ser sempre o
+ * ISO para a comparação de dias funcionar.
  */
-export const JANELA_DIAS = 14;
+function diaEmBrasilia(d: Date): string {
+  const partes = PARTES_DIA_BR.formatToParts(d);
+  const campo = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? "";
+  return `${campo("year")}-${campo("month")}-${campo("day")}`;
+}
+
+/** Dia do SERVIÇO como "YYYY-MM-DD", ou null se não der para ler. */
+function diaDoServico(v: VacancyItem): string | null {
+  // `date` chega como "YYYY-MM-DD" (gravado meia-noite UTC): o dia já está no
+  // prefixo, e lê-lo direto evita o desvio para o dia anterior em UTC-3.
+  const puro = v.date?.slice(0, 10);
+  if (puro && /^\d{4}-\d{2}-\d{2}$/.test(puro)) return puro;
+
+  // Sem `date` legível: cai no instante do turno, convertido para o dia em SP.
+  const iso = v.startTime || v.endTime;
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : diaEmBrasilia(new Date(ms));
+}
 
 function referenciaDeTempo(v: VacancyItem): number | null {
   const iso = v.startTime || v.date || v.createdAt;
@@ -122,9 +154,9 @@ function referenciaDeTempo(v: VacancyItem): number | null {
 /**
  * Quando a vaga foi PUBLICADA — é por aqui que as colunas ordenam.
  *
- * Não confundir com `referenciaDeTempo`, que é o dia do SERVIÇO e alimenta o
- * "há 2h" do card. Vaga aberta hoje para daqui a duas semanas é notícia nova
- * mesmo com serviço distante; é ela que precisa aparecer no topo.
+ * Não confundir com `diaDoServico`, que é o dia do turno e decide o recorte.
+ * Vaga aberta hoje para daqui a duas semanas é notícia nova mesmo com serviço
+ * distante; é ela que precisa aparecer no topo.
  */
 function aberturaEm(v: VacancyItem): number {
   const iso = v.createdAt || v.date || v.startTime;
@@ -136,30 +168,45 @@ function aberturaEm(v: VacancyItem): number {
 /**
  * Mantém no painel só o que ainda diz respeito a hoje.
  *
- * Vaga sem data legível PASSA. Sumir com um registro por não conseguir ler a
- * data dele seria esconder justamente o caso estranho — que é o que mais
- * interessa a quem vigia o quadro.
+ * Em 03/08/2026 o painel mostrava ~350 vagas, das quais 251 tinham mais de 30
+ * dias — havia vaga em "aguardando pagamento" há 67 dias, e eram 140 vagas
+ * `CLOSED` de datas já passadas empilhadas nessa coluna. Um quadro de
+ * acompanhamento cheio de vaga morta não é acompanhamento, é arquivo — e o que
+ * precisa de gente hoje some no meio.
+ *
+ * A régua é o DIA do serviço, não o horário de término: a vaga de hoje fica no
+ * painel o dia inteiro (inclusive depois do turno acabar, que é quando alguém
+ * ainda vai conferir se deu certo) e sai sozinha na virada.
+ *
+ * Duas exceções, ambas para não esconder justamente o caso que precisa de
+ * gente: vaga EM ANDAMENTO nunca sai — freelancer com check-in aberto e sem
+ * check-out passou do dia é anomalia, não histórico; e vaga sem data legível
+ * também fica, porque sumir com um registro por não conseguir ler a data dele
+ * seria esconder o mais estranho de todos.
+ *
+ * Comparação por string: datas em ISO ordenam lexicograficamente, então
+ * `"2026-08-03" >= "2026-08-03"` resolve o dia sem nenhuma conta de fuso.
  */
-export function filtrarRecentes(
+export function filtrarAtivas(
   vagas: BoardVacancy[],
   agora: number = Date.now(),
-  janelaDias: number = JANELA_DIAS,
 ): BoardVacancy[] {
-  const corte = agora - janelaDias * 24 * 60 * 60 * 1000;
+  const hoje = diaEmBrasilia(new Date(agora));
   return vagas.filter((v) => {
-    const ref = referenciaDeTempo(v.raw);
-    if (ref === null) return true;
-    return ref >= corte;
+    if (v.bucket === "inProgress") return true;
+    const dia = diaDoServico(v.raw);
+    if (dia === null) return true;
+    return dia >= hoje;
   });
 }
 
 /**
  * Vaga que precisa de gente AGORA: o serviço já começou (ou começa em menos de
- * duas horas) e o pagamento ainda não saiu. É o caso em que o vigia cancela a
+ * duas horas) e o pagamento ainda não saiu. É o caso em que o sistema cancela a
  * vaga sozinho ao bater o horário de início — melhor alguém ver antes.
  */
 function precisaDeAtencao(item: BoardVacancy, agora: number): boolean {
-  if (item.bucket !== "awaitingHire") return false;
+  if (item.bucket !== "awaitingPayment") return false;
   const ref = referenciaDeTempo(item.raw);
   if (ref === null) return false;
   return ref - agora < 2 * 60 * 60 * 1000;
@@ -257,16 +304,17 @@ export function VacancyBoard({
     return () => clearInterval(t);
   }, []);
 
+  const ativas = useMemo(() => filtrarAtivas(vacancies, agora), [vacancies, agora]);
+
   const visiveis = useMemo(() => {
-    const recentes = filtrarRecentes(vacancies, agora);
     const q = busca.trim().toLowerCase();
-    if (!q) return recentes;
-    return recentes.filter((v) =>
+    if (!q) return ativas;
+    return ativas.filter((v) =>
       [v.cargo, v.empresa, v.cidade, v.id, v.freelancer ?? ""].some((campo) =>
         campo.toLowerCase().includes(q),
       ),
     );
-  }, [vacancies, busca, agora]);
+  }, [ativas, busca]);
 
   const porBucket = useMemo(() => {
     const mapa = new Map<BoardBucket, BoardVacancy[]>();
@@ -283,14 +331,14 @@ export function VacancyBoard({
     return mapa;
   }, [visiveis]);
 
-  const perdidas = porBucket.get("lost")?.length ?? 0;
   const canceladas = porBucket.get("cancelled")?.length ?? 0;
-  const emAcompanhamento = visiveis.length - perdidas - canceladas;
-  const ocultadas = vacancies.length - filtrarRecentes(vacancies, agora).length;
+  const emAcompanhamento = visiveis.length - canceladas;
+  const ocultadas = vacancies.length - ativas.length;
 
   const horaAtualizacao = new Date(agora).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: SP_TZ,
   });
 
   return (
@@ -307,6 +355,7 @@ export function VacancyBoard({
                 weekday: "long",
                 day: "numeric",
                 month: "long",
+                timeZone: SP_TZ,
               })}
             </span>
           </p>
@@ -343,7 +392,7 @@ export function VacancyBoard({
           return (
             <section
               key={coluna.bucket}
-              className="flex min-w-[230px] flex-1 flex-col rounded-xl bg-[#F1F5F9]"
+              className="flex min-w-[220px] flex-1 flex-col rounded-xl bg-[#F1F5F9]"
               aria-label={`${coluna.titulo}: ${itens.length}`}
             >
               <div
@@ -395,16 +444,12 @@ export function VacancyBoard({
         })}
       </div>
 
-      {/* Perdidas e canceladas não pedem ação; contagem no rodapé basta. */}
-      {perdidas + canceladas > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 rounded-xl bg-[#F1F5F9] px-4 py-2.5 text-[12px] text-[#64748B]">
-          <span>
-            <strong className="font-bold text-[#334155]">{perdidas}</strong> expiraram sem
-            contratação
-          </span>
-          <span>
-            <strong className="font-bold text-[#334155]">{canceladas}</strong> canceladas
-          </span>
+      {/* Cancelada não pede ação, mas cancelamento de vaga de hoje/amanhã ainda
+          rende conversa — contagem no rodapé basta. */}
+      {canceladas > 0 ? (
+        <div className="mt-3 rounded-xl bg-[#F1F5F9] px-4 py-2.5 text-[12px] text-[#64748B]">
+          <strong className="font-bold text-[#334155]">{canceladas}</strong> cancelada(s) no
+          período
         </div>
       ) : null}
 
@@ -413,8 +458,8 @@ export function VacancyBoard({
           que ela sumiu do sistema. */}
       {ocultadas > 0 ? (
         <p className="mt-2 text-[11.5px] text-[#94A3B8]">
-          {ocultadas} vaga(s) com mais de {JANELA_DIAS} dias fora do painel — use a tabela para
-          ver o histórico completo.
+          {ocultadas} vaga(s) já encerrada(s) fora do painel — use a tabela para ver o
+          histórico completo.
         </p>
       ) : null}
     </div>

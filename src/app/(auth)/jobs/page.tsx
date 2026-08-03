@@ -5,6 +5,7 @@ import { Plus, Eye, LayoutGrid, Clock, Star, Check, Loader2, Phone, Mail, XCircl
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
+import { resolveVacancyBucket, type VacancyBucket } from "./_components/vacancy-bucket";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -55,56 +56,6 @@ function mapVacancyStatus(status: string) {
     case "CANCELLED_BY_CONTRACTOR": return "cancelled" as const;
     default: return "open" as const;
   }
-}
-
-type VacancyBucket =
-  | "open"
-  | "awaitingHire"
-  | "inProgress"
-  | "completedReviewed"
-  | "completedAwaitingReview"
-  | "cancelled"
-  | "lost";
-
-function resolveVacancyBucket(v: VacancyItem, now: Date = new Date()): VacancyBucket {
-  const status = v.status?.toUpperCase();
-  const jobStatus = v.job?.status?.toUpperCase();
-
-  if (status === "CANCELLED" || status === "CANCELLED_BY_CONTRACTOR") {
-    return "cancelled";
-  }
-
-  if (jobStatus === "COMPLETED") {
-    const reviewedBoth =
-      Boolean(v.job?.hasContractorFeedback) && Boolean(v.job?.hasProviderFeedback);
-    return reviewedBoth ? "completedReviewed" : "completedAwaitingReview";
-  }
-
-  if (jobStatus === "IN_PROGRESS") {
-    return "inProgress";
-  }
-
-  // Job cancelado (vaga fechou mas o serviço foi cancelado) não é "aguardando".
-  if (jobStatus === "CANCELLED") {
-    return "cancelled";
-  }
-
-  // CLOSED sem job ainda (aguardando pagamento) OU job SCHEDULED (pago, ainda não começou).
-  if (status === "CLOSED") {
-    return "awaitingHire";
-  }
-
-  // OPEN: só conta como ativa se ainda dentro do prazo; caso contrário a vaga
-  // expirou sem candidato aceito (perdida).
-  const ref = v.endTime || v.startTime;
-  if (ref) {
-    const ms = Date.parse(ref);
-    if (!Number.isNaN(ms) && ms < now.getTime()) {
-      return "lost";
-    }
-  }
-
-  return "open";
 }
 
 function mapVacancyToRow(v: VacancyItem) {
@@ -375,16 +326,7 @@ export default function JobsPage() {
   const { data: contractors } = useAdminContractors();
   // Dropdown de consultor é exclusivo do super-admin (mesma regra da tela de consultores).
   const { data: consultants } = useAdminConsultants();
-  const [statusFilter, setStatusFilter] = useState<
-    | "all"
-    | "open"
-    | "awaitingHire"
-    | "inProgress"
-    | "completedReviewed"
-    | "completedAwaitingReview"
-    | "lost"
-    | "cancelled"
-  >("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | VacancyBucket>("all");
 
   const [modalDetalhes, setModalDetalhes] = useState<Row | null>(null);
   const [modalBuscarId, setModalBuscarId] = useState(false);
@@ -417,6 +359,16 @@ export default function JobsPage() {
     statusFilter === "all"
       ? allRows
       : allRows.filter((r) => r.bucket === statusFilter);
+  // Uma passada só para os contadores dos chips: são nove etapas, e varrer a
+  // lista inteira uma vez por chip custa caro numa base de centenas de vagas.
+  const contagemPorBucket = allRows.reduce<Partial<Record<VacancyBucket, number>>>(
+    (acc, r) => {
+      acc[r.bucket] = (acc[r.bucket] ?? 0) + 1;
+      return acc;
+    },
+    {},
+  );
+  const contar = (bucket: VacancyBucket) => contagemPorBucket[bucket] ?? 0;
   const contractorMap = new Map(contractors?.map((c) => [c.id, c]));
 
   const handleConfirmCancel = async () => {
@@ -706,33 +658,44 @@ export default function JobsPage() {
                     key: "all",
                     label: `Todas (${allRows.length})`,
                   },
+                  // Mesma ordem do funil do Modo Painel: os chips e as colunas
+                  // são a mesma classificação, e trocar a ordem entre os dois
+                  // faria a tabela e o quadro parecerem coisas diferentes.
                   {
                     key: "open",
-                    label: `Abertas (${allRows.filter((r) => r.bucket === "open").length})`,
+                    label: `Abertas s/ candidato (${contar("open")})`,
                   },
                   {
-                    key: "awaitingHire",
-                    label: `Contratada · aguardando início (${allRows.filter((r) => r.bucket === "awaitingHire").length})`,
+                    key: "awaitingSelection",
+                    label: `Aguardando seleção (${contar("awaitingSelection")})`,
+                  },
+                  {
+                    key: "awaitingPayment",
+                    label: `Aguardando pagamento (${contar("awaitingPayment")})`,
+                  },
+                  {
+                    key: "confirmed",
+                    label: `Freela confirmado (${contar("confirmed")})`,
                   },
                   {
                     key: "inProgress",
-                    label: `Em andamento (${allRows.filter((r) => r.bucket === "inProgress").length})`,
-                  },
-                  {
-                    key: "completedReviewed",
-                    label: `Concluídas (${allRows.filter((r) => r.bucket === "completedReviewed").length})`,
+                    label: `Em andamento (${contar("inProgress")})`,
                   },
                   {
                     key: "completedAwaitingReview",
-                    label: `Concluídas s/ avaliação (${allRows.filter((r) => r.bucket === "completedAwaitingReview").length})`,
+                    label: `Concluídas s/ avaliação (${contar("completedAwaitingReview")})`,
+                  },
+                  {
+                    key: "completedReviewed",
+                    label: `Concluídas (${contar("completedReviewed")})`,
                   },
                   {
                     key: "lost",
-                    label: `Perdidas (${allRows.filter((r) => r.bucket === "lost").length})`,
+                    label: `Perdidas (${contar("lost")})`,
                   },
                   {
                     key: "cancelled",
-                    label: `Canceladas (${allRows.filter((r) => r.bucket === "cancelled").length})`,
+                    label: `Canceladas (${contar("cancelled")})`,
                   },
                 ] as const
               ).map((f) => (
