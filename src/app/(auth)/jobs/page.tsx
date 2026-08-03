@@ -655,6 +655,12 @@ export default function JobsPage() {
             cargo: r.cargo,
             cidade: r.cidade,
             candidatos: r.candidatos,
+            // Já formatados aqui: o painel não faz conta nem formata data, para
+            // que o card e a linha da tabela nunca divirjam no mesmo número.
+            valor: r.valor,
+            data: r.data,
+            turno: r.horario,
+            freelancer: r.providerName,
             raw: r.raw,
           }))}
           isFetching={isFetching}

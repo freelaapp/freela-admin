@@ -1,28 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Clock, MapPin, Users } from "lucide-react";
 
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
 
 /**
- * Modo Painel: as vagas em colunas por etapa, para acompanhar na TV.
+ * Modo Painel: as vagas em colunas por etapa do funil.
  *
- * As decisões aqui são todas para leitura A DISTÂNCIA, não para uso no mouse:
+ * Cada coluna é uma etapa, na ordem em que a vaga anda (esquerda → direita), e
+ * a cor sinaliza a temperatura: vermelho no que está parado sem candidato,
+ * verde no que fechou. Quem olha de passagem entende a direção sem legenda.
  *
- * - Tipografia grande e contraste alto; nada depende de hover ou tooltip.
- * - A contagem de cada etapa é o maior número da coluna — de longe é o que se
- *   lê primeiro.
- * - Uma coluna por etapa do fluxo, na ordem em que a vaga anda (esquerda →
- *   direita). Quem olha de passagem entende a direção sem legenda.
- * - Perdidas e canceladas ficam numa faixa no rodapé, não em colunas: elas não
- *   pedem ação e comeriam espaço das que pedem.
- * - Cada card mostra "há quanto tempo está nesta etapa". É o sinal que importa
- *   num quadro de acompanhamento — vaga parada é o que precisa de gente.
+ * Perdidas e canceladas ficam numa faixa no rodapé, não em colunas: elas não
+ * pedem ação e comeriam a largura das que pedem.
  *
- * O componente é BURRO de propósito: recebe as vagas já classificadas e só
- * desenha. A classificação (`resolveVacancyBucket`) segue na página, uma fonte
- * só para a tabela e para o painel.
+ * O componente é BURRO de propósito quanto à CLASSIFICAÇÃO: recebe as vagas já
+ * com o `bucket` resolvido e só desenha (`resolveVacancyBucket` vive na página,
+ * uma fonte só para a tabela e para o painel). O recorte de RECÊNCIA, esse sim,
+ * mora aqui — é regra de exibição do painel, não de classificação, e a tabela
+ * continua mostrando o histórico inteiro.
  */
 
 export type BoardBucket =
@@ -41,6 +37,14 @@ export interface BoardVacancy {
   cargo: string;
   cidade: string;
   candidatos: number;
+  /** Já formatado ("R$ 180,00"). O painel não faz conta. */
+  valor: string;
+  /** Dia do SERVIÇO, já formatado ("12/08"). */
+  data: string;
+  /** Faixa do turno, já formatada ("18:00 - 00:00"). */
+  turno: string;
+  /** Freelancer aceito, quando já houver. */
+  freelancer: string | null;
   raw: VacancyItem;
 }
 
@@ -51,47 +55,62 @@ const COLUNAS: Array<{
   /** O que a coluna cobra de quem está olhando. */
   chamada: string;
   cor: string;
-  barra: string;
+  corFundo: string;
 }> = [
   {
     bucket: "open",
-    titulo: "Aberta",
-    chamada: "aguardando candidato",
-    cor: "text-[#0369a1]",
-    barra: "bg-[#0ea5e9]",
+    titulo: "Aberta · sem freelancer",
+    chamada: "publicada, ainda sem candidato aceito",
+    cor: "#DC2626",
+    corFundo: "#FEF2F2",
   },
   {
     bucket: "awaitingHire",
     titulo: "Aguardando pagamento",
     chamada: "contratante escolheu, falta pagar",
-    cor: "text-[#c2410c]",
-    barra: "bg-[#f97316]",
+    cor: "#7C3AED",
+    corFundo: "#F5F3FF",
   },
   {
     bucket: "inProgress",
     titulo: "Em andamento",
-    chamada: "freelancer no local",
-    cor: "text-[#15803d]",
-    barra: "bg-[#22c55e]",
+    chamada: "freelancer no local agora",
+    cor: "#0D9488",
+    corFundo: "#F0FDFA",
   },
   {
     bucket: "completedAwaitingReview",
     titulo: "Aguardando avaliação",
     chamada: "trava o repasse ao freelancer",
-    cor: "text-[#a16207]",
-    barra: "bg-[#eab308]",
+    cor: "#D97706",
+    corFundo: "#FFFBEB",
   },
   {
     bucket: "completedReviewed",
     titulo: "Concluída",
     chamada: "ciclo fechado",
-    cor: "text-[#525252]",
-    barra: "bg-[#a3a3a3]",
+    cor: "#16A34A",
+    corFundo: "#F0FDF4",
   },
 ];
 
-/** Quantos cards por coluna. Além disso a TV não lê mesmo — vira um "+N". */
+/** Quantos cards por coluna antes de virar um "+N". */
 const MAX_CARDS = 8;
+
+/**
+ * Janela de recência do painel, em dias corridos a partir da data do SERVIÇO.
+ *
+ * Em 03/08/2026 o painel mostrava ~350 vagas, das quais **251 tinham mais de 30
+ * dias** — havia vaga em "aguardando pagamento" há 67 dias. Não era um caso
+ * isolado: eram 140 vagas `CLOSED` de datas já passadas empilhadas nessa coluna.
+ * Um quadro de acompanhamento cheio de vaga morta não é acompanhamento, é
+ * arquivo — e o que precisa de gente hoje some no meio.
+ *
+ * 14 dias porque a distribuição real deixa isso legível (~29 vagas) sem perder
+ * o passado recente, que ainda rende conversa. Ajuste aqui se o volume mudar; a
+ * tabela nunca foi filtrada e segue com o histórico completo.
+ */
+export const JANELA_DIAS = 14;
 
 function referenciaDeTempo(v: VacancyItem): number | null {
   const iso = v.startTime || v.date || v.createdAt;
@@ -115,22 +134,23 @@ function aberturaEm(v: VacancyItem): number {
 }
 
 /**
- * "em 3h", "há 2 d". Sem segundos: numa TV o número muda o tempo todo e vira
- * ruído em vez de informação.
+ * Mantém no painel só o que ainda diz respeito a hoje.
+ *
+ * Vaga sem data legível PASSA. Sumir com um registro por não conseguir ler a
+ * data dele seria esconder justamente o caso estranho — que é o que mais
+ * interessa a quem vigia o quadro.
  */
-function distanciaHumana(ms: number, agora: number): string {
-  const diff = ms - agora;
-  const futuro = diff > 0;
-  const abs = Math.abs(diff);
-
-  const min = Math.floor(abs / 60_000);
-  if (min < 60) return futuro ? `em ${min} min` : `há ${min} min`;
-
-  const horas = Math.floor(min / 60);
-  if (horas < 24) return futuro ? `em ${horas}h` : `há ${horas}h`;
-
-  const dias = Math.floor(horas / 24);
-  return futuro ? `em ${dias} d` : `há ${dias} d`;
+export function filtrarRecentes(
+  vagas: BoardVacancy[],
+  agora: number = Date.now(),
+  janelaDias: number = JANELA_DIAS,
+): BoardVacancy[] {
+  const corte = agora - janelaDias * 24 * 60 * 60 * 1000;
+  return vagas.filter((v) => {
+    const ref = referenciaDeTempo(v.raw);
+    if (ref === null) return true;
+    return ref >= corte;
+  });
 }
 
 /**
@@ -147,63 +167,70 @@ function precisaDeAtencao(item: BoardVacancy, agora: number): boolean {
 
 function CardVaga({
   item,
+  cor,
   agora,
   onSelect,
 }: {
   item: BoardVacancy;
+  cor: string;
   agora: number;
   onSelect: (vacancyId: string) => void;
 }) {
-  const ref = referenciaDeTempo(item.raw);
   const atencao = precisaDeAtencao(item, agora);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(item.id)}
-      // O quadro nasceu para TV, mas a mesma tela é usada no computador — o
-      // card abre o MESMO modal de detalhes da tabela. `text-left` porque
-      // button centraliza por padrão e desalinharia tudo.
-      className={`w-full cursor-pointer rounded-lg border bg-white px-3 py-2.5 text-left transition-colors hover:border-[#eca826] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#eca826]/50 ${
-        atencao ? "border-[#f97316] ring-1 ring-[#f97316]/30" : "border-[#e5e5e5]"
+      // O card abre o MESMO modal de detalhes da tabela — não existe uma
+      // segunda tela de vaga. `text-left` porque button centraliza por padrão.
+      style={{ borderLeftColor: atencao ? "#F97316" : cor }}
+      className={`w-full cursor-pointer rounded-[10px] border border-[#E2E8F0] border-l-[3px] bg-white px-3 py-2.5 text-left shadow-[0_1px_2px_rgba(15,23,42,.04)] transition-all hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(15,23,42,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#94A3B8] ${
+        atencao ? "ring-1 ring-[#F97316]/30" : ""
       }`}
     >
-      <p className="flex items-center gap-1.5 truncate text-[15px] font-bold leading-tight text-[#1d1d1b]">
-        <Building2 className="h-4 w-4 shrink-0 text-[#a3a3a3]" aria-hidden />
-        {item.empresa}
-      </p>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        {/* Id encurtado: o suficiente para casar com o suporte sem ocupar a
+            linha inteira com um uuid que ninguém lê de relance. */}
+        <span className="font-mono text-[10.5px] font-semibold tracking-wide text-[#94A3B8]">
+          {item.id.slice(0, 8)}
+        </span>
+        <span className="shrink-0 text-[12.5px] font-bold text-[#0F172A]">{item.valor}</span>
+      </div>
 
-      <p className="mt-1 truncate text-[13px] font-medium text-[#525252]">{item.cargo}</p>
+      <div className="truncate text-[13.5px] font-semibold leading-tight text-[#0F172A]">
+        {item.cargo}
+      </div>
+      <div className="mt-0.5 truncate text-[12px] text-[#475569]">{item.empresa}</div>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[#737373]">
+      <div className="mt-1.5 flex flex-col gap-px text-[11px] text-[#94A3B8]">
         {item.cidade && item.cidade !== "N/A" ? (
-          <span className="flex min-w-0 items-center gap-1">
-            <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="truncate">{item.cidade}</span>
-          </span>
+          <span className="truncate">{item.cidade}</span>
         ) : null}
+        <span className={atencao ? "font-semibold text-[#C2410C]" : ""}>
+          {item.data} · {item.turno}
+        </span>
+      </div>
 
-        {ref !== null ? (
-          <span
-            className={`flex items-center gap-1 font-semibold ${
-              atencao ? "text-[#c2410c]" : ""
-            }`}
-          >
-            <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {distanciaHumana(ref, agora)}
+      <div className="mt-2 flex items-center gap-1.5 border-t border-[#F1F5F9] pt-2 text-[12px]">
+        {item.freelancer ? (
+          <>
+            <span
+              style={{ background: cor }}
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              aria-hidden
+            >
+              {item.freelancer.charAt(0).toUpperCase()}
+            </span>
+            <span className="truncate font-medium text-[#334155]">{item.freelancer}</span>
+          </>
+        ) : (
+          <span className="italic text-[#94A3B8]">
+            {item.candidatos > 0
+              ? `${item.candidatos} candidato${item.candidatos > 1 ? "s" : ""}`
+              : "Nenhum candidato ainda"}
           </span>
-        ) : null}
-
-        {item.bucket === "open" ? (
-          <span
-            className={`flex items-center gap-1 font-semibold ${
-              item.candidatos === 0 ? "text-[#a3a3a3]" : "text-[#0369a1]"
-            }`}
-          >
-            <Users className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {item.candidatos}
-          </span>
-        ) : null}
+        )}
       </div>
     </button>
   );
@@ -220,34 +247,46 @@ export function VacancyBoard({
    *  e abre o modal é a página, a mesma da tabela. */
   onSelect: (vacancyId: string) => void;
 }) {
-  // Um relógio só para o painel inteiro: recalcular "há 2h" por card a cada
-  // render custaria caro com centenas de vagas. Um minuto basta — a granularidade
-  // exibida é de minuto.
+  const [busca, setBusca] = useState("");
+
+  // Um relógio só para o painel inteiro: recalcular por card a cada render
+  // custaria caro com centenas de vagas. Um minuto basta.
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setAgora(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
 
+  const visiveis = useMemo(() => {
+    const recentes = filtrarRecentes(vacancies, agora);
+    const q = busca.trim().toLowerCase();
+    if (!q) return recentes;
+    return recentes.filter((v) =>
+      [v.cargo, v.empresa, v.cidade, v.id, v.freelancer ?? ""].some((campo) =>
+        campo.toLowerCase().includes(q),
+      ),
+    );
+  }, [vacancies, busca, agora]);
+
   const porBucket = useMemo(() => {
     const mapa = new Map<BoardBucket, BoardVacancy[]>();
-    for (const v of vacancies) {
+    for (const v of visiveis) {
       const lista = mapa.get(v.bucket) ?? [];
       lista.push(v);
       mapa.set(v.bucket, lista);
     }
     // Mais RECENTE primeiro, pela data de abertura: a vaga que acabou de entrar
-    // é a que ninguém viu ainda, e o topo da coluna é o único lugar que se lê de
-    // longe. (Ordenava pelo dia do serviço, o que empurrava vaga velha parada
-    // para cima justamente na coluna que mais acumula resíduo.)
+    // é a que ninguém viu ainda, e o topo da coluna é o que se lê primeiro.
     for (const lista of mapa.values()) {
       lista.sort((a, b) => aberturaEm(b.raw) - aberturaEm(a.raw));
     }
     return mapa;
-  }, [vacancies]);
+  }, [visiveis]);
 
   const perdidas = porBucket.get("lost")?.length ?? 0;
   const canceladas = porBucket.get("cancelled")?.length ?? 0;
+  const emAcompanhamento = visiveis.length - perdidas - canceladas;
+  const ocultadas = vacancies.length - filtrarRecentes(vacancies, agora).length;
 
   const horaAtualizacao = new Date(agora).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
@@ -255,61 +294,98 @@ export function VacancyBoard({
   });
 
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between text-[12px] text-[#737373]">
-        <span>
-          {vacancies.length - perdidas - canceladas} vaga(s) em acompanhamento
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              isFetching ? "animate-pulse bg-[#22c55e]" : "bg-[#d4d4d4]"
-            }`}
-            aria-hidden
+    <div className="rounded-xl bg-[#F8FAFC] p-4 text-[#0F172A]">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-[22px] font-bold leading-none tracking-tight">
+            Vagas em andamento
+          </h2>
+          <p className="mt-1 text-[13px] text-[#64748B]">
+            {emAcompanhamento} vaga(s) ativa(s) ·{" "}
+            <span className="capitalize">
+              {new Date(agora).toLocaleDateString("pt-BR", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })}
+            </span>
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5 text-[12px] text-[#64748B]">
+            <span
+              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                isFetching ? "animate-pulse bg-[#22C55E]" : "bg-[#CBD5E1]"
+              }`}
+              aria-hidden
+            />
+            Atualizado às {horaAtualizacao}
+          </span>
+          <input
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar vaga, estabelecimento, freela…"
+            aria-label="Buscar no painel"
+            className="w-[300px] max-w-full rounded-[10px] border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-[13px] outline-none transition-colors focus:border-[#94A3B8]"
           />
-          Atualizado às {horaAtualizacao}
-        </span>
+        </div>
       </div>
 
-      {/* Colunas: rolagem horizontal só quando a TV for estreita demais. */}
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      {/* Colunas: rolagem horizontal só quando a tela for estreita demais. */}
+      <div className="flex items-start gap-3 overflow-x-auto pb-2">
         {COLUNAS.map((coluna) => {
           const itens = porBucket.get(coluna.bucket) ?? [];
-          const visiveis = itens.slice(0, MAX_CARDS);
-          const restantes = itens.length - visiveis.length;
+          const mostrados = itens.slice(0, MAX_CARDS);
+          const restantes = itens.length - mostrados.length;
 
           return (
             <section
               key={coluna.bucket}
-              className="flex min-w-[240px] flex-1 flex-col rounded-xl bg-[#fafafa] p-3"
+              className="flex min-w-[230px] flex-1 flex-col rounded-xl bg-[#F1F5F9]"
               aria-label={`${coluna.titulo}: ${itens.length}`}
             >
-              <div className={`mb-0.5 h-1 w-8 rounded-full ${coluna.barra}`} aria-hidden />
-
-              <div className="mb-2 flex items-baseline justify-between gap-2">
-                <h3 className={`text-[13px] font-bold uppercase tracking-wide ${coluna.cor}`}>
+              <div
+                style={{ background: coluna.corFundo }}
+                className="flex items-center gap-2 rounded-t-xl px-3 py-2.5"
+                title={coluna.chamada}
+              >
+                <span
+                  style={{ background: coluna.cor }}
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  aria-hidden
+                />
+                <span className="flex-1 text-[12.5px] font-semibold leading-tight">
                   {coluna.titulo}
-                </h3>
-                <span className="text-[26px] font-bold leading-none text-[#1d1d1b] tabular-nums">
+                </span>
+                <span
+                  style={{ color: coluna.cor }}
+                  className="rounded-full bg-white px-2 py-0.5 text-[12px] font-bold tabular-nums"
+                >
                   {itens.length}
                 </span>
               </div>
 
-              <p className="mb-3 text-[11px] leading-tight text-[#a3a3a3]">{coluna.chamada}</p>
-
-              <div className="flex flex-col gap-2">
-                {visiveis.map((item) => (
-                  <CardVaga key={item.id} item={item} agora={agora} onSelect={onSelect} />
+              <div className="flex flex-col gap-2 p-2.5">
+                {mostrados.map((item) => (
+                  <CardVaga
+                    key={item.id}
+                    item={item}
+                    cor={coluna.cor}
+                    agora={agora}
+                    onSelect={onSelect}
+                  />
                 ))}
 
                 {itens.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-[#e5e5e5] px-3 py-4 text-center text-[12px] text-[#a3a3a3]">
-                    nenhuma
+                  <p className="rounded-[10px] border-[1.5px] border-dashed border-[#CBD5E1] py-6 text-center text-[12px] text-[#94A3B8]">
+                    Nenhuma vaga
                   </p>
                 ) : null}
 
                 {restantes > 0 ? (
-                  <p className="pt-0.5 text-center text-[12px] font-semibold text-[#737373]">
+                  <p className="pt-0.5 text-center text-[12px] font-semibold text-[#64748B]">
                     + {restantes} nesta etapa
                   </p>
                 ) : null}
@@ -321,15 +397,25 @@ export function VacancyBoard({
 
       {/* Perdidas e canceladas não pedem ação; contagem no rodapé basta. */}
       {perdidas + canceladas > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 rounded-xl bg-[#fafafa] px-4 py-2.5 text-[12px] text-[#737373]">
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 rounded-xl bg-[#F1F5F9] px-4 py-2.5 text-[12px] text-[#64748B]">
           <span>
-            <strong className="font-bold text-[#525252]">{perdidas}</strong> expiraram sem
+            <strong className="font-bold text-[#334155]">{perdidas}</strong> expiraram sem
             contratação
           </span>
           <span>
-            <strong className="font-bold text-[#525252]">{canceladas}</strong> canceladas
+            <strong className="font-bold text-[#334155]">{canceladas}</strong> canceladas
           </span>
         </div>
+      ) : null}
+
+      {/* Dizer o que foi escondido, e não só esconder: sem esta linha o painel
+          mentiria por omissão, e quem procurasse uma vaga antiga aqui concluiria
+          que ela sumiu do sistema. */}
+      {ocultadas > 0 ? (
+        <p className="mt-2 text-[11.5px] text-[#94A3B8]">
+          {ocultadas} vaga(s) com mais de {JANELA_DIAS} dias fora do painel — use a tabela para
+          ver o histórico completo.
+        </p>
       ) : null}
     </div>
   );
