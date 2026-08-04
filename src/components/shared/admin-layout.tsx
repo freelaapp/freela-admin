@@ -37,6 +37,7 @@ import {
   Wallet,
   UserCog,
   ChevronDown,
+  BadgePercent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNewVacancyChime } from "@/modules/admin/application/use-new-vacancy-chime";
@@ -58,6 +59,10 @@ const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { label: "Freelancers", icon: Users, path: "/freelancers", permission: "FREELANCERS" },
   { label: "Empresas", icon: Building2, path: "/empresas", permission: "COMPANIES" },
+  // Nasce só para SUPER_ADMIN: a chave SUBSCRIPTIONS não existe em nenhum admin
+  // até ser concedida em /usuarios-painel. É o default certo — conceder cortesia
+  // muda o que se cobra de um cliente.
+  { label: "Assinaturas", icon: BadgePercent, path: "/assinaturas", permission: "SUBSCRIPTIONS" },
   { label: "Contratantes — Casa", icon: Building, path: "/contratantes-casa" },
   { label: "Vagas / Jobs", icon: Briefcase, path: "/jobs", permission: "JOBS" },
   { label: "Vagas — Casa", icon: Home, path: "/vagas-casa", permission: "CASA_VACANCIES" },
