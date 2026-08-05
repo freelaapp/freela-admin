@@ -190,3 +190,49 @@ export async function searchCrmContractors(q: string): Promise<ContractorSearchR
   const res = await crmApi.get("/contractors/search", { params: { q } });
   return res.data.data;
 }
+
+// ─── Funil de contratantes (kanban da aba Pipeline) ───────────────────────
+
+export type PipelineStage =
+  | "CADASTRO_NOVO"
+  | "PRIMEIRA_CONTRATACAO"
+  | "SEGUNDA_CONTRATACAO"
+  | "TERCEIRA_CONTRATACAO"
+  | "CLIENTE_FIDELIZADO";
+
+export interface PipelineCard {
+  userId: string;
+  name: string;
+  /** Módulos onde o contratante existe: bars-restaurants e/ou home-services. */
+  modules: string[];
+  /** Estado (UF). */
+  state: string | null;
+  city: string | null;
+  /** Ramo de atuação. */
+  segment: string | null;
+  whatsappPhone: string | null;
+  hiringsCount: number;
+  registeredAt: string;
+}
+
+export interface PipelineColumn {
+  stage: PipelineStage;
+  title: string;
+  count: number;
+  cards: PipelineCard[];
+}
+
+export interface PipelineBoard {
+  columns: PipelineColumn[];
+  totalContractors: number;
+}
+
+export async function getCrmPipeline(): Promise<PipelineBoard> {
+  const res = await crmApi.get("/pipeline");
+  return res.data.data;
+}
+
+export async function sendPipelineWhatsApp(userId: string): Promise<{ ok: boolean; phone: string }> {
+  const res = await crmApi.post(`/pipeline/${userId}/whatsapp`);
+  return res.data.data;
+}

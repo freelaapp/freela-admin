@@ -1,6 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { getAxiosErrorMessage } from "./use-admin-cancel-vacancy";
 import {
   addCrmContact,
   addCrmNote,
@@ -11,10 +13,12 @@ import {
   deleteCrmNote,
   deleteCrmTask,
   getCrmCompany,
+  getCrmPipeline,
   listCrmCompanies,
   listCrmTasks,
   moveCrmCompany,
   searchCrmContractors,
+  sendPipelineWhatsApp,
   updateCrmCompany,
   updateCrmTask,
   type CreateCompanyInput,
@@ -49,6 +53,24 @@ export function useCrmTasks(filters?: { done?: boolean; priority?: CrmPriority }
     queryKey: [...ROOT, "tasks", filters ?? {}],
     queryFn: () => listCrmTasks(filters),
     staleTime: 15_000,
+  });
+}
+
+/** Funil de contratantes (kanban da aba Pipeline) — colunas calculadas pela API. */
+export function useCrmPipeline() {
+  return useQuery({
+    queryKey: [...ROOT, "pipeline"],
+    queryFn: getCrmPipeline,
+    staleTime: 30_000,
+  });
+}
+
+/** Botão do card: dispara a mensagem automática de WhatsApp ao contratante. */
+export function usePipelineWhatsApp() {
+  return useMutation({
+    mutationFn: (userId: string) => sendPipelineWhatsApp(userId),
+    onSuccess: (r) => toast.success(`Mensagem enviada para ${r.phone}.`),
+    onError: (e) => toast.error(getAxiosErrorMessage(e, "Erro ao enviar a mensagem de WhatsApp.")),
   });
 }
 
