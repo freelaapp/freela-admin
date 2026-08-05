@@ -7,7 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCrmPipeline, usePipelineWhatsApp } from "@/modules/admin/application/use-admin-crm";
 import type { PipelineCard } from "@/modules/admin/infrastructure/crm-api";
-import { FUNNEL_STAGE_ICONS, MODULE_LABEL, filterPipelineCards, waLink } from "./funnel-helpers";
+import {
+  FUNNEL_PRESETS,
+  FUNNEL_STAGE_ICONS,
+  MODULE_LABEL,
+  activeFunnelPreset,
+  filterPipelineCards,
+  waLink,
+  type FunnelRange,
+} from "./funnel-helpers";
 
 /**
  * Kanban do funil de contratantes: Cadastro novo → 1ª/2ª/3ª contratação →
@@ -15,9 +23,12 @@ import { FUNNEL_STAGE_ICONS, MODULE_LABEL, filterPipelineCards, waLink } from ".
  * vagas pagas) — o card muda de coluna sozinho, sem drag-and-drop.
  */
 export function FunnelBoard() {
-  const { data: board, isLoading } = useCrmPipeline();
+  // Padrão "30 dias" — o filtro roda no banco, para não puxar a base inteira.
+  const [range, setRange] = useState<FunnelRange>(() => FUNNEL_PRESETS[3].compute());
+  const { data: board, isLoading, isFetching } = useCrmPipeline(range);
   const sendWhatsApp = usePipelineWhatsApp();
   const [q, setQ] = useState("");
+  const activePreset = activeFunnelPreset(range);
 
   const columns = useMemo(() => {
     if (!board) return [];
@@ -38,6 +49,54 @@ export function FunnelBoard() {
 
   return (
     <div>
+      {/* Período do CADASTRO: atalhos + calendário (editar as datas = personalizado). */}
+      <div className="flex flex-col lg:flex-row lg:items-end gap-3 mb-4">
+        <div className="flex flex-wrap gap-1.5">
+          {FUNNEL_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              onClick={() => setRange(p.compute())}
+              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                activePreset === p.label
+                  ? "bg-[#1d1d1b] text-white"
+                  : "bg-[#f7f7f7] text-[#737373] hover:text-[#1d1d1b]"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+          <span
+            className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap ${
+              !activePreset ? "bg-[#1d1d1b] text-white" : "bg-[#f7f7f7] text-[#c4c4c4]"
+            }`}
+          >
+            Personalizado
+          </span>
+        </div>
+        <div className="flex items-end gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-[#737373]">De</span>
+            <input
+              type="date"
+              value={range.from}
+              max={range.to || undefined}
+              onChange={(e) => setRange({ ...range, from: e.target.value })}
+              className="h-9 px-3 rounded-lg bg-[#f7f7f7] border-none text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-[#737373]">Até</span>
+            <input
+              type="date"
+              value={range.to}
+              min={range.from || undefined}
+              onChange={(e) => setRange({ ...range, to: e.target.value })}
+              className="h-9 px-3 rounded-lg bg-[#f7f7f7] border-none text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-[#737373]" />
@@ -50,7 +109,8 @@ export function FunnelBoard() {
         </div>
         {board && (
           <span className="text-xs text-[#737373]">
-            {board.totalContractors} contratante{board.totalContractors === 1 ? "" : "s"}
+            {board.totalContractors} contratante{board.totalContractors === 1 ? "" : "s"} no
+            período{isFetching ? " — atualizando…" : ""}
           </span>
         )}
       </div>
