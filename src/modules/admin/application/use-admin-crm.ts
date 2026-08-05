@@ -26,6 +26,7 @@ import {
   type CreateTaskInput,
   type CrmCompanyStatus,
   type CrmPriority,
+  type PipelinePeriodParams,
   type UpdateCompanyInput,
   type UpdateTaskInput,
 } from "../infrastructure/crm-api";
@@ -57,10 +58,10 @@ export function useCrmTasks(filters?: { done?: boolean; priority?: CrmPriority }
 }
 
 /** Funil de contratantes (kanban da aba Pipeline) — colunas calculadas pela API. */
-export function useCrmPipeline() {
+export function useCrmPipeline(params?: PipelinePeriodParams) {
   return useQuery({
-    queryKey: [...ROOT, "pipeline"],
-    queryFn: getCrmPipeline,
+    queryKey: [...ROOT, "pipeline", params ?? {}],
+    queryFn: () => getCrmPipeline(params),
     staleTime: 30_000,
   });
 }

@@ -227,8 +227,15 @@ export interface PipelineBoard {
   totalContractors: number;
 }
 
-export async function getCrmPipeline(): Promise<PipelineBoard> {
-  const res = await crmApi.get("/pipeline");
+export interface PipelinePeriodParams {
+  /** Início do período de cadastro, `YYYY-MM-DD` inclusivo (dia de Brasília). */
+  from?: string;
+  /** Fim do período de cadastro, `YYYY-MM-DD` inclusivo. */
+  to?: string;
+}
+
+export async function getCrmPipeline(params?: PipelinePeriodParams): Promise<PipelineBoard> {
+  const res = await crmApi.get("/pipeline", { params });
   return res.data.data;
 }
 
