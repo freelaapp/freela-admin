@@ -25,7 +25,7 @@ import {
 export function FunnelBoard() {
   // Padrão "30 dias" — o filtro roda no banco, para não puxar a base inteira.
   const [range, setRange] = useState<FunnelRange>(() => FUNNEL_PRESETS[3].compute());
-  const { data: board, isLoading, isFetching } = useCrmPipeline(range);
+  const { data: board, isLoading, isFetching, isError, refetch } = useCrmPipeline(range);
   const sendWhatsApp = usePipelineWhatsApp();
   const [q, setQ] = useState("");
   const activePreset = activeFunnelPreset(range);
@@ -45,6 +45,17 @@ export function FunnelBoard() {
 
   if (isLoading) {
     return <p className="text-sm text-[#737373]">Carregando funil de contratantes…</p>;
+  }
+
+  if (isError) {
+    return (
+      <div className="text-sm text-[#737373]">
+        <p>Não foi possível carregar o funil de contratantes.</p>
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>
+          Tentar de novo
+        </Button>
+      </div>
+    );
   }
 
   return (
