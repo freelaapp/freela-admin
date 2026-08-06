@@ -50,6 +50,7 @@ import type {
 import { ScoreBreakdown, SelectionKanban } from "./_components/selection-kanban";
 import { stageTitle } from "./_components/kanban-helpers";
 import { formatInstantDate } from "@/lib/date.utils";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 
 /** Um card do kanban tem os campos de score; uma candidatura da aba Lista não tem. */
 function isKanbanCard(
@@ -463,6 +464,11 @@ export default function VagaFixaCandidatosPage() {
   const params = useParams<{ id: string }>();
   const postId = params?.id ?? "";
 
+  // Mesma guarda da listagem: esta página expõe currículo, telefone e e-mail dos
+  // candidatos, então não pode ficar acessível por URL direta a quem não tem a
+  // área liberada.
+  const { isChecking, allowed } = useAreaGuard("FIXED_JOBS");
+
   // O cabeçalho (título/empresa/local) reaproveita a listagem admin já existente.
   const { data: posts } = useAdminFixedJobs();
   const post = useMemo(() => posts?.find((p) => p.id === postId) ?? null, [posts, postId]);
@@ -547,6 +553,15 @@ export default function VagaFixaCandidatosPage() {
   const headerParts = post
     ? [post.companyName, post.role, post.location].filter(Boolean).join(" • ")
     : "Candidaturas recebidas nesta vaga fixa.";
+
+  // Depois de todos os hooks: barra o acesso direto por URL de quem não tem a área.
+  if (isChecking || !allowed) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
 
   return (
     <div>
