@@ -5,9 +5,13 @@ import {
   createAdminFixedJob,
   getAdminFixedJobs,
   getFixedJobApplications,
+  getFixedJobKanban,
+  runFixedJobAiScreening,
+  setFixedJobApplicationStage,
   setFixedJobApplicationStatus,
   type CreateAdminFixedJobPayload,
   type FixedJobApplicationStatus,
+  type FixedJobKanbanStage,
 } from "../infrastructure/fixed-jobs-api";
 
 export function useAdminFixedJobs(consultantId?: string) {
@@ -53,8 +57,49 @@ export function useSetFixedJobApplicationStatus(postId?: string) {
     onSuccess: () => {
       if (postId) {
         qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs", postId, "applications"] });
+        qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs", postId, "kanban"] });
       }
       qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs"] });
+    },
+  });
+}
+
+/** Board do kanban de seleção da vaga fixa (6 colunas, cards com score de IA). */
+export function useFixedJobKanban(postId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["admin", "fixed-jobs", postId, "kanban"],
+    queryFn: () => getFixedJobKanban(postId as string),
+    enabled: Boolean(postId),
+    staleTime: 15000,
+  });
+}
+
+/** Move um card de coluna e revalida o board (e a lista de candidatos, que mostra o mesmo dado). */
+export function useMoveFixedJobApplication(postId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { applicationId: string; stage: FixedJobKanbanStage }) =>
+      setFixedJobApplicationStage(vars.applicationId, vars.stage),
+    onSuccess: () => {
+      if (postId) {
+        qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs", postId, "kanban"] });
+        qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs", postId, "applications"] });
+      }
+    },
+  });
+}
+
+/** Roda a triagem por IA da vaga e revalida o board (os promovidos mudam de coluna). */
+export function useRunFixedJobAiScreening(postId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { postId: string; force?: boolean }) =>
+      runFixedJobAiScreening(vars.postId, vars.force ?? false),
+    onSuccess: () => {
+      if (postId) {
+        qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs", postId, "kanban"] });
+        qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs", postId, "applications"] });
+      }
     },
   });
 }
