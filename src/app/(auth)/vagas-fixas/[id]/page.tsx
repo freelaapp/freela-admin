@@ -8,6 +8,8 @@ import {
   Building2,
   Check,
   Download,
+  LayoutGrid,
+  List,
   Loader2,
   Mail,
   MapPin,
@@ -32,14 +34,30 @@ import {
 import {
   useAdminFixedJobs,
   useFixedJobApplications,
+  useFixedJobKanban,
+  useMoveFixedJobApplication,
+  useRunFixedJobAiScreening,
   useSetFixedJobApplicationStatus,
 } from "@/modules/admin/application/use-admin-fixed-jobs";
 import type {
   FixedJobAdminApplication,
   FixedJobApplicationStatus,
+  FixedJobKanbanCard,
+  FixedJobKanbanStage,
   FixedJobProfessionalCurriculum,
 } from "@/modules/admin/infrastructure/fixed-jobs-api";
+import { SelectionKanban } from "./_components/selection-kanban";
 import { formatInstantDate } from "@/lib/date.utils";
+
+/** Rótulos das etapas para os toasts de movimentação (as colunas vêm da API). */
+const STAGE_LABELS: Record<FixedJobKanbanStage, string> = {
+  CANDIDATE: "Candidatos",
+  PRE_SELECTED: "Pré-selecionados",
+  SELECTED: "Selecionados",
+  INTERVIEW: "Agendar entrevistas",
+  TEST: "Agendar testes",
+  FINAL_SELECTED: "Selecionado",
+};
 
 // ---------------------------------------------------------------------------
 // Currículo profissional (readonly) — portado do web `FreelancerCurriculumReadonly`
@@ -433,7 +451,52 @@ export default function VagaFixaCandidatosPage() {
   } = useFixedJobApplications(postId);
   const statusMutation = useSetFixedJobApplicationStatus(postId);
 
+  // Kanban de seleção (visão default): board por etapa + triagem por IA.
+  const [modo, setModo] = useState<"kanban" | "lista">("kanban");
+  const kanbanQuery = useFixedJobKanban(postId);
+  const moveMutation = useMoveFixedJobApplication(postId);
+  const screeningMutation = useRunFixedJobAiScreening(postId);
+
   const [profileApplication, setProfileApplication] = useState<FixedJobAdminApplication | null>(null);
+
+  function moveCard(card: FixedJobKanbanCard, stage: FixedJobKanbanStage) {
+    moveMutation.mutate(
+      { applicationId: card.id, stage },
+      {
+        onSuccess: () =>
+          toast.success(`${card.applicantName} movido(a) para "${STAGE_LABELS[stage]}".`),
+        onError: () => toast.error("Não foi possível mover o candidato."),
+      },
+    );
+  }
+
+  function runScreening() {
+    screeningMutation.mutate(
+      { postId },
+      {
+        onSuccess: (report) => {
+          if (report.evaluated === 0) {
+            toast.info(
+              report.skipped > 0
+                ? "Todos os candidatos desta coluna já foram avaliados pela IA."
+                : "Não há candidatos para avaliar.",
+            );
+            return;
+          }
+          toast.success(
+            `Triagem concluída: ${report.evaluated} currículo(s) avaliado(s), ` +
+              `${report.promoted} movido(s) para "Pré-selecionados" (corte ${report.threshold}%).`,
+          );
+          const failures = report.results.filter((r) => r.error).length;
+          if (failures > 0) {
+            toast.warning(`${failures} candidato(s) não puderam ser avaliados — tente novamente.`);
+          }
+        },
+        onError: () =>
+          toast.error("Não foi possível rodar a triagem por IA. Verifique a configuração da chave."),
+      },
+    );
+  }
 
   const activeApplications = (applications ?? []).filter((a) => a.status !== "REJECTED");
   const rejectedApplications = (applications ?? []).filter((a) => a.status === "REJECTED");
@@ -489,7 +552,46 @@ export default function VagaFixaCandidatosPage() {
         </div>
       ) : null}
 
-      {isLoading ? (
+      <div className="mb-4 flex items-center gap-2">
+        <Button
+          variant={modo === "kanban" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setModo("kanban")}
+        >
+          <LayoutGrid size={15} />
+          Kanban
+        </Button>
+        <Button
+          variant={modo === "lista" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setModo("lista")}
+        >
+          <List size={15} />
+          Lista
+        </Button>
+      </div>
+
+      {modo === "kanban" ? (
+        kanbanQuery.isLoading ? (
+          <div className="flex items-center justify-center h-[40vh]">
+            <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+          </div>
+        ) : kanbanQuery.isError || !kanbanQuery.data ? (
+          <div className="flex items-center justify-center h-[40vh]">
+            <p className="text-red-500">Erro ao carregar o kanban de seleção.</p>
+          </div>
+        ) : (
+          <SelectionKanban
+            board={kanbanQuery.data}
+            isFetching={kanbanQuery.isFetching}
+            isMoving={moveMutation.isPending}
+            isScreening={screeningMutation.isPending}
+            onMove={moveCard}
+            onOpenProfile={setProfileApplication}
+            onRunScreening={runScreening}
+          />
+        )
+      ) : isLoading ? (
         <div className="flex items-center justify-center h-[40vh]">
           <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
         </div>
