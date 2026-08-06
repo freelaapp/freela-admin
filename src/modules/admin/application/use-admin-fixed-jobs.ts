@@ -6,7 +6,7 @@ import {
   getAdminFixedJobs,
   getFixedJobApplications,
   getFixedJobKanban,
-  runFixedJobAiScreening,
+  runFixedJobMatchScore,
   setFixedJobApplicationStage,
   setFixedJobApplicationStatus,
   type CreateAdminFixedJobPayload,
@@ -64,7 +64,7 @@ export function useSetFixedJobApplicationStatus(postId?: string) {
   });
 }
 
-/** Board do kanban de seleção da vaga fixa (6 colunas, cards com score de IA). */
+/** Board do kanban de seleção da vaga fixa (6 colunas, cards com score de compatibilidade determinístico). */
 export function useFixedJobKanban(postId: string | null | undefined) {
   return useQuery({
     queryKey: ["admin", "fixed-jobs", postId, "kanban"],
@@ -89,12 +89,12 @@ export function useMoveFixedJobApplication(postId?: string) {
   });
 }
 
-/** Roda a triagem por IA da vaga e revalida o board (os promovidos mudam de coluna). */
-export function useRunFixedJobAiScreening(postId?: string) {
+/** Calcula a compatibilidade determinística da vaga e revalida o board (os promovidos mudam de coluna). */
+export function useRunFixedJobMatchScore(postId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: { postId: string; force?: boolean }) =>
-      runFixedJobAiScreening(vars.postId, vars.force ?? false),
+      runFixedJobMatchScore(vars.postId, vars.force ?? false),
     onSuccess: () => {
       if (postId) {
         qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs", postId, "kanban"] });

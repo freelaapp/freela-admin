@@ -146,14 +146,47 @@ export type FixedJobKanbanStage =
   | "TEST"
   | "FINAL_SELECTED";
 
-/** Card do kanban: a candidatura + estágio + resultado da triagem por IA. */
+/**
+ * Eixos do score de compatibilidade determinístico — substituiu a triagem por
+ * IA (que nunca chegou a rodar em produção).
+ */
+export type FixedJobMatchAxis = "experience" | "distance" | "profile" | "availability";
+
+/**
+ * Resultado de um eixo do score. `applicable: false` quer dizer que o eixo
+ * **não foi avaliado** (ex.: falta endereço para calcular distância) — é
+ * ausência de dado, não uma nota zero. `detail` já vem em português, pronto
+ * para exibir.
+ */
+export interface FixedJobMatchAxisResult {
+  score: number;
+  weight: number;
+  applicable: boolean;
+  detail: string;
+}
+
+/** Decomposição do score de compatibilidade — o "porquê" da nota, não só o número. */
+export interface FixedJobMatchBreakdown {
+  total: number;
+  weights: Record<FixedJobMatchAxis, number>;
+  axes: Record<FixedJobMatchAxis, FixedJobMatchAxisResult>;
+}
+
+/** Card do kanban: a candidatura + estágio + resultado do score de compatibilidade. */
 export interface FixedJobKanbanCard extends FixedJobAdminApplication {
   kanbanStage: FixedJobKanbanStage;
   kanbanStageAt: string | null;
-  /** Compatibilidade 0–100 da triagem por IA (null = nunca avaliado). */
-  aiScore: number | null;
-  aiSummary: string | null;
-  aiEvaluatedAt: string | null;
+  /** Compatibilidade 0–100 do cálculo determinístico (null = nunca calculado). */
+  matchScore: number | null;
+  matchBreakdown: FixedJobMatchBreakdown | null;
+  matchedAt: string | null;
+  /**
+   * `true` quando o cálculo não teve confiança para promover automaticamente
+   * (ex.: currículo só em PDF, sem os campos estruturados — ~56% da base).
+   * O candidato continua pontuado e visível; só não é promovido sozinho —
+   * a decisão fica para revisão manual.
+   */
+  needsManualReview: boolean;
 }
 
 export interface FixedJobKanbanColumn {
@@ -167,7 +200,6 @@ export interface FixedJobKanbanColumn {
 export interface FixedJobKanbanBoard {
   post: {
     id: string;
-    contractorUserId: string;
     title: string;
     role: string;
     category: string | null;
@@ -180,6 +212,8 @@ export interface FixedJobKanbanBoard {
   totalApplications: number;
   /** Candidaturas recusadas ficam fora das colunas — contadas aqui. */
   rejectedCount: number;
+  /** Precisam de olho humano (ex.: currículo só em PDF) — somem dentro de "Candidatos" sem este contador. */
+  needsManualReviewCount: number;
 }
 
 export async function getFixedJobKanban(postId: string): Promise<FixedJobKanbanBoard> {
@@ -187,7 +221,7 @@ export async function getFixedJobKanban(postId: string): Promise<FixedJobKanbanB
   return res.data.data;
 }
 
-/** Move o card de coluna (drag & drop). Movimento livre entre estágios. */
+/** Move o card de coluna (seletor "mover para →"). Movimento livre entre estágios. */
 export async function setFixedJobApplicationStage(
   applicationId: string,
   stage: FixedJobKanbanStage,
@@ -196,32 +230,40 @@ export async function setFixedJobApplicationStage(
   return res.data.data;
 }
 
-/** Relatório de uma rodada de triagem de currículos por IA. */
-export interface FixedJobAiScreeningReport {
-  model: string;
-  /** Corte (%): score >= corte foi movido para Pré-selecionados. */
+/** Um resultado individual de uma rodada de cálculo de compatibilidade. */
+export interface FixedJobMatchScoreResultItem {
+  applicationId?: string;
+  applicantName?: string;
+  score?: number | null;
+  needsManualReview?: boolean;
+  promoted?: boolean;
+  error?: string;
+}
+
+/** Relatório de uma rodada do cálculo de compatibilidade determinístico. */
+export interface FixedJobMatchScoreReport {
+  /** Corte (%): score >= corte foi promovido para "Pré-selecionados" (quando sem `needsManualReview`). */
   threshold: number;
+  weights: Record<FixedJobMatchAxis, number>;
   evaluated: number;
   promoted: number;
+  /** Pontuados mas não promovidos automaticamente — precisam de revisão manual. */
+  needsManualReview: number;
   skipped: number;
-  results: Array<{
-    applicationId: string;
-    applicantName: string;
-    score: number | null;
-    summary: string | null;
-    promoted: boolean;
-    error?: string;
-  }>;
+  results: FixedJobMatchScoreResultItem[];
 }
 
 /**
- * Roda a triagem por IA nos cards de "Candidatos": score >= corte (70%) move
- * para "Pré-selecionados". `force` reavalia também quem já tem score.
+ * Calcula a compatibilidade (score determinístico) dos candidatos em
+ * "Candidatos": quem passa do corte é promovido para "Pré-selecionados",
+ * exceto quem precisa de revisão manual — esses ficam pontuados, mas no
+ * lugar em que estavam, até uma decisão humana. `force` recalcula também
+ * quem já tem score.
  */
-export async function runFixedJobAiScreening(
+export async function runFixedJobMatchScore(
   postId: string,
   force = false,
-): Promise<FixedJobAiScreeningReport> {
-  const res = await fixedJobsAdminApi.post(`/posts/${postId}/kanban/ai-screening`, { force });
+): Promise<FixedJobMatchScoreReport> {
+  const res = await fixedJobsAdminApi.post(`/posts/${postId}/match-score`, { force });
   return res.data.data;
 }
