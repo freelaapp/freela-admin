@@ -8,6 +8,7 @@ import {
   Building2,
   Check,
   Download,
+  FileWarning,
   LayoutGrid,
   List,
   Loader2,
@@ -36,7 +37,7 @@ import {
   useFixedJobApplications,
   useFixedJobKanban,
   useMoveFixedJobApplication,
-  useRunFixedJobAiScreening,
+  useRunFixedJobMatchScore,
   useSetFixedJobApplicationStatus,
 } from "@/modules/admin/application/use-admin-fixed-jobs";
 import type {
@@ -46,18 +47,17 @@ import type {
   FixedJobKanbanStage,
   FixedJobProfessionalCurriculum,
 } from "@/modules/admin/infrastructure/fixed-jobs-api";
-import { SelectionKanban } from "./_components/selection-kanban";
+import { ScoreBreakdown, SelectionKanban } from "./_components/selection-kanban";
+import { stageTitle } from "./_components/kanban-helpers";
 import { formatInstantDate } from "@/lib/date.utils";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 
-/** Rótulos das etapas para os toasts de movimentação (as colunas vêm da API). */
-const STAGE_LABELS: Record<FixedJobKanbanStage, string> = {
-  CANDIDATE: "Candidatos",
-  PRE_SELECTED: "Pré-selecionados",
-  SELECTED: "Selecionados",
-  INTERVIEW: "Agendar entrevistas",
-  TEST: "Agendar testes",
-  FINAL_SELECTED: "Selecionado",
-};
+/** Um card do kanban tem os campos de score; uma candidatura da aba Lista não tem. */
+function isKanbanCard(
+  application: FixedJobAdminApplication | FixedJobKanbanCard,
+): application is FixedJobKanbanCard {
+  return "matchScore" in application;
+}
 
 // ---------------------------------------------------------------------------
 // Currículo profissional (readonly) — portado do web `FreelancerCurriculumReadonly`
@@ -253,7 +253,7 @@ function ProfileDialog({
   onChangeStatus,
   isPending,
 }: {
-  application: FixedJobAdminApplication | null;
+  application: FixedJobAdminApplication | FixedJobKanbanCard | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onChangeStatus: (application: FixedJobAdminApplication, status: FixedJobApplicationStatus) => void;
@@ -264,6 +264,9 @@ function ProfileDialog({
   // quando o provider não está anexado (providerGlobalId nulo).
   const curriculum = application.provider?.professionalCurriculum ?? application.curriculumSnapshot;
   const isRejected = application.status === "REJECTED";
+  // Só um card aberto a partir do kanban tem score de compatibilidade — a aba
+  // Lista usa `FixedJobAdminApplication`, que não passou pelo cálculo.
+  const kanbanCard = isKanbanCard(application) ? application : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -290,6 +293,27 @@ function ProfileDialog({
               </p>
             </div>
           </div>
+
+          {kanbanCard ? (
+            <div className="rounded-xl border border-[#e5e5e5] bg-[#f7f7f7] px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[12px] font-semibold text-[#737373]">
+                  Compatibilidade{kanbanCard.matchScore != null ? `: ${kanbanCard.matchScore}%` : ""}
+                </p>
+                {kanbanCard.needsManualReview ? (
+                  <Badge
+                    variant="warning"
+                    title="Currículo só em PDF — revisar à mão. É pontuado, mas nunca promovido automaticamente."
+                    className="inline-flex items-center gap-1"
+                  >
+                    <FileWarning size={11} aria-hidden />
+                    Revisar à mão
+                  </Badge>
+                ) : null}
+              </div>
+              <ScoreBreakdown card={kanbanCard} bordered={false} />
+            </div>
+          ) : null}
 
           {application.message ? (
             <div className="rounded-xl border border-[#e5e5e5] bg-[#f7f7f7] px-4 py-3">
@@ -440,6 +464,11 @@ export default function VagaFixaCandidatosPage() {
   const params = useParams<{ id: string }>();
   const postId = params?.id ?? "";
 
+  // Mesma guarda da listagem: esta página expõe currículo, telefone e e-mail dos
+  // candidatos, então não pode ficar acessível por URL direta a quem não tem a
+  // área liberada.
+  const { isChecking, allowed } = useAreaGuard("FIXED_JOBS");
+
   // O cabeçalho (título/empresa/local) reaproveita a listagem admin já existente.
   const { data: posts } = useAdminFixedJobs();
   const post = useMemo(() => posts?.find((p) => p.id === postId) ?? null, [posts, postId]);
@@ -451,49 +480,53 @@ export default function VagaFixaCandidatosPage() {
   } = useFixedJobApplications(postId);
   const statusMutation = useSetFixedJobApplicationStatus(postId);
 
-  // Kanban de seleção (visão default): board por etapa + triagem por IA.
+  // Kanban de seleção (visão default): board por etapa + score de compatibilidade determinístico.
   const [modo, setModo] = useState<"kanban" | "lista">("kanban");
   const kanbanQuery = useFixedJobKanban(postId);
   const moveMutation = useMoveFixedJobApplication(postId);
-  const screeningMutation = useRunFixedJobAiScreening(postId);
+  const matchScoreMutation = useRunFixedJobMatchScore(postId);
 
-  const [profileApplication, setProfileApplication] = useState<FixedJobAdminApplication | null>(null);
+  const [profileApplication, setProfileApplication] = useState<
+    FixedJobAdminApplication | FixedJobKanbanCard | null
+  >(null);
 
   function moveCard(card: FixedJobKanbanCard, stage: FixedJobKanbanStage) {
+    const destino = stageTitle(kanbanQuery.data, stage);
     moveMutation.mutate(
       { applicationId: card.id, stage },
       {
-        onSuccess: () =>
-          toast.success(`${card.applicantName} movido(a) para "${STAGE_LABELS[stage]}".`),
+        onSuccess: () => toast.success(`${card.applicantName} movido(a) para "${destino}".`),
         onError: () => toast.error("Não foi possível mover o candidato."),
       },
     );
   }
 
-  function runScreening() {
-    screeningMutation.mutate(
+  function calculateMatchScore() {
+    matchScoreMutation.mutate(
       { postId },
       {
         onSuccess: (report) => {
           if (report.evaluated === 0) {
             toast.info(
               report.skipped > 0
-                ? "Todos os candidatos desta coluna já foram avaliados pela IA."
-                : "Não há candidatos para avaliar.",
+                ? "Todos os candidatos desta coluna já têm compatibilidade calculada."
+                : "Não há candidatos para calcular.",
             );
             return;
           }
           toast.success(
-            `Triagem concluída: ${report.evaluated} currículo(s) avaliado(s), ` +
-              `${report.promoted} movido(s) para "Pré-selecionados" (corte ${report.threshold}%).`,
+            `Cálculo concluído: ${report.evaluated} currículo(s) avaliado(s), ` +
+              `${report.promoted} movido(s) para "Pré-selecionados" (corte ${report.threshold}%).` +
+              (report.needsManualReview > 0
+                ? ` ${report.needsManualReview} precisam de revisão manual.`
+                : ""),
           );
           const failures = report.results.filter((r) => r.error).length;
           if (failures > 0) {
             toast.warning(`${failures} candidato(s) não puderam ser avaliados — tente novamente.`);
           }
         },
-        onError: () =>
-          toast.error("Não foi possível rodar a triagem por IA. Verifique a configuração da chave."),
+        onError: () => toast.error("Não foi possível calcular a compatibilidade."),
       },
     );
   }
@@ -520,6 +553,15 @@ export default function VagaFixaCandidatosPage() {
   const headerParts = post
     ? [post.companyName, post.role, post.location].filter(Boolean).join(" • ")
     : "Candidaturas recebidas nesta vaga fixa.";
+
+  // Depois de todos os hooks: barra o acesso direto por URL de quem não tem a área.
+  if (isChecking || !allowed) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -585,10 +627,10 @@ export default function VagaFixaCandidatosPage() {
             board={kanbanQuery.data}
             isFetching={kanbanQuery.isFetching}
             isMoving={moveMutation.isPending}
-            isScreening={screeningMutation.isPending}
+            isCalculating={matchScoreMutation.isPending}
             onMove={moveCard}
             onOpenProfile={setProfileApplication}
-            onRunScreening={runScreening}
+            onCalculateMatchScore={calculateMatchScore}
           />
         )
       ) : isLoading ? (
