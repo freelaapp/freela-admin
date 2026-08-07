@@ -38,6 +38,8 @@ import {
   UserCog,
   ChevronDown,
   BadgePercent,
+  Gift,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNewVacancyChime } from "@/modules/admin/application/use-new-vacancy-chime";
@@ -93,6 +95,21 @@ const navItems: NavItem[] = [
     icon: Store,
     path: "/parcerias",
     permission: "PARTNERSHIPS",
+  },
+  // Nascem só para SUPER_ADMIN: a chave REFERRALS não existe em nenhum admin
+  // até alguém conceder. Aprovar recompensa é autorizar dinheiro saindo, e
+  // disparar campanha é falar com cliente pelo número da empresa.
+  {
+    label: "Indicações",
+    icon: Gift,
+    path: "/indicacoes",
+    permission: "REFERRALS",
+  },
+  {
+    label: "Campanhas",
+    icon: Send,
+    path: "/campanhas",
+    permission: "REFERRALS",
   },
   {
     label: "Propagandas",
