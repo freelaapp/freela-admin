@@ -65,9 +65,16 @@ const AXIS_LABELS: Record<FixedJobMatchAxis, string> = {
   distance: "Distância",
   profile: "Perfil",
   availability: "Disponibilidade",
+  keywords: "Currículo em PDF",
 };
 
-const AXIS_ORDER: FixedJobMatchAxis[] = ["experience", "distance", "profile", "availability"];
+const AXIS_ORDER: FixedJobMatchAxis[] = [
+  "experience",
+  "keywords",
+  "distance",
+  "profile",
+  "availability",
+];
 
 /** Verde no que passou do corte, âmbar no meio, cinza no baixo. Eixo não avaliado usa a cor "neutra". */
 const SCORE_COLORS = {

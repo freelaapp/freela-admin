@@ -150,7 +150,7 @@ export type FixedJobKanbanStage =
  * Eixos do score de compatibilidade determinístico — substituiu a triagem por
  * IA (que nunca chegou a rodar em produção).
  */
-export type FixedJobMatchAxis = "experience" | "distance" | "profile" | "availability";
+export type FixedJobMatchAxis = "experience" | "distance" | "profile" | "availability" | "keywords";
 
 /**
  * Resultado de um eixo do score. `applicable: false` quer dizer que o eixo
@@ -168,8 +168,11 @@ export interface FixedJobMatchAxisResult {
 /** Decomposição do score de compatibilidade — o "porquê" da nota, não só o número. */
 export interface FixedJobMatchBreakdown {
   total: number;
-  weights: Record<FixedJobMatchAxis, number>;
-  axes: Record<FixedJobMatchAxis, FixedJobMatchAxisResult>;
+  // Partial, não Record cheio: card pontuado antes de 10/08/2026 foi gravado
+  // sem o eixo `keywords`, e prometer a chave faria a tela ler undefined como
+  // se fosse objeto.
+  weights: Partial<Record<FixedJobMatchAxis, number>>;
+  axes: Partial<Record<FixedJobMatchAxis, FixedJobMatchAxisResult>>;
 }
 
 /** Card do kanban: a candidatura + estágio + resultado do score de compatibilidade. */
