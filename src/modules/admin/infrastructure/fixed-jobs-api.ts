@@ -167,7 +167,8 @@ export interface FixedJobMatchAxisResult {
 
 /** Decomposição do score de compatibilidade — o "porquê" da nota, não só o número. */
 export interface FixedJobMatchBreakdown {
-  total: number;
+  /** null = pontuado, mas nenhum eixo da vaga se aplicou (só sobrava o perfil). */
+  total: number | null;
   // Partial, não Record cheio: card pontuado antes de 10/08/2026 foi gravado
   // sem o eixo `keywords`, e prometer a chave faria a tela ler undefined como
   // se fosse objeto.

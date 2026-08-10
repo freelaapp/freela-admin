@@ -123,13 +123,17 @@ export function ScoreBreakdown({
   const breakdown = card.matchBreakdown;
   const spacing = bordered ? "mt-2 border-t border-[#F1F5F9] pt-2" : "";
 
-  if (card.matchScore == null || !breakdown) {
+  // A composição aparece sempre que houver breakdown, com ou sem nota: card sem
+  // nota é justamente o que precisa da explicação por eixo.
+  if (!breakdown) {
     return <p className={`${spacing} text-[11px] italic text-[#94A3B8]`}>Compatibilidade ainda não calculada.</p>;
   }
 
   return (
     <div className={`${spacing} space-y-1.5`}>
-      <p className="text-[11px] font-semibold text-[#64748B]">Composição do score</p>
+      <p className="text-[11px] font-semibold text-[#64748B]">
+        {card.matchScore == null ? "Sem dados desta vaga para comparar" : "Composição do score"}
+      </p>
       {AXIS_ORDER.map((axis) => {
         const res = breakdown.axes[axis];
         if (!res) return null;
