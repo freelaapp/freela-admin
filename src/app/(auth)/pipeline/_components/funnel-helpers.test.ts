@@ -4,6 +4,7 @@ import {
   FUNNEL_PRESETS,
   activeFunnelPreset,
   filterPipelineCards,
+  formatSentAt,
   waLink,
 } from "./funnel-helpers";
 import type { PipelineCard } from "@/modules/admin/infrastructure/crm-api";
@@ -19,6 +20,8 @@ function card(over: Partial<PipelineCard>): PipelineCard {
     whatsappPhone: "5511999990000",
     hiringsCount: 0,
     registeredAt: "2026-07-01T12:00:00.000Z",
+    lastMessageSentAt: null,
+    messagesSentCount: 0,
     ...over,
   };
 }
@@ -76,5 +79,28 @@ describe("waLink", () => {
 
   it("adiciona DDI 55 em número local e remove máscara", () => {
     expect(waLink("(11) 99999-0000")).toBe("https://wa.me/5511999990000");
+  });
+});
+
+describe("formatSentAt", () => {
+  const agora = new Date("2026-08-10T18:00:00");
+
+  // O que a equipe precisa saber é se a mensagem saiu HOJE — não o carimbo
+  // completo. Data cheia só quando o dia passa a importar mais que a hora.
+  it("mostra a hora quando foi hoje", () => {
+    expect(formatSentAt("2026-08-10T14:32:00", agora)).toBe("hoje às 14:32");
+  });
+
+  it("diz ontem em vez da data", () => {
+    expect(formatSentAt("2026-08-09T09:10:00", agora)).toBe("ontem às 09:10");
+  });
+
+  it("cai para a data a partir de dois dias", () => {
+    expect(formatSentAt("2026-08-03T09:10:00", agora)).toBe("em 03/08");
+  });
+
+  // Data inválida não pode quebrar o card inteiro do funil.
+  it("não quebra com data inválida", () => {
+    expect(formatSentAt("nao-e-data", agora)).toBe("antes");
   });
 });

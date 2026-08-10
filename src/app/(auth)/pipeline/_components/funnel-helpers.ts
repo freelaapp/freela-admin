@@ -32,6 +32,24 @@ export function waLink(phone: string): string {
   return `https://wa.me/${digits.length <= 11 ? `55${digits}` : digits}`;
 }
 
+/**
+ * "hoje às 14:32", "ontem às 09:10" ou "em 03/08" — o que a equipe precisa saber
+ * é se a mensagem saiu HOJE, não o carimbo completo. Data cheia só quando já
+ * passou tempo suficiente para o dia importar mais que a hora.
+ */
+export function formatSentAt(iso: string, now: Date = new Date()): string {
+  const sent = new Date(iso);
+  if (Number.isNaN(sent.getTime())) return "antes";
+
+  const diaDe = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dias = Math.round((diaDe(now) - diaDe(sent)) / 86_400_000);
+  const hora = sent.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+  if (dias === 0) return `hoje às ${hora}`;
+  if (dias === 1) return `ontem às ${hora}`;
+  return `em ${sent.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`;
+}
+
 // ─── Período (filtro de data de cadastro) ───────────────────────────────────
 
 export type FunnelRange = { from: string; to: string };

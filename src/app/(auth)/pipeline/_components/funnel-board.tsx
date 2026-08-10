@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, MapPin, Store, Loader2, MessageCircle } from "lucide-react";
+import { Search, MapPin, Store, Loader2, MessageCircle, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
   MODULE_LABEL,
   activeFunnelPreset,
   filterPipelineCards,
+  formatSentAt,
   waLink,
   type FunnelRange,
 } from "./funnel-helpers";
@@ -32,14 +33,26 @@ export function FunnelBoard() {
 
   const columns = useMemo(() => {
     if (!board) return [];
-    return board.columns.map((col) => ({
-      ...col,
-      cards: filterPipelineCards(col.cards, q),
-    }));
+    return board.columns.map((col) => {
+      const cards = filterPipelineCards(col.cards, q);
+      return {
+        ...col,
+        cards,
+        // Conta sobre os cards VISÍVEIS: com busca ativa, "3 enviadas" tem que
+        // bater com o que está na tela, senão o número parece errado.
+        contactedCount: cards.filter((c) => c.lastMessageSentAt).length,
+      };
+    });
   }, [board, q]);
 
   function onSendWhatsApp(card: PipelineCard) {
-    if (!confirm(`Enviar a mensagem automática de WhatsApp para ${card.name}?`)) return;
+    // Reenvio pede confirmação DIFERENTE: mandar de novo para quem já recebeu é
+    // o erro que o amarelo existe para evitar, e insistir queima o número.
+    const pergunta = card.lastMessageSentAt
+      ? `${card.name} já recebeu a mensagem ${formatSentAt(card.lastMessageSentAt)}` +
+        `${card.messagesSentCount > 1 ? ` (${card.messagesSentCount} envios)` : ""}. Enviar de novo?`
+      : `Enviar a mensagem automática de WhatsApp para ${card.name}?`;
+    if (!confirm(pergunta)) return;
     sendWhatsApp.mutate(card.userId);
   }
 
@@ -137,16 +150,39 @@ export function FunnelBoard() {
                     <Icon className="w-3.5 h-3.5 text-[#eca826]" />
                     {col.title}
                   </h3>
-                  <span className="text-xs font-medium text-[#737373] bg-[#f7f7f7] px-2 py-0.5 rounded-full">
-                    {col.cards.length}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    {/* Quantos desta etapa já foram abordados: o número que diz
+                        se ainda há trabalho na coluna, sem contar card a card. */}
+                    {col.contactedCount > 0 && (
+                      <span
+                        className="text-[10px] font-medium text-[#8a6d1f] bg-[#fdf6e3] px-1.5 py-0.5 rounded-full"
+                        title={`${col.contactedCount} já receberam a mensagem`}
+                      >
+                        {col.contactedCount} enviadas
+                      </span>
+                    )}
+                    <span className="text-xs font-medium text-[#737373] bg-[#f7f7f7] px-2 py-0.5 rounded-full">
+                      {col.cards.length}
+                    </span>
+                  </div>
                 </div>
                 <div className="p-3 space-y-2 min-h-[80px] max-h-[65vh] overflow-y-auto">
                   {col.cards.map((card) => {
                     const sending =
                       sendWhatsApp.isPending && sendWhatsApp.variables === card.userId;
+                    // Amarelo = já falamos com essa pessoa. O card cinza é
+                    // trabalho a fazer; o amarelo é trabalho feito — dá para
+                    // varrer a coluna com o olho sem abrir card nenhum.
+                    const contacted = Boolean(card.lastMessageSentAt);
                     return (
-                      <div key={card.userId} className="bg-[#f7f7f7]/50 rounded-lg p-3">
+                      <div
+                        key={card.userId}
+                        className={`rounded-lg p-3 ${
+                          contacted
+                            ? "bg-[#fdf6e3] border border-[#eca826]/40"
+                            : "bg-[#f7f7f7]/50"
+                        }`}
+                      >
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-medium text-[#1d1d1b]">{card.name}</p>
                           <div className="flex gap-1 shrink-0">
@@ -189,9 +225,21 @@ export function FunnelBoard() {
                           )}
                         </div>
 
+                        {contacted && (
+                          <p className="mt-2 text-[11px] text-[#8a6d1f] flex items-center gap-1">
+                            <Check className="w-3 h-3 shrink-0" />
+                            Enviada {formatSentAt(card.lastMessageSentAt!)}
+                            {card.messagesSentCount > 1 && ` · ${card.messagesSentCount}x`}
+                          </p>
+                        )}
+
                         <Button
                           size="sm"
-                          className="w-full mt-2 h-7 text-xs bg-[#25D366] text-white hover:bg-[#1fb457] font-medium disabled:opacity-60"
+                          className={`w-full mt-2 h-7 text-xs font-medium disabled:opacity-60 ${
+                            contacted
+                              ? "bg-white text-[#737373] border border-[#e5e5e5] hover:bg-[#f7f7f7]"
+                              : "bg-[#25D366] text-white hover:bg-[#1fb457]"
+                          }`}
                           disabled={!card.whatsappPhone || sending}
                           onClick={() => onSendWhatsApp(card)}
                         >
@@ -200,7 +248,7 @@ export function FunnelBoard() {
                           ) : (
                             <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
                           )}
-                          Enviar msg automática
+                          {contacted ? "Enviar de novo" : "Enviar msg automática"}
                         </Button>
                       </div>
                     );

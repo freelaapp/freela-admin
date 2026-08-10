@@ -213,6 +213,10 @@ export interface PipelineCard {
   whatsappPhone: string | null;
   hiringsCount: number;
   registeredAt: string;
+  /** Quando mandamos a mensagem automática. `null` = ninguém falou com ele ainda. */
+  lastMessageSentAt: string | null;
+  /** Quantas vezes já mandamos — insistência demais queima o número. */
+  messagesSentCount: number;
 }
 
 export interface PipelineColumn {
@@ -239,7 +243,9 @@ export async function getCrmPipeline(params?: PipelinePeriodParams): Promise<Pip
   return res.data.data;
 }
 
-export async function sendPipelineWhatsApp(userId: string): Promise<{ ok: boolean; phone: string }> {
+export async function sendPipelineWhatsApp(
+  userId: string,
+): Promise<{ ok: boolean; phone: string; sentAt: string }> {
   const res = await crmApi.post(`/pipeline/${userId}/whatsapp`);
   return res.data.data;
 }

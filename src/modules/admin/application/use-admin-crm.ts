@@ -68,9 +68,16 @@ export function useCrmPipeline(params?: PipelinePeriodParams) {
 
 /** Botão do card: dispara a mensagem automática de WhatsApp ao contratante. */
 export function usePipelineWhatsApp() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) => sendPipelineWhatsApp(userId),
-    onSuccess: (r) => toast.success(`Mensagem enviada para ${r.phone}.`),
+    onSuccess: (r) => {
+      toast.success(`Mensagem enviada para ${r.phone}.`);
+      // Recarrega o funil para o card virar "contatado" na hora. Sem isto o
+      // amarelo só apareceria no próximo F5 — e quem está mandando mensagem em
+      // série continuaria sem saber onde parou.
+      qc.invalidateQueries({ queryKey: [...ROOT, "pipeline"] });
+    },
     onError: (e) => toast.error(getAxiosErrorMessage(e, "Erro ao enviar a mensagem de WhatsApp.")),
   });
 }
