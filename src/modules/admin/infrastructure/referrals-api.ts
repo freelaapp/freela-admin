@@ -134,6 +134,12 @@ export interface Campaign {
   startedAt: string | null;
   completedAt: string | null;
   _count?: { recipients: number };
+  /**
+   * Resultado do disparo, por status. Vem na LISTA desde 11/08/2026 — antes só
+   * existia no detalhe, e a lista dizia quantos entraram na campanha sem dizer
+   * quantos de fato saíram.
+   */
+  stats?: Record<RecipientStatus, number>;
 }
 
 export interface CampaignDetail {
