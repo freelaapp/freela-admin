@@ -6,9 +6,11 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
 import {
+  useResendVacancyGroupMessage,
   useSendVacancyStageMessage,
   useVacancyOutreach,
 } from "@/modules/admin/application/use-vacancy-outreach";
+import { GROUP_BROADCAST_STAGE } from "@/modules/admin/infrastructure/vacancy-outreach-api";
 import type { OutreachStage } from "@/modules/admin/infrastructure/vacancy-outreach-api";
 import { resolveVacancyBucket, type VacancyBucket } from "./_components/vacancy-bucket";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -327,6 +329,8 @@ export default function JobsPage() {
   const { enviados: avisosEnviados } = useVacancyOutreach();
   const enviarAviso = useSendVacancyStageMessage();
   const [avisandoId, setAvisandoId] = useState<string | null>(null);
+  const reenviarDisparo = useResendVacancyGroupMessage();
+  const [reenviandoId, setReenviandoId] = useState<string | null>(null);
   const { data: vacancies, isLoading, isError, isFetching } = useAdminVacancies(
     selectedConsultantId || undefined,
     // Só o painel repolla: ele fica aberto na TV sem ninguém para atualizar.

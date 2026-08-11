@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getVacancyOutreach,
   outreachKey,
+  resendVacancyGroupMessage,
   sendVacancyStageMessage,
   type OutreachStage,
 } from "../infrastructure/vacancy-outreach-api";
@@ -35,6 +36,15 @@ export function useSendVacancyStageMessage() {
       sendVacancyStageMessage(vacancyId, stage),
     // Só invalida no sucesso: um card não pode ficar pintado por um envio que
     // a Evolution recusou.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-outreach"] }),
+  });
+}
+
+/** Reenvio do anúncio no grupo da cidade. */
+export function useResendVacancyGroupMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vacancyId: string) => resendVacancyGroupMessage(vacancyId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-outreach"] }),
   });
 }
