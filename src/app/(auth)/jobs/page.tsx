@@ -5,6 +5,11 @@ import { Plus, Eye, LayoutGrid, Clock, Star, Check, Loader2, Phone, Mail, XCircl
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
+import {
+  useSendVacancyStageMessage,
+  useVacancyOutreach,
+} from "@/modules/admin/application/use-vacancy-outreach";
+import type { OutreachStage } from "@/modules/admin/infrastructure/vacancy-outreach-api";
 import { resolveVacancyBucket, type VacancyBucket } from "./_components/vacancy-bucket";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -318,6 +323,10 @@ export default function JobsPage() {
   // mesma tela porque é a MESMA lista, só desenhada de outro jeito — separar em
   // outra rota duplicaria a classificação por etapa.
   const [modoPainel, setModoPainel] = useState(false);
+  // Avisos já enviados + disparo. Uma consulta para o painel inteiro.
+  const { enviados: avisosEnviados } = useVacancyOutreach();
+  const enviarAviso = useSendVacancyStageMessage();
+  const [avisandoId, setAvisandoId] = useState<string | null>(null);
   const { data: vacancies, isLoading, isError, isFetching } = useAdminVacancies(
     selectedConsultantId || undefined,
     // Só o painel repolla: ele fica aberto na TV sem ninguém para atualizar.
@@ -632,6 +641,24 @@ export default function JobsPage() {
           onSelect={(vacancyId) =>
             setModalDetalhes(allRows.find((r) => r.id === vacancyId) ?? null)
           }
+          avisados={avisosEnviados}
+          avisando={avisandoId}
+          onAvisar={async (vacancyId, stage) => {
+            setAvisandoId(vacancyId);
+            try {
+              const r = await enviarAviso.mutateAsync({
+                vacancyId,
+                stage: stage as OutreachStage,
+              });
+              toast.success(`Aviso enviado para ${r.phone}.`);
+            } catch (e) {
+              // A mensagem da API é específica ("contratante sem telefone"),
+              // e é ela que diz o que fazer — não pode virar "tente de novo".
+              toast.error(getAxiosErrorMessage(e) || "Não foi possível enviar o aviso.");
+            } finally {
+              setAvisandoId(null);
+            }
+          }}
         />
       ) : (
       <DataTable
