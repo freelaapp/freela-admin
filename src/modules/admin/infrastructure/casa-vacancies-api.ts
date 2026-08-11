@@ -28,6 +28,19 @@ export interface CasaVacancyItem {
   pricingTierLabel?: string | null;
   /** Consultor que indicou o contratante desta vaga (null quando não indicado). */
   referringConsultant?: { id: string; name: string; code: string } | null;
+  /**
+   * Campos de ETAPA do funil, iguais aos de Empresa. Opcionais porque a API
+   * em produção pode ainda não tê-los durante a janela de deploy — sem eles a
+   * vaga cai em "aberta", que é o comportamento antigo.
+   */
+  candidacyCount?: number;
+  providerName?: string | null;
+  job?: {
+    id: string;
+    status: string;
+    hasContractorFeedback?: boolean;
+    hasProviderFeedback?: boolean;
+  } | null;
 }
 
 export async function getAdminCasaOpenVacancies(consultantId?: string): Promise<CasaVacancyItem[]> {
