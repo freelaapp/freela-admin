@@ -214,6 +214,8 @@ function TransactionsView({
 }) {
   const [type, setType] = useState<FinanceTransaction["type"] | undefined>(fixedType);
   const [vacancyId, setVacancyId] = useState(fixedVacancyId ?? "");
+  /** Transação cuja vaga está aberta no card de detalhes. */
+  const [detalhe, setDetalhe] = useState<FinanceTransaction | null>(null);
 
   const { data, isLoading, isFetching } = useFinanceTransactions({
     from: range.from,
@@ -255,19 +257,63 @@ function TransactionsView({
     { header: "Descrição", accessor: "descricao" as const },
     { header: "Gateway", accessor: "gateway" as const, className: "hidden lg:table-cell" },
     {
+      header: "Quem pagou",
+      accessor: (r: TxRow) => {
+        // Só a ENTRADA tem pagador. Numa saída o dinheiro vai para o
+        // freelancer, e mostrar o contratante aqui inverteria o sentido.
+        if (r.raw.type !== "entrada") return <span className="text-[#a3a3a3]">—</span>;
+        return r.raw.party ? (
+          <span className="text-sm text-[#1d1d1b]">{r.raw.party}</span>
+        ) : (
+          <span className="text-[#a3a3a3]">—</span>
+        );
+      },
+      className: "hidden lg:table-cell",
+    },
+    {
       header: "Vaga",
       accessor: (r: TxRow) =>
         r.raw.vacancyId ? (
-          <button
-            onClick={() => setVacancyId(r.raw.vacancyId!)}
-            title="Filtrar o fluxo desta vaga"
-            className="font-mono text-xs text-[#737373] hover:text-[#eca826] underline decoration-dotted"
-          >
-            {r.raw.vacancyId.slice(0, 8)}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setDetalhe(r.raw)}
+              title="Abrir os detalhes da vaga"
+              className="text-left text-xs font-medium text-[#1d1d1b] underline decoration-dotted hover:text-[#eca826] cursor-pointer"
+            >
+              {r.raw.vacancy?.serviceType ?? r.raw.vacancyId.slice(0, 8)}
+            </button>
+            <button
+              onClick={() => setVacancyId(r.raw.vacancyId!)}
+              title="Filtrar o fluxo desta vaga"
+              className="font-mono text-[10px] text-[#a3a3a3] hover:text-[#eca826] cursor-pointer"
+            >
+              #{r.raw.vacancyId.slice(0, 8)}
+            </button>
+          </div>
         ) : (
           <span className="text-[#a3a3a3]">—</span>
         ),
+    },
+    {
+      header: "Custo / Nosso",
+      accessor: (r: TxRow) => {
+        const v = r.raw.vacancy;
+        if (!v || (v.freelancerAmountInCents == null && v.platformRevenueInCents == null)) {
+          return <span className="text-[#a3a3a3]">—</span>;
+        }
+        return (
+          <span className="whitespace-nowrap text-xs tabular-nums">
+            <span className="text-[#737373]">
+              {v.freelancerAmountInCents != null ? formatCurrency(v.freelancerAmountInCents) : "—"}
+            </span>
+            <span className="text-[#d4d4d4]"> / </span>
+            <span className="font-medium text-green-700">
+              {v.platformRevenueInCents != null ? formatCurrency(v.platformRevenueInCents) : "—"}
+            </span>
+          </span>
+        );
+      },
+      className: "hidden xl:table-cell",
     },
     {
       header: "Valor",
@@ -354,16 +400,142 @@ function TransactionsView({
   );
 
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      searchPlaceholder="Buscar por vaga, referência…"
-      searchKey="busca"
-      filters={filters}
-      footer={footer}
-      isFetching={isFetching}
-      defaultSort={{ index: 0, direction: "desc" }}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={rows}
+        searchPlaceholder="Buscar por vaga, referência…"
+        searchKey="busca"
+        filters={filters}
+        footer={footer}
+        isFetching={isFetching}
+        defaultSort={{ index: 0, direction: "desc" }}
+      />
+      <TransacaoVagaDialog
+        tx={detalhe}
+        onClose={() => setDetalhe(null)}
+        onFiltrarVaga={(id) => {
+          setVacancyId(id);
+          setDetalhe(null);
+        }}
+      />
+    </>
+  );
+}
+
+/**
+ * A vaga por trás de uma transação.
+ *
+ * Os dados vêm junto com a própria linha (a API resolve a vaga na mesma
+ * consulta), então abrir o card não dispara requisição nenhuma — dá para
+ * clicar em várias seguidas sem esperar.
+ */
+function TransacaoVagaDialog({
+  tx,
+  onClose,
+  onFiltrarVaga,
+}: {
+  tx: FinanceTransaction | null;
+  onClose: () => void;
+  onFiltrarVaga: (vacancyId: string) => void;
+}) {
+  const v = tx?.vacancy ?? null;
+
+  return (
+    <Dialog open={Boolean(tx)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogClose onClick={onClose} />
+        <DialogHeader>
+          <DialogTitle>{v?.serviceType ?? "Vaga"}</DialogTitle>
+          <DialogDescription>
+            {v ? (
+              <>
+                {v.module === "home-services" ? "Freela em Casa" : "Bares e Restaurantes"}
+                {v.date ? ` · ${formatInstantDate(v.date)}` : ""}
+              </>
+            ) : (
+              "Esta transação não está ligada a uma vaga."
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        {tx && (
+          <div className="space-y-4 text-sm">
+            <div className="rounded-lg border border-[#e5e5e5] p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#737373]">
+                Transação
+              </p>
+              <Linha rotulo="Movimento" valor={<TypeBadge type={tx.type} />} />
+              <Linha rotulo="Valor" valor={formatCurrency(tx.amountInCents)} />
+              <Linha rotulo="Gateway" valor={tx.provider ?? "—"} />
+              <Linha rotulo="Data" valor={formatInstantDate(tx.createdAt)} />
+              {tx.type === "entrada" && <Linha rotulo="Pago por" valor={tx.party ?? "—"} />}
+            </div>
+
+            {v && (
+              <div className="rounded-lg border border-[#e5e5e5] p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#737373]">
+                  Economia da vaga
+                </p>
+                <Linha rotulo="Contratante" valor={v.contractorName ?? "—"} />
+                <Linha
+                  rotulo="Valor do serviço"
+                  valor={v.baseAmountInCents != null ? formatCurrency(v.baseAmountInCents) : "—"}
+                />
+                <Linha
+                  rotulo="Custo (freelancer)"
+                  valor={
+                    v.freelancerAmountInCents != null
+                      ? formatCurrency(v.freelancerAmountInCents)
+                      : "—"
+                  }
+                />
+                <Linha
+                  rotulo="Nossa receita"
+                  valor={
+                    v.platformRevenueInCents != null ? (
+                      <strong className="text-green-700">
+                        {formatCurrency(v.platformRevenueInCents)}
+                      </strong>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+                {/* A receita é a taxa da vaga, ANTES da taxa do gateway — a
+                    mesma conta do KPI de lucro no topo, que desconta o gateway
+                    uma vez só, no total. */}
+                <p className="mt-2 text-xs text-[#a3a3a3]">
+                  Receita = taxa da plataforma + taxa fixa, antes da taxa do gateway.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          {tx?.vacancyId && (
+            <Button
+              variant="outline"
+              onClick={() => onFiltrarVaga(tx.vacancyId!)}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Ver o fluxo desta vaga
+            </Button>
+          )}
+          <Button onClick={onClose}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <span className="text-[#737373]">{rotulo}</span>
+      <span className="text-right text-[#1d1d1b]">{valor}</span>
+    </div>
   );
 }
 
