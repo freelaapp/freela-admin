@@ -53,11 +53,14 @@ function mapContractorToRow(c: ContractorItem) {
     nome: c.companyName || c.contactName || "Sem nome",
     email: c.registrationEmail ?? "",
     _search:
-      `${c.companyName ?? ""} ${c.contactName ?? ""} ${c.registrationEmail ?? ""}`.toLowerCase(),
+      `${c.companyName ?? ""} ${c.contactName ?? ""} ${c.registrationEmail ?? ""} ${c.city ?? ""} ${c.uf ?? ""}`.toLowerCase(),
     responsavel: c.contactName,
     // formatPhoneBr: contactPhone pode vir em E.164 (+55...) — exibe nacional
     telefone: c.contactPhone ? formatPhoneBr(c.contactPhone) : "N/A",
-    cidade: c.city || "N/A",
+    // Cidade COM o estado: "Campinas" existe em SP e em quatro outros estados,
+    // e o `uf` já vinha da API — só não chegava à tela (aparecia apenas no CSV).
+    cidade: [c.city, c.uf].filter(Boolean).join("/") || "N/A",
+    uf: c.uf || "",
     segmento: c.segment || "N/A",
     jobs: c.jobs,
     ticket: c.ticketMedio ? `R$ ${(c.ticketMedio / 100).toFixed(2)}` : "N/A",
@@ -76,6 +79,8 @@ export default function EmpresasPage() {
   // Área controlada por permissão (COMPANIES); sem ela, volta para o dashboard.
   const { isChecking: isAreaChecking, allowed: isAreaAllowed } = useAreaGuard("COMPANIES");
   const { data: contractors, isLoading, isError } = useAdminContractors();
+  /** Sigla do estado, ou "" para todos. */
+  const [ufFiltro, setUfFiltro] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedItem, setSelectedItem] = useState<Row | null>(null);
@@ -88,7 +93,19 @@ export default function EmpresasPage() {
   const [reportTo, setReportTo] = useState("");
   const [generating, setGenerating] = useState(false);
 
-  const rows: Row[] = contractors?.map(mapContractorToRow) ?? [];
+  const todasAsEmpresas: Row[] = contractors?.map(mapContractorToRow) ?? [];
+
+  // Estados presentes na base, com a contagem. Só os que existem entram na
+  // lista — um seletor com as 27 UFs faria o admin procurar entre estados
+  // vazios.
+  const estados = Array.from(
+    todasAsEmpresas.reduce<Map<string, number>>((acc, r) => {
+      if (r.uf) acc.set(r.uf, (acc.get(r.uf) ?? 0) + 1);
+      return acc;
+    }, new Map()),
+  ).sort((a, b) => a[0].localeCompare(b[0]));
+
+  const rows = ufFiltro ? todasAsEmpresas.filter((r) => r.uf === ufFiltro) : todasAsEmpresas;
 
   const openModal = (type: ModalType, item: Row) => {
     setModalType(type);
@@ -604,7 +621,32 @@ export default function EmpresasPage() {
           </Button>
         }
       />
-      <DataTable columns={columns} data={rows} searchPlaceholder="Buscar por empresa ou e-mail..." searchKey="_search" />
+      <DataTable
+        columns={columns}
+        data={rows}
+        searchPlaceholder="Buscar por empresa, e-mail ou cidade..."
+        searchKey="_search"
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="uf-filter" className="text-xs font-medium text-[#737373]">
+              Estado:
+            </label>
+            <select
+              id="uf-filter"
+              value={ufFiltro}
+              onChange={(e) => setUfFiltro(e.target.value)}
+              className="rounded-lg border border-[#e5e5e5] bg-white px-3 py-1.5 text-xs font-medium text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+            >
+              <option value="">Todos ({todasAsEmpresas.length})</option>
+              {estados.map(([uf, total]) => (
+                <option key={uf} value={uf}>
+                  {uf} ({total})
+                </option>
+              ))}
+            </select>
+          </div>
+        }
+      />
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent
           className={cn("relative", modalType === "vaga" && "max-h-[85vh] overflow-y-auto")}

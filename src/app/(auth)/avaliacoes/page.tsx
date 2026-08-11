@@ -106,8 +106,22 @@ export default function AvaliacoesPage() {
   const [modalAceitar, setModalAceitar] = useState<typeof moderacoesMock[0] | null>(null);
   const [modalRejeitar, setModalRejeitar] = useState<typeof moderacoesMock[0] | null>(null);
   const [selectedAuthor, setSelectedAuthor] = useState<AuthorProfile | null>(null);
+  /** Nota exata (1–5), ou `null` para todas. */
+  const [notaFiltro, setNotaFiltro] = useState<number | null>(null);
 
-  const rows: Row[] = feedbacks?.map(mapFeedbackToRow) ?? [];
+  const todasAsLinhas: Row[] = feedbacks?.map(mapFeedbackToRow) ?? [];
+  const rows =
+    notaFiltro === null
+      ? todasAsLinhas
+      : todasAsLinhas.filter((r) => Math.round(r.nota) === notaFiltro);
+
+  // Contagem por nota, numa passada só. Mostrada no próprio chip: é o número
+  // que interessa aqui — quantas avaliações de 1 estrela existem hoje.
+  const porNota = todasAsLinhas.reduce<Record<number, number>>((acc, r) => {
+    const n = Math.round(r.nota);
+    acc[n] = (acc[n] ?? 0) + 1;
+    return acc;
+  }, {});
 
   const columns = [
     {
@@ -282,7 +296,47 @@ export default function AvaliacoesPage() {
               <p className="text-red-500">Erro ao carregar avaliações.</p>
             </div>
           ) : (
-            <DataTable key={feedbackModule} columns={columns} data={rows} searchPlaceholder="Buscar por autor..." searchKey="freelancer" />
+            <DataTable
+              key={feedbackModule}
+              columns={columns}
+              data={rows}
+              searchPlaceholder="Buscar por autor..."
+              searchKey="freelancer"
+              filters={
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-[#737373]">Nota:</span>
+                  <button
+                    type="button"
+                    onClick={() => setNotaFiltro(null)}
+                    className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      notaFiltro === null
+                        ? "border-[#eca826] bg-[#eca826]/10 text-[#1d1d1b]"
+                        : "border-[#e5e5e5] bg-white text-[#737373] hover:bg-[#f5f5f5]"
+                    }`}
+                  >
+                    Todas ({todasAsLinhas.length})
+                  </button>
+                  {/* Da pior para a melhor: nota baixa é o que se procura aqui.
+                      Freelancer abaixo de 3 cai em baixa prioridade, então 1 e 2
+                      são as que exigem alguém olhando. */}
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setNotaFiltro(n)}
+                      className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        notaFiltro === n
+                          ? "border-[#eca826] bg-[#eca826]/10 text-[#1d1d1b]"
+                          : "border-[#e5e5e5] bg-white text-[#737373] hover:bg-[#f5f5f5]"
+                      }`}
+                    >
+                      <Star className="h-3.5 w-3.5 fill-[#eca826] text-[#eca826]" />
+                      {n} ({porNota[n] ?? 0})
+                    </button>
+                  ))}
+                </div>
+              }
+            />
           )}
         </>
       ) : (
