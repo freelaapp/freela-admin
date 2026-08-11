@@ -217,9 +217,19 @@ function TransactionsView({
   /** Transação cuja vaga está aberta no card de detalhes. */
   const [detalhe, setDetalhe] = useState<FinanceTransaction | null>(null);
 
+  const filtrandoPorVaga = Boolean(vacancyId.trim());
+
+  /**
+   * Filtrar por VAGA ignora o período.
+   *
+   * O estorno de uma vaga acontece semanas depois da cobrança. Com o recorte
+   * "Este mês" ligado, a tela mostrava só o estorno e escondia a entrada que o
+   * originou — parecia dinheiro saindo do nada. Quem pede uma vaga específica
+   * quer a história inteira dela, não o pedaço que cabe no mês.
+   */
   const { data, isLoading, isFetching } = useFinanceTransactions({
-    from: range.from,
-    to: range.to,
+    from: filtrandoPorVaga ? undefined : range.from,
+    to: filtrandoPorVaga ? undefined : range.to,
     type: fixedType ?? type,
     vacancyId: vacancyId.trim() || undefined,
   });
@@ -373,6 +383,13 @@ function TransactionsView({
         >
           <X className="w-3.5 h-3.5" /> Vaga {vacancyId.slice(0, 8)}
         </button>
+      )}
+      {/* Dizer que o período foi ignorado, e não só ignorá-lo: a barra de datas
+          continua na tela, e sem este aviso ela estaria mentindo. */}
+      {filtrandoPorVaga && (
+        <span className="text-xs text-[#737373]">
+          mostrando a vaga inteira, fora do período selecionado
+        </span>
       )}
     </div>
   );
