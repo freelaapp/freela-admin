@@ -29,7 +29,7 @@ import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } f
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
 import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
 import type { VacancyItem, VacancyFeedbackEntry, RefundType } from "@/modules/admin/infrastructure/admin-api";
-import { formatVacancyDate, formatVacancyTime, formatInstantDate, formatInstantDateTime } from "@/lib/date.utils";
+import { formatVacancyDate, formatVacancyTime, formatInstantDate, formatInstantDateTime, vacancyDayISO } from "@/lib/date.utils";
 
 const formatDate = formatVacancyDate;
 const formatTime = formatVacancyTime;
@@ -327,6 +327,8 @@ export default function JobsPage() {
   // Dropdown de consultor é exclusivo do super-admin (mesma regra da tela de consultores).
   const { data: consultants } = useAdminConsultants();
   const [statusFilter, setStatusFilter] = useState<"all" | VacancyBucket>("all");
+  /** Dia do serviço, "YYYY-MM-DD" vindo do `<input type="date">`. "" = todas. */
+  const [dataFiltro, setDataFiltro] = useState("");
 
   const [modalDetalhes, setModalDetalhes] = useState<Row | null>(null);
   const [modalBuscarId, setModalBuscarId] = useState(false);
@@ -355,13 +357,21 @@ export default function JobsPage() {
   const removeCandidacyMutation = useAdminRemoveCandidacy();
 
   const allRows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
+
+  // Recorte por DIA DO SERVIÇO. Vem antes do filtro de etapa de propósito: com
+  // uma data escolhida, os contadores dos chips passam a ser os daquele dia —
+  // "aguardando pagamento (3)" tem que ser 3 naquela data, não 3 no histórico.
+  const rowsNoDia = dataFiltro
+    ? allRows.filter((r) => vacancyDayISO(r.raw.date) === dataFiltro)
+    : allRows;
+
   const rows =
     statusFilter === "all"
-      ? allRows
-      : allRows.filter((r) => r.bucket === statusFilter);
+      ? rowsNoDia
+      : rowsNoDia.filter((r) => r.bucket === statusFilter);
   // Uma passada só para os contadores dos chips: são nove etapas, e varrer a
   // lista inteira uma vez por chip custa caro numa base de centenas de vagas.
-  const contagemPorBucket = allRows.reduce<Partial<Record<VacancyBucket, number>>>(
+  const contagemPorBucket = rowsNoDia.reduce<Partial<Record<VacancyBucket, number>>>(
     (acc, r) => {
       acc[r.bucket] = (acc[r.bucket] ?? 0) + 1;
       return acc;
@@ -631,6 +641,35 @@ export default function JobsPage() {
           defaultSort={{ index: 5, direction: "desc" }}
           filters={
             <div className="flex flex-col gap-3">
+              {/* Data do SERVIÇO (não a de publicação): é por ela que se
+                  pergunta "o que tem amanhã". Fica só no modo tabela — o painel
+                  tem o próprio recorte, de hoje em diante. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="data-filter" className="text-xs font-medium text-[#737373]">
+                  Data do serviço:
+                </label>
+                <input
+                  id="data-filter"
+                  type="date"
+                  value={dataFiltro}
+                  onChange={(e) => setDataFiltro(e.target.value)}
+                  className="rounded-lg border border-[#e5e5e5] bg-white px-3 py-1.5 text-xs font-medium text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+                />
+                {dataFiltro && (
+                  <button
+                    type="button"
+                    onClick={() => setDataFiltro("")}
+                    className="cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-2.5 py-1.5 text-xs font-medium text-[#737373] hover:bg-[#f5f5f5]"
+                  >
+                    Limpar
+                  </button>
+                )}
+                {dataFiltro && (
+                  <span className="text-xs text-[#737373]">
+                    {rowsNoDia.length} vaga(s) em {formatVacancyDate(dataFiltro)}
+                  </span>
+                )}
+              </div>
               {isSuperAdmin && (
                 <div className="flex items-center gap-2">
                   <label htmlFor="consultor-filter" className="text-xs font-medium text-[#737373]">
@@ -656,7 +695,7 @@ export default function JobsPage() {
                 [
                   {
                     key: "all",
-                    label: `Todas (${allRows.length})`,
+                    label: `Todas (${rowsNoDia.length})`,
                   },
                   // Mesma ordem do funil do Modo Painel: os chips e as colunas
                   // são a mesma classificação, e trocar a ordem entre os dois
