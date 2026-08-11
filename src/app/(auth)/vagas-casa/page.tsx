@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { VacancyBoard } from "../jobs/_components/vacancy-board";
+import { resolveVacancyBucket } from "../jobs/_components/vacancy-bucket";
 import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,6 +57,10 @@ function mapToRow(v: CasaVacancyItem) {
       ? `Chegada: ${formatVacancyTime(v.startTime)} · ${v.pricingTierLabel}`
       : `${formatVacancyTime(v.startTime)} - ${formatVacancyTime(v.endTime)}`,
     status: mapVacancyStatus(v.status),
+    // Mesma régua do módulo Empresa — uma fonte só para os dois painéis.
+    bucket: resolveVacancyBucket(v),
+    candidatos: v.candidacyCount ?? 0,
+    freelancer: v.providerName ?? null,
     consultor: v.referringConsultant?.name ?? null,
     raw: v,
   };
@@ -76,11 +82,15 @@ export default function VagasCasaPage() {
   const { isSuperAdmin } = useAuth();
   const { isChecking, allowed } = useAreaGuard("CASA_VACANCIES");
   const [selectedConsultantId, setSelectedConsultantId] = useState<string>("");
-  const { data: vacancies, isLoading, isError } = useAdminCasaVacancies(
+  const { data: vacancies, isLoading, isError, isFetching } = useAdminCasaVacancies(
     selectedConsultantId || undefined,
   );
   const { data: consultants } = useAdminConsultants();
   const [statusFilter, setStatusFilter] = useState<StatusKey>("all");
+  // Modo Painel: as vagas em colunas por etapa, igual ao de Empresa.
+  const [modoPainel, setModoPainel] = useState(false);
+  /** Vaga aberta no card de detalhes (pelo painel ou pela tabela). */
+  const [detalhe, setDetalhe] = useState<Row | null>(null);
 
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -200,6 +210,39 @@ export default function VagasCasaPage() {
         title="Vagas — Freela em Casa"
         description="Vagas de serviços domésticos publicadas pelos contratantes"
       />
+      <div className="mb-4 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setModoPainel((v) => !v)}
+          title="Vagas em colunas por etapa, para acompanhar na TV"
+          className="cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-3 py-2 text-xs font-medium text-[#1d1d1b] transition-colors hover:bg-[#f7f7f7]"
+        >
+          {modoPainel ? "Ver tabela" : "Modo painel"}
+        </button>
+      </div>
+
+      {modoPainel ? (
+        <VacancyBoard
+          // `allRows`: as colunas JÁ são o recorte por etapa, então o filtro de
+          // status da tabela não se aplica aqui.
+          vacancies={allRows.map((r) => ({
+            id: r.id,
+            bucket: r.bucket,
+            empresa: r.empresa,
+            cargo: r.cargo,
+            cidade: r.lugar,
+            candidatos: r.candidatos,
+            valor: r.valor,
+            valorCents: r.raw.payment ?? 0,
+            data: r.data,
+            turno: r.horario,
+            freelancer: r.freelancer,
+            raw: r.raw as never,
+          }))}
+          isFetching={isFetching}
+          onSelect={(vacancyId) => setDetalhe(allRows.find((r) => r.id === vacancyId) ?? null)}
+        />
+      ) : (
       <DataTable
         columns={columns}
         data={rows}
@@ -256,6 +299,56 @@ export default function VagasCasaPage() {
           </span>
         }
       />
+      )}
+
+      {/* Detalhes da vaga — o mesmo card abre pelo painel e pela tabela. */}
+      <Dialog open={Boolean(detalhe)} onOpenChange={(open) => !open && setDetalhe(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogClose onClick={() => setDetalhe(null)} />
+          <DialogHeader>
+            <DialogTitle>{detalhe?.cargo ?? "Vaga"}</DialogTitle>
+            <DialogDescription>
+              {detalhe ? `${detalhe.empresa} · ${detalhe.data}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {detalhe && (
+            <div className="space-y-1.5 text-sm">
+              <LinhaDetalhe rotulo="Etapa" valor={ETAPA_LABEL[detalhe.bucket] ?? detalhe.bucket} />
+              <LinhaDetalhe rotulo="Local" valor={detalhe.lugar} />
+              <LinhaDetalhe rotulo="Horário" valor={detalhe.horario} />
+              <LinhaDetalhe rotulo="Valor" valor={detalhe.valor} />
+              <LinhaDetalhe
+                rotulo="Custo (freelancer)"
+                valor={
+                  detalhe.raw.freelancerAmountInCents != null
+                    ? `R$ ${(detalhe.raw.freelancerAmountInCents / 100).toFixed(2).replace(".", ",")}`
+                    : "—"
+                }
+              />
+              <LinhaDetalhe
+                rotulo="Nossa taxa"
+                valor={
+                  detalhe.raw.platformFeeInCents != null
+                    ? `R$ ${(detalhe.raw.platformFeeInCents / 100).toFixed(2).replace(".", ",")}`
+                    : "—"
+                }
+              />
+              <LinhaDetalhe rotulo="Candidaturas" valor={String(detalhe.candidatos)} />
+              <LinhaDetalhe rotulo="Freelancer" valor={detalhe.freelancer ?? "—"} />
+              {detalhe.consultor && (
+                <LinhaDetalhe rotulo="Consultor" valor={detalhe.consultor} />
+              )}
+              <LinhaDetalhe
+                rotulo="Id"
+                valor={<span className="font-mono text-xs">{detalhe.id}</span>}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setDetalhe(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal Cancelar Vaga (admin — Casa) */}
       <Dialog
@@ -334,6 +427,28 @@ export default function VagasCasaPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** Rótulo em PT de cada etapa do funil, o mesmo vocabulário das colunas. */
+const ETAPA_LABEL: Record<string, string> = {
+  open: "Aberta · sem candidato",
+  awaitingSelection: "Aguardando seleção",
+  awaitingPayment: "Aguardando pagamento",
+  confirmed: "Freela confirmado",
+  inProgress: "Em andamento",
+  completedAwaitingReview: "Aguardando avaliação",
+  completedReviewed: "Concluída",
+  lost: "Expirou sem contratação",
+  cancelled: "Cancelada",
+};
+
+function LinhaDetalhe({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-[#f2f2f2] py-1.5 last:border-0">
+      <span className="text-[#737373]">{rotulo}</span>
+      <span className="text-right text-[#1d1d1b]">{valor}</span>
     </div>
   );
 }
