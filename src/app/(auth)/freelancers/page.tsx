@@ -489,6 +489,70 @@ export default function FreelancersPage() {
                   <StatusBadge status={selectedItem.status} />
                 </div>
               </div>
+
+              {/* O resto do cadastro. Tudo isto JÁ vinha da API e a tela
+                  descartava — quem precisava do e-mail ou das funções abria o
+                  banco. */}
+              <div className="space-y-2 rounded-lg border border-[#e5e5e5] p-3 text-sm">
+                <CampoPerfil rotulo="E-mail" valor={selectedItem.raw.email ?? "—"} />
+                <CampoPerfil
+                  rotulo="Cadastro"
+                  valor={selectedItem.raw.createdAt ? formatInstantDate(selectedItem.raw.createdAt) : "—"}
+                />
+                <CampoPerfil
+                  rotulo="Funções"
+                  valor={
+                    selectedItem.raw.services?.length ? (
+                      <span className="flex flex-wrap justify-end gap-1">
+                        {selectedItem.raw.services.map((s) => (
+                          <span
+                            key={s}
+                            className="rounded-full bg-[#f7f7f7] px-2 py-0.5 text-xs text-[#737373]"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+                {selectedItem.raw.bio?.trim() && (
+                  <CampoPerfil
+                    rotulo="Bio"
+                    valor={<span className="text-xs text-[#737373]">{selectedItem.raw.bio}</span>}
+                  />
+                )}
+                {selectedItem.raw.lowPriority && (
+                  <CampoPerfil
+                    rotulo="Baixa prioridade"
+                    valor={
+                      <span className="text-red-600">
+                        sim
+                        {selectedItem.raw.lowPrioritySince
+                          ? ` · desde ${formatInstantDate(selectedItem.raw.lowPrioritySince)}`
+                          : ""}
+                      </span>
+                    }
+                  />
+                )}
+                {selectedItem.raw.banned && (
+                  <CampoPerfil rotulo="Conta" valor={<span className="text-red-600">banida</span>} />
+                )}
+                <CampoPerfil
+                  rotulo="Id"
+                  valor={<span className="font-mono text-xs">{selectedItem.raw.id}</span>}
+                />
+                {selectedItem.raw.providerGlobalId && (
+                  <CampoPerfil
+                    rotulo="Id global"
+                    valor={
+                      <span className="font-mono text-xs">{selectedItem.raw.providerGlobalId}</span>
+                    }
+                  />
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
@@ -859,6 +923,17 @@ export default function FreelancersPage() {
         onOpenChange={(open) => !open && setSelectedAuthor(null)}
         author={selectedAuthor}
       />
+    </div>
+  );
+}
+
+/** Linha rótulo → valor do perfil. Alinhada à direita para os valores lerem em
+ *  coluna, que é como se compara dois cadastros. */
+function CampoPerfil({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-[#f2f2f2] pb-1.5 last:border-0 last:pb-0">
+      <span className="shrink-0 text-[#737373]">{rotulo}</span>
+      <span className="text-right text-[#1d1d1b]">{valor}</span>
     </div>
   );
 }

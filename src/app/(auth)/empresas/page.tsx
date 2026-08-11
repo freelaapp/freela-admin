@@ -384,6 +384,47 @@ export default function EmpresasPage() {
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                 Status: <StatusBadge status={selectedItem.status} />
               </div>
+
+              {/* Cadastro completo. Tudo isto já vinha da API e só aparecia no
+                  CSV — quem precisava do CNPJ ou do endereço exportava a base
+                  inteira para ler uma linha. */}
+              <div className="space-y-2 rounded-lg border border-[#e5e5e5] p-3 text-sm">
+                <CampoPerfil rotulo="Responsável" valor={selectedItem.raw.contactName || "—"} />
+                <CampoPerfil
+                  rotulo="Telefone"
+                  valor={
+                    selectedItem.raw.contactPhone
+                      ? formatPhoneBr(selectedItem.raw.contactPhone)
+                      : "—"
+                  }
+                />
+                <CampoPerfil
+                  rotulo="E-mail de contato"
+                  valor={selectedItem.raw.contactEmail || "—"}
+                />
+                <CampoPerfil rotulo="CNPJ" valor={selectedItem.raw.cnpj || "—"} />
+                <CampoPerfil rotulo="CPF" valor={selectedItem.raw.cpf || "—"} />
+                <CampoPerfil rotulo="Segmento" valor={selectedItem.segmento} />
+                <CampoPerfil
+                  rotulo="Endereço"
+                  valor={
+                    [
+                      selectedItem.raw.street,
+                      selectedItem.raw.number,
+                      selectedItem.raw.neighborhood,
+                      selectedItem.raw.city,
+                      selectedItem.raw.uf,
+                      selectedItem.raw.cep,
+                    ]
+                      .filter(Boolean)
+                      .join(", ") || "—"
+                  }
+                />
+                <CampoPerfil
+                  rotulo="Id"
+                  valor={<span className="font-mono text-xs">{selectedItem.raw.id}</span>}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
@@ -1033,5 +1074,16 @@ function BlockedManager({
         </div>
       )}
     </>
+  );
+}
+
+/** Linha rótulo → valor do cadastro. Mesma forma da tela de freelancers, para
+ *  os dois perfis se lerem do mesmo jeito. */
+function CampoPerfil({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-[#f2f2f2] pb-1.5 last:border-0 last:pb-0">
+      <span className="shrink-0 text-[#737373]">{rotulo}</span>
+      <span className="text-right text-[#1d1d1b]">{valor}</span>
+    </div>
   );
 }
