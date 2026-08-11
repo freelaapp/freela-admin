@@ -225,6 +225,12 @@ export interface ContractorItem {
   contactPhone: string;
   city: string;
   uf: string;
+  /** Endereço completo. Opcional durante a janela de deploy da API. */
+  cep?: string | null;
+  street?: string | null;
+  number?: string | null;
+  neighborhood?: string | null;
+  complement?: string | null;
   segment: string | null;
   cnpj: string | null;
   cpf: string | null;
