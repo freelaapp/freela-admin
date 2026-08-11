@@ -108,3 +108,18 @@ export function formatInstantDateTime(value: string | Date): string {
     return "—";
   }
 }
+
+/**
+ * Dia da vaga como `"YYYY-MM-DD"`, para comparar com o valor de um
+ * `<input type="date">`.
+ *
+ * Lê o PREFIXO da string em vez de construir um `Date`: a API grava a data da
+ * vaga à meia-noite UTC, e `new Date("2026-08-12T00:00:00Z")` em Brasília cai
+ * no dia 11. Comparar prefixos ISO também dispensa qualquer conta de fuso —
+ * eles ordenam lexicograficamente.
+ */
+export function vacancyDayISO(dateStr: string | null | undefined): string | null {
+  const datePart = dateStr?.split("T")[0];
+  if (!datePart || !/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null;
+  return datePart;
+}
