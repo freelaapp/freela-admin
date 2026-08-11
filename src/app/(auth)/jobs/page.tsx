@@ -565,7 +565,7 @@ export default function JobsPage() {
   return (
     <div>
       <PageHeader
-        title="Vagas / Jobs"
+        title="Vagas Empresa"
         description="Gerencie as vagas e solicitações de freelancers"
         action={
           <div className="flex gap-2">
@@ -610,6 +610,7 @@ export default function JobsPage() {
             // Já formatados aqui: o painel não faz conta nem formata data, para
             // que o card e a linha da tabela nunca divirjam no mesmo número.
             valor: r.valor,
+            valorCents: r.raw.payment ?? 0,
             data: r.data,
             turno: r.horario,
             freelancer: r.providerName,

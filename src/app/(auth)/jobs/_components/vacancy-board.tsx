@@ -30,6 +30,13 @@ export interface BoardVacancy {
   candidatos: number;
   /** Já formatado ("R$ 180,00"). O painel não faz conta. */
   valor: string;
+  /**
+   * O mesmo valor em centavos, para o somatório por etapa.
+   *
+   * Vem cru justamente porque o painel NÃO deve reconverter o texto formatado:
+   * "R$ 1.234,56" parseado de volta é onde nasce erro de milhar.
+   */
+  valorCents: number;
   /** Dia do SERVIÇO, já formatado ("12/08"). */
   data: string;
   /** Faixa do turno, já formatada ("18:00 - 00:00"). */
@@ -107,6 +114,23 @@ const COLUNAS: Array<{
 
 /** Quantos cards por coluna antes de virar um "+N". */
 const MAX_CARDS = 8;
+
+const BRL = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  maximumFractionDigits: 0,
+});
+
+/**
+ * Soma em centavos → reais arredondados.
+ *
+ * Sem centavos de propósito: o número existe para dar a ordem de grandeza da
+ * etapa de relance, na TV, e "R$ 4.180" se lê mais rápido que "R$ 4.180,00".
+ * O valor exato de cada vaga continua no card.
+ */
+export function somaFormatada(cents: number): string {
+  return BRL.format(Math.round(cents / 100));
+}
 
 const SP_TZ = "America/Sao_Paulo";
 
@@ -335,6 +359,29 @@ export function VacancyBoard({
   const emAcompanhamento = visiveis.length - canceladas;
   const ocultadas = vacancies.length - ativas.length;
 
+  /**
+   * Potencial por etapa e total.
+   *
+   * Só as colunas do fluxo entram — cancelada não é potencial, é perda, e somá-la
+   * inflaria o número que a mesa usa para decidir onde correr atrás.
+   */
+  const potencialPorBucket = useMemo(() => {
+    const mapa = new Map<BoardBucket, number>();
+    for (const coluna of COLUNAS) {
+      const itens = porBucket.get(coluna.bucket) ?? [];
+      mapa.set(
+        coluna.bucket,
+        itens.reduce((soma, item) => soma + (item.valorCents || 0), 0),
+      );
+    }
+    return mapa;
+  }, [porBucket]);
+
+  const potencialTotal = useMemo(
+    () => [...potencialPorBucket.values()].reduce((soma, valor) => soma + valor, 0),
+    [potencialPorBucket],
+  );
+
   const horaAtualizacao = new Date(agora).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
@@ -362,6 +409,16 @@ export function VacancyBoard({
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Potencial total: o que está em jogo no painel inteiro, somando as
+              etapas. Fica no topo porque é o número que a mesa olha primeiro. */}
+          <div className="rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2 text-right">
+            <div className="text-[10.5px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+              Potencial do dia
+            </div>
+            <div className="text-[20px] font-bold leading-tight tabular-nums text-[#0F172A]">
+              {somaFormatada(potencialTotal)}
+            </div>
+          </div>
           <span className="flex items-center gap-1.5 text-[12px] text-[#64748B]">
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${
@@ -397,23 +454,34 @@ export function VacancyBoard({
             >
               <div
                 style={{ background: coluna.corFundo }}
-                className="flex items-center gap-2 rounded-t-xl px-3 py-2.5"
+                className="rounded-t-xl px-3 py-2.5"
                 title={coluna.chamada}
               >
-                <span
-                  style={{ background: coluna.cor }}
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  aria-hidden
-                />
-                <span className="flex-1 text-[12.5px] font-semibold leading-tight">
-                  {coluna.titulo}
-                </span>
-                <span
+                <div className="flex items-center gap-2">
+                  <span
+                    style={{ background: coluna.cor }}
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    aria-hidden
+                  />
+                  <span className="flex-1 text-[12.5px] font-semibold leading-tight">
+                    {coluna.titulo}
+                  </span>
+                  <span
+                    style={{ color: coluna.cor }}
+                    className="rounded-full bg-white px-2 py-0.5 text-[12px] font-bold tabular-nums"
+                  >
+                    {itens.length}
+                  </span>
+                </div>
+                {/* Quanto dinheiro está parado NESTA etapa. É o que diz onde
+                    correr atrás primeiro: 8 vagas de R$ 90 pesam menos que 2
+                    de R$ 900. */}
+                <div
                   style={{ color: coluna.cor }}
-                  className="rounded-full bg-white px-2 py-0.5 text-[12px] font-bold tabular-nums"
+                  className="mt-1 pl-4 text-[12px] font-bold tabular-nums"
                 >
-                  {itens.length}
-                </span>
+                  {somaFormatada(potencialPorBucket.get(coluna.bucket) ?? 0)}
+                </div>
               </div>
 
               <div className="flex flex-col gap-2 p-2.5">

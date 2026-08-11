@@ -12,12 +12,9 @@ import {
   Home,
   ClipboardList,
   TrendingUp,
-  MapPin,
-  Map,
   BookOpen,
   GraduationCap,
   Ticket,
-  UserCheck,
   Star,
   DollarSign,
   BarChart3,
@@ -66,13 +63,13 @@ const navItems: NavItem[] = [
   // muda o que se cobra de um cliente.
   { label: "Assinaturas", icon: BadgePercent, path: "/assinaturas", permission: "SUBSCRIPTIONS" },
   { label: "Contratantes — Casa", icon: Building, path: "/contratantes-casa" },
-  { label: "Vagas / Jobs", icon: Briefcase, path: "/jobs", permission: "JOBS" },
+  { label: "Vagas Empresa", icon: Briefcase, path: "/jobs", permission: "JOBS" },
   { label: "Vagas — Casa", icon: Home, path: "/vagas-casa", permission: "CASA_VACANCIES" },
   { label: "Vagas Fixas / CLT", icon: ClipboardList, path: "/vagas-fixas", permission: "FIXED_JOBS" },
   { label: "Pipeline", icon: TrendingUp, path: "/pipeline" },
-  { label: "Cidades", icon: MapPin, path: "/cidades" },
-  { label: "Cargos", icon: UserCheck, path: "/cargos" },
-  { label: "Cargos por Cidade", icon: Map, path: "/cidades-cargos" },
+  // Cidades, Cargos e Cargos por Cidade saíram em 11/08/2026: não eram usadas e
+  // não carregavam nada. O catálogo de cargos vive em /catalogo, que é a tela
+  // mantida.
   { label: "Catálogo", icon: BookOpen, path: "/catalogo" },
   { label: "Cupons", icon: Ticket, path: "/cupons" },
   { label: "Treinamentos", icon: GraduationCap, path: "/treinamentos" },

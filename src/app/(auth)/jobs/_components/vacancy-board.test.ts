@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { filtrarAtivas, type BoardVacancy } from "./vacancy-board";
+import { filtrarAtivas, somaFormatada, type BoardVacancy } from "./vacancy-board";
 
 // Meio-dia UTC = 09:00 em Brasília, bem longe da virada do dia nos dois fusos.
 const AGORA = Date.parse("2026-08-03T12:00:00.000Z");
@@ -20,6 +20,7 @@ function vaga(
     cidade: "São Paulo",
     candidatos: 0,
     valor: "R$ 180,00",
+    valorCents: 18_000,
     data: "03/08",
     turno: "18:00 - 00:00",
     freelancer: null,
@@ -81,5 +82,23 @@ describe("filtrarAtivas (recorte do painel)", () => {
   it("mantém vaga sem data legível em vez de escondê-la", () => {
     expect(filtrarAtivas([vaga({ date: null, startTime: null })], AGORA)).toHaveLength(1);
     expect(filtrarAtivas([vaga({ date: "data-invalida" })], AGORA)).toHaveLength(1);
+  });
+});
+
+describe("somaFormatada", () => {
+  // `Intl` separa "R$" do número com espaço NÃO-QUEBRÁVEL (U+00A0), não com
+  // espaço comum. Normalizar aqui evita um teste que falha por um caractere
+  // invisível.
+  const semNbsp = (valor: string) => valor.replace(/ /g, " ");
+
+  it("arredonda para real cheio — o painel é lido de relance, na TV", () => {
+    expect(semNbsp(somaFormatada(418_050))).toBe("R$ 4.181");
+    expect(semNbsp(somaFormatada(0))).toBe("R$ 0");
+  });
+
+  it("não estoura o separador de milhar", () => {
+    // O valor sai em centavos justamente para não voltar de "R$ 1.234,56", que
+    // é onde o parse quebra o milhar.
+    expect(semNbsp(somaFormatada(12_345_678))).toBe("R$ 123.457");
   });
 });
