@@ -1,13 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Users, XCircle } from "lucide-react";
+import { Eye, Loader2, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { VacancyBoard } from "../jobs/_components/vacancy-board";
 import { resolveVacancyBucket } from "../jobs/_components/vacancy-bucket";
+import { VacancyRoadmap } from "../jobs/_components/vacancy-roadmap";
+import {
+  useResendVacancyGroupMessage,
+  useSendVacancyStageMessage,
+  useVacancyOutreach,
+} from "@/modules/admin/application/use-vacancy-outreach";
+import {
+  GROUP_BROADCAST_STAGE,
+  type OutreachStage,
+} from "@/modules/admin/infrastructure/vacancy-outreach-api";
 import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,6 +101,14 @@ export default function VagasCasaPage() {
   const [modoPainel, setModoPainel] = useState(false);
   /** Vaga aberta no card de detalhes (pelo painel ou pela tabela). */
   const [detalhe, setDetalhe] = useState<Row | null>(null);
+
+  // Avisos por etapa e disparo no grupo — o mesmo caminho do módulo Empresa: a
+  // rota resolve a vaga nos dois schemas.
+  const { enviados: avisosEnviados } = useVacancyOutreach();
+  const enviarAviso = useSendVacancyStageMessage();
+  const [avisandoId, setAvisandoId] = useState<string | null>(null);
+  const reenviarDisparo = useResendVacancyGroupMessage();
+  const [reenviandoId, setReenviandoId] = useState<string | null>(null);
 
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -186,11 +204,54 @@ export default function VagasCasaPage() {
     { header: "Valor", accessor: "valor" as const, className: "hidden lg:table-cell", sortable: true, sortAccessor: (r: Row) => r.raw.payment },
     { header: "Data", accessor: "data" as const, sortable: true, sortAccessor: (r: Row) => new Date(r.raw.date) },
     { header: "Horário", accessor: "horario" as const, className: "hidden lg:table-cell" },
+    {
+      header: "Disparo",
+      accessor: (row: Row) => {
+        // Mesmo campo da listagem de Empresa: o anúncio no grupo é best-effort,
+        // e sem esta coluna ninguém percebe quando ele não sai.
+        const enviadoEm = avisosEnviados.get(`${row.id}::${GROUP_BROADCAST_STAGE}`);
+        if (enviadoEm) {
+          return <span className="whitespace-nowrap text-xs font-medium text-green-700">✓ enviado</span>;
+        }
+        return (
+          <button
+            type="button"
+            disabled={reenviandoId === row.id}
+            onClick={async () => {
+              setReenviandoId(row.id);
+              try {
+                await reenviarDisparo.mutateAsync({ vacancyId: row.id, module: "casa" });
+                toast.success("Anúncio enviado ao grupo da cidade.");
+              } catch (e) {
+                toast.error(getAxiosErrorMessage(e, "Não foi possível enviar ao grupo."));
+              } finally {
+                setReenviandoId(null);
+              }
+            }}
+            className="cursor-pointer whitespace-nowrap rounded-md bg-[#1d1d1b] px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-[#333] disabled:cursor-wait disabled:opacity-60"
+            title="Reenviar o anúncio desta vaga no grupo da cidade"
+          >
+            {reenviandoId === row.id ? "Enviando…" : "Enviar"}
+          </button>
+        );
+      },
+      className: "hidden lg:table-cell",
+    },
     { header: "Status", accessor: (row: Row) => <StatusBadge status={row.status} /> },
     {
       header: "Ações",
-      accessor: (row: Row) =>
-        row.status !== "cancelled" ? (
+      accessor: (row: Row) => (
+        <div className="flex items-center gap-1">
+          {/* O olhinho que faltava: abre o mesmo card de detalhes do painel,
+              com o fluxo completo da vaga. */}
+          <button
+            onClick={() => setDetalhe(row)}
+            className="cursor-pointer rounded-md p-1.5 text-[#737373] transition-colors hover:bg-[#eca826]/10 hover:text-[#eca826]"
+            title="Ver detalhes e o fluxo da vaga"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+          {row.status !== "cancelled" ? (
           <button
             onClick={() => openCancelModal(row)}
             className="p-1.5 rounded-md text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
@@ -198,9 +259,9 @@ export default function VagasCasaPage() {
           >
             <XCircle className="w-4 h-4" />
           </button>
-        ) : (
-          <span className="text-[#a3a3a3] text-xs">—</span>
-        ),
+          ) : null}
+        </div>
+      ),
     },
   ];
 
@@ -234,6 +295,7 @@ export default function VagasCasaPage() {
             candidatos: r.candidatos,
             valor: r.valor,
             valorCents: r.raw.payment ?? 0,
+            lucroCents: (r.raw.platformFeeInCents ?? 0) + (r.raw.fixedFeeInCents ?? 0),
             data: r.data,
             turno: r.horario,
             freelancer: r.freelancer,
@@ -241,6 +303,22 @@ export default function VagasCasaPage() {
           }))}
           isFetching={isFetching}
           onSelect={(vacancyId) => setDetalhe(allRows.find((r) => r.id === vacancyId) ?? null)}
+          avisados={avisosEnviados}
+          avisando={avisandoId}
+          onAvisar={async (vacancyId, stage) => {
+            setAvisandoId(vacancyId);
+            try {
+              const r = await enviarAviso.mutateAsync({
+                vacancyId,
+                stage: stage as OutreachStage,
+              });
+              toast.success(`Aviso enviado para ${r.phone}.`);
+            } catch (e) {
+              toast.error(getAxiosErrorMessage(e, "Não foi possível enviar o aviso."));
+            } finally {
+              setAvisandoId(null);
+            }
+          }}
         />
       ) : (
       <DataTable
@@ -342,6 +420,11 @@ export default function VagasCasaPage() {
                 rotulo="Id"
                 valor={<span className="font-mono text-xs">{detalhe.id}</span>}
               />
+
+              {/* Fluxo completo da vaga — o mesmo componente do módulo Empresa. */}
+              <div className="pt-2">
+                <VacancyRoadmap vacancy={detalhe.raw} />
+              </div>
             </div>
           )}
           <DialogFooter>

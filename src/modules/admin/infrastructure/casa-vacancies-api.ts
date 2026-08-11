@@ -23,6 +23,9 @@ export interface CasaVacancyItem {
   contractorCompanyName: string | null;
   freelancerAmountInCents: number | null;
   platformFeeInCents: number | null;
+  /** Taxa fixa. Soma com a percentual na NOSSA receita. Opcional na janela de
+   *  deploy da API. */
+  fixedFeeInCents?: number | null;
   /** Rótulo da faixa (vaga TIERED). Quando presente, endTime é placeholder —
    * exibir "Chegada: HH:MM" + faixa. Opcional durante deploy da API. */
   pricingTierLabel?: string | null;

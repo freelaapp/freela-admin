@@ -460,6 +460,9 @@ export interface VacancyItem {
   providerPixKeys?: ProviderPixKey[];
   freelancerAmountInCents?: number | null;
   platformFeeInCents?: number | null;
+  /** Taxa fixa. Soma com a percentual na NOSSA receita — o financeiro usa as
+   *  duas, e o painel precisa da mesma conta. Opcional na janela de deploy. */
+  fixedFeeInCents?: number | null;
   /** Quantidade de freelancers que se candidataram à vaga. */
   candidacyCount?: number;
   /**

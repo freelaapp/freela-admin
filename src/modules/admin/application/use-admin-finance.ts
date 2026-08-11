@@ -22,11 +22,15 @@ export function useFinanceSummary(params: FinancePeriodParams) {
   });
 }
 
-export function useFinanceTransactions(params: FinanceTransactionParams) {
+export function useFinanceTransactions(
+  params: FinanceTransactionParams,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ["admin", "finance", "transactions", params],
     queryFn: () => getFinanceTransactions(params),
     placeholderData: keepPreviousData,
     staleTime: 15000,
+    enabled: options?.enabled ?? true,
   });
 }

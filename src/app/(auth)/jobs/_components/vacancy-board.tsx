@@ -37,6 +37,14 @@ export interface BoardVacancy {
    * "R$ 1.234,56" parseado de volta é onde nasce erro de milhar.
    */
   valorCents: number;
+  /**
+   * Nossa receita na vaga (taxa da plataforma + taxa fixa), em centavos.
+   *
+   * Separado do valor porque respondem perguntas diferentes: o valor diz quanto
+   * dinheiro passa pela etapa, o lucro diz quanto fica. Zero quando a vaga não
+   * tem snapshot de taxa (vagas antigas).
+   */
+  lucroCents: number;
   /** Dia do SERVIÇO, já formatado ("12/08"). */
   data: string;
   /** Faixa do turno, já formatada ("18:00 - 00:00"). */
@@ -471,6 +479,24 @@ export function VacancyBoard({
     [potencialPorBucket],
   );
 
+  /** Lucro por etapa e total — o que sobra para nós, não o que transaciona. */
+  const lucroPorBucket = useMemo(() => {
+    const mapa = new Map<BoardBucket, number>();
+    for (const coluna of COLUNAS) {
+      const itens = porBucket.get(coluna.bucket) ?? [];
+      mapa.set(
+        coluna.bucket,
+        itens.reduce((soma, item) => soma + (item.lucroCents || 0), 0),
+      );
+    }
+    return mapa;
+  }, [porBucket]);
+
+  const lucroTotal = useMemo(
+    () => [...lucroPorBucket.values()].reduce((soma, valor) => soma + valor, 0),
+    [lucroPorBucket],
+  );
+
   const horaAtualizacao = new Date(agora).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
@@ -506,6 +532,17 @@ export function VacancyBoard({
             </div>
             <div className="text-[20px] font-bold leading-tight tabular-nums text-[#0F172A]">
               {somaFormatada(potencialTotal)}
+            </div>
+          </div>
+          {/* Lucro à parte, e não somado ao potencial: o potencial é o dinheiro
+              que PASSA, o lucro é o que FICA. Juntar os dois num número só
+              inflaria a leitura da mesa. */}
+          <div className="rounded-[10px] border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-2 text-right">
+            <div className="text-[10.5px] font-semibold uppercase tracking-wide text-[#16A34A]">
+              Lucro potencial do dia
+            </div>
+            <div className="text-[20px] font-bold leading-tight tabular-nums text-[#166534]">
+              {somaFormatada(lucroTotal)}
             </div>
           </div>
           <span className="flex items-center gap-1.5 text-[12px] text-[#64748B]">
@@ -565,11 +602,16 @@ export function VacancyBoard({
                 {/* Quanto dinheiro está parado NESTA etapa. É o que diz onde
                     correr atrás primeiro: 8 vagas de R$ 90 pesam menos que 2
                     de R$ 900. */}
-                <div
-                  style={{ color: coluna.cor }}
-                  className="mt-1 pl-4 text-[12px] font-bold tabular-nums"
-                >
-                  {somaFormatada(potencialPorBucket.get(coluna.bucket) ?? 0)}
+                <div className="mt-1 flex items-baseline gap-2 pl-4">
+                  <span
+                    style={{ color: coluna.cor }}
+                    className="text-[12px] font-bold tabular-nums"
+                  >
+                    {somaFormatada(potencialPorBucket.get(coluna.bucket) ?? 0)}
+                  </span>
+                  <span className="text-[11px] font-semibold tabular-nums text-[#16A34A]">
+                    lucro {somaFormatada(lucroPorBucket.get(coluna.bucket) ?? 0)}
+                  </span>
                 </div>
               </div>
 

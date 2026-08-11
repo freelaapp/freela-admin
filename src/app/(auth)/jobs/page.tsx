@@ -91,183 +91,8 @@ function mapVacancyToRow(v: VacancyItem) {
 
 type Row = ReturnType<typeof mapVacancyToRow>;
 
-// ─── Roadmap da vaga ────────────────────────────────────────────────────────
-// Caminho feliz da vaga, derivado apenas dos dados já disponíveis no VacancyItem
-// (status da vaga + status do job + feedbacks + candidaturas). Sem chamadas extras.
-const ROADMAP_STEPS = [
-  { key: "created", label: "Vaga criada", hint: "Publicada e aberta a candidaturas" },
-  { key: "candidates", label: "Candidaturas recebidas", hint: "Freelancers se candidataram à vaga" },
-  { key: "hired", label: "Freelancer contratado", hint: "Contratante escolheu um freelancer" },
-  { key: "paid", label: "Pagamento confirmado · agendada", hint: "Job agendado após o pagamento" },
-  { key: "inProgress", label: "Serviço em andamento", hint: "Freelancer fez check-in no local" },
-  { key: "completed", label: "Serviço concluído", hint: "Check-out realizado" },
-  { key: "reviewed", label: "Avaliações concluídas", hint: "Contratante e freelancer se avaliaram" },
-] as const;
+import { VacancyRoadmap, formatStepAt } from "./_components/vacancy-roadmap";
 
-// Índice do passo mais avançado que a vaga já alcançou no caminho feliz.
-function resolveRoadmapReached(v: VacancyItem): number {
-  const status = v.status?.toUpperCase();
-  const jobStatus = v.job?.status?.toUpperCase();
-  const jobExists = Boolean(jobStatus);
-  const hasCandidates = (v.candidacyCount ?? 0) > 0;
-  const isClosed = status === "CLOSED";
-  const reviewedBoth = Boolean(v.job?.hasContractorFeedback && v.job?.hasProviderFeedback);
-
-  let reached = 0; // sempre criada
-  if (hasCandidates || isClosed || jobExists) reached = 1;
-  if (isClosed || jobExists) reached = 2;
-  if (jobExists) reached = 3; // job só é criado pós-pagamento
-  if (jobStatus === "IN_PROGRESS" || jobStatus === "COMPLETED") reached = 4;
-  if (jobStatus === "COMPLETED") reached = 5;
-  if (reviewedBoth) reached = 6;
-  return reached;
-}
-
-// Etapa do roadmap → campo de horário correspondente no timeline da vaga.
-const STEP_TIMELINE_FIELD: Record<string, keyof NonNullable<VacancyItem["timeline"]>> = {
-  created: "createdAt",
-  candidates: "firstCandidacyAt",
-  hired: "hiredAt",
-  paid: "scheduledAt",
-  inProgress: "startedAt",
-  completed: "endedAt",
-  reviewed: "reviewedAt",
-};
-
-/** Horário (ISO) da etapa, ou null. "created" cai no createdAt da vaga (vagas abertas não têm timeline). */
-function stepTimestamp(vacancy: VacancyItem, key: string): string | null {
-  const tl = vacancy.timeline;
-  if (key === "created") return tl?.createdAt ?? vacancy.createdAt ?? null;
-  const field = STEP_TIMELINE_FIELD[key];
-  if (!tl || !field) return null;
-  return tl[field] ?? null;
-}
-
-/** Formata um instante ISO como "dd/mm/aaaa · HH:MM" no fuso de Brasília. */
-function formatStepAt(iso: string): string {
-  return `${formatInstantDate(iso)} · ${formatVacancyTime(iso)}`;
-}
-
-type RoadmapNodeState = "done" | "current" | "pending" | "cancelled" | "lost";
-
-function VacancyRoadmap({ vacancy }: { vacancy: VacancyItem }) {
-  const reached = resolveRoadmapReached(vacancy);
-  const bucket = resolveVacancyBucket(vacancy);
-  const terminal =
-    bucket === "cancelled" ? "cancelled" : bucket === "lost" ? "lost" : null;
-
-  // Caminho terminal (cancelada/perdida) corta o caminho feliz no passo alcançado.
-  const lastStep = terminal ? reached : ROADMAP_STEPS.length - 1;
-
-  const nodes: {
-    key: string;
-    label: string;
-    hint: string;
-    state: RoadmapNodeState;
-    at: string | null;
-  }[] = ROADMAP_STEPS.slice(0, lastStep + 1).map((step, i) => ({
-    key: step.key,
-    label: step.label,
-    hint: step.hint,
-    // i > reached (só existe no caminho não-terminal) = etapa FUTURA → pending.
-    // Antes caía em "done" e o roadmap marcava etapas que nunca aconteceram.
-    state: i < reached ? "done" : i === reached ? (terminal ? "done" : "current") : "pending",
-    at: stepTimestamp(vacancy, step.key),
-  }));
-
-  if (terminal === "cancelled") {
-    nodes.push({
-      key: "cancelled",
-      label: "Vaga cancelada",
-      hint: "Fluxo encerrado (estorno, se houver, na aba Financeiro)",
-      state: "cancelled",
-      at: null,
-    });
-  } else if (terminal === "lost") {
-    nodes.push({
-      key: "lost",
-      label: "Expirou sem contratação",
-      hint: "O prazo da vaga passou sem freelancer contratado",
-      state: "lost",
-      at: null,
-    });
-  }
-
-  return (
-    <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
-      <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
-        Roadmap da vaga
-      </p>
-      <ol className="mt-1">
-        {nodes.map((node, i) => {
-          const isLast = i === nodes.length - 1;
-          return (
-            <li key={node.key} className="relative flex gap-3 pb-3 last:pb-0">
-              {!isLast && (
-                <span
-                  className={`absolute left-[11px] top-6 bottom-0 w-px ${
-                    node.state === "done" ? "bg-[#eca826]" : "bg-[#e5e5e5]"
-                  }`}
-                />
-              )}
-              <span
-                className={`relative z-10 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border ${
-                  node.state === "done"
-                    ? "bg-[#eca826] border-[#eca826]"
-                    : node.state === "current"
-                    ? "bg-white border-[#eca826] ring-2 ring-[#eca826]/30"
-                    : node.state === "cancelled"
-                    ? "bg-red-500 border-red-500"
-                    : node.state === "lost"
-                    ? "bg-[#a3a3a3] border-[#a3a3a3]"
-                    : "bg-white border-[#e5e5e5]"
-                }`}
-              >
-                {node.state === "done" && <Check className="h-3 w-3 text-white" />}
-                {node.state === "current" && (
-                  <span className="h-2 w-2 rounded-full bg-[#eca826] animate-pulse" />
-                )}
-                {node.state === "cancelled" && <XCircle className="h-3.5 w-3.5 text-white" />}
-                {node.state === "lost" && <Clock className="h-3 w-3 text-white" />}
-                {node.state === "pending" && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#d4d4d4]" />
-                )}
-              </span>
-              <div className="pt-0.5">
-                <p
-                  className={`text-sm leading-tight ${
-                    node.state === "current"
-                      ? "font-semibold text-[#1d1d1b]"
-                      : node.state === "cancelled"
-                      ? "font-semibold text-red-600"
-                      : node.state === "lost"
-                      ? "font-semibold text-[#737373]"
-                      : node.state === "done"
-                      ? "font-medium text-[#1d1d1b]"
-                      : "text-[#a3a3a3]"
-                  }`}
-                >
-                  {node.label}
-                  {node.state === "current" && (
-                    <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-[#eca826]">
-                      Estágio atual
-                    </span>
-                  )}
-                </p>
-                <p className="text-[11px] text-[#737373]">{node.hint}</p>
-                {node.at && (
-                  <p className="mt-0.5 text-[11px] font-medium tabular-nums text-[#eca826]">
-                    {formatStepAt(node.at)}
-                  </p>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
-}
 
 function FeedbackPanel({
   title,
@@ -566,6 +391,42 @@ export default function JobsPage() {
       sortAccessor: (r: Row) => new Date(r.raw.startTime),
     },
     {
+      header: "Disparo",
+      accessor: (row: Row) => {
+        // O anúncio no grupo da cidade é best-effort: quando a Evolution cai, a
+        // vaga entra e ninguém no grupo sabe. Esta coluna é o único lugar em
+        // que isso aparece.
+        const enviadoEm = avisosEnviados.get(`${row.id}::${GROUP_BROADCAST_STAGE}`);
+        if (enviadoEm) {
+          return (
+            <span className="whitespace-nowrap text-xs font-medium text-green-700">✓ enviado</span>
+          );
+        }
+        return (
+          <button
+            type="button"
+            disabled={reenviandoId === row.id}
+            onClick={async () => {
+              setReenviandoId(row.id);
+              try {
+                await reenviarDisparo.mutateAsync({ vacancyId: row.id, module: "empresa" });
+                toast.success("Anúncio enviado ao grupo da cidade.");
+              } catch (e) {
+                toast.error(getAxiosErrorMessage(e) || "Não foi possível enviar ao grupo.");
+              } finally {
+                setReenviandoId(null);
+              }
+            }}
+            className="cursor-pointer whitespace-nowrap rounded-md bg-[#1d1d1b] px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-[#333] disabled:cursor-wait disabled:opacity-60"
+            title="Reenviar o anúncio desta vaga no grupo da cidade"
+          >
+            {reenviandoId === row.id ? "Enviando…" : "Enviar"}
+          </button>
+        );
+      },
+      className: "hidden lg:table-cell",
+    },
+    {
       header: "Status",
       accessor: (row: Row) => <StatusBadge status={row.status} />,
     },
@@ -634,6 +495,8 @@ export default function JobsPage() {
             // que o card e a linha da tabela nunca divirjam no mesmo número.
             valor: r.valor,
             valorCents: r.raw.payment ?? 0,
+            // Taxa da plataforma + taxa fixa: o que fica para nós.
+            lucroCents: (r.raw.platformFeeInCents ?? 0) + (r.raw.fixedFeeInCents ?? 0),
             data: r.data,
             turno: r.horario,
             freelancer: r.providerName,

@@ -39,7 +39,14 @@ export function outreachKey(vacancyId: string, stage: string): string {
  * Rota do MÓDULO (não a de avisos): quem reenvia é o próprio fluxo de criação
  * da vaga, para o texto do reenvio não divergir do original.
  */
-export async function resendVacancyGroupMessage(vacancyId: string): Promise<void> {
-  const moduleApi = createAuthedClient("/v1/bars-restaurants/admin");
+export async function resendVacancyGroupMessage(
+  vacancyId: string,
+  module: "empresa" | "casa" = "empresa",
+): Promise<void> {
+  // Rota do MÓDULO, não a de avisos: quem reenvia é o próprio fluxo de criação
+  // da vaga, para o texto do reenvio não divergir do original — e cada módulo
+  // tem o seu.
+  const base = module === "casa" ? "/v1/home-services/admin" : "/v1/bars-restaurants/admin";
+  const moduleApi = createAuthedClient(base);
   await moduleApi.post(`/vacancies/${vacancyId}/resend-group-message`, {});
 }

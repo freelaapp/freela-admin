@@ -21,6 +21,7 @@ function vaga(
     candidatos: 0,
     valor: "R$ 180,00",
     valorCents: 18_000,
+    lucroCents: 3_600,
     data: "03/08",
     turno: "18:00 - 00:00",
     freelancer: null,

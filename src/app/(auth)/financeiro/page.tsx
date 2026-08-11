@@ -441,6 +441,29 @@ function TransacaoVagaDialog({
 }) {
   const v = tx?.vacancy ?? null;
 
+  /**
+   * TODAS as movimentações da vaga — consulta própria, SEM filtro de tipo nem
+   * de período.
+   *
+   * Reaproveitar a lista da tela era o caminho curto e estaria errado: com o
+   * filtro em "Entradas", o extrato esconderia justamente o repasse e o
+   * estorno, que é a queixa que originou esta tela.
+   */
+  const { data: doVaga, isLoading: carregandoLinha } = useFinanceTransactions(
+    { vacancyId: tx?.vacancyId ?? undefined },
+    { enabled: Boolean(tx?.vacancyId) },
+  );
+
+  // Da mais ANTIGA para a mais nova, ao contrário da tabela: extrato se lê na
+  // ordem em que o dinheiro andou.
+  const linhaDoTempo = useMemo(
+    () =>
+      (doVaga?.items ?? [])
+        .slice()
+        .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)),
+    [doVaga],
+  );
+
   return (
     <Dialog open={Boolean(tx)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
@@ -510,6 +533,71 @@ function TransacaoVagaDialog({
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {carregandoLinha && tx?.vacancyId && (
+          <p className="text-xs text-[#737373]">Carregando as movimentações desta vaga…</p>
+        )}
+
+        {linhaDoTempo.length > 0 && (
+          <div className="rounded-lg border border-[#e5e5e5] p-3">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#737373]">
+              Movimentações desta vaga ({linhaDoTempo.length})
+            </p>
+            <ol>
+              {linhaDoTempo.map((t, i) => {
+                const cor =
+                  t.type === "entrada"
+                    ? "#16A34A"
+                    : t.type === "saida"
+                      ? "#DC2626"
+                      : "#eca826";
+                const sinal = t.type === "entrada" ? "+" : "−";
+                const atual = t.id === tx?.id;
+                const ultimo = i === linhaDoTempo.length - 1;
+                return (
+                  <li key={t.id} className="relative flex gap-3 pb-3 last:pb-0">
+                    {!ultimo && (
+                      <span className="absolute left-[5px] top-3.5 bottom-0 w-px bg-[#e5e5e5]" />
+                    )}
+                    <span
+                      style={{ background: cor }}
+                      className="relative z-10 mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span
+                          className={`text-sm ${atual ? "font-semibold text-[#1d1d1b]" : "text-[#1d1d1b]"}`}
+                        >
+                          {KIND_LABELS[t.kind] ?? t.kind}
+                          {/* Marca a linha que o usuário clicou: sem isso ele
+                              perde o próprio lugar dentro do extrato. */}
+                          {atual && (
+                            <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-[#eca826]">
+                              esta
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          style={{ color: cor }}
+                          className="whitespace-nowrap text-sm font-medium tabular-nums"
+                        >
+                          {sinal} {formatCurrency(t.amountInCents)}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#737373]">
+                        {formatInstant(t.createdAt)}
+                        {" · "}
+                        {(TX_STATUS[t.status]?.label ?? t.status)}
+                        {t.provider ? ` · ${providerLabel(t.provider)}` : ""}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
           </div>
         )}
 

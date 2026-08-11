@@ -44,7 +44,13 @@ export function useSendVacancyStageMessage() {
 export function useResendVacancyGroupMessage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (vacancyId: string) => resendVacancyGroupMessage(vacancyId),
+    mutationFn: ({
+      vacancyId,
+      module = "empresa",
+    }: {
+      vacancyId: string;
+      module?: "empresa" | "casa";
+    }) => resendVacancyGroupMessage(vacancyId, module),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-outreach"] }),
   });
 }
