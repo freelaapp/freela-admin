@@ -1,4 +1,21 @@
-import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
+/**
+ * O mínimo que uma vaga precisa ter para ser classificada.
+ *
+ * Estrutural em vez de amarrado ao `VacancyItem` de Empresa: a mesma régua vale
+ * para o Freela em Casa, e duplicar a classificação faria as duas divergirem na
+ * primeira mudança de regra.
+ */
+export type ClassifiableVacancy = {
+  status: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  candidacyCount?: number;
+  job?: {
+    status: string;
+    hasContractorFeedback?: boolean;
+    hasProviderFeedback?: boolean;
+  } | null;
+};
 
 /**
  * Em que etapa do funil a vaga está.
@@ -27,7 +44,10 @@ export type VacancyBucket =
   | "lost"
   | "cancelled";
 
-export function resolveVacancyBucket(v: VacancyItem, now: Date = new Date()): VacancyBucket {
+export function resolveVacancyBucket(
+  v: ClassifiableVacancy,
+  now: Date = new Date(),
+): VacancyBucket {
   const status = v.status?.toUpperCase();
   const jobStatus = v.job?.status?.toUpperCase();
 
