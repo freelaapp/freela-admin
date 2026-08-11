@@ -844,6 +844,25 @@ export interface FinanceTransaction {
   vacancyId: string | null;
   reference: string | null;
   createdAt: string;
+  /**
+   * Quem está do outro lado do dinheiro. Preenchido nas ENTRADAS (o contratante
+   * que pagou); nulo nas saídas, porque o repasse aponta para o provider global
+   * e o nome do freelancer não está na vaga — melhor vazio do que mostrar o
+   * contratante como se fosse quem recebeu.
+   */
+  party?: string | null;
+  /** A vaga por trás da transação, com custo e nossa receita já resolvidos. */
+  vacancy?: {
+    id: string;
+    module: string;
+    serviceType: string | null;
+    date: string | null;
+    contractorName: string | null;
+    providerName: string | null;
+    baseAmountInCents: number | null;
+    freelancerAmountInCents: number | null;
+    platformRevenueInCents: number | null;
+  } | null;
 }
 
 export interface FinancePeriodParams {
