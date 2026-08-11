@@ -125,6 +125,38 @@ export default function CampanhasPage() {
     },
     { header: "Destinatários", accessor: (row: Campaign) => row._count?.recipients ?? 0 },
     {
+      header: "Enviados",
+      accessor: (row: Campaign) => {
+        const stats = row.stats;
+        if (!stats) return "—";
+        // "Processados" = tudo que a fila já tentou. É o denominador honesto da
+        // taxa: dividir o sucesso pelo total de destinatários faria uma campanha
+        // no meio do caminho parecer fracassada.
+        const processados = stats.SENT + stats.FAILED;
+        const taxa = processados > 0 ? Math.round((stats.SENT / processados) * 100) : null;
+        return (
+          <div className="flex flex-col gap-0.5 text-xs tabular-nums">
+            <span>
+              <strong className="text-[#1d1d1b]">{stats.SENT}</strong> efetivos
+              {taxa !== null && <span className="text-[#737373]"> ({taxa}%)</span>}
+            </span>
+            <span className="text-[#737373]">
+              {stats.FAILED > 0 ? (
+                <span className="text-red-600">{stats.FAILED} falharam</span>
+              ) : (
+                "0 falharam"
+              )}
+              {/* Pulado ≠ falhado: é quem a campanha nem tentou (sem telefone,
+                  sem e-mail, opt-out). Somar os dois esconderia uma audiência
+                  que nunca teve como ser alcançada. */}
+              {stats.SKIPPED > 0 && ` · ${stats.SKIPPED} pulados`}
+              {stats.PENDING > 0 && ` · ${stats.PENDING} na fila`}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
       header: "Ritmo",
       accessor: (row: Campaign) => (
         <span className="text-xs">
