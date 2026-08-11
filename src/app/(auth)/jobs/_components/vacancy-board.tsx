@@ -105,6 +105,22 @@ const COLUNAS: Array<{
   },
 ];
 
+/**
+ * Etapas em que a vaga está parada esperando o CONTRATANTE — as únicas que
+ * ganham botão de aviso. Nas demais quem deve a ação é o freelancer ou o
+ * sistema, e cobrar o contratante ali seria ruído.
+ */
+export type AvisoStage = "awaitingSelection" | "awaitingPayment";
+
+const AVISO_POR_BUCKET: Partial<Record<BoardBucket, { stage: AvisoStage; rotulo: string }>> = {
+  awaitingSelection: { stage: "awaitingSelection", rotulo: "Cobrar escolha" },
+  awaitingPayment: { stage: "awaitingPayment", rotulo: "Cobrar pagamento" },
+};
+
+/** Verde do "já avisado". Fica no card inteiro, não só no botão: o painel é
+ *  lido de longe, e uma tarja fina não se vê da mesa. */
+const COR_AVISADO = "#16A34A";
+
 /** Quantos cards por coluna antes de virar um "+N". */
 const MAX_CARDS = 8;
 
@@ -217,21 +233,34 @@ function CardVaga({
   cor,
   agora,
   onSelect,
+  aviso,
+  avisadoEm,
+  onAvisar,
+  avisando,
 }: {
   item: BoardVacancy;
   cor: string;
   agora: number;
   onSelect: (vacancyId: string) => void;
+  aviso?: { stage: AvisoStage; rotulo: string };
+  avisadoEm?: string;
+  onAvisar?: (vacancyId: string, stage: AvisoStage) => void;
+  avisando?: boolean;
 }) {
   const atencao = precisaDeAtencao(item, agora);
+  const jaAvisado = Boolean(avisadoEm);
+  // Avisado vence o alerta de urgência na cor: se a cobrança já saiu, o que
+  // interessa saber de longe é que alguém tratou aquele card.
+  const corBorda = jaAvisado ? COR_AVISADO : atencao ? "#F97316" : cor;
 
   return (
+    <div className="relative">
     <button
       type="button"
       onClick={() => onSelect(item.id)}
       // O card abre o MESMO modal de detalhes da tabela — não existe uma
       // segunda tela de vaga. `text-left` porque button centraliza por padrão.
-      style={{ borderLeftColor: atencao ? "#F97316" : cor }}
+      style={{ borderLeftColor: corBorda, background: jaAvisado ? "#F0FDF4" : undefined }}
       className={`w-full cursor-pointer rounded-[10px] border border-[#E2E8F0] border-l-[3px] bg-white px-3 py-2.5 text-left shadow-[0_1px_2px_rgba(15,23,42,.04)] transition-all hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(15,23,42,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#94A3B8] ${
         atencao ? "ring-1 ring-[#F97316]/30" : ""
       }`}
@@ -279,20 +308,80 @@ function CardVaga({
           </span>
         )}
       </div>
+
+      {aviso && onAvisar ? (
+        <div className="mt-2 border-t border-[#F1F5F9] pt-2">
+          {jaAvisado ? (
+            <span className="text-[11px] font-semibold text-[#16A34A]">
+              ✓ Avisado {formatarQuando(avisadoEm!)}
+            </span>
+          ) : (
+            <span className="text-[11px] text-[#94A3B8]">Ainda não avisado</span>
+          )}
+        </div>
+      ) : null}
     </button>
+
+      {/* Fora do <button> de propósito: botão dentro de botão é HTML inválido
+          e o clique de um dispararia o outro. */}
+      {aviso && onAvisar ? (
+        <button
+          type="button"
+          disabled={avisando}
+          onClick={() => onAvisar(item.id, aviso.stage)}
+          className={`absolute bottom-2 right-2.5 cursor-pointer rounded-md px-2 py-1 text-[11px] font-semibold transition-colors disabled:cursor-wait disabled:opacity-60 ${
+            jaAvisado
+              ? "bg-[#DCFCE7] text-[#166534] hover:bg-[#BBF7D0]"
+              : "bg-[#1d1d1b] text-white hover:bg-[#333]"
+          }`}
+          title={
+            jaAvisado
+              ? "Já avisado — clique para mandar de novo"
+              : `Mandar no WhatsApp: ${aviso.rotulo.toLowerCase()}`
+          }
+        >
+          {avisando ? "Enviando…" : jaAvisado ? "Reenviar" : aviso.rotulo}
+        </button>
+      ) : null}
+    </div>
   );
+}
+
+/** "hoje 14:32" / "ontem" / "09/08" — o suficiente para saber se a cobrança é
+ *  recente sem ocupar a linha inteira. */
+function formatarQuando(iso: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return "";
+  const d = new Date(ms);
+  const hoje = diaEmBrasilia(new Date());
+  const dia = diaEmBrasilia(d);
+  if (dia === hoje) {
+    return `hoje ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: SP_TZ })}`;
+  }
+  const [, mes, diaDoMes] = dia.split("-");
+  return `${diaDoMes}/${mes}`;
 }
 
 export function VacancyBoard({
   vacancies,
   isFetching,
   onSelect,
+  avisados,
+  onAvisar,
+  avisando,
 }: {
   vacancies: BoardVacancy[];
   isFetching: boolean;
   /** Abre os detalhes da vaga. O quadro só emite o id — quem resolve a linha
    *  e abre o modal é a página, a mesma da tabela. */
   onSelect: (vacancyId: string) => void;
+  /** Chave "vagaId::etapa" → quando o aviso saiu. Ausente = ainda não avisado. */
+  avisados?: Map<string, string>;
+  /** Dispara o aviso da etapa. Ausente = o painel não mostra o botão (é o caso
+   *  de quem abre o quadro sem permissão de disparo). */
+  onAvisar?: (vacancyId: string, stage: AvisoStage) => void;
+  /** Vaga com envio em curso, para travar o botão sem travar o painel. */
+  avisando?: string | null;
 }) {
   const [busca, setBusca] = useState("");
 
@@ -417,15 +506,24 @@ export function VacancyBoard({
               </div>
 
               <div className="flex flex-col gap-2 p-2.5">
-                {mostrados.map((item) => (
-                  <CardVaga
-                    key={item.id}
-                    item={item}
-                    cor={coluna.cor}
-                    agora={agora}
-                    onSelect={onSelect}
-                  />
-                ))}
+                {mostrados.map((item) => {
+                  const aviso = AVISO_POR_BUCKET[coluna.bucket];
+                  return (
+                    <CardVaga
+                      key={item.id}
+                      item={item}
+                      cor={coluna.cor}
+                      agora={agora}
+                      onSelect={onSelect}
+                      aviso={aviso}
+                      avisadoEm={
+                        aviso ? avisados?.get(`${item.id}::${aviso.stage}`) : undefined
+                      }
+                      onAvisar={onAvisar}
+                      avisando={avisando === item.id}
+                    />
+                  );
+                })}
 
                 {itens.length === 0 ? (
                   <p className="rounded-[10px] border-[1.5px] border-dashed border-[#CBD5E1] py-6 text-center text-[12px] text-[#94A3B8]">
@@ -442,6 +540,28 @@ export function VacancyBoard({
             </section>
           );
         })}
+      </div>
+
+      {/* Legenda: sem ela as cores viram enfeite. Só as três que MUDAM o card
+          entram — a cor de cada coluna já está no cabeçalho dela. */}
+      <div className="mt-3 flex flex-wrap items-center gap-4 rounded-xl bg-white px-4 py-2.5 text-[11.5px] text-[#64748B]">
+        <span className="font-semibold text-[#334155]">Legenda:</span>
+        <span className="flex items-center gap-1.5">
+          <span
+            style={{ background: COR_AVISADO }}
+            className="inline-block h-2.5 w-2.5 rounded-sm"
+            aria-hidden
+          />
+          contratante já avisado nesta etapa
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#F97316]" aria-hidden />
+          começa em menos de 2h e ainda não foi pago
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#CBD5E1]" aria-hidden />
+          cor da própria etapa
+        </span>
       </div>
 
       {/* Cancelada não pede ação, mas cancelamento de vaga de hoje/amanhã ainda
