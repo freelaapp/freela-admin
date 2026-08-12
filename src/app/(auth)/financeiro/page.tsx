@@ -148,6 +148,10 @@ function DateRangeBar({
 const KIND_LABELS: Record<string, string> = {
   charge: "Cobrança",
   repasse: "Repasse ao freelancer",
+  // Aparece nos DOIS lados: entrada é o que o contratante pagou (valor + taxa),
+  // saída é o valor cheio que foi para o freelancer. O tipo da linha desfaz a
+  // ambiguidade, e por isso o rótulo é o mesmo.
+  gorjeta: "Gorjeta",
   bonus: "Bônus de avaliação",
   refund_admin_br: "Estorno · admin (bar/restaurante)",
   refund_admin_casa: "Estorno · admin (em casa)",
