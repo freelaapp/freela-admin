@@ -29,6 +29,7 @@ export const ADMIN_PERMISSIONS = [
   "COMPANIES",
   "SUBSCRIPTIONS",
   "REFERRALS",
+  "INSURANCE",
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -49,6 +50,7 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   COMPANIES: "Empresas",
   SUBSCRIPTIONS: "Assinaturas",
   REFERRALS: "Indicações",
+  INSURANCE: "Seguro IZA",
 };
 
 export type AdminRole = "ADMIN" | "SUPER_ADMIN" | "RECRUITER";
