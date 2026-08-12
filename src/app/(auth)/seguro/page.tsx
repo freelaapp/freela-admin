@@ -30,7 +30,7 @@ import {
 import { toast } from "sonner";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
-import { formatInstantDateTime } from "@/lib/date.utils";
+import { formatInstantDate, formatInstantDateTime } from "@/lib/date.utils";
 import {
   useInsuranceCoverage,
   useInsuranceCoverages,
@@ -317,10 +317,19 @@ export default function SeguroPage() {
 
           {/* Alertas */}
           <div>
-            <h2 className="mb-3 font-semibold text-[#1d1d1b]">
+            <h2 className="mb-1 font-semibold text-[#1d1d1b]">
               O que merece atenção{" "}
               <span className="text-xs font-normal text-[#737373]">(últimos 30 dias)</span>
             </h2>
+            {/* Sem esta linha, alguém que lembra dos números antigos acha que
+                sumiu dado. O que sumiu foi ficção: até a virada o sistema
+                falava com a homologação e nenhuma apólice era real. */}
+            <p className="mb-3 text-xs text-[#737373]">
+              Contando a partir de {formatInstantDate(status.data.contandoDesde)}, quando a
+              operação passou a valer. O que veio antes rodou contra a homologação — as
+              apólices daquele período não eram reais e ficam de fora de toda conta desta
+              tela.
+            </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[...status.data.alertas]
                 .sort((a, b) => (b.total > 0 ? 1 : 0) - (a.total > 0 ? 1 : 0))

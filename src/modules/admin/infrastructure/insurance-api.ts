@@ -59,6 +59,9 @@ export interface InsuranceAlert {
 export interface InsuranceStatus {
   config: InsuranceConfig;
   ultimoTeste: HealthCheck | null;
+  /** Início da operação real. O que veio antes rodou contra a homologação e não
+   * entra em conta nenhuma — as apólices daquele período não eram de verdade. */
+  contandoDesde: string;
   janelas: {
     hoje: Record<string, number>;
     seteDias: Record<string, number>;
