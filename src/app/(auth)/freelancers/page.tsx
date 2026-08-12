@@ -26,6 +26,7 @@ import {
   useAdminHardDeleteProvider,
   useClearLowPriority,
 } from "@/modules/admin/application/use-admin-providers";
+import { useAdminUpdateProvider } from "@/modules/admin/application/use-admin-update-provider";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
   useExportProviders,
@@ -176,6 +177,13 @@ export default function FreelancersPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<ModalType>(null);
+  const updateProvider = useAdminUpdateProvider();
+  const [editForm, setEditForm] = useState({
+    jobTitle: "",
+    city: "",
+    uf: "",
+    services: [] as string[],
+  });
   const [selectedItem, setSelectedItem] = useState<Row | null>(null);
   const [historyData, setHistoryData] = useState<ProviderHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -212,6 +220,14 @@ export default function FreelancersPage() {
     setModalType(type);
     setSelectedItem(item);
     setModalOpen(true);
+    if (type === "edit") {
+      setEditForm({
+        jobTitle: item.raw.jobTitle ?? "",
+        city: item.raw.city ?? "",
+        uf: item.raw.uf ?? "",
+        services: item.raw.services ?? [],
+      });
+    }
     if (type === "delete") {
       setDeleteReason("");
       setDeleteConfirm("");
@@ -235,6 +251,42 @@ export default function FreelancersPage() {
     setModalType(null);
     setSelectedItem(null);
   };
+
+  /**
+   * Salva a correção do cadastro.
+   *
+   * O cargo é o campo que importa: com o filtro por função ligado, freelancer
+   * com a lista vazia não vê vaga nenhuma no app — e até aqui a única forma de
+   * consertar era UPDATE no banco de produção.
+   */
+  const handleSaveEdit = async () => {
+    if (!selectedItem) return;
+    try {
+      await updateProvider.mutateAsync({
+        userId: selectedItem.raw.userId,
+        payload: {
+          jobTitle: editForm.jobTitle.trim() || undefined,
+          city: editForm.city.trim() || undefined,
+          uf: editForm.uf.trim().toUpperCase() || undefined,
+          // Array vazio é intencional: tirar todos os cargos é uma escolha
+          // possível, e `undefined` significaria "não mexer".
+          services: editForm.services,
+        },
+      });
+      toast.success("Cadastro do freelancer atualizado nos dois módulos.");
+      closeModal();
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível atualizar o cadastro."));
+    }
+  };
+
+  const toggleEditService = (value: string) =>
+    setEditForm((f) => ({
+      ...f,
+      services: f.services.includes(value)
+        ? f.services.filter((s) => s !== value)
+        : [...f.services, value],
+    }));
 
   const handleHardDelete = async () => {
     if (!selectedItem) return;
@@ -564,36 +616,95 @@ export default function FreelancersPage() {
           <>
             <DialogHeader>
               <DialogTitle>Editar Freelancer</DialogTitle>
-              <DialogDescription>Somente visualização — a edição de dados do freelancer ainda não existe no admin.</DialogDescription>
+              <DialogDescription>
+                Vale nos dois módulos (Empresa e Casa). Nome, CPF, telefone e e-mail não se
+                mudam aqui — são identidade, com fluxo próprio.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="nome">Nome completo</Label>
-                <Input id="nome" defaultValue={selectedItem.nome} />
+                <Label>Nome</Label>
+                <Input defaultValue={selectedItem.nome} disabled />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="telefone">Telefone</Label>
-                  <Input id="telefone" defaultValue={selectedItem.telefone} />
-                </div>
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5 col-span-2">
                   <Label htmlFor="cidade">Cidade</Label>
-                  <Input id="cidade" defaultValue={selectedItem.cidade} />
+                  <Input
+                    id="cidade"
+                    value={editForm.city}
+                    onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="uf">UF</Label>
+                  <Input
+                    id="uf"
+                    maxLength={2}
+                    value={editForm.uf}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, uf: e.target.value.toUpperCase() }))
+                    }
+                  />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="cargo">Cargo</Label>
-                  <Input id="cargo" defaultValue={selectedItem.cargo} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="avaliacao">Avaliação</Label>
-                  <Input id="avaliacao" defaultValue={String(selectedItem.avaliacao)} />
+              <div className="space-y-1.5">
+                <Label htmlFor="cargo">Cargo principal (texto livre)</Label>
+                <Input
+                  id="cargo"
+                  value={editForm.jobTitle}
+                  onChange={(e) => setEditForm((f) => ({ ...f, jobTitle: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>
+                  Cargos que ele aceita{" "}
+                  <span className="font-normal text-[#737373]">
+                    ({editForm.services.length} selecionado
+                    {editForm.services.length === 1 ? "" : "s"})
+                  </span>
+                </Label>
+                {/* Este é o campo que decide o que ele enxerga: com o filtro por
+                    função ligado, lista vazia = mural vazio. */}
+                {editForm.services.length === 0 && (
+                  <p className="rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] leading-tight text-red-800">
+                    Sem nenhum cargo, ele não vê vaga nenhuma no aplicativo.
+                  </p>
+                )}
+                <div className="flex max-h-56 flex-wrap gap-1.5 overflow-y-auto rounded-md border border-[#e5e5e5] p-2">
+                  {cargoOptions.length === 0 ? (
+                    <p className="text-sm text-[#737373]">Catálogo de cargos indisponível.</p>
+                  ) : (
+                    cargoOptions.map((opt) => {
+                      const on = editForm.services.includes(opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => toggleEditService(opt.value)}
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                            on
+                              ? "bg-[#eca826] text-white"
+                              : "bg-[#f7f7f7] text-[#737373] hover:bg-[#eca826]/10"
+                          }`}
+                        >
+                          <Briefcase className="h-3.5 w-3.5" />
+                          {opt.label}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
+              <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={updateProvider.isPending}
+                className="bg-[#eca826] text-white hover:bg-[#d4951e]"
+              >
+                {updateProvider.isPending ? "Salvando..." : "Salvar alterações"}
+              </Button>
             </DialogFooter>
           </>
         );

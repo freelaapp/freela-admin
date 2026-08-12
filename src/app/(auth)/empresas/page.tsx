@@ -88,7 +88,16 @@ export default function EmpresasPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const hardDelete = useAdminHardDeleteContractor();
   const updateContractor = useAdminUpdateContractor();
-  const [editForm, setEditForm] = useState({ companyName: "", segment: "" });
+  const [editForm, setEditForm] = useState({
+    companyName: "",
+    segment: "",
+    contactName: "",
+    contactPhone: "",
+    contactEmail: "",
+    document: "",
+    city: "",
+    uf: "",
+  });
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -119,6 +128,15 @@ export default function EmpresasPage() {
       setEditForm({
         companyName: item.raw.companyName ?? "",
         segment: item.raw.segment ?? "",
+        contactName: item.raw.contactName ?? "",
+        contactPhone: item.raw.contactPhone ?? "",
+        contactEmail: item.raw.contactEmail ?? "",
+        // CNPJ e CPF são o MESMO campo no banco (`document`) — o back devolve
+        // separado só para exibir. Mandar de volta num campo só evita gravar um
+        // e apagar o outro.
+        document: item.raw.cnpj ?? item.raw.cpf ?? "",
+        city: item.raw.city ?? "",
+        uf: item.raw.uf ?? "",
       });
     }
     if (type === "report") {
@@ -232,6 +250,14 @@ export default function EmpresasPage() {
         payload: {
           companyName: editForm.companyName.trim() || undefined,
           segment: editForm.segment.trim() || undefined,
+          contactName: editForm.contactName.trim() || undefined,
+          contactPhone: editForm.contactPhone.trim() || undefined,
+          // String vazia é intencional aqui: apagar o e-mail de contato é um
+          // estado válido. Nos outros, vazio significa "não mexer".
+          contactEmail: editForm.contactEmail.trim(),
+          document: editForm.document.trim() || undefined,
+          city: editForm.city.trim() || undefined,
+          uf: editForm.uf.trim().toUpperCase() || undefined,
         },
       });
       toast.success("Empresa atualizada com sucesso.");
@@ -453,7 +479,10 @@ export default function EmpresasPage() {
           <>
             <DialogHeader>
               <DialogTitle>Editar Empresa</DialogTitle>
-              <DialogDescription>Edite o nome e o segmento da empresa. (Responsável, telefone e cidade em breve.)</DialogDescription>
+              <DialogDescription>
+                Corrige o cadastro da empresa. O e-mail de <strong>login</strong> não se muda
+                aqui — use &quot;Alterar e-mail de acesso&quot;.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-1.5">
@@ -462,17 +491,35 @@ export default function EmpresasPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="responsavel">Responsável</Label>
-                <Input id="responsavel" defaultValue={selectedItem.responsavel} disabled />
+                <Input id="responsavel" value={editForm.contactName} onChange={(e) => setEditForm((f) => ({ ...f, contactName: e.target.value }))} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="telefone-emp">Telefone</Label>
-                  <Input id="telefone-emp" defaultValue={selectedItem.telefone} disabled />
+                  <Input id="telefone-emp" value={editForm.contactPhone} onChange={(e) => setEditForm((f) => ({ ...f, contactPhone: e.target.value }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="cidade-emp">Cidade</Label>
-                  <Input id="cidade-emp" defaultValue={selectedItem.cidade} disabled />
+                  <Label htmlFor="email-contato">E-mail de contato</Label>
+                  <Input id="email-contato" value={editForm.contactEmail} onChange={(e) => setEditForm((f) => ({ ...f, contactEmail: e.target.value }))} placeholder="recibo e aviso de vaga" />
                 </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5 col-span-2">
+                  <Label htmlFor="cidade-emp">Cidade</Label>
+                  <Input id="cidade-emp" value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="uf-emp">UF</Label>
+                  <Input id="uf-emp" value={editForm.uf} maxLength={2} onChange={(e) => setEditForm((f) => ({ ...f, uf: e.target.value.toUpperCase() }))} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="doc-emp">CNPJ / CPF</Label>
+                <Input id="doc-emp" value={editForm.document} onChange={(e) => setEditForm((f) => ({ ...f, document: e.target.value }))} />
+                <p className="text-[11px] text-[#737373]">
+                  É o mesmo campo que os gates fiscais leem — corrigir aqui destrava a
+                  emissão de contrato e recibo.
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">

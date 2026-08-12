@@ -163,9 +163,33 @@ export interface CampaignRecipient {
   failureReason: string | null;
 }
 
+/**
+ * Recorte por cima da audiência. Lista vazia = SEM recorte, nunca "ninguém".
+ * `modules` é também o filtro de tipo de conta do contratante: Empresa é
+ * `bars-restaurants` e Em Casa é `home-services`.
+ */
+export interface AudienceFilters {
+  cities?: string[];
+  ufs?: string[];
+  modules?: Array<"bars-restaurants" | "home-services">;
+}
+
+export type CampaignAudience =
+  | "CONTRACTORS_NEVER_PUBLISHED"
+  | "CONTRACTORS_DORMANT_90D"
+  | "PROVIDERS_NEVER_APPLIED"
+  | "PROVIDERS_DORMANT_90D";
+
+export interface AudienceOption {
+  city: string;
+  uf: string | null;
+  total: number;
+}
+
 export interface CreateCampaignPayload {
   name: string;
-  audience: "CONTRACTORS_NEVER_PUBLISHED" | "CONTRACTORS_DORMANT_90D";
+  audience: CampaignAudience;
+  audienceFilters?: AudienceFilters;
   audienceNote?: string;
   messagesPerHour?: number;
   dailyCap?: number;
@@ -200,6 +224,25 @@ export async function previewCampaignMessages(payload: {
   city?: string;
 }): Promise<string[]> {
   const res = await adminsRootApi.post("/activation-campaigns/preview", payload);
+  return res.data.data;
+}
+
+/** Cidades que existem nesta audiência, com o tamanho de cada uma. */
+export async function getAudienceOptions(
+  audience: CampaignAudience,
+): Promise<{ total: number; cities: AudienceOption[] }> {
+  const res = await adminsRootApi.get("/activation-campaigns/audience-options", {
+    params: { audience },
+  });
+  return res.data.data;
+}
+
+/** Conta a audiência com os filtros escolhidos, sem criar nada. */
+export async function previewCampaignAudience(payload: {
+  audience: CampaignAudience;
+  filters?: AudienceFilters;
+}): Promise<{ total: number; byChannel: { WHATSAPP: number; EMAIL: number } }> {
+  const res = await adminsRootApi.post("/activation-campaigns/audience-preview", payload);
   return res.data.data;
 }
 

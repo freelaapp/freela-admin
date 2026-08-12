@@ -269,9 +269,31 @@ export async function getAdminContractors(): Promise<ContractorItem[]> {
   return res.data.data;
 }
 
+/**
+ * Campos que o painel pode corrigir. E-mail de LOGIN fica fora — tem fluxo
+ * próprio (`updateAdminUserEmail`). `contactEmail` é outra coisa: é para onde
+ * vão recibo e aviso de vaga.
+ */
+export interface UpdateAdminContractorPayload {
+  companyName?: string;
+  segment?: string;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  /** CPF ou CNPJ — o mesmo campo que os gates fiscais leem. */
+  document?: string;
+  city?: string;
+  uf?: string;
+  cep?: string;
+  street?: string;
+  neighborhood?: string;
+  number?: string;
+  complement?: string;
+}
+
 export async function updateAdminContractor(
   id: string,
-  payload: { companyName?: string; segment?: string },
+  payload: UpdateAdminContractorPayload,
 ): Promise<ContractorItem> {
   const res = await adminApi.patch(`/contractors/${id}`, payload);
   return res.data.data;
@@ -532,6 +554,32 @@ export interface VacancyCandidacyItem {
   // Opcionais: só presentes após o deploy da API de autoria do aceite (2026-07-17).
   acceptedAt?: string | null;
   approvedBy?: VacancyCandidacyApprovedBy | null;
+  /** Quando o freelancer confirmou presença. Nulo = handshake ainda pendente. */
+  confirmedAt?: string | null;
+  /** in_app | magic_link | admin — `admin` é o painel confirmando por ele. */
+  confirmationChannel?: string | null;
+  /** Prazo do handshake. Vencido + sem confirmedAt = o prazo passou. */
+  confirmDeadlineAt?: string | null;
+}
+
+export interface AdminConfirmCandidacyResult {
+  candidacyId: string;
+  vacancyId: string;
+  status: "confirmed" | "already_confirmed";
+  confirmationChannel: string | null;
+}
+
+/**
+ * Confirma a presença no lugar do freelancer.
+ *
+ * Não passa pelo prazo: a trava de horário existe para o freelancer sozinho, e
+ * quem clica aqui já falou com ele. Continua exigindo candidatura ACEITA.
+ */
+export async function adminConfirmCandidacy(
+  candidacyId: string,
+): Promise<AdminConfirmCandidacyResult> {
+  const res = await adminApi.post(`/candidacies/${candidacyId}/confirm`);
+  return res.data.data;
 }
 
 export async function getVacancyCandidacies(vacancyId: string): Promise<VacancyCandidacyItem[]> {
@@ -970,3 +1018,29 @@ export async function adminHardDeleteUser(
 }
 
 export default adminApi;
+
+// ─── Freelancer: correção de cadastro pelo painel ────────────────────────────
+
+/**
+ * Vive fora de `adminApi` porque a rota é do Shared Kernel (`/v1/admins`), não
+ * do admin de um módulo: identidade de prestador é global, e o cargo tem de
+ * valer no Empresa e no Casa ao mesmo tempo.
+ */
+const providersAdminApi = createAuthedClient("/v1/admins/providers");
+
+export interface UpdateAdminProviderPayload {
+  jobTitle?: string;
+  /** Os cargos que o freelancer aceita. É o que o filtro do mural usa. */
+  services?: string[];
+  bio?: string;
+  city?: string;
+  uf?: string;
+}
+
+export async function updateAdminProvider(
+  userId: string,
+  payload: UpdateAdminProviderPayload,
+): Promise<unknown> {
+  const res = await providersAdminApi.patch(`/${userId}`, payload);
+  return res.data.data;
+}

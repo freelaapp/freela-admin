@@ -5,6 +5,7 @@ import {
   getAdminContractors,
   adminHardDeleteUser,
   updateAdminContractor,
+  type UpdateAdminContractorPayload,
 } from "../infrastructure/admin-api";
 
 export function useAdminContractors() {
@@ -23,7 +24,7 @@ export function useAdminUpdateContractor() {
       payload,
     }: {
       id: string;
-      payload: { companyName?: string; segment?: string };
+      payload: UpdateAdminContractorPayload;
     }) => updateAdminContractor(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "contractors"] });

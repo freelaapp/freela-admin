@@ -24,11 +24,14 @@ import {
   useCampaignPreview,
   useCampaignRecipients,
   useCampaigns,
+  useAudienceOptions,
   useCreateCampaign,
+  usePreviewAudience,
   useSetCampaignState,
 } from "@/modules/admin/application/use-admin-referrals";
 import type {
   Campaign,
+  CampaignAudience,
   CampaignRecipient,
   CampaignStatus,
 } from "@/modules/admin/infrastructure/referrals-api";
@@ -49,9 +52,24 @@ const STATUS_CLASS: Record<CampaignStatus, string> = {
   CANCELLED: "bg-neutral-200 text-neutral-500",
 };
 
+/** Os quatro recortes que a API monta. Freelancer estava só no backend. */
+const AUDIENCE_LABELS: Record<CampaignAudience, string> = {
+  CONTRACTORS_NEVER_PUBLISHED: "Contratantes que nunca publicaram vaga",
+  CONTRACTORS_DORMANT_90D: "Contratantes sem publicar há mais de 90 dias",
+  PROVIDERS_NEVER_APPLIED: "Freelancers que nunca se candidataram",
+  PROVIDERS_DORMANT_90D: "Freelancers sem se candidatar há mais de 90 dias",
+};
+
+const MODULE_LABELS: Record<"bars-restaurants" | "home-services", string> = {
+  "bars-restaurants": "Empresa (bares e restaurantes)",
+  "home-services": "Em casa (serviços domésticos)",
+};
+
 const DEFAULT_FORM = {
   name: "",
-  audience: "CONTRACTORS_NEVER_PUBLISHED" as const,
+  audience: "CONTRACTORS_NEVER_PUBLISHED" as CampaignAudience,
+  cities: [] as string[],
+  modules: [] as Array<"bars-restaurants" | "home-services">,
   messagesPerHour: 20,
   dailyCap: 120,
   windowStartHour: 9,
@@ -71,6 +89,11 @@ export default function CampanhasPage() {
 
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM);
+  // Só busca as cidades com o formulário aberto: a chamada monta a audiência
+  // inteira no backend.
+  const audienceOptions = useAudienceOptions(creating ? form.audience : null);
+  const previewAudience = usePreviewAudience();
+  const [contagem, setContagem] = useState<{ total: number; whatsapp: number } | null>(null);
   const preview = useCampaignPreview("José da Silva", "Jundiaí");
 
   if (isChecking || !allowed) {
@@ -83,12 +106,21 @@ export default function CampanhasPage() {
 
   const handleCreate = async () => {
     try {
-      const created = await createCampaign.mutateAsync(form);
+      const { cities, modules, ...rest } = form;
+      const created = await createCampaign.mutateAsync({
+        ...rest,
+        // Só manda o recorte se houver algum: objeto de listas vazias gravaria
+        // "filtrado por nada", que é diferente de "sem filtro".
+        ...(cities.length || modules.length
+          ? { audienceFilters: { ...(cities.length ? { cities } : {}), ...(modules.length ? { modules } : {}) } }
+          : {}),
+      });
       toast.success(
         `Campanha criada com ${created.stats.PENDING} destinatários — ${created.estimate.days} dia(s) úteis no ritmo escolhido.`,
       );
       setCreating(false);
       setForm(DEFAULT_FORM);
+      setContagem(null);
       setSelectedId(created.campaign.id);
     } catch (error) {
       toast.error(getAxiosErrorMessage(error));
@@ -269,13 +301,157 @@ export default function CampanhasPage() {
                 id="audience"
                 className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
                 value={form.audience}
-                onChange={(event) =>
-                  setForm({ ...form, audience: event.target.value as typeof form.audience })
-                }
+                onChange={(event) => {
+                  // Trocar a audiência invalida cidade e contagem: as cidades da
+                  // lista antiga podem nem existir na nova.
+                  setForm({
+                    ...form,
+                    audience: event.target.value as CampaignAudience,
+                    cities: [],
+                  });
+                  setContagem(null);
+                }}
               >
-                <option value="CONTRACTORS_NEVER_PUBLISHED">Nunca publicaram vaga</option>
-                <option value="CONTRACTORS_DORMANT_90D">Sem publicar há mais de 90 dias</option>
+                {(Object.keys(AUDIENCE_LABELS) as CampaignAudience[]).map((key) => (
+                  <option key={key} value={key}>
+                    {AUDIENCE_LABELS[key]}
+                  </option>
+                ))}
               </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tipo de conta</Label>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(MODULE_LABELS) as Array<keyof typeof MODULE_LABELS>).map((mod) => {
+                  const on = form.modules.includes(mod);
+                  return (
+                    <button
+                      key={mod}
+                      type="button"
+                      onClick={() => {
+                        setForm({
+                          ...form,
+                          modules: on
+                            ? form.modules.filter((m) => m !== mod)
+                            : [...form.modules, mod],
+                        });
+                        setContagem(null);
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                        on
+                          ? "bg-[#eca826] text-white"
+                          : "bg-neutral-100 text-neutral-600 hover:bg-[#eca826]/10"
+                      }`}
+                    >
+                      {MODULE_LABELS[mod]}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-neutral-500">
+                Nenhum marcado = os dois.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>
+                Cidades{" "}
+                <span className="font-normal text-neutral-500">
+                  {form.cities.length ? `(${form.cities.length} escolhida${form.cities.length === 1 ? "" : "s"})` : "(nenhuma = todas)"}
+                </span>
+              </Label>
+              {audienceOptions.isLoading ? (
+                <div className="flex items-center gap-2 text-xs text-neutral-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Levantando as cidades desta
+                  audiência…
+                </div>
+              ) : (
+                <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-md border border-neutral-200 p-2">
+                  {(audienceOptions.data?.cities ?? []).length === 0 ? (
+                    <p className="text-sm text-neutral-500">Nenhuma cidade nesta audiência.</p>
+                  ) : (
+                    audienceOptions.data!.cities.map((opt) => {
+                      const on = form.cities.includes(opt.city);
+                      return (
+                        <button
+                          key={`${opt.city}-${opt.uf ?? ""}`}
+                          type="button"
+                          onClick={() => {
+                            setForm({
+                              ...form,
+                              cities: on
+                                ? form.cities.filter((c) => c !== opt.city)
+                                : [...form.cities, opt.city],
+                            });
+                            setContagem(null);
+                          }}
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                            on
+                              ? "bg-[#eca826] text-white"
+                              : "bg-neutral-100 text-neutral-600 hover:bg-[#eca826]/10"
+                          }`}
+                        >
+                          {opt.city}
+                          {opt.uf ? ` · ${opt.uf}` : ""}{" "}
+                          <span className={on ? "text-white/80" : "text-neutral-400"}>
+                            {opt.total}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Contar ANTES de criar: a audiência é congelada na criação, então
+                errar o recorte significa apagar a campanha e refazer. */}
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm">
+                  {contagem ? (
+                    <>
+                      <span className="font-semibold text-neutral-900">
+                        {contagem.total} pessoa{contagem.total === 1 ? "" : "s"}
+                      </span>
+                      <span className="block text-xs text-neutral-500">
+                        {contagem.whatsapp} por WhatsApp · {contagem.total - contagem.whatsapp} por
+                        e-mail
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-neutral-600">
+                      Confira quantos entram antes de criar.
+                    </span>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={previewAudience.isPending}
+                  onClick={async () => {
+                    try {
+                      const res = await previewAudience.mutateAsync({
+                        audience: form.audience,
+                        filters: {
+                          ...(form.cities.length ? { cities: form.cities } : {}),
+                          ...(form.modules.length ? { modules: form.modules } : {}),
+                        },
+                      });
+                      setContagem({ total: res.total, whatsapp: res.byChannel.WHATSAPP });
+                    } catch (error) {
+                      toast.error(getAxiosErrorMessage(error));
+                    }
+                  }}
+                >
+                  {previewAudience.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Contar"
+                  )}
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
