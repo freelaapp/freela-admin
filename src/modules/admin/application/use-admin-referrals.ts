@@ -17,6 +17,10 @@ import {
   type CreateCampaignPayload,
   type RecipientStatus,
   type ReferralListFilter,
+  getAudienceOptions,
+  previewCampaignAudience,
+  type AudienceFilters,
+  type CampaignAudience,
 } from "../infrastructure/referrals-api";
 
 const REFERRALS_KEY = ["admin", "referrals"] as const;
@@ -111,6 +115,28 @@ export function useCampaignPreview(name: string, city: string) {
     queryKey: [...CAMPAIGNS_KEY, "preview", name, city],
     queryFn: () => previewCampaignMessages({ name, city }),
     staleTime: Infinity,
+  });
+}
+
+/**
+ * Cidades da audiência escolhida. Só busca quando o formulário está aberto —
+ * a chamada monta a audiência inteira no backend, então não vale disparar em
+ * toda visita à página.
+ */
+export function useAudienceOptions(audience: CampaignAudience | null) {
+  return useQuery({
+    queryKey: [...CAMPAIGNS_KEY, "audience-options", audience],
+    queryFn: () => getAudienceOptions(audience as CampaignAudience),
+    enabled: !!audience,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Conta a audiência com o recorte, antes de criar. */
+export function usePreviewAudience() {
+  return useMutation({
+    mutationFn: (payload: { audience: CampaignAudience; filters?: AudienceFilters }) =>
+      previewCampaignAudience(payload),
   });
 }
 

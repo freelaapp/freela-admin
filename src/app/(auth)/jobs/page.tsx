@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, LayoutGrid, Clock, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, ShieldCheck } from "lucide-react";
+import { Plus, Eye, LayoutGrid, Clock, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, ShieldCheck, CalendarCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
@@ -30,7 +30,10 @@ import { useAdminContractors } from "@/modules/admin/application/use-admin-contr
 import { useAdminConsultants } from "@/modules/admin/application/use-admin-consultants";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
-import { useVacancyCandidacies } from "@/modules/admin/application/use-vacancy-candidacies";
+import {
+  useConfirmCandidacy,
+  useVacancyCandidacies,
+} from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
 import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
@@ -173,6 +176,32 @@ export default function JobsPage() {
   const { data: candidacies, isLoading: loadingCandidacies } = useVacancyCandidacies(
     modalDetalhes?.raw.id ?? null,
   );
+  const confirmCandidacy = useConfirmCandidacy(modalDetalhes?.raw.id ?? null);
+
+  /**
+   * Confirma a presença no lugar do freelancer.
+   *
+   * A mensagem separa "confirmei agora" de "já estava confirmada": sem isso, o
+   * operador que clica numa candidatura já confirmada acha que foi ele quem
+   * resolveu, e o motivo real do problema continua lá.
+   */
+  async function handleConfirmCandidacy(candidacyId: string, nome: string) {
+    try {
+      const res = await confirmCandidacy.mutateAsync(candidacyId);
+      if (res.status === "already_confirmed") {
+        toast.info(`${nome} já havia confirmado presença.`);
+        return;
+      }
+      toast.success(`Presença de ${nome} confirmada pelo painel.`);
+    } catch (e) {
+      const err = e as { response?: { data?: { error?: { message?: string } } } };
+      toast.error(
+        err.response?.data?.error?.message ??
+          "Não foi possível confirmar. A candidatura precisa estar aceita.",
+      );
+    }
+  }
+
 
   const { data: feedbacks, isLoading: loadingFeedbacks } = useVacancyFeedbacks(
     modalDetalhes?.raw.id ?? null,
@@ -918,6 +947,56 @@ export default function JobsPage() {
                                 )}
                               </div>
                             </div>
+                          )}
+                          {/* Confirmação de presença (handshake). Só faz sentido em
+                              candidatura ACEITA: nas outras não há o que confirmar. */}
+                          {c.status === "ACCEPTED" && (
+                            c.confirmedAt ? (
+                              <div className="mt-2 flex items-start gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5">
+                                <CalendarCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                <div className="text-[11px] leading-tight text-emerald-900">
+                                  <span className="font-semibold">Presença confirmada</span>
+                                  {c.confirmationChannel === "admin" && (
+                                    <span className="ml-1 rounded bg-emerald-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-emerald-700">
+                                      pelo painel
+                                    </span>
+                                  )}
+                                  <span className="block text-emerald-700">
+                                    {formatInstantDate(c.confirmedAt)} · {formatVacancyTime(c.confirmedAt)}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
+                                <p className="text-[11px] leading-tight text-amber-900">
+                                  <span className="font-semibold">Aguardando o freelancer confirmar.</span>
+                                  {c.confirmDeadlineAt && (
+                                    <span className="block text-amber-700">
+                                      Prazo dele: {formatInstantDate(c.confirmDeadlineAt)} ·{" "}
+                                      {formatVacancyTime(c.confirmDeadlineAt)}
+                                    </span>
+                                  )}
+                                </p>
+                                <button
+                                  onClick={() =>
+                                    handleConfirmCandidacy(c.id, c.providerName ?? "O freelancer")
+                                  }
+                                  disabled={confirmCandidacy.isPending}
+                                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+                                >
+                                  {confirmCandidacy.isPending ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <CalendarCheck className="h-3 w-3" />
+                                  )}
+                                  Confirmar presença por ele
+                                </button>
+                                <p className="mt-1 text-[10px] leading-tight text-amber-700">
+                                  Use quando ele já avisou por telefone. Fica registrado que
+                                  quem confirmou foi o painel.
+                                </p>
+                              </div>
+                            )
                           )}
                           {(c.status === "ACCEPTED" || c.status === "PENDING") &&
                             modalDetalhes?.raw.id && (

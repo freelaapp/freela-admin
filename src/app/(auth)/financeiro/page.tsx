@@ -165,6 +165,20 @@ function providerLabel(provider: string | null) {
   return provider;
 }
 
+/** O papel de quem está do outro lado, por tipo de movimento. */
+const PARTY_ROLE: Record<FinanceTransaction["type"], string> = {
+  entrada: "pagou",
+  saida: "recebeu",
+  estorno: "devolvido a",
+};
+
+/** O mesmo papel, escrito como rótulo de campo no detalhe. */
+const PARTY_LABEL: Record<FinanceTransaction["type"], string> = {
+  entrada: "Pago por",
+  saida: "Recebido por",
+  estorno: "Devolvido a",
+};
+
 function TypeBadge({ type }: { type: FinanceTransaction["type"] }) {
   const map = {
     entrada: { label: "Entrada", cls: "bg-green-500/10 text-green-600" },
@@ -194,7 +208,11 @@ function mapTxToRow(t: FinanceTransaction): TxRow {
     data: formatInstant(t.createdAt),
     descricao: KIND_LABELS[t.kind] ?? t.kind,
     gateway: providerLabel(t.provider),
-    busca: `${t.vacancyId ?? ""} ${t.reference ?? ""} ${KIND_LABELS[t.kind] ?? t.kind}`.trim(),
+    // O nome entra na busca: procurar o repasse de alguém pelo nome é o caminho
+    // mais curto quando chega "não recebi" no suporte.
+    busca: `${t.vacancyId ?? ""} ${t.reference ?? ""} ${KIND_LABELS[t.kind] ?? t.kind} ${
+      t.party ?? ""
+    }`.trim(),
     raw: t,
   };
 }
@@ -271,15 +289,19 @@ function TransactionsView({
     { header: "Descrição", accessor: "descricao" as const },
     { header: "Gateway", accessor: "gateway" as const, className: "hidden lg:table-cell" },
     {
-      header: "Quem pagou",
+      // Uma coluna só, com o verbo dizendo a direção: duas colunas ("quem pagou"
+      // e "quem recebeu") ficariam vazias metade do tempo cada uma, e a tabela
+      // já é larga.
+      header: "Quem",
       accessor: (r: TxRow) => {
-        // Só a ENTRADA tem pagador. Numa saída o dinheiro vai para o
-        // freelancer, e mostrar o contratante aqui inverteria o sentido.
-        if (r.raw.type !== "entrada") return <span className="text-[#a3a3a3]">—</span>;
-        return r.raw.party ? (
-          <span className="text-sm text-[#1d1d1b]">{r.raw.party}</span>
-        ) : (
-          <span className="text-[#a3a3a3]">—</span>
+        if (!r.raw.party) return <span className="text-[#a3a3a3]">—</span>;
+        return (
+          <div className="leading-tight">
+            <span className="text-sm text-[#1d1d1b]">{r.raw.party}</span>
+            <span className="block text-[10px] uppercase tracking-wide text-[#a3a3a3]">
+              {PARTY_ROLE[r.raw.type]}
+            </span>
+          </div>
         );
       },
       className: "hidden lg:table-cell",
@@ -425,7 +447,7 @@ function TransactionsView({
       <DataTable
         columns={columns}
         data={rows}
-        searchPlaceholder="Buscar por vaga, referência…"
+        searchPlaceholder="Buscar por vaga, nome, referência…"
         searchKey="busca"
         filters={filters}
         footer={footer}
@@ -513,7 +535,7 @@ function TransacaoVagaDialog({
               <Linha rotulo="Valor" valor={formatCurrency(tx.amountInCents)} />
               <Linha rotulo="Gateway" valor={tx.provider ?? "—"} />
               <Linha rotulo="Data" valor={formatInstantDate(tx.createdAt)} />
-              {tx.type === "entrada" && <Linha rotulo="Pago por" valor={tx.party ?? "—"} />}
+              {tx.party && <Linha rotulo={PARTY_LABEL[tx.type]} valor={tx.party} />}
             </div>
 
             {v && (
@@ -522,6 +544,7 @@ function TransacaoVagaDialog({
                   Economia da vaga
                 </p>
                 <Linha rotulo="Contratante" valor={v.contractorName ?? "—"} />
+                <Linha rotulo="Freelancer" valor={v.providerName ?? "—"} />
                 <Linha
                   rotulo="Valor do serviço"
                   valor={v.baseAmountInCents != null ? formatCurrency(v.baseAmountInCents) : "—"}
