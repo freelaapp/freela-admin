@@ -554,6 +554,13 @@ export interface VacancyCandidacyItem {
   // Opcionais: só presentes após o deploy da API de autoria do aceite (2026-07-17).
   acceptedAt?: string | null;
   approvedBy?: VacancyCandidacyApprovedBy | null;
+  /**
+   * De ONDE partiu o aceite (a partir de 13/08/2026). Quando o estabelecimento
+   * inteiro usa o login do dono, "quem aprovou" responde sempre o mesmo nome e
+   * não encerra discussão — o aparelho e o IP são o que separa duas pessoas na
+   * mesma conta. Ausente nos aceites anteriores.
+   */
+  acceptedFrom?: { ip: string | null; device: string | null } | null;
   /** Quando o freelancer confirmou presença. Nulo = handshake ainda pendente. */
   confirmedAt?: string | null;
   /** in_app | magic_link | admin — `admin` é o painel confirmando por ele. */
