@@ -5,8 +5,8 @@ import { Plus, Eye, LayoutGrid, Clock, Star, Check, Loader2, Phone, Mail, XCircl
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
+import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
 import {
-  useResendVacancyGroupMessage,
   useSendVacancyStageMessage,
   useVacancyOutreach,
 } from "@/modules/admin/application/use-vacancy-outreach";
@@ -151,11 +151,9 @@ export default function JobsPage() {
   // outra rota duplicaria a classificação por etapa.
   const [modoPainel, setModoPainel] = useState(false);
   // Avisos já enviados + disparo. Uma consulta para o painel inteiro.
-  const { enviados: avisosEnviados } = useVacancyOutreach();
+  const { enviados: avisosEnviados, registros: registrosDisparo } = useVacancyOutreach();
   const enviarAviso = useSendVacancyStageMessage();
   const [avisandoId, setAvisandoId] = useState<string | null>(null);
-  const reenviarDisparo = useResendVacancyGroupMessage();
-  const [reenviandoId, setReenviandoId] = useState<string | null>(null);
   const { data: vacancies, isLoading, isError, isFetching } = useAdminVacancies(
     selectedConsultantId || undefined,
     // Só o painel repolla: ele fica aberto na TV sem ninguém para atualizar.
@@ -392,38 +390,16 @@ export default function JobsPage() {
     },
     {
       header: "Disparo",
-      accessor: (row: Row) => {
+      accessor: (row: Row) => (
         // O anúncio no grupo da cidade é best-effort: quando a Evolution cai, a
         // vaga entra e ninguém no grupo sabe. Esta coluna é o único lugar em
-        // que isso aparece.
-        const enviadoEm = avisosEnviados.get(`${row.id}::${GROUP_BROADCAST_STAGE}`);
-        if (enviadoEm) {
-          return (
-            <span className="whitespace-nowrap text-xs font-medium text-green-700">✓ enviado</span>
-          );
-        }
-        return (
-          <button
-            type="button"
-            disabled={reenviandoId === row.id}
-            onClick={async () => {
-              setReenviandoId(row.id);
-              try {
-                await reenviarDisparo.mutateAsync({ vacancyId: row.id, module: "empresa" });
-                toast.success("Anúncio enviado ao grupo da cidade.");
-              } catch (e) {
-                toast.error(getAxiosErrorMessage(e) || "Não foi possível enviar ao grupo.");
-              } finally {
-                setReenviandoId(null);
-              }
-            }}
-            className="cursor-pointer whitespace-nowrap rounded-md bg-[#1d1d1b] px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-[#333] disabled:cursor-wait disabled:opacity-60"
-            title="Reenviar o anúncio desta vaga no grupo da cidade"
-          >
-            {reenviandoId === row.id ? "Enviando…" : "Enviar"}
-          </button>
-        );
-      },
+        // que isso aparece — e ela diz também se saiu sozinho ou na mão.
+        <VacancyDispatchCell
+          vacancyId={row.id}
+          record={registrosDisparo.get(`${row.id}::${GROUP_BROADCAST_STAGE}`)}
+          module="empresa"
+        />
+      ),
       className: "hidden lg:table-cell",
     },
     {

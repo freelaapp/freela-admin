@@ -9,8 +9,8 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { VacancyBoard } from "../jobs/_components/vacancy-board";
 import { resolveVacancyBucket } from "../jobs/_components/vacancy-bucket";
 import { VacancyRoadmap } from "../jobs/_components/vacancy-roadmap";
+import { VacancyDispatchCell } from "../jobs/_components/vacancy-dispatch-cell";
 import {
-  useResendVacancyGroupMessage,
   useSendVacancyStageMessage,
   useVacancyOutreach,
 } from "@/modules/admin/application/use-vacancy-outreach";
@@ -104,11 +104,9 @@ export default function VagasCasaPage() {
 
   // Avisos por etapa e disparo no grupo — o mesmo caminho do módulo Empresa: a
   // rota resolve a vaga nos dois schemas.
-  const { enviados: avisosEnviados } = useVacancyOutreach();
+  const { enviados: avisosEnviados, registros: registrosDisparo } = useVacancyOutreach();
   const enviarAviso = useSendVacancyStageMessage();
   const [avisandoId, setAvisandoId] = useState<string | null>(null);
-  const reenviarDisparo = useResendVacancyGroupMessage();
-  const [reenviandoId, setReenviandoId] = useState<string | null>(null);
 
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -206,35 +204,15 @@ export default function VagasCasaPage() {
     { header: "Horário", accessor: "horario" as const, className: "hidden lg:table-cell" },
     {
       header: "Disparo",
-      accessor: (row: Row) => {
-        // Mesmo campo da listagem de Empresa: o anúncio no grupo é best-effort,
-        // e sem esta coluna ninguém percebe quando ele não sai.
-        const enviadoEm = avisosEnviados.get(`${row.id}::${GROUP_BROADCAST_STAGE}`);
-        if (enviadoEm) {
-          return <span className="whitespace-nowrap text-xs font-medium text-green-700">✓ enviado</span>;
-        }
-        return (
-          <button
-            type="button"
-            disabled={reenviandoId === row.id}
-            onClick={async () => {
-              setReenviandoId(row.id);
-              try {
-                await reenviarDisparo.mutateAsync({ vacancyId: row.id, module: "casa" });
-                toast.success("Anúncio enviado ao grupo da cidade.");
-              } catch (e) {
-                toast.error(getAxiosErrorMessage(e, "Não foi possível enviar ao grupo."));
-              } finally {
-                setReenviandoId(null);
-              }
-            }}
-            className="cursor-pointer whitespace-nowrap rounded-md bg-[#1d1d1b] px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-[#333] disabled:cursor-wait disabled:opacity-60"
-            title="Reenviar o anúncio desta vaga no grupo da cidade"
-          >
-            {reenviandoId === row.id ? "Enviando…" : "Enviar"}
-          </button>
-        );
-      },
+      accessor: (row: Row) => (
+        // MESMO componente de Empresa: o anúncio no grupo é best-effort, e sem
+        // esta coluna ninguém percebe quando ele não sai.
+        <VacancyDispatchCell
+          vacancyId={row.id}
+          record={registrosDisparo.get(`${row.id}::${GROUP_BROADCAST_STAGE}`)}
+          module="casa"
+        />
+      ),
       className: "hidden lg:table-cell",
     },
     { header: "Status", accessor: (row: Row) => <StatusBadge status={row.status} /> },

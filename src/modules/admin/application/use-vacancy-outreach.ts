@@ -5,6 +5,7 @@ import {
   outreachKey,
   resendVacancyGroupMessage,
   sendVacancyStageMessage,
+  type OutreachRecord,
   type OutreachStage,
 } from "../infrastructure/vacancy-outreach-api";
 
@@ -21,12 +22,17 @@ export function useVacancyOutreach() {
     staleTime: 60_000,
   });
 
+  // Guarda o registro INTEIRO, não só a data: a coluna Disparo precisa da
+  // origem (automático x manual) para dizer o que de fato aconteceu.
   const enviados = new Map<string, string>();
+  const registros = new Map<string, OutreachRecord>();
   for (const r of query.data ?? []) {
-    enviados.set(outreachKey(r.vacancyId, r.stage), r.lastSentAt);
+    const key = outreachKey(r.vacancyId, r.stage);
+    enviados.set(key, r.lastSentAt);
+    registros.set(key, r);
   }
 
-  return { ...query, enviados };
+  return { ...query, enviados, registros };
 }
 
 export function useSendVacancyStageMessage() {

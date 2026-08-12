@@ -13,6 +13,10 @@ export interface OutreachRecord {
   stage: string;
   lastSentAt: string;
   sendCount: number;
+  /** Quando o disparo AUTOMÁTICO saiu (o do próprio fluxo de publicação). */
+  autoSentAt?: string | null;
+  /** Quando alguém do painel apertou o botão. Os dois convivem. */
+  manualSentAt?: string | null;
 }
 
 export async function getVacancyOutreach(): Promise<OutreachRecord[]> {
