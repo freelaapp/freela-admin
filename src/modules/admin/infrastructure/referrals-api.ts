@@ -25,6 +25,12 @@ export interface ReferralItem {
   qualifyingModule: string | null;
   code: { code: string } | null;
   referrer: UserRef | null;
+  /**
+   * Quem indicou: freelancer, contratante, os dois (a mesma pessoa pode ter
+   * cadastro dos dois lados) ou sem cadastro conhecido. Opcional durante a
+   * janela de deploy da API.
+   */
+  referrerKind?: "FREELANCER" | "CONTRATANTE" | "AMBOS" | "DESCONHECIDO";
   referred: UserRef | null;
   reward: {
     id: string;
@@ -172,6 +178,8 @@ export interface AudienceFilters {
   cities?: string[];
   ufs?: string[];
   modules?: Array<"bars-restaurants" | "home-services">;
+  /** "Jundiaí e 100 km em volta". Centro calculado pela própria base. */
+  radius?: { city: string; km: number };
 }
 
 export type CampaignAudience =
@@ -241,7 +249,12 @@ export async function getAudienceOptions(
 export async function previewCampaignAudience(payload: {
   audience: CampaignAudience;
   filters?: AudienceFilters;
-}): Promise<{ total: number; byChannel: { WHATSAPP: number; EMAIL: number } }> {
+}): Promise<{
+  total: number;
+  byChannel: { WHATSAPP: number; EMAIL: number };
+  /** Só com raio: quantos ficaram de fora por não ter coordenada. */
+  semCoordenada?: number;
+}> {
   const res = await adminsRootApi.post("/activation-campaigns/audience-preview", payload);
   return res.data.data;
 }

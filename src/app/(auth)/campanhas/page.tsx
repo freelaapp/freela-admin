@@ -30,6 +30,7 @@ import {
   useSetCampaignState,
 } from "@/modules/admin/application/use-admin-referrals";
 import type {
+  AudienceFilters,
   Campaign,
   CampaignAudience,
   CampaignRecipient,
@@ -65,11 +66,39 @@ const MODULE_LABELS: Record<"bars-restaurants" | "home-services", string> = {
   "home-services": "Em casa (serviços domésticos)",
 };
 
+/**
+ * Monta o recorte a partir do formulário. Devolve `undefined` quando não há
+ * nenhum — objeto de listas vazias gravaria "filtrado por nada", que é
+ * diferente de "sem filtro" e some da auditoria depois.
+ *
+ * Raio e lista de cidades são alternativas: com raio, a lista é ignorada (a
+ * tela esconde uma quando a outra está em uso).
+ */
+function montarFiltros(f: {
+  cities: string[];
+  modules: Array<"bars-restaurants" | "home-services">;
+  raioCidade: string;
+  raioKm: number;
+}): AudienceFilters | undefined {
+  const raio = f.raioCidade.trim() && f.raioKm > 0
+    ? { city: f.raioCidade.trim(), km: f.raioKm }
+    : undefined;
+  const cities = raio ? [] : f.cities;
+  if (!cities.length && !f.modules.length && !raio) return undefined;
+  return {
+    ...(cities.length ? { cities } : {}),
+    ...(f.modules.length ? { modules: f.modules } : {}),
+    ...(raio ? { radius: raio } : {}),
+  };
+}
+
 const DEFAULT_FORM = {
   name: "",
   audience: "CONTRACTORS_NEVER_PUBLISHED" as CampaignAudience,
   cities: [] as string[],
   modules: [] as Array<"bars-restaurants" | "home-services">,
+  raioCidade: "",
+  raioKm: 50,
   messagesPerHour: 20,
   dailyCap: 120,
   windowStartHour: 9,
@@ -93,7 +122,14 @@ export default function CampanhasPage() {
   // inteira no backend.
   const audienceOptions = useAudienceOptions(creating ? form.audience : null);
   const previewAudience = usePreviewAudience();
-  const [contagem, setContagem] = useState<{ total: number; whatsapp: number } | null>(null);
+  const [contagem, setContagem] = useState<{
+    total: number;
+    whatsapp: number;
+    semCoordenada: number;
+  } | null>(null);
+  /** Freelancer existe nos dois módulos por padrão — filtrar por tipo de conta
+   *  ali não separa ninguém e só confunde. Vale para contratante. */
+  const mostraTipoDeConta = form.audience.startsWith("CONTRACTORS_");
   const preview = useCampaignPreview("José da Silva", "Jundiaí");
 
   if (isChecking || !allowed) {
@@ -106,14 +142,13 @@ export default function CampanhasPage() {
 
   const handleCreate = async () => {
     try {
-      const { cities, modules, ...rest } = form;
+      const { cities, modules, raioCidade, raioKm, ...rest } = form;
+      const filtros = montarFiltros({ cities, modules, raioCidade, raioKm });
       const created = await createCampaign.mutateAsync({
         ...rest,
         // Só manda o recorte se houver algum: objeto de listas vazias gravaria
         // "filtrado por nada", que é diferente de "sem filtro".
-        ...(cities.length || modules.length
-          ? { audienceFilters: { ...(cities.length ? { cities } : {}), ...(modules.length ? { modules } : {}) } }
-          : {}),
+        ...(filtros ? { audienceFilters: filtros } : {}),
       });
       toast.success(
         `Campanha criada com ${created.stats.PENDING} destinatários — ${created.estimate.days} dia(s) úteis no ritmo escolhido.`,
@@ -302,12 +337,17 @@ export default function CampanhasPage() {
                 className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
                 value={form.audience}
                 onChange={(event) => {
-                  // Trocar a audiência invalida cidade e contagem: as cidades da
-                  // lista antiga podem nem existir na nova.
+                  const audience = event.target.value as CampaignAudience;
+                  // Trocar a audiência invalida cidade, raio e contagem: as
+                  // cidades da lista antiga podem nem existir na nova. E o tipo
+                  // de conta some da tela para freelancer — sem limpar, ficaria
+                  // um filtro invisível recortando a audiência.
                   setForm({
                     ...form,
-                    audience: event.target.value as CampaignAudience,
+                    audience,
                     cities: [],
+                    raioCidade: "",
+                    modules: audience.startsWith("CONTRACTORS_") ? form.modules : [],
                   });
                   setContagem(null);
                 }}
@@ -320,40 +360,86 @@ export default function CampanhasPage() {
               </select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Tipo de conta</Label>
-              <div className="flex flex-wrap gap-2">
-                {(Object.keys(MODULE_LABELS) as Array<keyof typeof MODULE_LABELS>).map((mod) => {
-                  const on = form.modules.includes(mod);
-                  return (
-                    <button
-                      key={mod}
-                      type="button"
-                      onClick={() => {
-                        setForm({
-                          ...form,
-                          modules: on
-                            ? form.modules.filter((m) => m !== mod)
-                            : [...form.modules, mod],
-                        });
-                        setContagem(null);
-                      }}
-                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                        on
-                          ? "bg-[#eca826] text-white"
-                          : "bg-neutral-100 text-neutral-600 hover:bg-[#eca826]/10"
-                      }`}
-                    >
-                      {MODULE_LABELS[mod]}
-                    </button>
-                  );
-                })}
+            {mostraTipoDeConta && (
+              <div className="space-y-2">
+                <Label>Tipo de conta</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(MODULE_LABELS) as Array<keyof typeof MODULE_LABELS>).map((mod) => {
+                    const on = form.modules.includes(mod);
+                    return (
+                      <button
+                        key={mod}
+                        type="button"
+                        onClick={() => {
+                          setForm({
+                            ...form,
+                            modules: on
+                              ? form.modules.filter((m) => m !== mod)
+                              : [...form.modules, mod],
+                          });
+                          setContagem(null);
+                        }}
+                        className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                          on
+                            ? "bg-[#eca826] text-white"
+                            : "bg-neutral-100 text-neutral-600 hover:bg-[#eca826]/10"
+                        }`}
+                      >
+                        {MODULE_LABELS[mod]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-neutral-500">Nenhum marcado = os dois.</p>
               </div>
-              <p className="text-xs text-neutral-500">
-                Nenhum marcado = os dois.
-              </p>
+            )}
+
+            {/* Raio a partir de uma cidade. Alternativa à lista: quem mora na
+                cidade vizinha é a mesma praça para efeito de deslocamento. */}
+            <div className="space-y-2">
+              <Label>Raio a partir de uma cidade</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  className="min-w-52 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  value={form.raioCidade}
+                  onChange={(event) => {
+                    setForm({ ...form, raioCidade: event.target.value, cities: [] });
+                    setContagem(null);
+                  }}
+                >
+                  <option value="">Sem raio (usar a lista de cidades)</option>
+                  {(audienceOptions.data?.cities ?? []).map((opt) => (
+                    <option key={`${opt.city}-${opt.uf ?? ""}`} value={opt.city}>
+                      {opt.city}
+                      {opt.uf ? ` · ${opt.uf}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={2000}
+                    className="w-24"
+                    value={form.raioKm}
+                    disabled={!form.raioCidade}
+                    onChange={(event) => {
+                      setForm({ ...form, raioKm: Number(event.target.value) });
+                      setContagem(null);
+                    }}
+                  />
+                  <span className="text-sm text-neutral-600">km</span>
+                </div>
+              </div>
+              {form.raioCidade && (
+                <p className="text-xs text-neutral-500">
+                  O centro é calculado pelos cadastros da própria cidade. Quem não tem
+                  endereço com coordenada fica de fora — o botão Contar mostra quantos são.
+                </p>
+              )}
             </div>
 
+            {!form.raioCidade && (
             <div className="space-y-2">
               <Label>
                 Cidades{" "}
@@ -404,6 +490,7 @@ export default function CampanhasPage() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Contar ANTES de criar: a audiência é congelada na criação, então
                 errar o recorte significa apagar a campanha e refazer. */}
@@ -419,6 +506,12 @@ export default function CampanhasPage() {
                         {contagem.whatsapp} por WhatsApp · {contagem.total - contagem.whatsapp} por
                         e-mail
                       </span>
+                      {contagem.semCoordenada > 0 && (
+                        <span className="mt-1 block text-xs text-amber-700">
+                          {contagem.semCoordenada} ficaram de fora do raio por não ter endereço
+                          com coordenada.
+                        </span>
+                      )}
                     </>
                   ) : (
                     <span className="text-neutral-600">
@@ -434,12 +527,13 @@ export default function CampanhasPage() {
                     try {
                       const res = await previewAudience.mutateAsync({
                         audience: form.audience,
-                        filters: {
-                          ...(form.cities.length ? { cities: form.cities } : {}),
-                          ...(form.modules.length ? { modules: form.modules } : {}),
-                        },
+                        filters: montarFiltros(form),
                       });
-                      setContagem({ total: res.total, whatsapp: res.byChannel.WHATSAPP });
+                      setContagem({
+                        total: res.total,
+                        whatsapp: res.byChannel.WHATSAPP,
+                        semCoordenada: res.semCoordenada ?? 0,
+                      });
                     } catch (error) {
                       toast.error(getAxiosErrorMessage(error));
                     }

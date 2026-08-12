@@ -72,6 +72,26 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
+/**
+ * Etiqueta de quem indicou. Sem `kind` = API anterior a 12/08/2026, quando só
+ * freelancer podia indicar — dizer "freelancer" ali seria chute, então não diz
+ * nada.
+ */
+function QuemIndicou({ kind }: { kind?: ReferralItem["referrerKind"] }) {
+  if (!kind || kind === "DESCONHECIDO") return null;
+  const map = {
+    FREELANCER: { label: "Freelancer", cls: "bg-blue-100 text-blue-700" },
+    CONTRATANTE: { label: "Contratante", cls: "bg-purple-100 text-purple-700" },
+    AMBOS: { label: "Freelancer e contratante", cls: "bg-neutral-200 text-neutral-700" },
+  } as const;
+  const { label, cls } = map[kind];
+  return (
+    <span className={`mt-0.5 inline-block rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
 export default function IndicacoesPage() {
   const { allowed, isChecking } = useAreaGuard("REFERRALS");
   const [tab, setTab] = useState<"rewards" | "referrals">("rewards");
@@ -219,8 +239,15 @@ export default function IndicacoesPage() {
 
   const referralColumns = [
     {
-      header: "Freelancer",
-      accessor: (row: ReferralItem) => row.referrer?.profile?.name ?? "—",
+      // Deixou de ser "Freelancer" em 12/08/2026: contratante também pode
+      // indicar, e o rótulo antigo passou a mentir em parte das linhas.
+      header: "Quem indicou",
+      accessor: (row: ReferralItem) => (
+        <div>
+          <p className="font-medium">{row.referrer?.profile?.name ?? "—"}</p>
+          <QuemIndicou kind={row.referrerKind} />
+        </div>
+      ),
     },
     { header: "Código", accessor: (row: ReferralItem) => row.code?.code ?? "—" },
     {
@@ -272,7 +299,7 @@ export default function IndicacoesPage() {
     <div>
       <PageHeader
         title="Indicações"
-        description="Programa Indique e Ganhe — o freelancer traz o contratante, recebe quando ele contrata."
+        description="Programa Indique e Ganhe — freelancer OU contratante traz um contratante EMPRESA (bar/restaurante) e recebe quando ele contrata. Indicado que se cadastra como freelancer ou como contratante Em Casa não conta."
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
