@@ -42,6 +42,7 @@ export function RoleDialog({ role, onClose }: { role?: ServiceRole; onClose: () 
   const [icon, setIcon] = useState(role?.icon ?? "");
   const [aliases, setAliases] = useState((role?.aliases ?? []).join(", "));
   const [bonusModel, setBonusModel] = useState<BonusModel>(role?.bonusModel ?? "TIP");
+  const [openToAll, setOpenToAll] = useState(role?.openToAll ?? false);
   const [active, setActive] = useState(role?.active ?? true);
   const busy = createRole.isPending || updateRole.isPending;
 
@@ -51,7 +52,7 @@ export function RoleDialog({ role, onClose }: { role?: ServiceRole; onClose: () 
     if (editing && role) {
       await updateRole.mutateAsync({
         id: role.id,
-        dto: { name, icon: icon || undefined, aliases: aliasArr(), bonusModel, active },
+        dto: { name, icon: icon || undefined, aliases: aliasArr(), bonusModel, openToAll, active },
       });
     } else {
       await createRole.mutateAsync({
@@ -60,6 +61,7 @@ export function RoleDialog({ role, onClose }: { role?: ServiceRole; onClose: () 
         icon: icon || undefined,
         aliases: aliasArr(),
         bonusModel,
+        openToAll,
       });
     }
     onClose();
@@ -110,6 +112,21 @@ export function RoleDialog({ role, onClose }: { role?: ServiceRole; onClose: () 
               placeholder="waiter, garconete"
             />
           </Field>
+          {/* Quem vê a vaga desta função. O texto explica a consequência em vez
+             de nomear o campo: "aberta/técnica" não diz nada sozinho, e é uma
+             escolha que muda o feed de milhares de pessoas. */}
+          <div className="rounded-lg border border-[#e5e5e5] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="font-medium">Vaga aparece para todo mundo</Label>
+              <Switch checked={openToAll} onCheckedChange={setOpenToAll} />
+            </div>
+            <p className="mt-1 text-xs text-[#737373]">
+              {openToAll
+                ? "Função de apoio: qualquer freelancer da região vê a vaga, tenha marcado essa função ou não."
+                : "Função técnica: só quem marcou essa função vê a vaga — sem cargos vizinhos."}
+            </p>
+          </div>
+
           {editing && (
             <div className="flex items-center justify-between">
               <Label>Ativa</Label>
