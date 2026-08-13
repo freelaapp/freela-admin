@@ -30,6 +30,12 @@ export interface ServiceRole {
   icon: string | null;
   aliases: string[];
   bonusModel: BonusModel;
+  /**
+   * Função SEM exigência de ofício (auxiliar, ajudante, apoio): a vaga aparece
+   * para todo freelancer da região, tenha ele marcado a função ou não.
+   * `false` = TÉCNICA — só quem marcou vê, e sem cargos vizinhos.
+   */
+  openToAll: boolean;
   active: boolean;
 }
 
@@ -85,6 +91,7 @@ export interface CreateRoleInput {
   icon?: string;
   aliases?: string[];
   bonusModel?: BonusModel;
+  openToAll?: boolean;
 }
 export type UpdateRoleInput = Partial<Omit<CreateRoleInput, "slug">> & {
   active?: boolean;
