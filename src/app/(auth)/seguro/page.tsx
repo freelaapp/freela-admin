@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
+import { FinanceiroCard } from "./_components/financeiro-card";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { formatInstantDate, formatInstantDateTime } from "@/lib/date.utils";
 import {
@@ -387,6 +388,9 @@ export default function SeguroPage() {
               })}
             </div>
           </div>
+
+          {/* Financeiro: o que essas coberturas custam e se o mês paga o piso. */}
+          <FinanceiroCard />
 
           {/* Listas */}
           <Tabs value={aba} onValueChange={setAba}>

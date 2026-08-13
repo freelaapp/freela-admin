@@ -197,6 +197,48 @@ export async function getInsuranceCoverages(
   };
 }
 
+export type PeriodoFinanceiro = "hoje" | "ontem" | "7dias" | "30dias";
+
+export const PERIODOS_FINANCEIROS: { chave: PeriodoFinanceiro; label: string }[] = [
+  { chave: "hoje", label: "Hoje" },
+  { chave: "ontem", label: "Ontem" },
+  { chave: "7dias", label: "7 dias" },
+  { chave: "30dias", label: "30 dias" },
+];
+
+export interface InsuranceFinancial {
+  contandoDesde: string;
+  precoPorContratacaoEmCentavos: number;
+  pisoMensalEmCentavos: number;
+  contratacoesParaOPiso: number;
+  periodo: {
+    chave: PeriodoFinanceiro;
+    de: string;
+    ate: string;
+    contratacoes: number;
+    custoEmCentavos: number;
+    /** Períodos de trajeto (ida/volta). Fora do custo — ver a tela. */
+    trajetos: number;
+  };
+  mes: {
+    de: string;
+    contratacoes: number;
+    trajetos: number;
+    usoEmCentavos: number;
+    faturaEmCentavos: number;
+    ociosoEmCentavos: number;
+    atingiuPiso: boolean;
+    faltamContratacoes: number;
+  };
+}
+
+export async function getInsuranceFinancial(
+  periodo: PeriodoFinanceiro,
+): Promise<InsuranceFinancial> {
+  const res = await insuranceApi.get("/financial", { params: { periodo } });
+  return res.data.data;
+}
+
 export async function getInsuranceCoverage(id: string): Promise<CoverageDetail> {
   const res = await insuranceApi.get(`/coverages/${id}`);
   return res.data.data;
