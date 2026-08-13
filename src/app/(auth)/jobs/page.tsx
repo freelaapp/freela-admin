@@ -945,6 +945,14 @@ export default function JobsPage() {
                                     {formatInstantDate(c.acceptedAt)} · {formatVacancyTime(c.acceptedAt)}
                                   </span>
                                 )}
+                                {/* De onde partiu. É o que responde "não fui eu"
+                                   quando a equipe toda divide o login do dono. */}
+                                {c.acceptedFrom && (c.acceptedFrom.device || c.acceptedFrom.ip) && (
+                                  <span className="block text-green-700">
+                                    {c.acceptedFrom.device ?? "Origem desconhecida"}
+                                    {c.acceptedFrom.ip ? ` · IP ${c.acceptedFrom.ip}` : ""}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           )}
