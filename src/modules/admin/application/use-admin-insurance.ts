@@ -5,9 +5,11 @@ import {
   getInsuranceCoverage,
   getInsuranceCoverages,
   getInsuranceHealthChecks,
+  getInsuranceFinancial,
   getInsuranceStatus,
   runInsuranceHealthCheck,
   type CoverageFilters,
+  type PeriodoFinanceiro,
 } from "../infrastructure/insurance-api";
 
 const INSURANCE_KEY = ["admin", "insurance"] as const;
@@ -25,6 +27,16 @@ export function useInsuranceHealthChecks(limit = 30) {
     queryKey: [...INSURANCE_KEY, "health-checks", limit],
     queryFn: () => getInsuranceHealthChecks(limit),
     staleTime: 30_000,
+  });
+}
+
+export function useInsuranceFinancial(periodo: PeriodoFinanceiro) {
+  return useQuery({
+    queryKey: [...INSURANCE_KEY, "financial", periodo],
+    queryFn: () => getInsuranceFinancial(periodo),
+    // Mais curto que o status: é a tela que o operador fica olhando enquanto
+    // pergunta "quanto já rodou hoje".
+    staleTime: 15_000,
   });
 }
 
