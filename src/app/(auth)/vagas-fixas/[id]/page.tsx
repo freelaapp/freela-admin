@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Building2,
   Check,
+  Copy,
   Download,
   FileWarning,
   LayoutGrid,
@@ -50,6 +51,7 @@ import type {
 import { ScoreBreakdown, SelectionKanban } from "./_components/selection-kanban";
 import { stageTitle } from "./_components/kanban-helpers";
 import { formatInstantDate } from "@/lib/date.utils";
+import { buildFixedJobLink } from "@/modules/admin/infrastructure/referral-link";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 
 /** Um card do kanban tem os campos de score; uma candidatura da aba Lista não tem. */
@@ -549,6 +551,25 @@ export default function VagaFixaCandidatosPage() {
     );
   }
 
+  /**
+   * Link público da vaga, para o admin divulgar à mão. Mesma rota do aviso
+   * automático: a VAGA, não o mural — o mural filtra por proximidade e pode não
+   * mostrar a vaga a quem abriu o link.
+   */
+  const linkPublico = buildFixedJobLink(String(params?.id ?? ""), {
+    webAppUrl: process.env.NEXT_PUBLIC_WEB_APP_URL,
+    apiUrl: process.env.NEXT_PUBLIC_API_URL,
+  });
+
+  async function copiarLinkDaVaga() {
+    try {
+      await navigator.clipboard.writeText(linkPublico);
+      toast.success("Link da vaga copiado!");
+    } catch {
+      toast.error(`Não foi possível copiar. Link: ${linkPublico}`);
+    }
+  }
+
   const headerTitle = post?.title ?? "Candidatos da vaga";
   const headerParts = post
     ? [post.companyName, post.role, post.location].filter(Boolean).join(" • ")
@@ -591,6 +612,31 @@ export default function VagaFixaCandidatosPage() {
             <Users size={15} className="text-[#a3a3a3]" />
             {post.applicationCount} candidatura(s)
           </span>
+        </div>
+      ) : null}
+
+      {post ? (
+        <div className="mb-6 rounded-xl border border-[#e5e5e5] bg-white p-4">
+          <p className="mb-2 text-sm font-medium text-[#1d1d1b]">Link para divulgar</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={linkPublico}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-w-0 flex-1 truncate rounded-lg bg-[#f5f5f5] px-3 py-2 font-mono text-xs text-[#525252] hover:text-[#1d1d1b]"
+              title={linkPublico}
+            >
+              {linkPublico}
+            </a>
+            <Button variant="outline" size="sm" onClick={copiarLinkDaVaga}>
+              <Copy className="h-4 w-4" />
+              Copiar
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-[#737373]">
+            Abre a vaga direto, sem o filtro de proximidade do mural — serve para qualquer
+            cidade.
+          </p>
         </div>
       ) : null}
 

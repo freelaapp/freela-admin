@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, Plus, Users } from "lucide-react";
+import { Copy, Loader2, Plus, Users } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -27,6 +28,7 @@ import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import type { FixedJobItem, FixedJobWorkScheduleSlot } from "@/modules/admin/infrastructure/fixed-jobs-api";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate } from "@/lib/date.utils";
+import { buildFixedJobLink } from "@/modules/admin/infrastructure/referral-link";
 
 function formatSalary(
   min: number | null,
@@ -546,6 +548,26 @@ export default function VagasFixasPage() {
     );
   }
 
+  /**
+   * Link público da vaga, para o admin divulgar à mão — em grupo, DM ou anúncio.
+   * É a mesma rota que o aviso automático usa: a VAGA, não o mural (o mural
+   * filtra por proximidade e pode não mostrar a vaga a quem abriu o link).
+   */
+  async function copiarLinkDaVaga(id: string) {
+    const link = buildFixedJobLink(id, {
+      webAppUrl: process.env.NEXT_PUBLIC_WEB_APP_URL,
+      apiUrl: process.env.NEXT_PUBLIC_API_URL,
+    });
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success("Link da vaga copiado!");
+    } catch {
+      // Clipboard bloqueado (contexto inseguro, permissão negada): mostra o link
+      // para copiar na mão em vez de deixar o admin sem saída.
+      toast.error(`Não foi possível copiar. Link: ${link}`);
+    }
+  }
+
   const allRows: Row[] = posts?.map(mapToRow) ?? [];
   const rows =
     statusFilter === "all" ? allRows : allRows.filter((r) => r.statusKey === statusFilter);
@@ -588,6 +610,20 @@ export default function VagasFixasPage() {
     },
     { header: "Criada em", accessor: "data" as const, sortable: true, sortAccessor: (r: Row) => new Date(r.raw.createdAt) },
     { header: "Status", accessor: (row: Row) => <StatusBadge status={row.status} /> },
+    {
+      header: "Divulgar",
+      accessor: (row: Row) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => copiarLinkDaVaga(row.id)}
+          title="Copiar link da vaga para divulgar"
+          className="text-[#737373] hover:text-[#1d1d1b]"
+        >
+          <Copy className="w-4 h-4" />
+        </Button>
+      ),
+    },
   ];
 
   return (

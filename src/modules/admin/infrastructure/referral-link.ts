@@ -34,3 +34,18 @@ export function buildPartnershipLink(code: string, env: ReferralLinkEnv): string
   const path = `/cadastro?parceria=${encodeURIComponent(code)}`;
   return base ? `${base}${path}` : path;
 }
+
+/**
+ * Link público da vaga fixa, para o admin divulgar.
+ *
+ * É a MESMA rota que o aviso de WhatsApp usa (`buildFixedJobsUrl` no
+ * `FixedJobPostNotifierService`): a vaga direta, não o mural. O mural filtra por
+ * proximidade, então quem abrisse o link da lista podia cair numa tela que não
+ * mostrava a vaga anunciada — foi o que aconteceu com as vagas do GENDAI em
+ * Jundiaí (14/08/2026). A tela da vaga não filtra.
+ */
+export function buildFixedJobLink(postId: string, env: ReferralLinkEnv): string {
+  const base = deriveWebAppBaseUrl(env);
+  const path = `/freelancer/vagas-fixas/${encodeURIComponent(postId)}`;
+  return base ? `${base}${path}` : path;
+}
