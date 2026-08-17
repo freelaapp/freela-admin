@@ -1,5 +1,14 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
-import type { AdminCancelVacancyResult, FeedbackItem, RefundType } from "./admin-api";
+import type {
+  AdminCancelVacancyResult,
+  AdminConfirmCandidacyResult,
+  AdminRemoveCandidacyResult,
+  AdminRestartVacancyResult,
+  FeedbackItem,
+  RefundType,
+  VacancyCandidacyItem,
+  VacancyFeedbacksResponse,
+} from "./admin-api";
 
 // Vagas do Freela em Casa vivem sob /v1/home-services/admin (base distinta da de
 // bares-restaurantes usada por `adminApi`). Mesma env + mesmo esquema de token.
@@ -107,5 +116,58 @@ export async function adminCancelCasaVacancy(
     reason,
     ...(refundType ? { refundType } : {}),
   });
+  return res.data.data;
+}
+
+// ─── Paridade com Empresa ───────────────────────────────────────────────────
+//
+// As rotas abaixo JÁ EXISTIAM em `/v1/home-services/admin` desde antes desta
+// tela — o painel do Casa simplesmente não as chamava. São as mesmas do BR, com
+// o mesmo formato de resposta, então reusamos os tipos de `admin-api` em vez de
+// declarar gêmeos que podem divergir.
+
+/** Candidaturas da vaga, com dados do freelancer e estado da confirmação. */
+export async function getCasaVacancyCandidacies(
+  vacancyId: string,
+): Promise<VacancyCandidacyItem[]> {
+  const res = await casaAdminApi.get(`/vacancies/${vacancyId}/candidacies`);
+  return res.data.data;
+}
+
+/** Avaliações cruzadas da vaga (contratante ↔ freelancer). */
+export async function getCasaVacancyFeedbacks(
+  vacancyId: string,
+): Promise<VacancyFeedbacksResponse> {
+  const res = await casaAdminApi.get(`/vacancies/${vacancyId}/feedbacks`);
+  return res.data.data;
+}
+
+/** Confirma a presença pelo admin, quando o freelancer não confirmou no link. */
+export async function adminConfirmCasaCandidacy(
+  candidacyId: string,
+): Promise<AdminConfirmCandidacyResult> {
+  const res = await casaAdminApi.post(`/candidacies/${candidacyId}/confirm`);
+  return res.data.data;
+}
+
+/** Reabre a vaga do zero (no-show): tira o aceito, reseta job/check-ins, mantém o valor. */
+export async function adminRestartCasaVacancy(
+  vacancyId: string,
+  reason: string,
+): Promise<AdminRestartVacancyResult> {
+  const res = await casaAdminApi.post(`/vacancies/${vacancyId}/restart`, { reason });
+  return res.data.data;
+}
+
+/** Desvincula o freelancer da vaga sem cancelá-la. */
+export async function adminRemoveCasaCandidacy(
+  vacancyId: string,
+  candidacyId: string,
+  reason?: string,
+): Promise<AdminRemoveCandidacyResult> {
+  const res = await casaAdminApi.post(
+    `/vacancies/${vacancyId}/candidacies/${candidacyId}/remove`,
+    reason ? { reason } : {},
+  );
   return res.data.data;
 }
