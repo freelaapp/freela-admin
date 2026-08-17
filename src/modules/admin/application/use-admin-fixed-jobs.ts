@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  getFixedJobReach,
+  resendFixedJobGroupMessage,
   createAdminFixedJob,
   getAdminFixedJobs,
   getFixedJobApplications,
@@ -100,6 +102,31 @@ export function useRunFixedJobMatchScore(postId?: string) {
         qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs", postId, "kanban"] });
         qc.invalidateQueries({ queryKey: ["admin", "fixed-jobs", postId, "applications"] });
       }
+    },
+  });
+}
+
+/**
+ * Alcance da vaga fixa. `staleTime` curto de propósito: o número muda quando o
+ * geocode roda e quando alguém se cadastra na cidade, e é consultado justamente
+ * para decidir se vale reanunciar.
+ */
+export function useFixedJobReach(postId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "fixed-job-reach", postId],
+    queryFn: () => getFixedJobReach(postId as string),
+    enabled: !!postId,
+    staleTime: 10_000,
+  });
+}
+
+/** Reanuncia a vaga no grupo da cidade. Invalida o alcance: o envio revalida o roteamento. */
+export function useResendFixedJobGroupMessage(postId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => resendFixedJobGroupMessage(postId as string),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "fixed-job-reach", postId] });
     },
   });
 }

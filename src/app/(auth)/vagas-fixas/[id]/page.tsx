@@ -52,6 +52,7 @@ import { ScoreBreakdown, SelectionKanban } from "./_components/selection-kanban"
 import { stageTitle } from "./_components/kanban-helpers";
 import { formatInstantDate } from "@/lib/date.utils";
 import { buildFixedJobLink } from "@/modules/admin/infrastructure/referral-link";
+import { PainelAlcance } from "./_components/painel-alcance";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 
 /** Um card do kanban tem os campos de score; uma candidatura da aba Lista não tem. */
@@ -614,6 +615,8 @@ export default function VagaFixaCandidatosPage() {
           </span>
         </div>
       ) : null}
+
+      {post ? <PainelAlcance postId={String(params?.id ?? "")} /> : null}
 
       {post ? (
         <div className="mb-6 rounded-xl border border-[#e5e5e5] bg-white p-4">
