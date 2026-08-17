@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Download, Eye, FileText, Home, Loader2, Mail, MapPin, Pencil, Phone, Star, User } from "lucide-react";
+import { CalendarDays, CalendarPlus, Download, Eye, FileText, Home, Loader2, Mail, MapPin, Pencil, Phone, Star, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { EditarContratanteDialog } from "./_components/editar-contratante-dialog";
+import { AbrirVagaDialog } from "@/components/admin/vacancy/abrir-vaga-dialog";
+import { ExcluirContratanteDialog } from "./_components/excluir-contratante-dialog";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +59,8 @@ export default function ContratantesCasaPage() {
   const { data: contractors, isLoading, isError } = useAdminCasaContractors();
   const [selected, setSelected] = useState<Row | null>(null);
   const [editando, setEditando] = useState<Row | null>(null);
+  const [abrindoVaga, setAbrindoVaga] = useState<Row | null>(null);
+  const [excluindo, setExcluindo] = useState<Row | null>(null);
 
   const rows: Row[] = contractors?.map(mapToRow) ?? [];
 
@@ -160,6 +164,20 @@ export default function ContratantesCasaPage() {
           >
             <Pencil className="w-4 h-4" />
           </button>
+          <button
+            onClick={() => setAbrindoVaga(row)}
+            className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors"
+            title="Abrir vaga para este contratante"
+          >
+            <CalendarPlus className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setExcluindo(row)}
+            className="p-1.5 rounded-md text-[#737373] transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+            title="Excluir definitivamente"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       ),
     },
@@ -185,6 +203,22 @@ export default function ContratantesCasaPage() {
         data={rows}
         searchPlaceholder="Buscar por nome, empresa, documento, telefone ou e-mail..."
         searchKey="_search"
+      />
+
+      {abrindoVaga?.raw.userId && (
+        <AbrirVagaDialog
+          module="home-services"
+          contractorUserId={abrindoVaga.raw.userId}
+          companyName={abrindoVaga.raw.companyName ?? abrindoVaga.raw.name}
+          contractorCity={abrindoVaga.raw.city || null}
+          cityOptions={(contractors ?? []).map((c) => c.city ?? "").filter(Boolean)}
+          onClose={() => setAbrindoVaga(null)}
+        />
+      )}
+
+      <ExcluirContratanteDialog
+        contratante={excluindo?.raw ?? null}
+        onClose={() => setExcluindo(null)}
       />
 
       <EditarContratanteDialog

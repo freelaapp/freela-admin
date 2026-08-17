@@ -6,6 +6,7 @@ import {
   updateAdminCasaContractor,
   type UpdateCasaContractorPayload,
 } from "../infrastructure/casa-contractors-api";
+import { adminHardDeleteUser } from "../infrastructure/admin-api";
 
 export function useAdminCasaContractors() {
   return useQuery({
@@ -30,6 +31,26 @@ export function useAdminUpdateCasaContractor() {
       updateAdminCasaContractor(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "casa-contractors"] });
+    },
+  });
+}
+
+/**
+ * Exclusão DEFINITIVA do contratante do Casa.
+ *
+ * A rota é global (`/v1/admin/users/:id/hard-delete`) — apaga a PESSOA, não o
+ * cadastro de um módulo. Ou seja: excluir daqui remove também o cadastro de
+ * Empresa da mesma pessoa, ao contrário da edição, que é por módulo. A tela
+ * precisa dizer isso.
+ */
+export function useAdminHardDeleteCasaContractor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
+      adminHardDeleteUser(userId, reason, "contractor"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "casa-contractors"] });
+      qc.invalidateQueries({ queryKey: ["admin", "contractors"] });
     },
   });
 }

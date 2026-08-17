@@ -1,4 +1,5 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { AdminCreateVacancyInput, AdminCreatedVacancy } from "./admin-vacancies-api";
 import type {
   AdminCancelVacancyResult,
   AdminConfirmCandidacyResult,
@@ -178,5 +179,19 @@ export async function adminReinstateCasaCandidacy(
   candidacyId: string,
 ): Promise<AdminReinstateCandidacyResult> {
   const res = await casaAdminApi.post(`/candidacies/${candidacyId}/reinstate`);
+  return res.data.data;
+}
+
+/**
+ * Abre uma vaga do Freela em Casa em nome de um contratante.
+ *
+ * MESMO payload de Empresa (`AdminCreateVacancyInput`) — os dois DTOs do backend
+ * são espelhos, e um tipo gêmeo aqui só criaria chance de divergir. O que muda é
+ * a base da rota e, na tela, o filtro de módulo do catálogo.
+ */
+export async function adminCreateCasaVacancy(
+  input: AdminCreateVacancyInput,
+): Promise<AdminCreatedVacancy> {
+  const res = await casaAdminApi.post("/vacancies", input);
   return res.data.data;
 }

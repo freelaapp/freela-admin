@@ -14,7 +14,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCatalogCategories } from "@/modules/admin/application/use-admin-catalog";
-import { useAdminCreateVacancy } from "@/modules/admin/application/use-admin-create-vacancy";
+import {
+  useAdminCreateCasaVacancy,
+  useAdminCreateVacancy,
+} from "@/modules/admin/application/use-admin-create-vacancy";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
   brasiliaWallTimeToUtcIso,
@@ -24,7 +27,20 @@ import {
 } from "@/modules/admin/infrastructure/admin-vacancies-api";
 import type { CategoryRole } from "@/modules/admin/infrastructure/catalog-api";
 
+/**
+ * Módulo em que a vaga é aberta. Decide DUAS coisas que precisam concordar: o
+ * recorte do catálogo (cada categoria pertence a um módulo) e a rota de criação.
+ * Escolher só uma delas abriria vaga de cargo que o outro módulo não conhece.
+ */
+export type VacancyModule = "bars-restaurants" | "home-services";
+
 interface AbrirVagaDialogProps {
+  /**
+   * Empresa ou Casa. O diálogo é o MESMO nos dois — mesmos campos, mesma conta
+   * de preço, mesmo payload. Copiá-lo para o Casa seria duplicar 477 linhas que
+   * já divergiriam no primeiro ajuste.
+   */
+  module: VacancyModule;
   /** userId do contratante dono da vaga (vai no corpo como `contractorUserId`). */
   contractorUserId: string;
   companyName: string;
@@ -55,6 +71,7 @@ function todayInBrasilia(): string {
  * calculado pelo backend — o resumo abaixo é só referência do catálogo.
  */
 export function AbrirVagaDialog({
+  module,
   contractorUserId,
   companyName,
   contractorCity,
@@ -62,7 +79,10 @@ export function AbrirVagaDialog({
   onClose,
 }: AbrirVagaDialogProps) {
   const { data: categories, isLoading, isError } = useCatalogCategories();
-  const createVacancy = useAdminCreateVacancy();
+  const createBrVacancy = useAdminCreateVacancy();
+  const createCasaVacancy = useAdminCreateCasaVacancy();
+  // Os dois hooks são chamados sempre (regra dos hooks); só um é usado.
+  const createVacancy = module === "home-services" ? createCasaVacancy : createBrVacancy;
 
   const [categorySlug, setCategorySlug] = useState("");
   const [roleSlug, setRoleSlug] = useState("");
@@ -80,14 +100,14 @@ export function AbrirVagaDialog({
 
   // Só categorias ATIVAS do módulo Empresa (Bares & Restaurantes) — o endpoint
   // do catálogo devolve os dois módulos e também as inativas.
-  const brCategories = useMemo(
-    () => (categories ?? []).filter((c) => c.module === "bars-restaurants" && c.active),
-    [categories],
+  const categoriasDoModulo = useMemo(
+    () => (categories ?? []).filter((c) => c.module === module && c.active),
+    [categories, module],
   );
 
   const selectedCategory = useMemo(
-    () => brCategories.find((c) => c.slug === categorySlug) ?? null,
-    [brCategories, categorySlug],
+    () => categoriasDoModulo.find((c) => c.slug === categorySlug) ?? null,
+    [categoriasDoModulo, categorySlug],
   );
 
   const categoryRoles = useMemo<CategoryRole[]>(
@@ -258,7 +278,7 @@ export function AbrirVagaDialog({
               onChange={(e) => selectCategory(e.target.value)}
             >
               <option value="">Selecione a categoria...</option>
-              {brCategories.map((c) => (
+              {categoriasDoModulo.map((c) => (
                 <option key={c.id} value={c.slug}>
                   {c.name}
                 </option>

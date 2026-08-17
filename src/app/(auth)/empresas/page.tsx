@@ -32,7 +32,7 @@ import {
   useAdminContractorEmployee,
   useAdminContractorEmployeeMutations,
 } from "@/modules/admin/application/use-admin-contractor-employee";
-import { AbrirVagaDialog } from "./_components/abrir-vaga-dialog";
+import { AbrirVagaDialog } from "@/components/admin/vacancy/abrir-vaga-dialog";
 import { cn, formatPhoneBr } from "@/lib/utils";
 import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
 import {
@@ -631,6 +631,7 @@ export default function EmpresasPage() {
         }
         return (
           <AbrirVagaDialog
+          module="bars-restaurants"
             contractorUserId={vacancyOwnerUserId}
             companyName={selectedItem.nome}
             contractorCity={selectedItem.raw.city || null}
