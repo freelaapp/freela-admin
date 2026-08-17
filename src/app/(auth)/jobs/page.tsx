@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, LayoutGrid, Clock, Star, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, ShieldCheck, CalendarCheck } from "lucide-react";
+import { Plus, Eye, LayoutGrid, Clock, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
+import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
+import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feedbacks-section";
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
 import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
@@ -32,14 +34,15 @@ import { useAuth } from "@/modules/auth/application/use-auth";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import {
   useConfirmCandidacy,
+  useReinstateCandidacy,
   useVacancyCandidacies,
 } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
 import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
 import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
-import type { VacancyItem, VacancyFeedbackEntry, RefundType } from "@/modules/admin/infrastructure/admin-api";
-import { formatVacancyDate, formatVacancyTime, formatInstantDate, formatInstantDateTime, vacancyDayISO } from "@/lib/date.utils";
+import type { VacancyItem, RefundType } from "@/modules/admin/infrastructure/admin-api";
+import { formatVacancyDate, formatVacancyTime, formatInstantDateTime, vacancyDayISO } from "@/lib/date.utils";
 
 const formatDate = formatVacancyDate;
 const formatTime = formatVacancyTime;
@@ -97,53 +100,6 @@ type Row = ReturnType<typeof mapVacancyToRow>;
 import { VacancyRoadmap, formatStepAt } from "./_components/vacancy-roadmap";
 
 
-function FeedbackPanel({
-  title,
-  entry,
-  emptyMessage,
-}: {
-  title: string;
-  entry: VacancyFeedbackEntry | null;
-  emptyMessage: string;
-}) {
-  if (!entry) {
-    return (
-      <div className="bg-white border border-[#e5e5e5] rounded-md p-2.5 space-y-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#737373]">{title}</p>
-        <p className="text-xs text-[#737373] italic">{emptyMessage}</p>
-      </div>
-    );
-  }
-
-  const ratingRounded = Math.round(entry.rating);
-  return (
-    <div className="bg-white border border-[#e5e5e5] rounded-md p-2.5 space-y-1.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#737373]">{title}</p>
-      <div className="flex items-center gap-1.5">
-        <div className="flex items-center gap-0.5">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Star
-              key={i}
-              className={`w-3.5 h-3.5 ${
-                i <= ratingRounded ? "text-[#eca826] fill-[#eca826]" : "text-[#e5e5e5]"
-              }`}
-            />
-          ))}
-        </div>
-        <span className="text-xs font-semibold text-[#1d1d1b]">{entry.rating.toFixed(1)}</span>
-      </div>
-      {entry.comment && entry.comment.trim().length > 0 ? (
-        <p className="text-xs text-[#1d1d1b] whitespace-pre-wrap break-words">{entry.comment}</p>
-      ) : (
-        <p className="text-xs text-[#737373] italic">Sem comentário.</p>
-      )}
-      <p className="text-[10px] text-[#737373]">
-        {entry.authorName ?? "Autor desconhecido"} · {formatDate(entry.createdAt)}
-      </p>
-    </div>
-  );
-}
-
 export default function JobsPage() {
   // Área controlada por permissão; o filtro por consultor segue super-admin.
   const { isSuperAdmin } = useAuth();
@@ -177,6 +133,24 @@ export default function JobsPage() {
     modalDetalhes?.raw.id ?? null,
   );
   const confirmCandidacy = useConfirmCandidacy(modalDetalhes?.raw.id ?? null);
+  const reinstateCandidacy = useReinstateCandidacy(modalDetalhes?.raw.id ?? null);
+
+  /** Devolve a vaga a quem foi desalocado por não confirmar; confirma a presença junto. */
+  async function handleReinstateCandidacy(candidacyId: string, nome: string) {
+    if (
+      !window.confirm(
+        `Recolocar ${nome} nesta vaga?\n\nA vaga volta a ficar preenchida por ela e a presença é confirmada pelo painel. Use depois de falar com a pessoa.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await reinstateCandidacy.mutateAsync(candidacyId);
+      toast.success(`${nome} recolocada na vaga, com presença confirmada.`);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível recolocar."));
+    }
+  }
 
   /**
    * Confirma a presença no lugar do freelancer.
@@ -866,194 +840,27 @@ export default function JobsPage() {
                 );
               })()}
 
-              <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
-                <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
-                  Candidatos {candidacies ? `(${candidacies.length})` : ""}
-                </p>
-                {loadingCandidacies && (
-                  <div className="flex items-center gap-2 text-xs text-[#737373]">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Carregando candidatos...
-                  </div>
-                )}
-                {!loadingCandidacies && candidacies && candidacies.length === 0 && (
-                  <p className="text-xs text-[#737373]">Nenhum candidato ainda.</p>
-                )}
-                {!loadingCandidacies && candidacies && candidacies.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    {candidacies.map((c) => {
-                      // Nunca rotular status desconhecido como "Pendente": WITHDRAWN e
-                      // CANCELLED_BY_CONTRACTOR caíam no fallback e o admin mostrava
-                      // candidato "PENDENTE" que o contratante não via (caso Simone).
-                      const statusColor =
-                        c.status === "ACCEPTED"
-                          ? "bg-green-100 text-green-700 border-green-200"
-                          : c.status === "REJECTED"
-                          ? "bg-red-100 text-red-700 border-red-200"
-                          : c.status === "PENDING"
-                          ? "bg-amber-100 text-amber-700 border-amber-200"
-                          : "bg-gray-200 text-gray-600 border-gray-300";
-                      const statusLabel =
-                        c.status === "ACCEPTED" ? "Aceito"
-                          : c.status === "REJECTED" ? "Rejeitado"
-                          : c.status === "CANCELLED" ? "Cancelado"
-                          : c.status === "CANCELLED_BY_CONTRACTOR" ? "Desvinculado"
-                          : c.status === "WITHDRAWN" ? "Retirado"
-                          : c.status === "PENDING" ? "Pendente"
-                          : c.status;
-                      return (
-                        <div key={c.id} className="bg-white border border-[#e5e5e5] rounded-md p-2.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-medium text-[#1d1d1b]">
-                              {c.providerName ?? "Sem nome"}
-                            </p>
-                            <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${statusColor}`}>
-                              {statusLabel}
-                            </span>
-                          </div>
-                          <div className="mt-1.5 flex flex-col gap-0.5">
-                            {c.providerPhone && (
-                              <a href={`tel:${c.providerPhone}`} className="flex items-center gap-1.5 text-xs text-[#1d1d1b] hover:text-[#eca826] transition-colors">
-                                <Phone className="w-3 h-3 text-[#737373]" />
-                                {c.providerPhone}
-                              </a>
-                            )}
-                            {c.providerEmail && (
-                              <a href={`mailto:${c.providerEmail}`} className="flex items-center gap-1.5 text-xs text-[#1d1d1b] hover:text-[#eca826] transition-colors">
-                                <Mail className="w-3 h-3 text-[#737373]" />
-                                {c.providerEmail}
-                              </a>
-                            )}
-                          </div>
-                          {c.approvedBy && (
-                            <div className="mt-2 flex items-start gap-1.5 rounded-md border border-green-200 bg-green-50 px-2 py-1.5">
-                              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-600" />
-                              <div className="text-[11px] leading-tight text-green-900">
-                                <span className="font-semibold">
-                                  Aprovado por {c.approvedBy.name ?? c.approvedBy.email ?? "credencial do contratante"}
-                                </span>
-                                <span className="ml-1 rounded bg-green-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-green-700">
-                                  {c.approvedBy.role === "EMPLOYEE"
-                                    ? `Funcionário${c.approvedBy.employeeLabel ? ` · ${c.approvedBy.employeeLabel}` : ""}`
-                                    : "Dono"}
-                                </span>
-                                {c.approvedBy.email && c.approvedBy.name && (
-                                  <span className="block text-green-700">{c.approvedBy.email}</span>
-                                )}
-                                {c.acceptedAt && (
-                                  <span className="block text-green-700">
-                                    {formatInstantDate(c.acceptedAt)} · {formatVacancyTime(c.acceptedAt)}
-                                  </span>
-                                )}
-                                {/* De onde partiu. É o que responde "não fui eu"
-                                   quando a equipe toda divide o login do dono. */}
-                                {c.acceptedFrom && (c.acceptedFrom.device || c.acceptedFrom.ip) && (
-                                  <span className="block text-green-700">
-                                    {c.acceptedFrom.device ?? "Origem desconhecida"}
-                                    {c.acceptedFrom.ip ? ` · IP ${c.acceptedFrom.ip}` : ""}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          {/* Confirmação de presença (handshake). Só faz sentido em
-                              candidatura ACEITA: nas outras não há o que confirmar. */}
-                          {c.status === "ACCEPTED" && (
-                            c.confirmedAt ? (
-                              <div className="mt-2 flex items-start gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5">
-                                <CalendarCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                                <div className="text-[11px] leading-tight text-emerald-900">
-                                  <span className="font-semibold">Presença confirmada</span>
-                                  {c.confirmationChannel === "admin" && (
-                                    <span className="ml-1 rounded bg-emerald-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-emerald-700">
-                                      pelo painel
-                                    </span>
-                                  )}
-                                  <span className="block text-emerald-700">
-                                    {formatInstantDate(c.confirmedAt)} · {formatVacancyTime(c.confirmedAt)}
-                                  </span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
-                                <p className="text-[11px] leading-tight text-amber-900">
-                                  <span className="font-semibold">Aguardando o freelancer confirmar.</span>
-                                  {c.confirmDeadlineAt && (
-                                    <span className="block text-amber-700">
-                                      Prazo dele: {formatInstantDate(c.confirmDeadlineAt)} ·{" "}
-                                      {formatVacancyTime(c.confirmDeadlineAt)}
-                                    </span>
-                                  )}
-                                </p>
-                                <button
-                                  onClick={() =>
-                                    handleConfirmCandidacy(c.id, c.providerName ?? "O freelancer")
-                                  }
-                                  disabled={confirmCandidacy.isPending}
-                                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
-                                >
-                                  {confirmCandidacy.isPending ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <CalendarCheck className="h-3 w-3" />
-                                  )}
-                                  Confirmar presença por ele
-                                </button>
-                                <p className="mt-1 text-[10px] leading-tight text-amber-700">
-                                  Use quando ele já avisou por telefone. Fica registrado que
-                                  quem confirmou foi o painel.
-                                </p>
-                              </div>
-                            )
-                          )}
-                          {(c.status === "ACCEPTED" || c.status === "PENDING") &&
-                            modalDetalhes?.raw.id && (
-                              <button
-                                onClick={() =>
-                                  setRemoveTarget({
-                                    vacancyId: modalDetalhes.raw.id,
-                                    candidacyId: c.id,
-                                    providerName: c.providerName ?? "Freelancer",
-                                  })
-                                }
-                                className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-700 transition-colors"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                                Desvincular da vaga
-                              </button>
-                            )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <VacancyCandidacyList
+                candidacies={candidacies}
+                loading={loadingCandidacies}
+                onConfirm={handleConfirmCandidacy}
+                confirming={confirmCandidacy.isPending}
+                onReinstate={handleReinstateCandidacy}
+                reinstating={reinstateCandidacy.isPending}
+                onUnlink={
+                  modalDetalhes?.raw.id
+                    ? ({ candidacyId, providerName }) =>
+                        setRemoveTarget({
+                          vacancyId: modalDetalhes.raw.id,
+                          candidacyId,
+                          providerName,
+                        })
+                    : undefined
+                }
+              />
 
               {/* Feedbacks — contratante ↔ freelancer */}
-              <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-3">
-                <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
-                  Avaliações
-                </p>
-                {loadingFeedbacks ? (
-                  <div className="flex items-center gap-2 text-xs text-[#737373]">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Carregando avaliações...
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <FeedbackPanel
-                      title="Contratante → Freelancer"
-                      entry={feedbacks?.contractor ?? null}
-                      emptyMessage="Contratante ainda não avaliou o freelancer."
-                    />
-                    <FeedbackPanel
-                      title="Freelancer → Contratante"
-                      entry={feedbacks?.provider ?? null}
-                      emptyMessage="Freelancer ainda não avaliou o contratante."
-                    />
-                  </div>
-                )}
-              </div>
+              <VacancyFeedbacksSection feedbacks={feedbacks} loading={loadingFeedbacks} />
             </div>
           )}
           <DialogFooter>

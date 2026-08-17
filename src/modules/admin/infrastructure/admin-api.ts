@@ -589,6 +589,26 @@ export async function adminConfirmCandidacy(
   return res.data.data;
 }
 
+export interface AdminReinstateCandidacyResult {
+  candidacyId: string;
+  vacancyId: string;
+  providerId: string;
+  vacancyClosed: boolean;
+}
+
+/**
+ * Recoloca na vaga quem foi aprovado e desalocado por não confirmar no link.
+ *
+ * Confirma a presença junto (canal `admin`): o prazo da pessoa já passou, e sem
+ * confirmar a varredura a cortaria de novo em minutos.
+ */
+export async function adminReinstateCandidacy(
+  candidacyId: string,
+): Promise<AdminReinstateCandidacyResult> {
+  const res = await adminApi.post(`/candidacies/${candidacyId}/reinstate`);
+  return res.data.data;
+}
+
 export async function getVacancyCandidacies(vacancyId: string): Promise<VacancyCandidacyItem[]> {
   const res = await adminApi.get(`/vacancies/${vacancyId}/candidacies`);
   return res.data.data;
