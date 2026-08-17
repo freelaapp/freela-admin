@@ -1,24 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Eye,
-  Star,
-  MapPin,
-  User,
-  Home,
-  CalendarDays,
-  Loader2,
-  Download,
-  FileText,
-  Phone,
-  Mail,
-} from "lucide-react";
+import { CalendarDays, Download, Eye, FileText, Home, Loader2, Mail, MapPin, Pencil, Phone, Star, User } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
+import { EditarContratanteDialog } from "./_components/editar-contratante-dialog";
 import {
   Dialog,
   DialogContent,
@@ -67,6 +56,7 @@ type Row = ReturnType<typeof mapToRow>;
 export default function ContratantesCasaPage() {
   const { data: contractors, isLoading, isError } = useAdminCasaContractors();
   const [selected, setSelected] = useState<Row | null>(null);
+  const [editando, setEditando] = useState<Row | null>(null);
 
   const rows: Row[] = contractors?.map(mapToRow) ?? [];
 
@@ -155,13 +145,22 @@ export default function ContratantesCasaPage() {
     {
       header: "Ações",
       accessor: (row: Row) => (
-        <button
-          onClick={() => setSelected(row)}
-          className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors"
-          title="Ver detalhes"
-        >
-          <Eye className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setSelected(row)}
+            className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors"
+            title="Ver detalhes"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setEditando(row)}
+            className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors"
+            title="Editar cadastro"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        </div>
       ),
     },
   ];
@@ -186,6 +185,11 @@ export default function ContratantesCasaPage() {
         data={rows}
         searchPlaceholder="Buscar por nome, empresa, documento, telefone ou e-mail..."
         searchKey="_search"
+      />
+
+      <EditarContratanteDialog
+        contratante={editando?.raw ?? null}
+        onClose={() => setEditando(null)}
       />
 
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
