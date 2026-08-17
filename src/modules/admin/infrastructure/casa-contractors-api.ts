@@ -43,3 +43,33 @@ export async function getAdminCasaContractors(): Promise<CasaContractorItem[]> {
   const res = await casaAdminApi.get("/contractors");
   return res.data.data;
 }
+
+/**
+ * Campos que o painel edita num contratante do Casa.
+ *
+ * É um SUBCONJUNTO do de Empresa porque `casa_contractors` não tem `segment`
+ * nem `contact_name/phone/email`. Mostrar esses campos aqui seria formulário que
+ * não grava — a paridade que interessa é a das ações.
+ */
+export interface UpdateCasaContractorPayload {
+  companyName?: string;
+  name?: string;
+  document?: string;
+  cityId?: string;
+  cep?: string;
+  street?: string;
+  neighborhood?: string;
+  city?: string;
+  uf?: string;
+  number?: string;
+  complement?: string;
+}
+
+/** Latitude/longitude não vão no corpo: a API regeocodifica a partir do endereço. */
+export async function updateAdminCasaContractor(
+  id: string,
+  payload: UpdateCasaContractorPayload,
+): Promise<CasaContractorItem> {
+  const res = await casaAdminApi.patch(`/contractors/${id}`, payload);
+  return res.data.data;
+}
