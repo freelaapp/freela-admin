@@ -34,6 +34,7 @@ import { useAuth } from "@/modules/auth/application/use-auth";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import {
   useConfirmCandidacy,
+  useReinstateCandidacy,
   useVacancyCandidacies,
 } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
@@ -132,6 +133,24 @@ export default function JobsPage() {
     modalDetalhes?.raw.id ?? null,
   );
   const confirmCandidacy = useConfirmCandidacy(modalDetalhes?.raw.id ?? null);
+  const reinstateCandidacy = useReinstateCandidacy(modalDetalhes?.raw.id ?? null);
+
+  /** Devolve a vaga a quem foi desalocado por não confirmar; confirma a presença junto. */
+  async function handleReinstateCandidacy(candidacyId: string, nome: string) {
+    if (
+      !window.confirm(
+        `Recolocar ${nome} nesta vaga?\n\nA vaga volta a ficar preenchida por ela e a presença é confirmada pelo painel. Use depois de falar com a pessoa.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await reinstateCandidacy.mutateAsync(candidacyId);
+      toast.success(`${nome} recolocada na vaga, com presença confirmada.`);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível recolocar."));
+    }
+  }
 
   /**
    * Confirma a presença no lugar do freelancer.
@@ -826,6 +845,8 @@ export default function JobsPage() {
                 loading={loadingCandidacies}
                 onConfirm={handleConfirmCandidacy}
                 confirming={confirmCandidacy.isPending}
+                onReinstate={handleReinstateCandidacy}
+                reinstating={reinstateCandidacy.isPending}
                 onUnlink={
                   modalDetalhes?.raw.id
                     ? ({ candidacyId, providerName }) =>

@@ -5,6 +5,7 @@ import {
   Loader2,
   Mail,
   Phone,
+  RotateCcw,
   ShieldCheck,
   XCircle,
 } from "lucide-react";
@@ -30,6 +31,12 @@ export interface VacancyCandidacyListProps {
   confirming: boolean;
   /** Ausente ⇒ o botão de desvincular não aparece (ex.: vaga sem id resolvido). */
   onUnlink?: (target: { candidacyId: string; providerName: string }) => void;
+  /**
+   * Recoloca na vaga quem foi aprovado e desalocado por não confirmar no link.
+   * Ausente ⇒ o botão não aparece (área sem permissão).
+   */
+  onReinstate?: (candidacyId: string, providerName: string) => void;
+  reinstating?: boolean;
 }
 
 export function VacancyCandidacyList({
@@ -38,6 +45,8 @@ export function VacancyCandidacyList({
   onConfirm,
   confirming,
   onUnlink,
+  onReinstate,
+  reinstating = false,
 }: VacancyCandidacyListProps) {
   return (
     <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
@@ -210,6 +219,32 @@ export function VacancyCandidacyList({
                       </p>
                     </div>
                   ))}
+                {/*
+                  Desalocado por não confirmar no link. O suporte fala com a
+                  pessoa por telefone e precisa de um caminho — antes disto o
+                  único era UPDATE em produção (dois casos em 17/08/2026).
+                  Recolocar confirma a presença junto: o prazo dela já passou, e
+                  sem confirmar a varredura a cortaria de novo em minutos.
+                */}
+                {onReinstate &&
+                  c.acceptedAt &&
+                  (c.status === "CANCELLED_BY_CONTRACTOR" ||
+                    c.status === "WITHDRAWN" ||
+                    c.status === "NOT_SELECTED") && (
+                    <button
+                      onClick={() => onReinstate(c.id, c.providerName ?? "Freelancer")}
+                      disabled={reinstating}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+                      title="Devolve a vaga a esta pessoa e confirma a presença pelo painel"
+                    >
+                      {reinstating ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-3 w-3" />
+                      )}
+                      Recolocar na vaga
+                    </button>
+                  )}
                 {(c.status === "ACCEPTED" || c.status === "PENDING") &&
                   onUnlink && (
                     <button

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   adminConfirmCasaCandidacy,
+  adminReinstateCasaCandidacy,
   adminRemoveCasaCandidacy,
   adminRestartCasaVacancy,
   getCasaVacancyCandidacies,
@@ -77,6 +78,18 @@ export function useAdminRemoveCasaCandidacy() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "casa-vacancies"] });
       qc.invalidateQueries({ queryKey: ["admin", "casa-vacancy-candidacies"] });
+    },
+  });
+}
+
+/** Recoloca na vaga quem foi desalocado por não confirmar. Ver o gêmeo de Empresa. */
+export function useReinstateCasaCandidacy(vacancyId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (candidacyId: string) => adminReinstateCasaCandidacy(candidacyId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "casa-vacancy-candidacies", vacancyId] });
+      qc.invalidateQueries({ queryKey: ["admin", "casa-vacancies"] });
     },
   });
 }

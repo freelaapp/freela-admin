@@ -2,6 +2,7 @@ import { createAuthedClient } from "@/modules/shared/infrastructure/authed-clien
 import type {
   AdminCancelVacancyResult,
   AdminConfirmCandidacyResult,
+  AdminReinstateCandidacyResult,
   AdminRemoveCandidacyResult,
   AdminRestartVacancyResult,
   FeedbackItem,
@@ -169,5 +170,13 @@ export async function adminRemoveCasaCandidacy(
     `/vacancies/${vacancyId}/candidacies/${candidacyId}/remove`,
     reason ? { reason } : {},
   );
+  return res.data.data;
+}
+
+/** Recoloca na vaga quem foi desalocado por não confirmar. Ver o gêmeo em `admin-api`. */
+export async function adminReinstateCasaCandidacy(
+  candidacyId: string,
+): Promise<AdminReinstateCandidacyResult> {
+  const res = await casaAdminApi.post(`/candidacies/${candidacyId}/reinstate`);
   return res.data.data;
 }

@@ -27,6 +27,7 @@ import {
   useCasaVacancyCandidacies,
   useCasaVacancyFeedbacks,
   useConfirmCasaCandidacy,
+  useReinstateCasaCandidacy,
 } from "@/modules/admin/application/use-casa-vacancy-actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,6 +129,7 @@ export default function VagasCasaPage() {
   const { data: feedbacks, isLoading: loadingFeedbacks } =
     useCasaVacancyFeedbacks(detalhe?.raw.id ?? null);
   const confirmCandidacy = useConfirmCasaCandidacy(detalhe?.raw.id ?? null);
+  const reinstateCandidacy = useReinstateCasaCandidacy(detalhe?.raw.id ?? null);
   const restartMutation = useAdminRestartCasaVacancy();
   const removeCandidacyMutation = useAdminRemoveCasaCandidacy();
 
@@ -158,6 +160,23 @@ export default function VagasCasaPage() {
           "Não foi possível confirmar. A candidatura precisa estar aceita.",
         ),
       );
+    }
+  }
+
+  /** Devolve a vaga a quem foi desalocado por não confirmar; confirma a presença junto. */
+  async function handleReinstateCandidacy(candidacyId: string, nome: string) {
+    if (
+      !window.confirm(
+        `Recolocar ${nome} nesta vaga?\n\nA vaga volta a ficar preenchida por ela e a presença é confirmada pelo painel. Use depois de falar com a pessoa.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await reinstateCandidacy.mutateAsync(candidacyId);
+      toast.success(`${nome} recolocada na vaga, com presença confirmada.`);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível recolocar."));
     }
   }
 
@@ -565,6 +584,8 @@ export default function VagasCasaPage() {
                 loading={loadingCandidacies}
                 onConfirm={handleConfirmCandidacy}
                 confirming={confirmCandidacy.isPending}
+                onReinstate={handleReinstateCandidacy}
+                reinstating={reinstateCandidacy.isPending}
                 onUnlink={({ candidacyId, providerName }) =>
                   setRemoveTarget({
                     vacancyId: detalhe.raw.id,

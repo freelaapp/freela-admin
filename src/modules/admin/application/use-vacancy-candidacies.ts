@@ -1,7 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminConfirmCandidacy, getVacancyCandidacies } from "../infrastructure/admin-api";
+import {
+  adminConfirmCandidacy,
+  adminReinstateCandidacy,
+  getVacancyCandidacies,
+} from "../infrastructure/admin-api";
 
 export function useVacancyCandidacies(vacancyId: string | null) {
   return useQuery({
@@ -26,6 +30,23 @@ export function useConfirmCandidacy(vacancyId: string | null) {
       queryClient.invalidateQueries({
         queryKey: ["admin", "vacancy-candidacies", vacancyId],
       });
+    },
+  });
+}
+
+/**
+ * Recoloca na vaga quem foi desalocado por não confirmar no link.
+ *
+ * Invalida a lista de vagas junto com a da própria vaga: a operação FECHA a
+ * vaga de volta, então a tabela atrás do modal fica errada se não recarregar.
+ */
+export function useReinstateCandidacy(vacancyId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (candidacyId: string) => adminReinstateCandidacy(candidacyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-candidacies", vacancyId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "vacancies"] });
     },
   });
 }
