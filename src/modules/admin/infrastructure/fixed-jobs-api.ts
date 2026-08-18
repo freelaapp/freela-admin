@@ -271,3 +271,29 @@ export async function runFixedJobMatchScore(
   const res = await fixedJobsAdminApi.post(`/posts/${postId}/match-score`, { force });
   return res.data.data;
 }
+
+/**
+ * Diagnóstico de alcance da vaga fixa.
+ *
+ * Responde "essa vaga está aparecendo para alguém?" — a pergunta que ficou sem
+ * resposta enquanto 3 vagas do Grupo Trigo passavam 4 dias com zero candidatos
+ * por serem invisíveis (sem coordenada, medidas a partir da matriz em SP).
+ */
+export interface FixedJobReach {
+  city: string | null;
+  uf: string | null;
+  /** Sem coordenada o alcance cai para quem tem o NOME da cidade batendo. */
+  semCoordenada: boolean;
+  alcance: number;
+  doCargo: number;
+}
+
+export async function getFixedJobReach(postId: string): Promise<FixedJobReach> {
+  const res = await fixedJobsAdminApi.get(`/posts/${postId}/reach`);
+  return res.data.data;
+}
+
+/** Reanuncia no grupo de WhatsApp da cidade da vaga. */
+export async function resendFixedJobGroupMessage(postId: string): Promise<void> {
+  await fixedJobsAdminApi.post(`/posts/${postId}/resend-group-message`);
+}

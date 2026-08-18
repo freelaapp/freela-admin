@@ -49,6 +49,18 @@ function mapStatus(status: string) {
   return status.toUpperCase() === "OPEN" ? ("open" as const) : ("finished" as const);
 }
 
+/**
+ * Dias desde a publicação. Serve para o único sintoma que ninguém via: vaga
+ * ABERTA acumulando dias com zero candidatos.
+ *
+ * As 3 vagas do Grupo Trigo passaram 4 dias assim, e a lista não dizia nada — o
+ * "0" em Candidatos parecia recém-publicada. É a data que dá o contexto.
+ */
+function diasEmAberto(createdAt: string): number {
+  const ms = Date.now() - new Date(createdAt).getTime();
+  return Math.max(Math.floor(ms / 86_400_000), 0);
+}
+
 function mapToRow(v: FixedJobItem) {
   return {
     id: v.id,
@@ -63,6 +75,10 @@ function mapToRow(v: FixedJobItem) {
     status: mapStatus(v.status),
     statusKey: v.status.toUpperCase(),
     consultor: v.referringConsultant?.name ?? null,
+    diasParada:
+      v.status.toUpperCase() === "OPEN" && v.applicationCount === 0
+        ? diasEmAberto(v.createdAt)
+        : null,
     raw: v,
   };
 }
@@ -73,6 +89,7 @@ const statusFilters = [
   { key: "all", label: "Todas" },
   { key: "OPEN", label: "Abertas" },
   { key: "CLOSED", label: "Encerradas" },
+  { key: "SEM_CANDIDATO", label: "Sem candidato" },
 ] as const;
 
 type StatusKey = (typeof statusFilters)[number]["key"];
@@ -570,7 +587,15 @@ export default function VagasFixasPage() {
 
   const allRows: Row[] = posts?.map(mapToRow) ?? [];
   const rows =
-    statusFilter === "all" ? allRows : allRows.filter((r) => r.statusKey === statusFilter);
+    statusFilter === "all"
+      ? allRows
+      : statusFilter === "SEM_CANDIDATO"
+        ? // Aberta e sem ninguém: é aqui que mora vaga invisível. Ordenada pela
+          // mais parada, para a pior aparecer primeiro.
+          allRows
+            .filter((r) => r.diasParada !== null)
+            .sort((a, b) => (b.diasParada ?? 0) - (a.diasParada ?? 0))
+        : allRows.filter((r) => r.statusKey === statusFilter);
 
   const columns = [
     { header: "Empresa", accessor: "empresa" as const, sortable: true, sortAccessor: (r: Row) => r.empresa },
@@ -607,6 +632,25 @@ export default function VagasFixasPage() {
       ),
       sortable: true,
       sortAccessor: (r: Row) => r.candidatos,
+    },
+    {
+      header: "Parada há",
+      accessor: (row: Row) =>
+        row.diasParada === null ? (
+          <span className="text-[#a3a3a3]">—</span>
+        ) : (
+          <span
+            className={
+              row.diasParada >= 3 ? "font-semibold text-red-600" : "text-[#737373]"
+            }
+            title="Vaga aberta sem nenhum candidato"
+          >
+            {row.diasParada === 0 ? "hoje" : `${row.diasParada}d`}
+          </span>
+        ),
+      className: "hidden md:table-cell",
+      sortable: true,
+      sortAccessor: (r: Row) => r.diasParada ?? -1,
     },
     { header: "Criada em", accessor: "data" as const, sortable: true, sortAccessor: (r: Row) => new Date(r.raw.createdAt) },
     { header: "Status", accessor: (row: Row) => <StatusBadge status={row.status} /> },
