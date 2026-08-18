@@ -84,7 +84,6 @@ export function generateContractorReportPdf(
       vacancyId: f.vacancy_id,
       repasseCents: rp ? rp.amount : f.freelancer_amount_in_cents,
       repassePending: !isPaid(rp),
-      taxaCents: f.platform_fee_in_cents, // taxa real da plataforma (não calcular por proxy)
       // "Valor pago" só quando o pagamento LIQUIDOU: o backend devolve a
       // cobrança mais recente de QUALQUER status (preferindo COMPLETED), e
       // cobrança pendente/expirada entrava no total de um PDF que vai pro cliente.
@@ -92,18 +91,49 @@ export function generateContractorReportPdf(
     };
   });
 
-  // totais (repasse por contratação; taxa/pago por vaga única p/ não duplicar)
+  // Repasse de cada freelancer somado por VAGA: o pagamento é da vaga, o repasse
+  // é de cada posição preenchida.
+  const repassePorVaga = new Map<string, number>();
+  for (const r of records) {
+    repassePorVaga.set(
+      r.vacancyId,
+      (repassePorVaga.get(r.vacancyId) ?? 0) + (r.repasseCents || 0),
+    );
+  }
+
+  /**
+   * A taxa é o que SOBRA do que o contratante pagou depois do repasse — não o
+   * `platform_fee_in_cents` da vaga.
+   *
+   * Aquele campo é a taxa BRUTA do anúncio (20% do valor cheio), calculada antes
+   * do desconto da assinatura e antes da taxa fixa. Como o contratante paga
+   * "valor − desconto + taxa fixa", exibi-lo fazia as três colunas não fecharem:
+   * R$ 134,40 + R$ 33,60 = R$ 168,00, mas o pago foi R$ 161,45 (reclamação do
+   * Coco Bambu Jundiaí, 18/08). O relatório é conferido somando a linha, então a
+   * única definição que serve é a que fecha: taxa = valor pago − repasse.
+   *
+   * Pagamento e taxa saem UMA vez por vaga, na primeira linha dela. Numa vaga com
+   * várias posições, repetir por linha somaria o mesmo pagamento várias vezes.
+   */
+  const vagaJaExibida = new Set<string>();
+  const linhas = records.map((r) => {
+    const primeiraDaVaga = !vagaJaExibida.has(r.vacancyId);
+    if (primeiraDaVaga) vagaJaExibida.add(r.vacancyId);
+    const pagoCents = primeiraDaVaga ? r.pagoCents : null;
+    const taxaCents =
+      primeiraDaVaga && r.pagoCents != null
+        ? r.pagoCents - (repassePorVaga.get(r.vacancyId) ?? 0)
+        : null;
+    return { ...r, pagoCents, taxaCents };
+  });
+
   let totRepasse = 0;
   let totTaxa = 0;
   let totPago = 0;
-  const seen = new Set<string>();
-  for (const r of records) {
+  for (const r of linhas) {
     totRepasse += r.repasseCents || 0;
-    if (!seen.has(r.vacancyId)) {
-      seen.add(r.vacancyId);
-      totTaxa += r.taxaCents || 0;
-      totPago += r.pagoCents || 0;
-    }
+    totTaxa += r.taxaCents || 0;
+    totPago += r.pagoCents || 0;
   }
 
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -167,7 +197,7 @@ export function generateContractorReportPdf(
 
   doc.setFont("helvetica", "normal");
   let i = 0;
-  for (const r of records) {
+  for (const r of linhas) {
     if (y > PH - 22) {
       doc.addPage();
       y = 16;
@@ -216,7 +246,7 @@ export function generateContractorReportPdf(
   doc.setFontSize(7.5);
   doc.setTextColor(140, 140, 140);
   doc.text(
-    "* repasse ainda não confirmado (pendente/falhou). Repasse = pago ao freelancer · Taxa = taxa da plataforma · Valor pago = pago pelo contratante.",
+    "* repasse ainda não confirmado (pendente/falhou). Repasse = pago ao freelancer · Taxa = valor pago − repasse · Valor pago = pago pelo contratante (uma vez por vaga).",
     L,
     Math.min(y, PH - 12),
   );
