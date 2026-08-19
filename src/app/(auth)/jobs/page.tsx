@@ -287,6 +287,13 @@ export default function JobsPage() {
       setRemoveReason("");
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Falha ao desvincular o freelancer."));
+      // Fecha o modal mesmo no erro. A lista ja foi recarregada pelo
+      // `onSettled` da mutation, entao manter o modal aberto so convida a
+      // repetir o clique contra um estado que nao existe mais — foi o que
+      // rendeu dez tentativas seguidas em 19/08/2026. Se a falha tiver sido
+      // passageira, o botao continua la na lista ja atualizada.
+      setRemoveTarget(null);
+      setRemoveReason("");
     }
   };
 

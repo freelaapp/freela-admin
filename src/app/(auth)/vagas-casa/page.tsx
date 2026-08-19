@@ -223,6 +223,10 @@ export default function VagasCasaPage() {
       toast.error(
         getAxiosErrorMessage(err, "Falha ao desvincular o freelancer."),
       );
+      // Ver a nota em jobs/page.tsx: fechar tambem no erro evita o clique
+      // repetido contra um vinculo que ja nao existe.
+      setRemoveTarget(null);
+      setRemoveReason("");
     }
   };
 
