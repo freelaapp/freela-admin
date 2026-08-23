@@ -489,7 +489,9 @@ export interface VacancyItem {
   candidacyCount?: number;
   /**
    * Job vinculado à vaga (presente apenas quando há job criado — pós-pagamento).
-   * Backend retorna apenas no endpoint /closed-vacancies.
+   * Vem no /closed-vacancies e, desde api #506, também no /open-vacancies —
+   * uma vaga revivida pelo suporte fica OPEN com job IN_PROGRESS, e sem o job
+   * o quadro a classificava como "falta escolher" com o freelancer trabalhando.
    */
   job?: {
     id: string;
