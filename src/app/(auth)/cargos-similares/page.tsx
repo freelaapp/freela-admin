@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/native-select";
-import { AlertTriangle, ArrowRight, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Loader2, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
@@ -17,6 +17,7 @@ import {
   useUpdateServiceAdjacency,
 } from "@/modules/admin/application/use-admin-service-adjacency";
 import type { ServiceAdjacency } from "@/modules/admin/infrastructure/service-adjacency-api";
+import { relacoesDoCargo } from "@/modules/admin/application/service-adjacency-relations";
 
 export default function CargosSimilaresPage() {
   const { data, isLoading } = useServiceAdjacencies();
@@ -25,6 +26,10 @@ export default function CargosSimilaresPage() {
   const remover = useDeleteServiceAdjacency();
 
   const [form, setForm] = useState({ roleSlug: "", neighborSlug: "", note: "" });
+  // Filtro por cargo: mostra as DUAS direções de uma vizinhança. O mapa
+  // agrupado responde "quem é X vê o quê"; "quem vê as vagas de X" exigia
+  // varrer todos os grupos de cabeça.
+  const [cargoFiltro, setCargoFiltro] = useState("");
 
   // Agrupado por "quem tem", que é como a regra é lida: *quem é garçom vê
   // também...*. A lista plana de pares obrigaria o operador a montar isso de
@@ -46,6 +51,11 @@ export default function CargosSimilaresPage() {
   }, [data?.roles]);
 
   const rotular = (slug: string) => nomePorSlug.get(slug) ?? slug;
+
+  const relacoes = useMemo(
+    () => (cargoFiltro ? relacoesDoCargo(data?.items ?? [], cargoFiltro) : null),
+    [data?.items, cargoFiltro],
+  );
 
   const adicionar = async () => {
     if (!form.roleSlug || !form.neighborSlug) {
@@ -83,6 +93,44 @@ export default function CargosSimilaresPage() {
   };
 
   const ativas = (data?.items ?? []).filter((i) => i.active).length;
+
+  // Um chip por vizinhança; `slug` é o lado que se mostra (o vizinho no mapa e
+  // no bloco "vê"; a origem no bloco "visto por"). O nome é clicável e pula o
+  // filtro para aquele cargo — é assim que se anda pelo grafo relação a relação.
+  const Chip = ({ item, slug }: { item: ServiceAdjacency; slug: string }) => (
+    <div
+      className={`flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${
+        item.active
+          ? "border-[#e5e5e5] bg-white text-[#1d1d1b]"
+          : "border-dashed border-[#d4d4d4] bg-[#fafafa] text-[#a3a3a3]"
+      }`}
+      title={item.note ?? undefined}
+    >
+      <button
+        type="button"
+        onClick={() => setCargoFiltro(slug)}
+        className="hover:underline"
+        title={`Ver todas as relações de ${rotular(slug)}`}
+      >
+        {rotular(slug)}
+      </button>
+      <button
+        type="button"
+        onClick={() => alternar(item)}
+        className="text-xs underline decoration-dotted"
+      >
+        {item.active ? "desativar" : "ativar"}
+      </button>
+      <button
+        type="button"
+        onClick={() => excluir(item)}
+        aria-label={`Remover ${rotular(item.roleSlug)} → ${rotular(item.neighborSlug)}`}
+        className="text-[#a3a3a3] hover:text-red-600"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
 
   return (
     <div>
@@ -182,8 +230,74 @@ export default function CargosSimilaresPage() {
             </div>
           </div>
 
-          {/* Mapa */}
-          {porFuncao.length === 0 ? (
+          {/* Filtro por cargo: as duas direções */}
+          <div className="rounded-lg border border-[#e5e5e5] bg-white p-4">
+            <Label htmlFor="cargo-filtro" className="mb-1 flex items-center gap-2 text-sm">
+              <Search className="h-4 w-4 text-[#737373]" />
+              Ver todas as relações de um cargo
+            </Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <NativeSelect
+                id="cargo-filtro"
+                value={cargoFiltro}
+                onChange={(e) => setCargoFiltro(e.target.value)}
+                className="max-w-xs"
+              >
+                <option value="">Todos os cargos (mapa completo)</option>
+                {(data?.roles ?? []).map((role) => (
+                  <option key={role.slug} value={role.slug}>
+                    {role.name}
+                  </option>
+                ))}
+              </NativeSelect>
+              {cargoFiltro && (
+                <Button variant="outline" size="sm" onClick={() => setCargoFiltro("")}>
+                  <X className="mr-1 h-3.5 w-3.5" /> Limpar
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {relacoes && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-[#e5e5e5] bg-white p-4">
+                <p className="mb-2 text-sm">
+                  <span className="font-semibold text-[#1d1d1b]">Quem é {rotular(cargoFiltro)}</span>
+                  <span className="text-[#737373]"> também vê vagas de:</span>{" "}
+                  <Badge variant="outline">{relacoes.ve.length}</Badge>
+                </p>
+                {relacoes.ve.length === 0 ? (
+                  <p className="text-sm text-[#737373]">Nenhuma — só vê as vagas do próprio cargo.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {relacoes.ve.map((item) => (
+                      <Chip key={item.id} item={item} slug={item.neighborSlug} />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="rounded-lg border border-[#e5e5e5] bg-white p-4">
+                <p className="mb-2 text-sm">
+                  <span className="font-semibold text-[#1d1d1b]">Quem vê as vagas de {rotular(cargoFiltro)}:</span>{" "}
+                  <Badge variant="outline">{relacoes.vistoPor.length}</Badge>
+                </p>
+                {relacoes.vistoPor.length === 0 ? (
+                  <p className="text-sm text-[#737373]">
+                    Ninguém além de quem tem o próprio cargo — nenhuma vizinhança aponta para ele.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {relacoes.vistoPor.map((item) => (
+                      <Chip key={item.id} item={item} slug={item.roleSlug} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Mapa (só sem filtro) */}
+          {relacoes ? null : porFuncao.length === 0 ? (
             <p className="text-sm text-[#737373]">Nenhuma vizinhança cadastrada ainda.</p>
           ) : (
             <div className="space-y-3">
@@ -195,32 +309,7 @@ export default function CargosSimilaresPage() {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {itens.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${
-                          item.active
-                            ? "border-[#e5e5e5] bg-white text-[#1d1d1b]"
-                            : "border-dashed border-[#d4d4d4] bg-[#fafafa] text-[#a3a3a3]"
-                        }`}
-                        title={item.note ?? undefined}
-                      >
-                        <span>{rotular(item.neighborSlug)}</span>
-                        <button
-                          type="button"
-                          onClick={() => alternar(item)}
-                          className="text-xs underline decoration-dotted"
-                        >
-                          {item.active ? "desativar" : "ativar"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => excluir(item)}
-                          aria-label={`Remover ${rotular(item.neighborSlug)}`}
-                          className="text-[#a3a3a3] hover:text-red-600"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                      <Chip key={item.id} item={item} slug={item.neighborSlug} />
                     ))}
                   </div>
                 </div>
