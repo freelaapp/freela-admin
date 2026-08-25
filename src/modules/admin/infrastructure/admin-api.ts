@@ -335,6 +335,12 @@ export interface ContractorReportRow {
   platform_fee_in_cents: number | null;
   provides_meal: boolean | null;
   contractor_payment: { status: string; value: number } | string | null;
+  /**
+   * Centavos que voltaram para a CARTEIRA do contratante nesta vaga (corte por
+   * atraso, ajuste) depois do pagamento. Valor pago líquido = value − isto.
+   * Opcional: API anterior ao campo não manda (= 0).
+   */
+  wallet_refund_in_cents?: number | null;
   candidacy_id: string | null;
   candidacy_status: string | null;
   freelancer_name: string | null;
