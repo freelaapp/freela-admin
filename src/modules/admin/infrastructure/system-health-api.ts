@@ -77,9 +77,16 @@ export async function getSystemHealth(): Promise<SystemHealth> {
   return res.data.data;
 }
 
+/** A API devolve `{ total, items }`; a forma antiga do contrato era um array. */
+export function toAttendanceList(payload: unknown): AttendanceFlowItem[] {
+  if (Array.isArray(payload)) return payload as AttendanceFlowItem[];
+  const items = (payload as { items?: unknown } | undefined)?.items;
+  return Array.isArray(items) ? (items as AttendanceFlowItem[]) : [];
+}
+
 export async function getAttendanceFlows(): Promise<AttendanceFlowItem[]> {
   const res = await adminApi.get("/attendance");
-  return res.data.data ?? [];
+  return toAttendanceList(res.data.data);
 }
 
 export async function resolveAttendanceFlow({
