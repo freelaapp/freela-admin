@@ -8,6 +8,7 @@ import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feed
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
 import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
+import { VacancyDocumentsCell } from "./_components/vacancy-documents-cell";
 import {
   useSendVacancyStageMessage,
   useVacancyOutreach,
@@ -413,6 +414,15 @@ export default function JobsPage() {
       className: "hidden lg:table-cell",
     },
     {
+      // Contrato · Recibo · RPA · NF-e em quatro pastilhas; o motivo vai no
+      // tooltip. "—" quando a API ainda não manda o campo.
+      header: "Documentos",
+      accessor: (row: Row) => (
+        <VacancyDocumentsCell documents={row.raw.documents} detail={row.raw.documentsDetail} />
+      ),
+      className: "hidden lg:table-cell",
+    },
+    {
       header: "Status",
       accessor: (row: Row) => <StatusBadge status={row.status} />,
     },
@@ -810,6 +820,12 @@ export default function JobsPage() {
               </div>
 
               <VacancyRoadmap vacancy={modalDetalhes.raw} />
+
+              <VacancyDocumentsCell
+                variant="full"
+                documents={modalDetalhes.raw?.documents}
+                detail={modalDetalhes.raw?.documentsDetail}
+              />
 
               {modalDetalhes.raw?.id && (() => {
                 const shareUrl = `https://www.freelaservicosapp.com.br/freelancer/vagas/${modalDetalhes.raw.id}`;
