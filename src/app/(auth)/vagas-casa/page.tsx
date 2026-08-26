@@ -10,6 +10,7 @@ import { VacancyBoard } from "../jobs/_components/vacancy-board";
 import { resolveVacancyBucket } from "../jobs/_components/vacancy-bucket";
 import { VacancyRoadmap } from "../jobs/_components/vacancy-roadmap";
 import { VacancyDispatchCell } from "../jobs/_components/vacancy-dispatch-cell";
+import { VacancyDocumentsCell } from "../jobs/_components/vacancy-documents-cell";
 import {
   useSendVacancyStageMessage,
   useVacancyOutreach,
@@ -356,6 +357,15 @@ export default function VagasCasaPage() {
     {
       header: "Horário",
       accessor: "horario" as const,
+      className: "hidden lg:table-cell",
+    },
+    {
+      // MESMAS pastilhas de Empresa (Contrato · Recibo · RPA · NF-e). A API do
+      // Casa já manda `documents`; sem a coluna o painel não mostrava nada.
+      header: "Documentos",
+      accessor: (row: Row) => (
+        <VacancyDocumentsCell documents={row.raw.documents} detail={row.raw.documentsDetail} />
+      ),
       className: "hidden lg:table-cell",
     },
     {
