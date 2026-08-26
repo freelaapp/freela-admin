@@ -14,15 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Loader2, Pause, Play, Plus, Square } from "lucide-react";
+import { AlertTriangle, FileSpreadsheet, Loader2, Pause, Play, Plus, Square } from "lucide-react";
 import { toast } from "sonner";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { formatInstantDate } from "@/lib/date.utils";
 import {
-  useCampaign,
   useCampaignPreview,
-  useCampaignRecipients,
   useCampaigns,
   useAudienceOptions,
   useCreateCampaign,
@@ -33,25 +31,10 @@ import type {
   AudienceFilters,
   Campaign,
   CampaignAudience,
-  CampaignRecipient,
-  CampaignStatus,
 } from "@/modules/admin/infrastructure/referrals-api";
-
-const STATUS_LABEL: Record<CampaignStatus, string> = {
-  DRAFT: "Rascunho",
-  RUNNING: "Disparando",
-  PAUSED: "Pausada",
-  COMPLETED: "Concluída",
-  CANCELLED: "Cancelada",
-};
-
-const STATUS_CLASS: Record<CampaignStatus, string> = {
-  DRAFT: "bg-neutral-200 text-neutral-700",
-  RUNNING: "bg-emerald-100 text-emerald-800",
-  PAUSED: "bg-amber-100 text-amber-800",
-  COMPLETED: "bg-blue-100 text-blue-800",
-  CANCELLED: "bg-neutral-200 text-neutral-500",
-};
+import { CampaignStatusBadge } from "./_components/campaign-status-badge";
+import { ExternalListDialog } from "./_components/external-list-dialog";
+import { CampaignDetailDialog } from "./_components/campaign-detail-dialog";
 
 /** Os quatro recortes que a API monta. Freelancer estava só no backend. */
 const AUDIENCE_LABELS: Record<CampaignAudience, string> = {
@@ -60,6 +43,12 @@ const AUDIENCE_LABELS: Record<CampaignAudience, string> = {
   PROVIDERS_NEVER_APPLIED: "Freelancers que nunca se candidataram",
   PROVIDERS_DORMANT_90D: "Freelancers sem se candidatar há mais de 90 dias",
 };
+
+/** Rótulo curto da origem para a lista (planilha ou recorte da base). */
+function audienceShortLabel(row: Campaign): string {
+  if (row.audience === "EXTERNAL_LIST") return `Planilha${row.listFileName ? ` · ${row.listFileName}` : ""}`;
+  return AUDIENCE_LABELS[row.audience as CampaignAudience] ?? row.audience;
+}
 
 const MODULE_LABELS: Record<"bars-restaurants" | "home-services", string> = {
   "bars-restaurants": "Empresa (bares e restaurantes)",
@@ -113,10 +102,9 @@ export default function CampanhasPage() {
   const setState = useSetCampaignState();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const detail = useCampaign(selectedId);
-  const recipients = useCampaignRecipients(selectedId, { pageSize: 100 });
 
   const [creating, setCreating] = useState(false);
+  const [creatingFromSheet, setCreatingFromSheet] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM);
   // Só busca as cidades com o formulário aberto: a chamada monta a audiência
   // inteira no backend.
@@ -177,18 +165,24 @@ export default function CampanhasPage() {
     {
       header: "Campanha",
       accessor: (row: Campaign) => (
-        <button className="text-left font-medium underline" onClick={() => setSelectedId(row.id)}>
-          {row.name}
-        </button>
+        <div className="flex flex-col gap-0.5">
+          <button
+            className="text-left font-medium underline"
+            onClick={() => setSelectedId(row.id)}
+            data-testid={`open-campaign-${row.id}`}
+          >
+            {row.name}
+          </button>
+          <span className="text-[11px] text-[#737373]">
+            {audienceShortLabel(row)}
+            {row.createdBy?.name && ` · por ${row.createdBy.name}`}
+          </span>
+        </div>
       ),
     },
     {
       header: "Status",
-      accessor: (row: Campaign) => (
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[row.status]}`}>
-          {STATUS_LABEL[row.status]}
-        </span>
-      ),
+      accessor: (row: Campaign) => <CampaignStatusBadge status={row.status} />,
     },
     { header: "Destinatários", accessor: (row: Campaign) => row._count?.recipients ?? 0 },
     {
@@ -260,33 +254,24 @@ export default function CampanhasPage() {
     },
   ];
 
-  const recipientColumns = [
-    { header: "Nome", accessor: (row: CampaignRecipient) => row.displayName ?? "—" },
-    { header: "Cidade", accessor: (row: CampaignRecipient) => row.city ?? "—" },
-    { header: "Canal", accessor: (row: CampaignRecipient) => row.channel },
-    { header: "Destino", accessor: (row: CampaignRecipient) => row.destination },
-    { header: "Status", accessor: (row: CampaignRecipient) => row.status },
-    {
-      header: "Enviado",
-      accessor: (row: CampaignRecipient) => (row.sentAt ? formatInstantDate(row.sentAt) : "—"),
-    },
-    {
-      header: "Erro",
-      accessor: (row: CampaignRecipient) => (
-        <span className="text-xs text-red-600">{row.failureReason ?? ""}</span>
-      ),
-    },
-  ];
-
   return (
     <div>
       <PageHeader
         title="Campanhas de ativação"
         description="Disparo para contratantes parados — WhatsApp com ritmo controlado, e-mail para quem não tem telefone."
         action={
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="mr-1 h-4 w-4" /> Nova campanha
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setCreatingFromSheet(true)}
+              data-testid="new-sheet-campaign"
+            >
+              <FileSpreadsheet className="mr-1 h-4 w-4" /> Nova campanha por planilha
+            </Button>
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="mr-1 h-4 w-4" /> Nova campanha
+            </Button>
+          </div>
         }
       />
 
@@ -654,35 +639,19 @@ export default function CampanhasPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(selectedId)} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{detail.data?.campaign.name ?? "Campanha"}</DialogTitle>
-            <DialogDescription>
-              {detail.data && (
-                <>
-                  {detail.data.stats.SENT} enviadas · {detail.data.stats.PENDING} na fila ·{" "}
-                  {detail.data.stats.FAILED} falharam · {detail.data.byChannel.WHATSAPP} por
-                  WhatsApp, {detail.data.byChannel.EMAIL} por e-mail.
-                  {detail.data.stats.PENDING > 0 && (
-                    <>
-                      {" "}
-                      Restam ~{detail.data.estimate.days} dia(s) úteis a{" "}
-                      {detail.data.estimate.perDay}/dia.
-                    </>
-                  )}
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DataTable
-            columns={recipientColumns}
-            data={recipients.data?.items ?? []}
-            isFetching={recipients.isFetching}
-            searchPlaceholder="Buscar destinatário…"
-          />
-        </DialogContent>
-      </Dialog>
+      <ExternalListDialog
+        open={creatingFromSheet}
+        onOpenChange={setCreatingFromSheet}
+        onCreated={(created) => {
+          toast.success(
+            `Campanha criada com ${created.stats.PENDING} destinatários — ${created.estimate.days} dia(s) úteis no ritmo escolhido.`,
+          );
+          setCreatingFromSheet(false);
+          setSelectedId(created.campaign.id);
+        }}
+      />
+
+      <CampaignDetailDialog campaignId={selectedId} onClose={() => setSelectedId(null)} />
     </div>
   );
 }

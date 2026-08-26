@@ -124,12 +124,25 @@ export async function cancelReward(id: string, reason: string): Promise<RewardIt
 export type CampaignStatus = "DRAFT" | "RUNNING" | "PAUSED" | "COMPLETED" | "CANCELLED";
 export type RecipientStatus = "PENDING" | "SENT" | "FAILED" | "SKIPPED";
 
+/** Admin que criou/disparou/marcou — vem da API desde a campanha por planilha. */
+export interface AdminRef {
+  id: string;
+  name: string | null;
+}
+
+/** Audiência de lista externa: contatos vêm de uma planilha, não da base. */
+export const EXTERNAL_LIST_AUDIENCE = "EXTERNAL_LIST" as const;
+
 export interface Campaign {
   id: string;
   name: string;
   status: CampaignStatus;
   audience: string;
   audienceNote: string | null;
+  /** Nome do arquivo subido (só campanha por planilha). */
+  listFileName?: string | null;
+  createdBy?: AdminRef | null;
+  startedBy?: AdminRef | null;
   messagesPerHour: number;
   dailyCap: number;
   windowStartHour: number;
@@ -148,6 +161,16 @@ export interface Campaign {
   stats?: Record<RecipientStatus, number>;
 }
 
+/** Contagens do detalhe. `contacted`/`registered` só existem desde a lista externa. */
+export interface CampaignCounts {
+  total: number;
+  sent: number;
+  failed: number;
+  pending: number;
+  contacted: number;
+  registered: number;
+}
+
 export interface CampaignDetail {
   campaign: Campaign;
   stats: Record<RecipientStatus, number>;
@@ -155,6 +178,38 @@ export interface CampaignDetail {
   total: number;
   /** Quantas por dia e quantos dias úteis a fila pendente ainda leva. */
   estimate: { perDay: number; days: number };
+  /** Contagens já consolidadas (API nova). Ausente em versão antiga da API. */
+  counts?: Partial<CampaignCounts>;
+  contacted?: number;
+  registered?: number;
+  /** A API resolve os admins no detalhe (raiz), não dentro de `campaign`. */
+  createdBy?: AdminRef | null;
+  startedBy?: AdminRef | null;
+}
+
+/**
+ * Contagens do detalhe independentemente da versão da API: usa `counts` se
+ * veio, senão compõe a partir de `stats` (que sempre existiu).
+ */
+export function getCampaignCounts(detail: CampaignDetail): CampaignCounts {
+  const c = detail.counts ?? {};
+  return {
+    total: c.total ?? detail.total ?? 0,
+    sent: c.sent ?? detail.stats?.SENT ?? 0,
+    failed: c.failed ?? detail.stats?.FAILED ?? 0,
+    pending: c.pending ?? detail.stats?.PENDING ?? 0,
+    contacted: c.contacted ?? detail.contacted ?? 0,
+    registered: c.registered ?? detail.registered ?? 0,
+  };
+}
+
+export interface RecipientRegistration {
+  userId: string;
+  registeredAt: string;
+  /** Tipo de conta que a pessoa criou (freelancer/contratante…). */
+  role: string;
+  /** Cadastrou DEPOIS do disparo — o que a campanha pode reivindicar. */
+  afterCampaign?: boolean;
 }
 
 export interface CampaignRecipient {
@@ -167,6 +222,53 @@ export interface CampaignRecipient {
   attempts: number;
   sentAt: string | null;
   failureReason: string | null;
+  // ── Campos da lista externa / acompanhamento (API desde 26/08/2026) ──
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  /** Operador marcou "conseguiu contato". */
+  contactedAt?: string | null;
+  contactedBy?: AdminRef | null;
+  contactNote?: string | null;
+  /** A pessoa criou conta depois do disparo. */
+  registered?: RecipientRegistration | null;
+}
+
+export interface RecipientListParams {
+  status?: RecipientStatus;
+  contacted?: boolean;
+  registered?: boolean;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Linha da planilha como vai para a API (sem número da linha). */
+export interface ExternalContact {
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface ExternalListPreview {
+  total?: number;
+  valid: number;
+  /** `row` é a posição (1-based) no array `contacts` enviado. */
+  invalid: Array<{ row: number; reason: string }>;
+  duplicates: number;
+  /** Quantos já têm conta — ou, se a API mandar, quais (posições 1-based). */
+  alreadyRegistered: number | Array<{ row: number }>;
+  byChannel: { whatsapp: number; email: number };
+}
+
+/** Normaliza `alreadyRegistered` (número OU lista) para contagem + posições. */
+export function readAlreadyRegistered(preview: ExternalListPreview): {
+  count: number;
+  rows: number[] | null;
+} {
+  const value = preview.alreadyRegistered;
+  if (Array.isArray(value)) return { count: value.length, rows: value.map((r) => r.row) };
+  return { count: value ?? 0, rows: null };
 }
 
 /**
@@ -196,9 +298,18 @@ export interface AudienceOption {
 
 export interface CreateCampaignPayload {
   name: string;
-  audience: CampaignAudience;
+  audience: CampaignAudience | typeof EXTERNAL_LIST_AUDIENCE;
   audienceFilters?: AudienceFilters;
   audienceNote?: string;
+  /** Só com `audience: EXTERNAL_LIST`. */
+  contacts?: ExternalContact[];
+  listFileName?: string;
+  /**
+   * Texto do WhatsApp com `{{nome}}`/`{{primeiro_nome}}`. Até 3 variantes
+   * separadas por uma linha `---`; rodam alternadas. Obrigatório na lista
+   * externa (o padrão da API fala de "seu cadastro").
+   */
+  whatsappTemplate?: string;
   messagesPerHour?: number;
   dailyCap?: number;
   windowStartHour?: number;
@@ -221,10 +332,61 @@ export async function getCampaign(id: string): Promise<CampaignDetail> {
 
 export async function getCampaignRecipients(
   id: string,
-  params: { status?: RecipientStatus; page?: number; pageSize?: number },
+  params: RecipientListParams,
 ): Promise<Paginated<CampaignRecipient>> {
-  const res = await adminsRootApi.get(`/activation-campaigns/${id}/recipients`, { params });
+  // Só manda o que está preenchido: a API recusa chave desconhecida/vazia
+  // (ValidationPipe com forbidNonWhitelisted), e `q=""` não é filtro.
+  const query: Record<string, string | number | boolean> = {};
+  if (params.status) query.status = params.status;
+  if (params.contacted !== undefined) query.contacted = params.contacted;
+  if (params.registered !== undefined) query.registered = params.registered;
+  if (params.q?.trim()) query.q = params.q.trim();
+  if (params.page) query.page = params.page;
+  if (params.pageSize) query.pageSize = params.pageSize;
+  const res = await adminsRootApi.get(`/activation-campaigns/${id}/recipients`, {
+    params: query,
+  });
   return res.data.data;
+}
+
+/** Valida a planilha na API sem criar nada. Máx. 5.000 contatos. */
+export async function previewExternalList(
+  contacts: ExternalContact[],
+): Promise<ExternalListPreview> {
+  const res = await adminsRootApi.post("/activation-campaigns/external-list/preview", {
+    contacts,
+  });
+  return res.data.data;
+}
+
+/** Marca/desmarca "conseguiu contato" com nota; a API grava quem marcou. */
+export async function setRecipientContact(
+  campaignId: string,
+  recipientId: string,
+  payload: { contacted: boolean; note?: string },
+): Promise<CampaignRecipient> {
+  const res = await adminsRootApi.patch(
+    `/activation-campaigns/${campaignId}/recipients/${recipientId}/contact`,
+    payload,
+  );
+  return res.data.data;
+}
+
+/** CSV pronto da API (todas as linhas, sem paginação), com os mesmos filtros da tela. */
+export async function exportCampaignRecipientsCsv(
+  campaignId: string,
+  filters: Omit<RecipientListParams, "page" | "pageSize"> = {},
+): Promise<Blob> {
+  const query: Record<string, string | boolean> = {};
+  if (filters.status) query.status = filters.status;
+  if (filters.contacted !== undefined) query.contacted = filters.contacted;
+  if (filters.registered !== undefined) query.registered = filters.registered;
+  if (filters.q?.trim()) query.q = filters.q.trim();
+  const res = await adminsRootApi.get(`/activation-campaigns/${campaignId}/recipients/export`, {
+    params: query,
+    responseType: "blob",
+  });
+  return res.data as Blob;
 }
 
 export async function previewCampaignMessages(payload: {
