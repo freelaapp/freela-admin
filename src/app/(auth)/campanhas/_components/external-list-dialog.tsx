@@ -35,7 +35,15 @@ import {
   readAlreadyRegistered,
   type CampaignDetail,
   type ExternalListPreview,
+  type RegisteredRole,
 } from "@/modules/admin/infrastructure/referrals-api";
+
+const ROLE_LABEL: Record<RegisteredRole, string> = {
+  provider: "freelancer",
+  contractor: "contratante",
+  both: "freelancer e contratante",
+  unknown: "conta",
+};
 
 /** Teto da API por chamada. */
 const MAX_CONTACTS = 5000;
@@ -141,7 +149,9 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
   const [parsing, setParsing] = useState(false);
   const [mapping, setMapping] = useState<ColumnMapping>({ name: null, phone: null, email: null });
   const [preview, setPreview] = useState<ExternalListPreview | null>(null);
-  const [skipRegistered, setSkipRegistered] = useState(false);
+  // Marcado por padrão: lista fria é para quem NÃO conhece a plataforma;
+  // mandar "vem conhecer" para quem já tem conta é o que gera denúncia.
+  const [skipRegistered, setSkipRegistered] = useState(true);
   const [variants, setVariants] = useState<string[]>(DEFAULT_VARIANTS);
   const [rhythm, setRhythm] = useState(DEFAULT_RHYTHM);
   const [showAllInvalid, setShowAllInvalid] = useState(false);
@@ -156,22 +166,24 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
   const hasSource = mapping.phone != null || mapping.email != null;
 
   const registered = preview ? readAlreadyRegistered(preview) : null;
-  // Só dá para pular quem já tem cadastro se a API disser QUAIS linhas são.
-  // Hoje ela manda a contagem; com a lista, o checkbox aparece sozinho.
-  const registeredRows = registered?.rows ? new Set(registered.rows) : null;
-  const canSkipRegistered = registeredRows !== null && (registered?.count ?? 0) > 0;
+  // Só dá para pular quem já tem cadastro se a API disser QUAIS linhas são
+  // (versão antiga mandava só a contagem: aí avisa, mas não pula).
+  const canSkipRegistered = registered?.rows !== null && (registered?.count ?? 0) > 0;
+  const skipping = skipRegistered && canSkipRegistered;
 
   /** Quantos de fato vão para a campanha. */
   const willSend = preview
-    ? Math.max(0, preview.valid - (skipRegistered && canSkipRegistered ? (registered?.count ?? 0) : 0))
+    ? Math.max(0, preview.valid - (skipping ? (registered?.count ?? 0) : 0))
     : 0;
+  // A API responderia EMPTY_AUDIENCE; melhor barrar aqui com explicação.
+  const allRegistered = Boolean(preview) && skipping && willSend === 0;
 
   const reset = () => {
     setName("");
     setSheet(null);
     setMapping({ name: null, phone: null, email: null });
     setPreview(null);
-    setSkipRegistered(false);
+    setSkipRegistered(true);
     setVariants(DEFAULT_VARIANTS);
     setRhythm(DEFAULT_RHYTHM);
     setShowAllInvalid(false);
@@ -217,14 +229,15 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
   const handleCreate = async () => {
     if (!sheet || !preview) return;
     try {
-      const toSend = registeredRows && skipRegistered
-        ? contacts.filter((_c, index) => !registeredRows.has(index + 1))
-        : contacts;
+      // Quem pula é a API (`skipRegistered`): ela cruza de novo com `users`
+      // na hora de criar e deixa o rastro em `audienceFilters`. Filtrar aqui
+      // mandaria uma lista já recortada, sem registro do que ficou de fora.
       const created = await createCampaign.mutateAsync({
         name: name.trim(),
         audience: EXTERNAL_LIST_AUDIENCE,
-        contacts: toApiContacts(toSend),
+        contacts: toApiContacts(contacts),
         listFileName: sheet.fileName,
+        skipRegistered: skipping,
         whatsappTemplate: variants
           .map((v) => normalizeTemplatePlaceholders(v).trim())
           .filter(Boolean)
@@ -251,6 +264,7 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
     Boolean(name.trim()) &&
     Boolean(preview) &&
     willSend > 0 &&
+    !allRegistered &&
     !tooMany &&
     variants.some((v) => v.trim()) &&
     !createCampaign.isPending;
@@ -470,21 +484,54 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
                     )}
 
                     {canSkipRegistered && (
-                      <label className="flex items-start gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          data-testid="skip-registered"
-                          className="mt-0.5"
-                          checked={skipRegistered}
-                          onChange={(event) => setSkipRegistered(event.target.checked)}
-                        />
-                        <span>
-                          Pular quem já tem cadastro ({registered?.count}).{" "}
-                          <span className="text-neutral-500">
-                            Desmarcado, eles recebem a mensagem mesmo assim.
+                      <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/60 p-2">
+                        <label className="flex items-start gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            data-testid="skip-registered"
+                            className="mt-0.5"
+                            checked={skipRegistered}
+                            onChange={(event) => setSkipRegistered(event.target.checked)}
+                          />
+                          <span>
+                            Pular quem já tem cadastro ({registered?.count}).{" "}
+                            <span className="text-neutral-500">
+                              Desmarcado, eles recebem a mensagem mesmo assim.
+                            </span>
                           </span>
-                        </span>
-                      </label>
+                        </label>
+                        <ul
+                          className="max-h-32 space-y-0.5 overflow-y-auto pl-6 text-xs text-neutral-700"
+                          data-testid="registered-rows"
+                        >
+                          {(registered?.rows ?? []).map((item) => {
+                            const contact = contacts[item.row - 1];
+                            return (
+                              <li key={`${item.row}-${item.userId}`}>
+                                <span className="font-mono text-neutral-500">
+                                  linha {contact?.line ?? item.row}
+                                </span>{" "}
+                                — {contact?.name || contact?.phone || contact?.email || "(sem nome)"}
+                                <span className="text-neutral-500">
+                                  {" "}
+                                  · já é {ROLE_LABEL[item.role] ?? item.role}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+
+                    {allRegistered && (
+                      <div
+                        className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800"
+                        data-testid="all-registered"
+                      >
+                        Todos os contatos válidos já têm cadastro — com “pular” marcado, a
+                        campanha ficaria vazia. Desmarque para enviar mesmo assim, ou troque a
+                        planilha.
+                      </div>
                     )}
 
                     {preview.invalid.length > 0 && (

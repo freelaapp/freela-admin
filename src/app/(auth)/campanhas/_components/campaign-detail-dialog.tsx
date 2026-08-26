@@ -44,12 +44,14 @@ const RECIPIENT_STATUS_LABEL: Record<RecipientStatus, string> = {
   SKIPPED: "Pulado",
 };
 
+/** `role` da API: provider | contractor | both | unknown. */
 const ROLE_LABEL: Record<string, string> = {
-  FREELANCER: "freelancer",
   PROVIDER: "freelancer",
+  FREELANCER: "freelancer",
   CONTRACTOR: "contratante",
   CONTRATANTE: "contratante",
-  BOTH: "os dois",
+  BOTH: "freelancer e contratante",
+  UNKNOWN: "conta",
 };
 
 type TriState = "" | "yes" | "no";
@@ -196,14 +198,17 @@ function ContactCell({
 function RegisteredCell({ row }: { row: CampaignRecipient }) {
   if (!row.registered) return <span className="text-neutral-400">—</span>;
   const role = ROLE_LABEL[row.registered.role?.toUpperCase?.() ?? ""] ?? row.registered.role;
+  // Só o cadastro DEPOIS do disparo é resultado da campanha; quem já tinha
+  // conta aparece em cinza para não inflar a leitura.
+  const after = row.registered.afterCampaign === true;
   return (
-    <span className="inline-flex flex-col text-xs text-emerald-700">
+    <span className={`inline-flex flex-col text-xs ${after ? "text-emerald-700" : "text-neutral-600"}`}>
       <span className="inline-flex items-center gap-1">
-        <CheckCircle2 className="h-3.5 w-3.5" /> Cadastrou
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        {after ? "Cadastrou depois da campanha" : "Já tinha conta"}
       </span>
       <span className="text-[11px] text-neutral-500">
         {formatInstantDateTime(row.registered.registeredAt)} · {role}
-        {row.registered.afterCampaign === false && " · já tinha conta"}
       </span>
     </span>
   );
@@ -381,7 +386,17 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
             <CountCard icon={XCircle} label="Falharam" value={counts.failed} tone={counts.failed ? "text-red-700" : undefined} />
             <CountCard icon={Clock} label="Pendentes" value={counts.pending} />
             <CountCard icon={UserCheck} label="Contato" value={counts.contacted} tone="text-[#eca826]" />
-            <CountCard icon={UserPlus} label="Cadastro" value={counts.registered} tone="text-blue-700" />
+            <CountCard
+              icon={UserPlus}
+              label="Cadastro"
+              value={counts.registered}
+              tone="text-blue-700"
+              meta={
+                counts.registeredAfterCampaign !== undefined
+                  ? `${counts.registeredAfterCampaign} depois da campanha`
+                  : undefined
+              }
+            />
           </div>
         )}
 
@@ -491,11 +506,13 @@ function CountCard({
   label,
   value,
   tone,
+  meta,
 }: {
   icon: React.ElementType;
   label: string;
   value: number;
   tone?: string;
+  meta?: string;
 }) {
   return (
     <Card className="flex flex-col gap-0.5 p-3">
@@ -504,6 +521,7 @@ function CountCard({
         {label}
       </span>
       <span className={`text-xl font-bold tabular-nums ${tone ?? "text-[#1d1d1b]"}`}>{value}</span>
+      {meta && <span className="text-[11px] text-[#737373]">{meta}</span>}
     </Card>
   );
 }

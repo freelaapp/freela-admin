@@ -169,6 +169,8 @@ export interface CampaignCounts {
   pending: number;
   contacted: number;
   registered: number;
+  /** Dos cadastrados, quantos criaram conta DEPOIS do disparo. */
+  registeredAfterCampaign?: number;
 }
 
 export interface CampaignDetail {
@@ -200,6 +202,7 @@ export function getCampaignCounts(detail: CampaignDetail): CampaignCounts {
     pending: c.pending ?? detail.stats?.PENDING ?? 0,
     contacted: c.contacted ?? detail.contacted ?? 0,
     registered: c.registered ?? detail.registered ?? 0,
+    registeredAfterCampaign: c.registeredAfterCampaign,
   };
 }
 
@@ -250,25 +253,39 @@ export interface ExternalContact {
   email?: string;
 }
 
+export type RegisteredRole = "provider" | "contractor" | "both" | "unknown";
+
+export interface AlreadyRegisteredRow {
+  /** Posição (1-based) no array `contacts` enviado. */
+  row: number;
+  userId: string;
+  role: RegisteredRole;
+}
+
 export interface ExternalListPreview {
   total?: number;
   valid: number;
   /** `row` é a posição (1-based) no array `contacts` enviado. */
   invalid: Array<{ row: number; reason: string }>;
   duplicates: number;
-  /** Quantos já têm conta — ou, se a API mandar, quais (posições 1-based). */
-  alreadyRegistered: number | Array<{ row: number }>;
+  /** Quantos já têm conta (contagem). */
+  alreadyRegistered: number;
+  /** Quais já têm conta — API desde 26/08/2026. */
+  alreadyRegisteredRows?: AlreadyRegisteredRow[];
   byChannel: { whatsapp: number; email: number };
 }
 
-/** Normaliza `alreadyRegistered` (número OU lista) para contagem + posições. */
+/**
+ * Contagem + linhas de quem já tem conta. `rows` é `null` quando a API não
+ * mandou a lista (versão antiga): aí dá para avisar, mas não para pular.
+ */
 export function readAlreadyRegistered(preview: ExternalListPreview): {
   count: number;
-  rows: number[] | null;
+  rows: AlreadyRegisteredRow[] | null;
 } {
-  const value = preview.alreadyRegistered;
-  if (Array.isArray(value)) return { count: value.length, rows: value.map((r) => r.row) };
-  return { count: value ?? 0, rows: null };
+  const rows = preview.alreadyRegisteredRows;
+  if (Array.isArray(rows)) return { count: preview.alreadyRegistered ?? rows.length, rows };
+  return { count: preview.alreadyRegistered ?? 0, rows: null };
 }
 
 /**
@@ -310,6 +327,11 @@ export interface CreateCampaignPayload {
    * externa (o padrão da API fala de "seu cadastro").
    */
   whatsappTemplate?: string;
+  /**
+   * Lista externa: descarta na criação quem já tem conta (telefone E.164 ou
+   * e-mail em `users`). Se sobrar ninguém, a API responde `EMPTY_AUDIENCE`.
+   */
+  skipRegistered?: boolean;
   messagesPerHour?: number;
   dailyCap?: number;
   windowStartHour?: number;
