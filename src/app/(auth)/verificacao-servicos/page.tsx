@@ -22,14 +22,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Loader2, RefreshCw, Star, UserCheck } from "lucide-react";
+import { AlertTriangle, Loader2, MessagesSquare, RefreshCw, Send, Star, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
+import { useAuth } from "@/modules/auth/application/use-auth";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { formatInstantDateTime } from "@/lib/date.utils";
 import {
   useAttendanceFlows,
   useResolveAttendance,
+  useSendAdminAlertTest,
   useSystemHealth,
 } from "@/modules/admin/application/use-admin-system-health";
 import {
@@ -40,12 +42,14 @@ import {
   toneClasses,
   type HealthTone,
 } from "@/modules/admin/application/system-health-presentation";
-import type {
-  AttendanceFlowItem,
-  AttendanceOutcome,
-  ChannelHealth,
-  ProviderHealth,
-  SchedulerHealth,
+import {
+  describeAlertTest,
+  type AdminAlertChannelStatus,
+  type AttendanceFlowItem,
+  type AttendanceOutcome,
+  type ChannelHealth,
+  type ProviderHealth,
+  type SchedulerHealth,
 } from "@/modules/admin/infrastructure/system-health-api";
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -120,6 +124,73 @@ function ChannelCard({ canal }: { canal: ChannelHealth }) {
           {canal.lastFailure.error ?? "sem detalhe do erro"}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Para onde vão os avisos da equipe (vaga nova, assinatura, suporte). Verde =
+ * grupo achado no WhatsApp; vermelho = grupo configurado mas não resolvido;
+ * amarelo = caminho antigo por telefones pessoais.
+ */
+function AdminAlertChannelCard({ canal }: { canal: AdminAlertChannelStatus }) {
+  const { isSuperAdmin } = useAuth();
+  const teste = useSendAdminAlertTest();
+
+  const porGrupo = canal.mode === "group" && canal.group !== null;
+  const tone: HealthTone = porGrupo ? (canal.group?.resolved ? "ok" : "down") : "warn";
+  const rotulo = porGrupo ? "Grupo de WhatsApp" : "Telefones pessoais";
+  const badge = porGrupo ? (canal.group?.resolved ? "Operando" : "Grupo não encontrado") : "Caminho antigo";
+
+  const enviarTeste = async () => {
+    try {
+      const resultado = await teste.mutateAsync();
+      const { tone: resultadoTone, message } = describeAlertTest(resultado);
+      if (resultadoTone === "success") toast.success(message);
+      else if (resultadoTone === "warning") toast.warning(message);
+      else toast.error(message);
+    } catch (error) {
+      toast.error(getAxiosErrorMessage(error, "Não foi possível enviar o teste."));
+    }
+  };
+
+  return (
+    <div className={`rounded-lg border p-4 ${toneClasses(tone).card}`} data-testid="admin-alert-channel">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 font-semibold">
+          <MessagesSquare className="h-4 w-4" />
+          Avisos internos (equipe)
+        </p>
+        <Badge variant={BADGE_VARIANT[tone]}>{badge}</Badge>
+      </div>
+      <p className="text-lg font-bold leading-tight" style={{ fontFamily: "var(--font-display)" }}>
+        {rotulo}
+        {porGrupo ? (
+          <span className="ml-1 font-normal">&ldquo;{canal.group?.name}&rdquo;</span>
+        ) : (
+          <span className="ml-1 font-normal tabular-nums">({canal.phones})</span>
+        )}
+      </p>
+      <p className="mt-1 text-xs opacity-80">
+        {porGrupo
+          ? canal.group?.resolved
+            ? "Vaga nova, assinatura e suporte caem neste grupo."
+            : (canal.group?.error ?? "O nome configurado em ADMIN_ALERT_GROUP não existe no WhatsApp.")
+          : canal.phones > 0
+            ? "Cada aviso vira uma mensagem por pessoa. Configure ADMIN_ALERT_GROUP para mandar ao grupo."
+            : "Nenhum telefone nas envs *_ALERT_PHONES. Configure ADMIN_ALERT_GROUP para mandar ao grupo."}
+      </p>
+      <Button
+        size="sm"
+        variant="outline"
+        className="mt-3 w-full bg-white/70"
+        onClick={enviarTeste}
+        disabled={teste.isPending || !isSuperAdmin}
+        title={isSuperAdmin ? "Manda \"Teste do canal de avisos da Freela\" pelo caminho real" : "Só o Super Admin pode disparar o teste"}
+      >
+        {teste.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+        Enviar teste
+      </Button>
     </div>
   );
 }
@@ -362,6 +433,7 @@ export default function VerificacaoServicosPage() {
             {dados.channels.map((canal) => (
               <ChannelCard key={canal.channel} canal={canal} />
             ))}
+            {dados.adminAlertChannel && <AdminAlertChannelCard canal={dados.adminAlertChannel} />}
           </div>
 
           {/* Nota + presença */}

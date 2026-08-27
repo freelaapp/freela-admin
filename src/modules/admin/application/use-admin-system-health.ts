@@ -5,6 +5,7 @@ import {
   getAttendanceFlows,
   getSystemHealth,
   resolveAttendanceFlow,
+  sendAdminAlertTest,
   type ResolveAttendanceInput,
 } from "../infrastructure/system-health-api";
 
@@ -41,6 +42,18 @@ export function useResolveAttendance() {
     onSuccess: () => {
       // A decisão muda os dois: some da lista e mexe nas contagens do painel.
       queryClient.invalidateQueries({ queryKey: ATTENDANCE_KEY });
+      queryClient.invalidateQueries({ queryKey: HEALTH_KEY });
+    },
+  });
+}
+
+/** Dispara a mensagem de teste do canal de avisos internos (SUPER_ADMIN). */
+export function useSendAdminAlertTest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: sendAdminAlertTest,
+    onSuccess: () => {
+      // O teste resolve o grupo de novo: o card pode mudar de cor.
       queryClient.invalidateQueries({ queryKey: HEALTH_KEY });
     },
   });
