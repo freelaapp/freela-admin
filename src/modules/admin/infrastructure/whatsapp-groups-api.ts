@@ -35,6 +35,8 @@ export async function createWhatsappGroup(input: {
   city: string;
   uf: string;
   participants: string[];
+  /** Nº do grupo da mesma cidade (2, 3…) — vira " #N" no nome. */
+  sequence?: number;
 }): Promise<CreatedWhatsappGroup> {
   const res = await whatsappApi.post("/groups", input);
   return res.data.data;

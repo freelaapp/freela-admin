@@ -55,6 +55,8 @@ export default function GruposWhatsappPage() {
   const [open, setOpen] = useState(false);
   const [city, setCity] = useState("");
   const [uf, setUf] = useState("");
+  // Grupo 2, 3… da mesma cidade (o 1º encheu — WhatsApp limita 1024 membros).
+  const [sequence, setSequence] = useState("");
   const [participants, setParticipants] = useState("");
 
   const [addOpen, setAddOpen] = useState(false);
@@ -73,9 +75,10 @@ export default function GruposWhatsappPage() {
   const offPattern = groups?.filter((g) => !g.recognized).length ?? 0;
   const rows = (groups ?? []).map((g) => ({ ...g, id: g.jid }));
 
+  const sequenceNumber = /^\d+$/.test(sequence.trim()) ? Number(sequence.trim()) : null;
   const previewName =
     city.trim() && uf.trim()
-      ? `Vagas Freela ${city.trim()} ${uf.trim().toUpperCase()}`
+      ? `Vagas Freela ${city.trim()} ${uf.trim().toUpperCase()}${sequenceNumber && sequenceNumber >= 2 ? ` #${sequenceNumber}` : ""}`
       : null;
 
   const closeModal = () => {
@@ -106,6 +109,7 @@ export default function GruposWhatsappPage() {
         city: cleanCity,
         uf: cleanUf,
         participants: parsedParticipants,
+        ...(sequenceNumber && sequenceNumber >= 2 ? { sequence: sequenceNumber } : {}),
       });
       toast.success(`Grupo "${group.name}" criado.`);
       closeModal();
@@ -282,6 +286,20 @@ export default function GruposWhatsappPage() {
                   onChange={(e) => setUf(e.target.value.toUpperCase())}
                   placeholder="SP"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wpp-sequence">Nº do grupo (opcional)</Label>
+                <Input
+                  id="wpp-sequence"
+                  value={sequence}
+                  inputMode="numeric"
+                  maxLength={2}
+                  onChange={(e) => setSequence(e.target.value.replace(/\D/g, ""))}
+                  placeholder="2"
+                />
+                <p className="text-[11px] text-slate-500">
+                  Use 2, 3… quando o grupo 1 da cidade encher: a vaga vai para todos os grupos da cidade.
+                </p>
               </div>
             </div>
             <div className="space-y-1.5">
