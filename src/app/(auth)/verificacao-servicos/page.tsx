@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -22,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Loader2, MessagesSquare, RefreshCw, Send, Star, UserCheck } from "lucide-react";
+import { AlertTriangle, Loader2, MessagesSquare, RefreshCw, Send, Smartphone, Star, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { useAuth } from "@/modules/auth/application/use-auth";
@@ -34,6 +35,15 @@ import {
   useSendAdminAlertTest,
   useSystemHealth,
 } from "@/modules/admin/application/use-admin-system-health";
+import {
+  useSendWhatsAppChipTest,
+  useWhatsAppChips,
+} from "@/modules/admin/application/use-admin-whatsapp-chips";
+import {
+  chipStatus,
+  describeChipTest,
+  type WhatsAppChip,
+} from "@/modules/admin/infrastructure/whatsapp-chips-api";
 import {
   channelLabel,
   formatAgo,
@@ -191,6 +201,178 @@ function AdminAlertChannelCard({ canal }: { canal: AdminAlertChannelStatus }) {
         {teste.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
         Enviar teste
       </Button>
+    </div>
+  );
+}
+
+/** Número padrão do teste (suporte da Freela) — editável antes de disparar. */
+const DEFAULT_TEST_PHONE = "11915375766";
+
+/**
+ * Um número de WhatsApp: transacional (automáticas) ou campanha (tráfego pago).
+ * Verde = conectado; vermelho = desconectado; cinza = não configurado (a campanha
+ * cai no transacional). O botão abre um campo de telefone (default editável) e
+ * dispara 1 mensagem de teste PELO número do card.
+ */
+function WhatsAppChipCard({ chip }: { chip: WhatsAppChip }) {
+  const { isSuperAdmin } = useAuth();
+  const teste = useSendWhatsAppChipTest();
+  const [aberto, setAberto] = useState(false);
+  const [telefone, setTelefone] = useState(DEFAULT_TEST_PHONE);
+
+  const { tone, label } = chipStatus(chip);
+
+  const enviar = async () => {
+    if (!telefone.trim()) {
+      toast.error("Informe um telefone para o teste.");
+      return;
+    }
+    try {
+      const resultado = await teste.mutateAsync({ chip: chip.key, to: telefone });
+      const { tone: resultadoTone, message } = describeChipTest(resultado, chip.label);
+      if (resultadoTone === "success") {
+        toast.success(message);
+        setAberto(false);
+      } else {
+        toast.error(message);
+      }
+    } catch (error) {
+      toast.error(getAxiosErrorMessage(error, "Não foi possível enviar o teste."));
+    }
+  };
+
+  return (
+    <div
+      className={`rounded-lg border p-4 ${toneClasses(tone).card}`}
+      data-testid={`whatsapp-chip-${chip.key}`}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 font-semibold">
+          <Smartphone className="h-4 w-4" />
+          {chip.label}
+        </p>
+        <Badge variant={BADGE_VARIANT[tone]}>{label}</Badge>
+      </div>
+
+      <p className="text-lg font-bold leading-tight" style={{ fontFamily: "var(--font-display)" }}>
+        {chip.phone ? (
+          <span className="tabular-nums">{chip.phone}</span>
+        ) : (
+          <span className="font-normal opacity-70">
+            {chip.sameAsTransactional ? "Usa o número transacional" : "Sem número conectado"}
+          </span>
+        )}
+      </p>
+
+      <dl className="mt-2 space-y-1 text-xs">
+        <div className="flex justify-between gap-2">
+          <dt className="opacity-70">Instância</dt>
+          <dd className="font-mono">{chip.instanceIdMasked ?? "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt className="opacity-70">Transporte</dt>
+          <dd className="font-mono">{chip.provider}</dd>
+        </div>
+      </dl>
+
+      {chip.error && (
+        <p className="mt-2 truncate font-mono text-[11px] opacity-80" title={chip.error}>
+          {chip.error}
+        </p>
+      )}
+
+      <p className="mt-2 text-xs opacity-80">
+        {chip.key === "campaign"
+          ? chip.sameAsTransactional
+            ? "Sem número dedicado: campanhas saem pelo transacional. Configure os *_CAMPAIGN_* para separar."
+            : "Campanhas e prospecção (tráfego frio) saem por este número."
+          : "Códigos, confirmações, grupos e avisos internos saem por este número."}
+      </p>
+
+      {aberto ? (
+        <div className="mt-3 space-y-2">
+          <Label htmlFor={`teste-${chip.key}`} className="text-xs">
+            Enviar teste para (DDD + número)
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              id={`teste-${chip.key}`}
+              value={telefone}
+              onChange={(e) => setTelefone(e.target.value)}
+              placeholder="11999998888"
+              inputMode="tel"
+              disabled={teste.isPending}
+              className="bg-white/80"
+            />
+            <Button size="sm" onClick={enviar} disabled={teste.isPending}>
+              {teste.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <button
+            type="button"
+            className="text-xs underline opacity-70 hover:opacity-100"
+            onClick={() => setAberto(false)}
+            disabled={teste.isPending}
+          >
+            cancelar
+          </button>
+        </div>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-3 w-full bg-white/70"
+          onClick={() => setAberto(true)}
+          disabled={!isSuperAdmin}
+          title={
+            isSuperAdmin
+              ? "Dispara 1 mensagem de teste por este número"
+              : "Só o Super Admin pode disparar o teste"
+          }
+        >
+          <Send className="mr-2 h-4 w-4" />
+          Enviar teste
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Seção "Números de WhatsApp": os dois chips (transacional × campanha). */
+function WhatsAppChipsSection() {
+  const chips = useWhatsAppChips();
+  return (
+    <div>
+      <div className="mb-3">
+        <h2 className="font-semibold text-[#1d1d1b]">Números de WhatsApp</h2>
+        <p className="text-xs text-[#737373]">
+          A separação dos dois chips: transacional (automáticas — códigos, confirmações, grupos) e
+          campanha (tráfego pago). Teste cada um isoladamente.
+        </p>
+      </div>
+      {chips.isLoading ? (
+        <div className="flex h-24 items-center justify-center rounded-xl border border-[#e5e5e5] bg-white">
+          <Loader2 className="h-5 w-5 animate-spin text-[#eca826]" />
+        </div>
+      ) : chips.isError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          {getAxiosErrorMessage(chips.error, "Não foi possível carregar os números de WhatsApp.")}
+        </div>
+      ) : (chips.data ?? []).length === 0 ? (
+        <div className="rounded-lg border border-[#e5e5e5] bg-white p-4 text-sm text-[#737373]">
+          Nenhum chip retornado pela API.
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2" data-testid="whatsapp-chips">
+          {(chips.data ?? []).map((chip) => (
+            <WhatsAppChipCard key={chip.key} chip={chip} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -435,6 +617,9 @@ export default function VerificacaoServicosPage() {
             ))}
             {dados.adminAlertChannel && <AdminAlertChannelCard canal={dados.adminAlertChannel} />}
           </div>
+
+          {/* Números de WhatsApp (transacional × campanha) */}
+          <WhatsAppChipsSection />
 
           {/* Nota + presença */}
           <div className="grid gap-4 lg:grid-cols-2">
