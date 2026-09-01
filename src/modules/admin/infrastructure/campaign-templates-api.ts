@@ -23,17 +23,17 @@ export type CampaignTemplateAudience =
 export interface UpsertCampaignTemplatePayload {
   name: string;
   scheduleKind: CampaignScheduleKind;
-  /** 0=domingo..6=sábado. */
-  weekdays: number[];
-  /** 0-23. */
-  sendHour: number;
+  /** 0=domingo..6=sábado. Só com scheduleKind WEEKLY. */
+  weekdays?: number[];
+  /** 0-23. Só com scheduleKind WEEKLY. */
+  sendHour?: number;
   /** 1-12, só com scheduleKind DATED. */
   targetMonth?: number;
   /** 1-31, só com scheduleKind DATED. */
   targetDay?: number;
   targetYear?: number;
-  /** 0-60. */
-  leadDays: number;
+  /** 0-60. Só com scheduleKind DATED. */
+  leadDays?: number;
   audience: CampaignTemplateAudience;
   audienceFilters?: AudienceFilters;
   channels: CampaignChannel[];

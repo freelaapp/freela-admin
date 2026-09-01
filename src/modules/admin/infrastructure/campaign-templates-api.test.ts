@@ -30,7 +30,6 @@ const template: CampaignTemplate = {
   scheduleKind: "WEEKLY",
   weekdays: [1, 3, 5],
   sendHour: 9,
-  leadDays: 0,
   audience: "CONTRACTORS_ALL",
   channels: ["PUSH"],
   enabled: true,
@@ -44,7 +43,6 @@ const payload: UpsertCampaignTemplatePayload = {
   scheduleKind: "WEEKLY",
   weekdays: [1, 3, 5],
   sendHour: 9,
-  leadDays: 0,
   audience: "CONTRACTORS_ALL",
   channels: ["PUSH"],
 };
