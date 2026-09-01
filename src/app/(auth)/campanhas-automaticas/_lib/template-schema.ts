@@ -21,10 +21,14 @@ export const TEMPLATE_MODULES = ["bars-restaurants", "home-services"] as const;
 /**
  * Formulário do diálogo criar/editar. É mais "largo" que
  * `UpsertCampaignTemplatePayload`: guarda o recorte de público desmembrado
- * (cidades/módulo/raio, como a tela de campanhas) e as 3 variantes do
- * WhatsApp separadas (como o editor do item #1), em vez do payload já
- * montado. `buildTemplatePayload` (`template-form.ts`) faz a conversão para
- * o que a API espera.
+ * (cidades/módulo) e as 3 variantes do WhatsApp separadas (como o editor do
+ * item #1), em vez do payload já montado. `buildTemplatePayload`
+ * (`template-form.ts`) faz a conversão para o que a API espera.
+ *
+ * Não inclui o recorte geográfico por distância a partir de uma cidade:
+ * esse controle é exclusivo das campanhas avulsas de `(auth)/campanhas` — o
+ * DTO de template no backend não aceita esse campo (`forbidNonWhitelisted`
+ * rejeita o payload inteiro).
  */
 export const templateFormSchema = z
   .object({
@@ -43,8 +47,6 @@ export const templateFormSchema = z
     audience: z.enum(TEMPLATE_AUDIENCES),
     cities: z.array(z.string()),
     modules: z.array(z.enum(TEMPLATE_MODULES)),
-    raioCidade: z.string(),
-    raioKm: z.number().int().min(1).max(2000),
 
     channels: z.array(z.enum(["PUSH", "WHATSAPP"])).min(1, "Escolha pelo menos um canal."),
     whatsappVariants: z.tuple([z.string(), z.string(), z.string()]),
@@ -128,8 +130,6 @@ export const DEFAULT_TEMPLATE_FORM_VALUES: TemplateFormValues = {
   audience: "CONTRACTORS_ALL",
   cities: [],
   modules: [],
-  raioCidade: "",
-  raioKm: 50,
   channels: [],
   whatsappVariants: ["", "", ""],
   pushTitle: "",

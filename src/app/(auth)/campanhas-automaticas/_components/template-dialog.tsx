@@ -135,16 +135,13 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
   const [contagem, setContagem] = useState<{
     total: number;
     whatsapp: number;
-    semCoordenada: number;
   } | null>(null);
 
   const scheduleKind = watch("scheduleKind");
   const channels = watch("channels");
   const audience = watch("audience");
-  const raioCidade = watch("raioCidade");
   const cities = watch("cities");
   const selectedModules = watch("modules");
-  const raioKm = watch("raioKm");
   const repeatsAnnually = watch("repeatsAnnually");
   const messagesPerHour = watch("messagesPerHour");
 
@@ -154,7 +151,7 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
 
   useEffect(() => {
     setContagem(null);
-  }, [audience, cities, selectedModules, raioCidade, raioKm]);
+  }, [audience, cities, selectedModules]);
 
   /** Freelancer não separa por módulo — o toggle só faz sentido pra contratante. */
   const mostraTipoDeConta = audience.startsWith("CONTRACTORS_");
@@ -168,8 +165,6 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
       const filters = buildAudienceFilters({
         cities,
         modules: selectedModules,
-        raioCidade,
-        raioKm,
       });
       const res = await previewAudience.mutateAsync({
         audience: audience as CampaignAudience,
@@ -178,7 +173,6 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
       setContagem({
         total: res.total,
         whatsapp: res.byChannel.WHATSAPP,
-        semCoordenada: res.semCoordenada ?? 0,
       });
     } catch (error) {
       toast.error(getAxiosErrorMessage(error));
@@ -405,10 +399,9 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
                     onChange={(e) => {
                       const next = e.target.value as CampaignTemplateAudience;
                       field.onChange(next);
-                      // Cidade/raio da audiência antiga podem nem existir na
+                      // Cidades da audiência antiga podem nem existir na
                       // nova; tipo de conta some pra freelancer.
                       setValue("cities", []);
-                      setValue("raioCidade", "");
                       if (!next.startsWith("CONTRACTORS_")) setValue("modules", []);
                     }}
                   >
@@ -459,103 +452,61 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
             )}
 
             <div className="space-y-1.5">
-              <Label>Raio a partir de uma cidade</Label>
-              <div className="flex flex-wrap items-center gap-2">
+              <Label>
+                Cidades{" "}
+                <span className="font-normal text-neutral-500">
+                  {cities.length
+                    ? `(${cities.length} escolhida${cities.length === 1 ? "" : "s"})`
+                    : "(nenhuma = todas)"}
+                </span>
+              </Label>
+              {audienceOptions.isLoading ? (
+                <div className="flex items-center gap-2 text-xs text-neutral-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Levantando as cidades desta
+                  audiência…
+                </div>
+              ) : (
                 <Controller
                   control={control}
-                  name="raioCidade"
+                  name="cities"
                   render={({ field }) => (
-                    <NativeSelect
-                      className="min-w-52 flex-1"
-                      value={field.value}
-                      onChange={(e) => {
-                        field.onChange(e.target.value);
-                        setValue("cities", []);
-                      }}
-                    >
-                      <option value="">Sem raio (usar a lista de cidades)</option>
-                      {(audienceOptions.data?.cities ?? []).map((opt) => (
-                        <option key={`${opt.city}-${opt.uf ?? ""}`} value={opt.city}>
-                          {opt.city}
-                          {opt.uf ? ` · ${opt.uf}` : ""}
-                        </option>
-                      ))}
-                    </NativeSelect>
+                    <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-md border border-neutral-200 p-2">
+                      {(audienceOptions.data?.cities ?? []).length === 0 ? (
+                        <p className="text-sm text-neutral-500">Nenhuma cidade nesta audiência.</p>
+                      ) : (
+                        audienceOptions.data!.cities.map((opt) => {
+                          const on = field.value.includes(opt.city);
+                          return (
+                            <button
+                              key={`${opt.city}-${opt.uf ?? ""}`}
+                              type="button"
+                              onClick={() =>
+                                field.onChange(
+                                  on
+                                    ? field.value.filter((c) => c !== opt.city)
+                                    : [...field.value, opt.city],
+                                )
+                              }
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                on
+                                  ? "bg-[#eca826] text-white"
+                                  : "bg-neutral-100 text-neutral-600 hover:bg-[#eca826]/10"
+                              }`}
+                            >
+                              {opt.city}
+                              {opt.uf ? ` · ${opt.uf}` : ""}{" "}
+                              <span className={on ? "text-white/80" : "text-neutral-400"}>
+                                {opt.total}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
                   )}
                 />
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={2000}
-                    className="w-24"
-                    disabled={!raioCidade}
-                    {...register("raioKm", { valueAsNumber: true })}
-                  />
-                  <span className="text-sm text-neutral-600">km</span>
-                </div>
-              </div>
-              {errors.raioKm && <ErrorText>{errors.raioKm.message}</ErrorText>}
+              )}
             </div>
-
-            {!raioCidade && (
-              <div className="space-y-1.5">
-                <Label>
-                  Cidades{" "}
-                  <span className="font-normal text-neutral-500">
-                    {cities.length
-                      ? `(${cities.length} escolhida${cities.length === 1 ? "" : "s"})`
-                      : "(nenhuma = todas)"}
-                  </span>
-                </Label>
-                {audienceOptions.isLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-neutral-500">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Levantando as cidades desta
-                    audiência…
-                  </div>
-                ) : (
-                  <Controller
-                    control={control}
-                    name="cities"
-                    render={({ field }) => (
-                      <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-md border border-neutral-200 p-2">
-                        {(audienceOptions.data?.cities ?? []).length === 0 ? (
-                          <p className="text-sm text-neutral-500">Nenhuma cidade nesta audiência.</p>
-                        ) : (
-                          audienceOptions.data!.cities.map((opt) => {
-                            const on = field.value.includes(opt.city);
-                            return (
-                              <button
-                                key={`${opt.city}-${opt.uf ?? ""}`}
-                                type="button"
-                                onClick={() =>
-                                  field.onChange(
-                                    on
-                                      ? field.value.filter((c) => c !== opt.city)
-                                      : [...field.value, opt.city],
-                                  )
-                                }
-                                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                                  on
-                                    ? "bg-[#eca826] text-white"
-                                    : "bg-neutral-100 text-neutral-600 hover:bg-[#eca826]/10"
-                                }`}
-                              >
-                                {opt.city}
-                                {opt.uf ? ` · ${opt.uf}` : ""}{" "}
-                                <span className={on ? "text-white/80" : "text-neutral-400"}>
-                                  {opt.total}
-                                </span>
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
-                  />
-                )}
-              </div>
-            )}
 
             <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
               <div className="flex items-center justify-between gap-3">
@@ -566,15 +517,8 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
                         {contagem.total} pessoa{contagem.total === 1 ? "" : "s"}
                       </span>
                       <span className="block text-xs text-neutral-500">
-                        {contagem.whatsapp} por WhatsApp · {contagem.total - contagem.whatsapp} por
-                        e-mail
+                        {contagem.whatsapp} com WhatsApp de {contagem.total} na base
                       </span>
-                      {contagem.semCoordenada > 0 && (
-                        <span className="mt-1 block text-xs text-amber-700">
-                          {contagem.semCoordenada} ficaram de fora do raio por não ter endereço
-                          com coordenada.
-                        </span>
-                      )}
                     </>
                   ) : (
                     <span className="text-neutral-600">Confira quantos entram a cada execução.</span>

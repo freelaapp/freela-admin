@@ -21,23 +21,21 @@ export const VARIANT_SEPARATOR = "\n---\n";
 /**
  * Monta o recorte a partir do formulário. Devolve `undefined` quando não há
  * nenhum filtro — objeto de listas vazias gravaria "filtrado por nada", que
- * é diferente de "sem filtro". Espelha `montarFiltros` de `(auth)/campanhas`
- * (raio e lista de cidades são alternativas; com raio, a lista é ignorada).
+ * é diferente de "sem filtro".
+ *
+ * Só emite `cities`/`modules` — o recorte geográfico por distância a partir
+ * de uma cidade é exclusivo das campanhas avulsas de `(auth)/campanhas`
+ * (`montarFiltros`): o DTO de template no backend não tem esse campo, e
+ * `forbidNonWhitelisted` rejeitaria o payload inteiro.
  */
 export function buildAudienceFilters(f: {
   cities: string[];
   modules: TemplateFormValues["modules"];
-  raioCidade: string;
-  raioKm: number;
 }): AudienceFilters | undefined {
-  const raio =
-    f.raioCidade.trim() && f.raioKm > 0 ? { city: f.raioCidade.trim(), km: f.raioKm } : undefined;
-  const cities = raio ? [] : f.cities;
-  if (!cities.length && !f.modules.length && !raio) return undefined;
+  if (!f.cities.length && !f.modules.length) return undefined;
   return {
-    ...(cities.length ? { cities } : {}),
+    ...(f.cities.length ? { cities: f.cities } : {}),
     ...(f.modules.length ? { modules: f.modules } : {}),
-    ...(raio ? { radius: raio } : {}),
   };
 }
 
@@ -119,8 +117,6 @@ export function templateToFormValues(template: CampaignTemplate): TemplateFormVa
     audience: template.audience,
     cities: filters?.cities ?? [],
     modules: filters?.modules ?? [],
-    raioCidade: filters?.radius?.city ?? "",
-    raioKm: filters?.radius?.km ?? DEFAULT_TEMPLATE_FORM_VALUES.raioKm,
     channels: template.channels,
     whatsappVariants: splitWhatsappVariants(template.whatsappTemplate),
     pushTitle: template.pushTitle ?? "",

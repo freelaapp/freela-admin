@@ -11,50 +11,26 @@ import {
 } from "./template-form";
 
 describe("buildAudienceFilters", () => {
-  it("devolve undefined sem cidade, módulo ou raio (não filtra por 'nada')", () => {
-    expect(
-      buildAudienceFilters({ cities: [], modules: [], raioCidade: "", raioKm: 50 }),
-    ).toBeUndefined();
+  it("devolve undefined sem cidade nem módulo (não filtra por 'nada')", () => {
+    expect(buildAudienceFilters({ cities: [], modules: [] })).toBeUndefined();
   });
 
   it("monta { cities } quando só há cidades", () => {
-    expect(
-      buildAudienceFilters({ cities: ["Jundiaí"], modules: [], raioCidade: "", raioKm: 50 }),
-    ).toEqual({ cities: ["Jundiaí"] });
+    expect(buildAudienceFilters({ cities: ["Jundiaí"], modules: [] })).toEqual({
+      cities: ["Jundiaí"],
+    });
   });
 
   it("monta { modules } quando só há módulo", () => {
-    expect(
-      buildAudienceFilters({ cities: [], modules: ["home-services"], raioCidade: "", raioKm: 50 }),
-    ).toEqual({ modules: ["home-services"] });
+    expect(buildAudienceFilters({ cities: [], modules: ["home-services"] })).toEqual({
+      modules: ["home-services"],
+    });
   });
 
-  it("raio ganha da lista de cidades (cidades somem do filtro)", () => {
+  it("combina cidades e módulo", () => {
     expect(
-      buildAudienceFilters({
-        cities: ["São Paulo"],
-        modules: [],
-        raioCidade: "Jundiaí",
-        raioKm: 100,
-      }),
-    ).toEqual({ radius: { city: "Jundiaí", km: 100 } });
-  });
-
-  it("cidade de raio sem km > 0 não conta como raio — cai para a lista", () => {
-    expect(
-      buildAudienceFilters({ cities: ["Jundiaí"], modules: [], raioCidade: "Jundiaí", raioKm: 0 }),
-    ).toEqual({ cities: ["Jundiaí"] });
-  });
-
-  it("combina módulo com raio", () => {
-    expect(
-      buildAudienceFilters({
-        cities: [],
-        modules: ["bars-restaurants"],
-        raioCidade: "Jundiaí",
-        raioKm: 30,
-      }),
-    ).toEqual({ modules: ["bars-restaurants"], radius: { city: "Jundiaí", km: 30 } });
+      buildAudienceFilters({ cities: ["Jundiaí", "Campinas"], modules: ["bars-restaurants"] }),
+    ).toEqual({ cities: ["Jundiaí", "Campinas"], modules: ["bars-restaurants"] });
   });
 });
 
@@ -211,7 +187,7 @@ describe("buildTemplatePayload — imagem, deep-link, ritmo e público", () => {
   });
 
   it("sempre manda o ritmo e nunca filtra 'por nada' quando não há recorte", () => {
-    const payload = buildTemplatePayload({ ...baseValues, cities: [], modules: [], raioCidade: "" });
+    const payload = buildTemplatePayload({ ...baseValues, cities: [], modules: [] });
     expect(payload.audienceFilters).toBeUndefined();
     expect(payload).toMatchObject({
       messagesPerHour: baseValues.messagesPerHour,
@@ -265,7 +241,6 @@ describe("templateToFormValues", () => {
     expect(values.audience).toBe("CONTRACTORS_ALL");
     expect(values.cities).toEqual(["Jundiaí"]);
     expect(values.modules).toEqual(["home-services"]);
-    expect(values.raioCidade).toBe("");
     expect(values.channels).toEqual(["PUSH", "WHATSAPP"]);
     expect(values.whatsappVariants).toEqual(["Var 1", "Var 2", "Var 3"]);
     expect(values.pushTitle).toBe("Título salvo");
@@ -316,22 +291,10 @@ describe("templateToFormValues", () => {
     expect(values.targetYear).toBe(2027);
   });
 
-  it("recorte por raio (sem cidades) volta como raioCidade/raioKm", () => {
-    const withRadius: CampaignTemplate = {
-      ...weeklyTemplate,
-      audienceFilters: { radius: { city: "Jundiaí", km: 40 } },
-    };
-    const values = templateToFormValues(withRadius);
-    expect(values.raioCidade).toBe("Jundiaí");
-    expect(values.raioKm).toBe(40);
-    expect(values.cities).toEqual([]);
-  });
-
-  it("sem audienceFilters, cidades/módulo/raio voltam vazios (não 'undefined' explodindo a tela)", () => {
+  it("sem audienceFilters, cidades/módulo voltam vazios (não 'undefined' explodindo a tela)", () => {
     const withoutFilters: CampaignTemplate = { ...weeklyTemplate, audienceFilters: undefined };
     const values = templateToFormValues(withoutFilters);
     expect(values.cities).toEqual([]);
     expect(values.modules).toEqual([]);
-    expect(values.raioCidade).toBe("");
   });
 });
