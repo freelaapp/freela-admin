@@ -37,6 +37,7 @@ import {
   BadgePercent,
   Gift,
   Send,
+  Repeat,
   ShieldCheck,
   Shuffle,
   Activity,
@@ -114,6 +115,12 @@ const navItems: NavItem[] = [
     label: "Campanhas",
     icon: Send,
     path: "/campanhas",
+    permission: "REFERRALS",
+  },
+  {
+    label: "Campanhas automáticas",
+    icon: Repeat,
+    path: "/campanhas-automaticas",
     permission: "REFERRALS",
   },
   {
