@@ -20,13 +20,16 @@ import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { formatInstantDate } from "@/lib/date.utils";
 import {
-  useCampaignPreview,
   useCampaigns,
   useAudienceOptions,
   useCreateCampaign,
   usePreviewAudience,
   useSetCampaignState,
 } from "@/modules/admin/application/use-admin-referrals";
+import {
+  normalizeTemplatePlaceholders,
+  renderPreview,
+} from "@/modules/admin/application/spreadsheet-contacts";
 import type {
   AudienceFilters,
   Campaign,
@@ -81,6 +84,35 @@ function montarFiltros(f: {
   };
 }
 
+/** A API separa as variantes do WhatsApp por uma linha só com `---`. */
+const VARIANT_SEPARATOR = "\n---\n";
+
+/**
+ * Textos de partida para a campanha de base (contratante/freelancer que JÁ tem
+ * cadastro). Espelham `CONTRACTOR_ACTIVATION_VARIANTS` do backend
+ * (`message-template.ts`) — mantenha os dois em sincronia. Diferente da lista
+ * fria: aqui a pessoa já tem conta, então o texto fala "seu cadastro já está
+ * pronto". O operador edita à vontade; as três precisam ficar preenchidas
+ * porque a rotação anti-ban conta com três (o backend distribui por índice % 3).
+ */
+const DEFAULT_WHATSAPP_VARIANTS = [
+  `Oi {primeiro_nome}, aqui é do Freela Serviços.
+
+Vi que você tem cadastro com a gente mas ainda não publicou nenhuma vaga. Se precisar de garçom, cozinheiro, bartender ou auxiliar — pra um evento, um fim de semana cheio ou pra cobrir uma falta — dá pra publicar a vaga em 2 minutos e receber candidatura no mesmo dia.
+
+Quer que eu te mostre como publicar a primeira?`,
+  `Olá {primeiro_nome}! Freela Serviços aqui.
+
+Faltou alguém na equipe hoje? A gente tem profissionais disponíveis em {cidade} e região prontos pra fechar o turno. Você publica a vaga, escolhe quem se candidatou e paga só pelo serviço.
+
+Posso te ajudar a publicar?`,
+  `Oi {primeiro_nome}, tudo bem? Aqui é do Freela Serviços.
+
+Os estabelecimentos que usam a plataforma resolvem a falta de equipe no mesmo dia, sem depender de indicação de conhecido. Seu cadastro já está pronto — falta só publicar a primeira vaga.
+
+Se quiser, te explico em 1 minuto como funciona.`,
+];
+
 const DEFAULT_FORM = {
   name: "",
   audience: "CONTRACTORS_NEVER_PUBLISHED" as CampaignAudience,
@@ -106,6 +138,9 @@ export default function CampanhasPage() {
   const [creating, setCreating] = useState(false);
   const [creatingFromSheet, setCreatingFromSheet] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM);
+  // Texto do disparo, editável (antes era um preview fixo). Nasce com os
+  // padrões da base; o operador ajusta antes de criar.
+  const [variants, setVariants] = useState<string[]>(DEFAULT_WHATSAPP_VARIANTS);
   // Só busca as cidades com o formulário aberto: a chamada monta a audiência
   // inteira no backend.
   const audienceOptions = useAudienceOptions(creating ? form.audience : null);
@@ -118,7 +153,9 @@ export default function CampanhasPage() {
   /** Freelancer existe nos dois módulos por padrão — filtrar por tipo de conta
    *  ali não separa ninguém e só confunde. Vale para contratante. */
   const mostraTipoDeConta = form.audience.startsWith("CONTRACTORS_");
-  const preview = useCampaignPreview("José da Silva", "Jundiaí");
+  // As três variantes precisam de texto: elas rodam alternadas para não cair
+  // como spam, e o backend distribui os destinatários por índice % 3.
+  const variantesPreenchidas = variants.every((v) => v.trim());
 
   if (isChecking || !allowed) {
     return (
@@ -137,12 +174,19 @@ export default function CampanhasPage() {
         // Só manda o recorte se houver algum: objeto de listas vazias gravaria
         // "filtrado por nada", que é diferente de "sem filtro".
         ...(filtros ? { audienceFilters: filtros } : {}),
+        // Sempre as três variantes (o operador não consegue criar com alguma em
+        // branco): o backend rotaciona por índice % 3, então mandar menos que
+        // três desequilibraria a distribuição. `{nome}` vira `{{nome}}`.
+        whatsappTemplate: variants
+          .map((v) => normalizeTemplatePlaceholders(v).trim())
+          .join(VARIANT_SEPARATOR),
       });
       toast.success(
         `Campanha criada com ${created.stats.PENDING} destinatários — ${created.estimate.days} dia(s) úteis no ritmo escolhido.`,
       );
       setCreating(false);
       setForm(DEFAULT_FORM);
+      setVariants(DEFAULT_WHATSAPP_VARIANTS);
       setContagem(null);
       setSelectedId(created.campaign.id);
     } catch (error) {
@@ -605,22 +649,42 @@ export default function CampanhasPage() {
               </div>
             )}
 
-            <div>
-              <p className="mb-2 text-sm font-medium">O que vai ser enviado</p>
-              <p className="mb-2 text-xs text-neutral-500">
+            <div className="space-y-2">
+              <Label>O que vai ser enviado</Label>
+              <p className="text-xs text-neutral-500">
                 Três variantes rodam alternadas, personalizadas com nome e cidade — mensagens
-                idênticas em série é o que caracteriza spam.
+                idênticas em série é o que caracteriza spam. Use <code>{"{nome}"}</code>,{" "}
+                <code>{"{primeiro_nome}"}</code> ou <code>{"{cidade}"}</code>; a frase de
+                descadastro (“responda SAIR”) é acrescentada automaticamente.
               </p>
-              <div className="space-y-2">
-                {(preview.data ?? []).map((message, index) => (
-                  <pre
-                    key={index}
-                    className="whitespace-pre-wrap rounded-md bg-neutral-100 p-3 text-xs"
-                  >
-                    {message}
-                  </pre>
+              <div className="space-y-3">
+                {variants.map((text, index) => (
+                  <div key={index} className="space-y-1">
+                    <span className="text-xs font-medium text-neutral-600">
+                      Variante {index + 1}
+                    </span>
+                    <textarea
+                      data-testid={`variant-${index}`}
+                      className="min-h-32 w-full rounded-md border border-neutral-300 p-2 text-xs"
+                      value={text}
+                      onChange={(event) => {
+                        const next = [...variants];
+                        next[index] = event.target.value;
+                        setVariants(next);
+                      }}
+                    />
+                    <pre className="whitespace-pre-wrap rounded-md bg-neutral-100 p-2 text-[11px] text-neutral-600">
+                      {renderPreview(text, "José da Silva") || "(vazia — não será usada)"}
+                    </pre>
+                  </div>
                 ))}
               </div>
+              {!variantesPreenchidas && (
+                <p className="text-xs text-red-600">
+                  As três variantes precisam de texto — elas rodam alternadas para não cair
+                  como spam.
+                </p>
+              )}
             </div>
           </div>
 
@@ -630,7 +694,7 @@ export default function CampanhasPage() {
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={!form.name.trim() || createCampaign.isPending}
+              disabled={!form.name.trim() || !variantesPreenchidas || createCampaign.isPending}
             >
               {createCampaign.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Criar (sem disparar)
