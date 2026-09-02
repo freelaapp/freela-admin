@@ -1,5 +1,6 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 import type { AdminCreateVacancyInput, AdminCreatedVacancy } from "./admin-vacancies-api";
+import type { VacancyDocuments, VacancyDocumentsDetail } from "./admin-api";
 import type {
   AdminCancelVacancyResult,
   AdminConfirmCandidacyResult,
@@ -55,6 +56,12 @@ export interface CasaVacancyItem {
     hasContractorFeedback?: boolean;
     hasProviderFeedback?: boolean;
   } | null;
+  /**
+   * Estado dos quatro documentos (Contrato · Recibo · RPA · NF-e), igual à vaga
+   * de Empresa. Ausente em API anterior — a célula mostra "—".
+   */
+  documents?: VacancyDocuments;
+  documentsDetail?: VacancyDocumentsDetail;
 }
 
 export async function getAdminCasaOpenVacancies(consultantId?: string): Promise<CasaVacancyItem[]> {

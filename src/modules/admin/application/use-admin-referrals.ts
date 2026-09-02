@@ -13,9 +13,12 @@ import {
   getReferrals,
   payReward,
   previewCampaignMessages,
+  previewExternalList,
   setCampaignState,
+  setRecipientContact,
   type CreateCampaignPayload,
-  type RecipientStatus,
+  type ExternalContact,
+  type RecipientListParams,
   type ReferralListFilter,
   getAudienceOptions,
   previewCampaignAudience,
@@ -95,18 +98,53 @@ export function useCampaign(id: string | null) {
     queryKey: [...CAMPAIGNS_KEY, id],
     queryFn: () => getCampaign(id as string),
     enabled: Boolean(id),
-    refetchInterval: 60_000,
+    // Só enquanto dispara: campanha parada não muda sozinha, e o refetch
+    // desnecessário embaça a tabela a cada minuto na frente do operador.
+    refetchInterval: (query) =>
+      query.state.data?.campaign.status === "RUNNING" ? 60_000 : false,
   });
 }
 
 export function useCampaignRecipients(
   id: string | null,
-  params: { status?: RecipientStatus; page?: number; pageSize?: number },
+  params: RecipientListParams,
+  options: { autoRefresh?: boolean } = {},
 ) {
   return useQuery({
     queryKey: [...CAMPAIGNS_KEY, id, "recipients", params],
     queryFn: () => getCampaignRecipients(id as string, params),
     enabled: Boolean(id),
+    placeholderData: (previous) => previous,
+    refetchInterval: options.autoRefresh ? 60_000 : false,
+  });
+}
+
+/** Confere a planilha na API antes de criar (válidos, inválidos, já cadastrados). */
+export function usePreviewExternalList() {
+  return useMutation({
+    mutationFn: (contacts: ExternalContact[]) => previewExternalList(contacts),
+  });
+}
+
+/**
+ * Marcar contato invalida o detalhe inteiro da campanha (cards + lista): o
+ * card "contato" e a linha mudam juntos.
+ */
+export function useSetRecipientContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      campaignId,
+      recipientId,
+      ...payload
+    }: {
+      campaignId: string;
+      recipientId: string;
+      contacted: boolean;
+      note?: string;
+    }) => setRecipientContact(campaignId, recipientId, payload),
+    onSuccess: (_data, vars) =>
+      qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, vars.campaignId] }),
   });
 }
 

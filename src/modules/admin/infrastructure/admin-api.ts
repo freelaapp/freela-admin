@@ -348,6 +348,12 @@ export interface ContractorReportRow {
   repasse_liquido_in_cents: number | null;
   provides_meal: boolean | null;
   contractor_payment: { status: string; value: number } | string | null;
+  /**
+   * Centavos que voltaram para a CARTEIRA do contratante nesta vaga (corte por
+   * atraso, ajuste) depois do pagamento. Valor pago líquido = value − isto.
+   * Opcional: API anterior ao campo não manda (= 0).
+   */
+  wallet_refund_in_cents?: number | null;
   candidacy_id: string | null;
   candidacy_status: string | null;
   freelancer_name: string | null;
@@ -527,7 +533,26 @@ export interface VacancyItem {
     endedAt: string | null;
     reviewedAt: string | null;
   };
+  /**
+   * Estado dos quatro documentos da vaga (épico serviços §1e, api). `NA` = não
+   * se aplica ainda (ex.: recibo antes do repasse). Ausente na janela de deploy
+   * e em API anterior — o painel mostra "—" e não pinta nada.
+   */
+  documents?: VacancyDocuments;
+  /** Motivo (texto) por documento, quando não está OK — vira tooltip. */
+  documentsDetail?: VacancyDocumentsDetail;
 }
+
+export type VacancyDocumentState = "OK" | "PENDING" | "FAILED" | "MISSING" | "NA";
+
+export interface VacancyDocuments {
+  contract: VacancyDocumentState;
+  receipt: VacancyDocumentState;
+  rpa: VacancyDocumentState;
+  nfse: VacancyDocumentState;
+}
+
+export type VacancyDocumentsDetail = Partial<Record<keyof VacancyDocuments, string>>;
 
 export interface ProviderPixKey {
   keyType: string;

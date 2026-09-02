@@ -8,17 +8,24 @@ interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  /**
+   * Largura do diálogo (ex.: `max-w-4xl`). A largura mora AQUI, no invólucro
+   * — passar `max-w-*` no `DialogContent` não tem efeito, porque o invólucro
+   * já limita em `max-w-lg`.
+   */
+  className?: string;
 }
 
-export function Dialog({ open, onOpenChange, children }: DialogProps) {
+export function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+        data-testid="dialog-overlay"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative z-50 w-full max-w-lg mx-4">{children}</div>
+      <div className={cn("relative z-50 w-full max-w-lg mx-4", className)}>{children}</div>
     </div>
   );
 }

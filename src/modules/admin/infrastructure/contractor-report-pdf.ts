@@ -127,10 +127,16 @@ export function generateContractorReportPdf(
           ? rp.amount
           : f.freelancer_amount_in_cents,
       repassePending: !isPaid(rp),
-      // "Valor pago" só quando o pagamento LIQUIDOU: o backend devolve a
-      // cobrança mais recente de QUALQUER status (preferindo COMPLETED), e
-      // cobrança pendente/expirada entrava no total de um PDF que vai pro cliente.
-      pagoCents: pay && pay.status === "COMPLETED" ? pay.value : null,
+      // Corte por atraso/ajuste volta para a CARTEIRA do contratante depois do
+      // pagamento (Coco Bambu Osasco, 25/08: R$ 33,60 em 6 vagas). O que ele
+      // pagou de verdade é a cobrança menos esse estorno — sem descontar, a taxa
+      // saía inflada exatamente nesse valor e a linha não fechava.
+      estornoCents:
+        pay && pay.status === "COMPLETED" ? Math.max(0, f.wallet_refund_in_cents ?? 0) : 0,
+      pagoCents:
+        pay && pay.status === "COMPLETED"
+          ? pay.value - Math.max(0, f.wallet_refund_in_cents ?? 0)
+          : null,
       hasDecomposition,
       taxaServicoCents: hasDecomposition ? f.taxa_servico_in_cents : null,
       pixCents: hasDecomposition ? FIXED_PIX_FEE_IN_CENTS : null,
@@ -168,6 +174,7 @@ export function generateContractorReportPdf(
     const primeiraDaVaga = !vagaJaExibida.has(r.vacancyId);
     if (primeiraDaVaga) vagaJaExibida.add(r.vacancyId);
     const pagoCents = primeiraDaVaga ? r.pagoCents : null;
+    const estornoCents = primeiraDaVaga ? r.estornoCents : 0;
 
     let taxaCents: number | null = null;
     if (primeiraDaVaga && r.pagoCents != null) {
@@ -176,7 +183,7 @@ export function generateContractorReportPdf(
         : r.pagoCents - (repassePorVaga.get(r.vacancyId) ?? 0);
     }
 
-    return { ...r, pagoCents, taxaCents };
+    return { ...r, pagoCents, estornoCents, taxaCents };
   });
 
   const anyDecomposition = linhas.some((r) => r.hasDecomposition);
@@ -189,6 +196,7 @@ export function generateContractorReportPdf(
   let totPix = 0;
   let totSeguro = 0;
   let totInss = 0;
+  let totEstorno = 0;
   for (const r of linhas) {
     totRepasse += r.repasseCents || 0;
     totTaxa += r.taxaCents || 0;
@@ -197,6 +205,7 @@ export function generateContractorReportPdf(
     totPix += r.pixCents || 0;
     totSeguro += r.seguroCents || 0;
     totInss += r.inssCents || 0;
+    totEstorno += r.estornoCents;
   }
 
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -293,7 +302,7 @@ export function generateContractorReportPdf(
       else doc.setTextColor(22, 110, 60);
       cell(brl(r.repasseCents) + (r.repassePending ? " *" : ""), cols[7], 8);
       doc.setTextColor(35, 35, 35);
-      cell(brl(r.pagoCents), cols[8], 8);
+      cell(brl(r.pagoCents) + (r.estornoCents > 0 ? "†" : ""), cols[8], 8);
     } else {
       cell(r.nome, cols[0], 8);
       cell(r.cpf, cols[1], 8);
@@ -305,7 +314,7 @@ export function generateContractorReportPdf(
       doc.setTextColor(110, 110, 110);
       cell(brl(r.taxaCents), cols[5], 8);
       doc.setTextColor(35, 35, 35);
-      cell(brl(r.pagoCents), cols[6], 8);
+      cell(brl(r.pagoCents) + (r.estornoCents > 0 ? "†" : ""), cols[6], 8);
     }
     y += 6;
   }
@@ -339,13 +348,26 @@ export function generateContractorReportPdf(
   doc.setFont("helvetica", "italic");
   doc.setFontSize(7.5);
   doc.setTextColor(140, 140, 140);
-  doc.text(
+  // Rodapé: a linha do estorno só aparece quando houve estorno no período; a
+  // legenda muda pro layout com decomposição (INSS explicado) — cabe numa
+  // linha só. Sinal de menos em ASCII: a fonte padrão do jsPDF não tem
+  // U+2212 (virava aspas).
+  const notas = [
+    ...(totEstorno > 0
+      ? [`† Valor pago líquido de ${brl(totEstorno)} estornados à carteira (corte por atraso/ajuste).`]
+      : []),
     anyDecomposition
       ? '* repasse ainda não confirmado (pendente/falhou). Taxa serviço + Pix + Seguro + Repasse líquido = Você paga · INSS: descontado do total da vaga e retido para a guia do INSS/prestação de contas — é a diferença entre o Total da vaga e o Você paga · "—" = vaga anterior à decomposição (modelo antigo).'
-      : "* repasse ainda não confirmado (pendente/falhou). Repasse = pago ao freelancer · Taxa = valor pago − repasse · Valor pago = pago pelo contratante (uma vez por vaga).",
-    L,
-    Math.min(y, PH - 12),
-  );
+      : "* repasse ainda não confirmado (pendente/falhou). Repasse = pago ao freelancer · Taxa = valor pago líquido de estornos - repasse · Valor pago = pago pelo contratante, líquido de estornos à carteira (uma vez por vaga).",
+  ];
+  if (y + 4 * notas.length > PH - 12) {
+    doc.addPage();
+    y = 16;
+  }
+  for (const nota of notas) {
+    doc.text(nota, L, y);
+    y += 4;
+  }
 
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {

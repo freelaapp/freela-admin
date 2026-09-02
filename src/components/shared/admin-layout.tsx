@@ -37,8 +37,10 @@ import {
   BadgePercent,
   Gift,
   Send,
+  Repeat,
   ShieldCheck,
   Shuffle,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNewVacancyChime } from "@/modules/admin/application/use-new-vacancy-chime";
@@ -80,6 +82,9 @@ const navItems: NavItem[] = [
   { label: "Financeiro", icon: DollarSign, path: "/financeiro", permission: "FINANCE" },
   { label: "Carteiras", icon: Wallet, path: "/carteiras", permission: "WALLETS" },
   { label: "Seguro IZA", icon: ShieldCheck, path: "/seguro", permission: "INSURANCE" },
+  // Canais, integrações, schedulers e contestações de presença. Resolver uma
+  // contestação conclui/estorna um job, por isso segue a chave de Vagas.
+  { label: "Verificação de serviços", icon: Activity, path: "/verificacao-servicos", permission: "JOBS" },
   { label: "Relatórios", icon: BarChart3, path: "/relatorios" },
   { label: "Usuários", icon: Shield, path: "/usuarios", permission: "USERS" },
   {
@@ -110,6 +115,12 @@ const navItems: NavItem[] = [
     label: "Campanhas",
     icon: Send,
     path: "/campanhas",
+    permission: "REFERRALS",
+  },
+  {
+    label: "Campanhas automáticas",
+    icon: Repeat,
+    path: "/campanhas-automaticas",
     permission: "REFERRALS",
   },
   {
