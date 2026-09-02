@@ -333,6 +333,19 @@ export interface ContractorReportRow {
   base_amount_in_cents: number | null;
   freelancer_amount_in_cents: number | null;
   platform_fee_in_cents: number | null;
+  /**
+   * Decomposição all-inclusive (spec 2026-09-02, empresa,
+   * DECOMPOSICAO_VALORES_ENABLED). Não-nulos só em vagas precificadas no
+   * modelo novo — nesse caso o relatório mostra as linhas explícitas em vez
+   * de derivar "Taxa = pago − repasse". Nulos = modelo legado. Espelha
+   * `ContractorReportRow` do backend (get-contractor-report.handler.ts) e o
+   * mesmo tipo em freela-web-v2 (contractor-report.api.ts).
+   */
+  taxa_servico_in_cents: number | null;
+  seguro_in_cents: number | null;
+  total_freelance_in_cents: number | null;
+  inss_in_cents: number | null;
+  repasse_liquido_in_cents: number | null;
   provides_meal: boolean | null;
   contractor_payment: { status: string; value: number } | string | null;
   candidacy_id: string | null;
