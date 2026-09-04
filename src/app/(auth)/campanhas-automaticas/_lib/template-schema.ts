@@ -19,10 +19,27 @@ export const TEMPLATE_AUDIENCES = [
 export const TEMPLATE_MODULES = ["bars-restaurants", "home-services"] as const;
 
 /**
+ * A DevZapp agora é dona do ritmo de envio, das variantes de mensagem e do
+ * disparo em si (mesma migração do item #1, `(auth)/campanhas` — commit
+ * "Trocar ritmo/variantes por link do funil DevZapp"). O canal WHATSAPP do
+ * template só precisa apontar para o funil certo. Aceita só link https://
+ * não vazio: um link http ou vazio travaria o disparo mais tarde, sem aviso
+ * na hora de salvar.
+ */
+export function isValidDevzappFunnelUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  try {
+    return new URL(trimmed).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Formulário do diálogo criar/editar. É mais "largo" que
  * `UpsertCampaignTemplatePayload`: guarda o recorte de público desmembrado
- * (cidades/módulo) e as 3 variantes do WhatsApp separadas (como o editor do
- * item #1), em vez do payload já montado. `buildTemplatePayload`
+ * (cidades/módulo), em vez do payload já montado. `buildTemplatePayload`
  * (`template-form.ts`) faz a conversão para o que a API espera.
  *
  * Não inclui o recorte geográfico por distância a partir de uma cidade:
@@ -49,18 +66,13 @@ export const templateFormSchema = z
     modules: z.array(z.enum(TEMPLATE_MODULES)),
 
     channels: z.array(z.enum(["PUSH", "WHATSAPP"])).min(1, "Escolha pelo menos um canal."),
-    whatsappVariants: z.tuple([z.string(), z.string(), z.string()]),
+    devzappFunnelUrl: z.string(),
     pushTitle: z.string(),
     pushBody: z.string(),
 
     imageKey: z.string(),
     deepLink: z.string(),
 
-    messagesPerHour: z.number().int().min(1).max(60),
-    dailyCap: z.number().int().min(1).max(1000),
-    windowStartHour: z.number().int().min(0).max(23),
-    windowEndHour: z.number().int().min(1).max(24),
-    weekdaysOnly: z.boolean(),
     maxPerRun: z.number().int().min(1).optional(),
   })
   .superRefine((values, ctx) => {
@@ -88,19 +100,11 @@ export const templateFormSchema = z
       }
     }
 
-    if (values.windowEndHour <= values.windowStartHour) {
+    if (values.channels.includes("WHATSAPP") && !isValidDevzappFunnelUrl(values.devzappFunnelUrl)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["windowEndHour"],
-        message: "O fim da janela precisa ser depois do início.",
-      });
-    }
-
-    if (values.channels.includes("WHATSAPP") && !values.whatsappVariants.every((v) => v.trim())) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["whatsappVariants"],
-        message: "As três variantes do WhatsApp precisam de texto — elas rodam alternadas.",
+        path: ["devzappFunnelUrl"],
+        message: "Cole um link válido, começando com https://.",
       });
     }
 
@@ -131,15 +135,10 @@ export const DEFAULT_TEMPLATE_FORM_VALUES: TemplateFormValues = {
   cities: [],
   modules: [],
   channels: [],
-  whatsappVariants: ["", "", ""],
+  devzappFunnelUrl: "",
   pushTitle: "",
   pushBody: "",
   imageKey: "",
   deepLink: "",
-  messagesPerHour: 20,
-  dailyCap: 120,
-  windowStartHour: 9,
-  windowEndHour: 18,
-  weekdaysOnly: true,
   maxPerRun: undefined,
 };

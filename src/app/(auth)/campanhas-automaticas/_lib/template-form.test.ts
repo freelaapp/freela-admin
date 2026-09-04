@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CampaignTemplate } from "@/modules/admin/infrastructure/campaign-templates-api";
 import { DEFAULT_TEMPLATE_FORM_VALUES, type TemplateFormValues } from "./template-schema";
-import {
-  buildAudienceFilters,
-  buildTemplatePayload,
-  joinWhatsappVariants,
-  splitWhatsappVariants,
-  templateToFormValues,
-  VARIANT_SEPARATOR,
-} from "./template-form";
+import { buildAudienceFilters, buildTemplatePayload, templateToFormValues } from "./template-form";
 
 describe("buildAudienceFilters", () => {
   it("devolve undefined sem cidade nem módulo (não filtra por 'nada')", () => {
@@ -31,30 +24,6 @@ describe("buildAudienceFilters", () => {
     expect(
       buildAudienceFilters({ cities: ["Jundiaí", "Campinas"], modules: ["bars-restaurants"] }),
     ).toEqual({ cities: ["Jundiaí", "Campinas"], modules: ["bars-restaurants"] });
-  });
-});
-
-describe("joinWhatsappVariants / splitWhatsappVariants", () => {
-  it("junta as 3 variantes com o separador e normaliza placeholders", () => {
-    const joined = joinWhatsappVariants(["Oi {nome}", "Olá {primeiro_nome}", "E aí {cidade}"]);
-    expect(joined).toBe(
-      ["Oi {{nome}}", "Olá {{primeiro_nome}}", "E aí {{cidade}}"].join(VARIANT_SEPARATOR),
-    );
-  });
-
-  it("faz o caminho de volta: texto salvo → as 3 variantes", () => {
-    const saved = ["Variante 1", "Variante 2", "Variante 3"].join(VARIANT_SEPARATOR);
-    expect(splitWhatsappVariants(saved)).toEqual(["Variante 1", "Variante 2", "Variante 3"]);
-  });
-
-  it("template null/vazio vira 3 variantes em branco", () => {
-    expect(splitWhatsappVariants(null)).toEqual(["", "", ""]);
-    expect(splitWhatsappVariants(undefined)).toEqual(["", "", ""]);
-    expect(splitWhatsappVariants("")).toEqual(["", "", ""]);
-  });
-
-  it("preenche com '' quando o texto salvo tem menos de 3 variantes", () => {
-    expect(splitWhatsappVariants("Só uma variante")).toEqual(["Só uma variante", "", ""]);
   });
 });
 
@@ -126,47 +95,57 @@ describe("buildTemplatePayload — agenda", () => {
 });
 
 describe("buildTemplatePayload — canais e mensagem", () => {
-  it("sem WHATSAPP nos canais, não manda whatsappTemplate", () => {
+  it("sem WHATSAPP nos canais, não manda devzappFunnelUrl", () => {
     const payload = buildTemplatePayload({
       ...baseValues,
       channels: ["PUSH"],
       pushTitle: "Título",
       pushBody: "Corpo",
-      whatsappVariants: ["a", "b", "c"],
+      devzappFunnelUrl: "https://api.devzapp.com.br/funil/abc",
     });
-    expect(payload.whatsappTemplate).toBeUndefined();
+    expect(payload.devzappFunnelUrl).toBeUndefined();
     expect(payload.pushTitle).toBe("Título");
     expect(payload.pushBody).toBe("Corpo");
   });
 
-  it("com WHATSAPP nos canais, junta e normaliza as 3 variantes", () => {
+  it("com WHATSAPP nos canais, manda o link do funil DevZapp aparado", () => {
     const payload = buildTemplatePayload({
       ...baseValues,
       channels: ["WHATSAPP"],
-      whatsappVariants: ["Oi {nome}", "Olá {primeiro_nome}", "E aí {cidade}"],
+      devzappFunnelUrl: "  https://api.devzapp.com.br/funil/abc  ",
     });
-    expect(payload.whatsappTemplate).toBe(
-      ["Oi {{nome}}", "Olá {{primeiro_nome}}", "E aí {{cidade}}"].join(VARIANT_SEPARATOR),
-    );
+    expect(payload.devzappFunnelUrl).toBe("https://api.devzapp.com.br/funil/abc");
     expect(payload.pushTitle).toBeUndefined();
     expect(payload.pushBody).toBeUndefined();
   });
 
-  it("com os dois canais, manda mensagem de WhatsApp e push juntas", () => {
+  it("com os dois canais, manda o link do funil e a mensagem de push juntos", () => {
     const payload = buildTemplatePayload({
       ...baseValues,
       channels: ["PUSH", "WHATSAPP"],
-      whatsappVariants: ["a", "b", "c"],
+      devzappFunnelUrl: "https://api.devzapp.com.br/funil/abc",
       pushTitle: " Título ",
       pushBody: " Corpo ",
     });
-    expect(payload.whatsappTemplate).toBe(["a", "b", "c"].join(VARIANT_SEPARATOR));
+    expect(payload.devzappFunnelUrl).toBe("https://api.devzapp.com.br/funil/abc");
     expect(payload.pushTitle).toBe("Título");
     expect(payload.pushBody).toBe("Corpo");
   });
+
+  // A API não é mais mandada com whatsappTemplate/ritmo — a DevZapp é dona
+  // disso agora (mesma migração do item #1, `(auth)/campanhas`).
+  it("nunca manda whatsappTemplate nem os campos de ritmo removidos", () => {
+    const payload = buildTemplatePayload({ ...baseValues, channels: ["WHATSAPP", "PUSH"] });
+    expect(payload).not.toHaveProperty("whatsappTemplate");
+    expect(payload).not.toHaveProperty("messagesPerHour");
+    expect(payload).not.toHaveProperty("dailyCap");
+    expect(payload).not.toHaveProperty("windowStartHour");
+    expect(payload).not.toHaveProperty("windowEndHour");
+    expect(payload).not.toHaveProperty("weekdaysOnly");
+  });
 });
 
-describe("buildTemplatePayload — imagem, deep-link, ritmo e público", () => {
+describe("buildTemplatePayload — imagem, deep-link, limite e público", () => {
   it("omite imageKey/deepLink/maxPerRun quando vazios", () => {
     const payload = buildTemplatePayload({ ...baseValues, imageKey: "", deepLink: "", maxPerRun: undefined });
     expect(payload.imageKey).toBeUndefined();
@@ -186,16 +165,9 @@ describe("buildTemplatePayload — imagem, deep-link, ritmo e público", () => {
     expect(payload.maxPerRun).toBe(500);
   });
 
-  it("sempre manda o ritmo e nunca filtra 'por nada' quando não há recorte", () => {
+  it("nunca filtra 'por nada' quando não há recorte", () => {
     const payload = buildTemplatePayload({ ...baseValues, cities: [], modules: [] });
     expect(payload.audienceFilters).toBeUndefined();
-    expect(payload).toMatchObject({
-      messagesPerHour: baseValues.messagesPerHour,
-      dailyCap: baseValues.dailyCap,
-      windowStartHour: baseValues.windowStartHour,
-      windowEndHour: baseValues.windowEndHour,
-      weekdaysOnly: baseValues.weekdaysOnly,
-    });
   });
 
   it("recorte de cidades vai para audienceFilters e o nome é aparado", () => {
@@ -215,16 +187,11 @@ describe("templateToFormValues", () => {
     audience: "CONTRACTORS_ALL",
     audienceFilters: { cities: ["Jundiaí"], modules: ["home-services"] },
     channels: ["PUSH", "WHATSAPP"],
-    whatsappTemplate: ["Var 1", "Var 2", "Var 3"].join(VARIANT_SEPARATOR),
+    devzappFunnelUrl: "https://api.devzapp.com.br/funil/abc",
     pushTitle: "Título salvo",
     pushBody: "Corpo salvo",
     imageKey: "campaign-templates/banner.png",
     deepLink: "contractor/vagas/nova",
-    messagesPerHour: 12,
-    dailyCap: 80,
-    windowStartHour: 10,
-    windowEndHour: 19,
-    weekdaysOnly: false,
     maxPerRun: 200,
     enabled: true,
     lastRunFor: null,
@@ -242,19 +209,20 @@ describe("templateToFormValues", () => {
     expect(values.cities).toEqual(["Jundiaí"]);
     expect(values.modules).toEqual(["home-services"]);
     expect(values.channels).toEqual(["PUSH", "WHATSAPP"]);
-    expect(values.whatsappVariants).toEqual(["Var 1", "Var 2", "Var 3"]);
+    expect(values.devzappFunnelUrl).toBe("https://api.devzapp.com.br/funil/abc");
     expect(values.pushTitle).toBe("Título salvo");
     expect(values.pushBody).toBe("Corpo salvo");
     expect(values.imageKey).toBe("campaign-templates/banner.png");
     expect(values.deepLink).toBe("contractor/vagas/nova");
-    expect(values.messagesPerHour).toBe(12);
-    expect(values.dailyCap).toBe(80);
-    expect(values.windowStartHour).toBe(10);
-    expect(values.windowEndHour).toBe(19);
-    expect(values.weekdaysOnly).toBe(false);
     expect(values.maxPerRun).toBe(200);
     // Sem targetYear salvo ⇒ o form assume "repete todo ano" marcado.
     expect(values.repeatsAnnually).toBe(true);
+  });
+
+  it("template sem devzappFunnelUrl salvo (legado) volta com o campo vazio", () => {
+    const legacy: CampaignTemplate = { ...weeklyTemplate, devzappFunnelUrl: undefined };
+    const values = templateToFormValues(legacy);
+    expect(values.devzappFunnelUrl).toBe("");
   });
 
   it("template DATED sem targetYear ⇒ repeatsAnnually true", () => {

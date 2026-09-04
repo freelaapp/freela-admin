@@ -4,19 +4,12 @@
  * (template existente → valores do formulário) para o modo edição. Nada
  * aqui toca DOM, rede ou estado — dá para testar sem montar o componente.
  */
-import {
-  normalizeTemplatePlaceholders,
-  renderPreview,
-} from "@/modules/admin/application/spreadsheet-contacts";
 import type { AudienceFilters } from "@/modules/admin/infrastructure/referrals-api";
 import type {
   CampaignTemplate,
   UpsertCampaignTemplatePayload,
 } from "@/modules/admin/infrastructure/campaign-templates-api";
 import { DEFAULT_TEMPLATE_FORM_VALUES, type TemplateFormValues } from "./template-schema";
-
-/** A API separa as variantes do WhatsApp por uma linha só com `---` (mesma convenção de `(auth)/campanhas`). */
-export const VARIANT_SEPARATOR = "\n---\n";
 
 /**
  * Monta o recorte a partir do formulário. Devolve `undefined` quando não há
@@ -39,29 +32,14 @@ export function buildAudienceFilters(f: {
   };
 }
 
-/** Junta as 3 variantes num único texto, no formato que a API espera. */
-export function joinWhatsappVariants(variants: readonly string[]): string {
-  return variants.map((v) => normalizeTemplatePlaceholders(v).trim()).join(VARIANT_SEPARATOR);
-}
-
-/** Caminho inverso: texto salvo → as 3 variantes editáveis (edição). */
-export function splitWhatsappVariants(template: string | null | undefined): [string, string, string] {
-  if (!template) return ["", "", ""];
-  const parts = template.split(VARIANT_SEPARATOR);
-  return [parts[0] ?? "", parts[1] ?? "", parts[2] ?? ""];
-}
-
-/** Prévia de uma variante com um nome de exemplo — mesma função do item #1. */
-export function previewVariant(text: string, sampleName = "José da Silva"): string {
-  return renderPreview(text, sampleName);
-}
-
 /**
  * Formulário validado → payload da API. Só WEEKLY manda `weekdays`+`sendHour`;
  * só DATED manda `targetMonth`+`targetDay`+`leadDays` (e `targetYear` some
  * quando "repetir todo ano" está marcado). Só o canal ligado manda seu
  * conteúdo — desligar PUSH depois de preencher título/corpo não devia
- * mandar lixo pro backend.
+ * mandar lixo pro backend. WHATSAPP manda só o link do funil DevZapp: a
+ * DevZapp é dona do ritmo de envio, das variantes de mensagem e do disparo
+ * em si (mesma migração do item #1, `(auth)/campanhas`).
  */
 export function buildTemplatePayload(values: TemplateFormValues): UpsertCampaignTemplatePayload {
   const audienceFilters = buildAudienceFilters(values);
@@ -84,18 +62,13 @@ export function buildTemplatePayload(values: TemplateFormValues): UpsertCampaign
     ...(audienceFilters ? { audienceFilters } : {}),
     channels: values.channels,
     ...(values.channels.includes("WHATSAPP")
-      ? { whatsappTemplate: joinWhatsappVariants(values.whatsappVariants) }
+      ? { devzappFunnelUrl: values.devzappFunnelUrl.trim() }
       : {}),
     ...(values.channels.includes("PUSH")
       ? { pushTitle: values.pushTitle.trim(), pushBody: values.pushBody.trim() }
       : {}),
     ...(values.imageKey ? { imageKey: values.imageKey } : {}),
     ...(values.deepLink.trim() ? { deepLink: values.deepLink.trim() } : {}),
-    messagesPerHour: values.messagesPerHour,
-    dailyCap: values.dailyCap,
-    windowStartHour: values.windowStartHour,
-    windowEndHour: values.windowEndHour,
-    weekdaysOnly: values.weekdaysOnly,
     ...(values.maxPerRun ? { maxPerRun: values.maxPerRun } : {}),
   };
 }
@@ -118,16 +91,11 @@ export function templateToFormValues(template: CampaignTemplate): TemplateFormVa
     cities: filters?.cities ?? [],
     modules: filters?.modules ?? [],
     channels: template.channels,
-    whatsappVariants: splitWhatsappVariants(template.whatsappTemplate),
+    devzappFunnelUrl: template.devzappFunnelUrl ?? "",
     pushTitle: template.pushTitle ?? "",
     pushBody: template.pushBody ?? "",
     imageKey: template.imageKey ?? "",
     deepLink: template.deepLink ?? "",
-    messagesPerHour: template.messagesPerHour ?? DEFAULT_TEMPLATE_FORM_VALUES.messagesPerHour,
-    dailyCap: template.dailyCap ?? DEFAULT_TEMPLATE_FORM_VALUES.dailyCap,
-    windowStartHour: template.windowStartHour ?? DEFAULT_TEMPLATE_FORM_VALUES.windowStartHour,
-    windowEndHour: template.windowEndHour ?? DEFAULT_TEMPLATE_FORM_VALUES.windowEndHour,
-    weekdaysOnly: template.weekdaysOnly ?? true,
     maxPerRun: template.maxPerRun ?? undefined,
   };
 }
