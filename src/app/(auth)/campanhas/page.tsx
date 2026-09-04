@@ -26,10 +26,6 @@ import {
   usePreviewAudience,
   useSetCampaignState,
 } from "@/modules/admin/application/use-admin-referrals";
-import {
-  normalizeTemplatePlaceholders,
-  renderPreview,
-} from "@/modules/admin/application/spreadsheet-contacts";
 import type {
   AudienceFilters,
   Campaign,
@@ -84,35 +80,6 @@ function montarFiltros(f: {
   };
 }
 
-/** A API separa as variantes do WhatsApp por uma linha só com `---`. */
-const VARIANT_SEPARATOR = "\n---\n";
-
-/**
- * Textos de partida para a campanha de base (contratante/freelancer que JÁ tem
- * cadastro). Espelham `CONTRACTOR_ACTIVATION_VARIANTS` do backend
- * (`message-template.ts`) — mantenha os dois em sincronia. Diferente da lista
- * fria: aqui a pessoa já tem conta, então o texto fala "seu cadastro já está
- * pronto". O operador edita à vontade; as três precisam ficar preenchidas
- * porque a rotação anti-ban conta com três (o backend distribui por índice % 3).
- */
-const DEFAULT_WHATSAPP_VARIANTS = [
-  `Oi {primeiro_nome}, aqui é do Freela Serviços.
-
-Vi que você tem cadastro com a gente mas ainda não publicou nenhuma vaga. Se precisar de garçom, cozinheiro, bartender ou auxiliar — pra um evento, um fim de semana cheio ou pra cobrir uma falta — dá pra publicar a vaga em 2 minutos e receber candidatura no mesmo dia.
-
-Quer que eu te mostre como publicar a primeira?`,
-  `Olá {primeiro_nome}! Freela Serviços aqui.
-
-Faltou alguém na equipe hoje? A gente tem profissionais disponíveis em {cidade} e região prontos pra fechar o turno. Você publica a vaga, escolhe quem se candidatou e paga só pelo serviço.
-
-Posso te ajudar a publicar?`,
-  `Oi {primeiro_nome}, tudo bem? Aqui é do Freela Serviços.
-
-Os estabelecimentos que usam a plataforma resolvem a falta de equipe no mesmo dia, sem depender de indicação de conhecido. Seu cadastro já está pronto — falta só publicar a primeira vaga.
-
-Se quiser, te explico em 1 minuto como funciona.`,
-];
-
 const DEFAULT_FORM = {
   name: "",
   audience: "CONTRACTORS_NEVER_PUBLISHED" as CampaignAudience,
@@ -120,12 +87,24 @@ const DEFAULT_FORM = {
   modules: [] as Array<"bars-restaurants" | "home-services">,
   raioCidade: "",
   raioKm: 50,
-  messagesPerHour: 20,
-  dailyCap: 120,
-  windowStartHour: 9,
-  windowEndHour: 18,
-  weekdaysOnly: true,
+  devzappFunnelUrl: "",
 };
+
+/**
+ * A DevZapp agora é dona do ritmo/variantes/disparo em si — o admin só
+ * precisa apontar para o funil certo. Aceita só link https:// não vazio: um
+ * link http ou vazio travaria o disparo mais tarde, sem aviso na hora de
+ * criar.
+ */
+function isValidDevzappFunnelUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  try {
+    return new URL(trimmed).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 export default function CampanhasPage() {
   const { allowed, isChecking } = useAreaGuard("REFERRALS");
@@ -138,9 +117,6 @@ export default function CampanhasPage() {
   const [creating, setCreating] = useState(false);
   const [creatingFromSheet, setCreatingFromSheet] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM);
-  // Texto do disparo, editável (antes era um preview fixo). Nasce com os
-  // padrões da base; o operador ajusta antes de criar.
-  const [variants, setVariants] = useState<string[]>(DEFAULT_WHATSAPP_VARIANTS);
   // Só busca as cidades com o formulário aberto: a chamada monta a audiência
   // inteira no backend.
   const audienceOptions = useAudienceOptions(creating ? form.audience : null);
@@ -153,9 +129,7 @@ export default function CampanhasPage() {
   /** Freelancer existe nos dois módulos por padrão — filtrar por tipo de conta
    *  ali não separa ninguém e só confunde. Vale para contratante. */
   const mostraTipoDeConta = form.audience.startsWith("CONTRACTORS_");
-  // As três variantes precisam de texto: elas rodam alternadas para não cair
-  // como spam, e o backend distribui os destinatários por índice % 3.
-  const variantesPreenchidas = variants.every((v) => v.trim());
+  const funnelUrlValida = isValidDevzappFunnelUrl(form.devzappFunnelUrl);
 
   if (isChecking || !allowed) {
     return (
@@ -167,26 +141,20 @@ export default function CampanhasPage() {
 
   const handleCreate = async () => {
     try {
-      const { cities, modules, raioCidade, raioKm, ...rest } = form;
+      const { cities, modules, raioCidade, raioKm, devzappFunnelUrl, ...rest } = form;
       const filtros = montarFiltros({ cities, modules, raioCidade, raioKm });
       const created = await createCampaign.mutateAsync({
         ...rest,
         // Só manda o recorte se houver algum: objeto de listas vazias gravaria
         // "filtrado por nada", que é diferente de "sem filtro".
         ...(filtros ? { audienceFilters: filtros } : {}),
-        // Sempre as três variantes (o operador não consegue criar com alguma em
-        // branco): o backend rotaciona por índice % 3, então mandar menos que
-        // três desequilibraria a distribuição. `{nome}` vira `{{nome}}`.
-        whatsappTemplate: variants
-          .map((v) => normalizeTemplatePlaceholders(v).trim())
-          .join(VARIANT_SEPARATOR),
+        devzappFunnelUrl: devzappFunnelUrl.trim(),
       });
       toast.success(
         `Campanha criada com ${created.stats.PENDING} destinatários — ${created.estimate.days} dia(s) úteis no ritmo escolhido.`,
       );
       setCreating(false);
       setForm(DEFAULT_FORM);
-      setVariants(DEFAULT_WHATSAPP_VARIANTS);
       setContagem(null);
       setSelectedId(created.campaign.id);
     } catch (error) {
@@ -577,112 +545,23 @@ export default function CampanhasPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="rate">Mensagens por hora</Label>
-                <Input
-                  id="rate"
-                  type="number"
-                  min={1}
-                  max={60}
-                  value={form.messagesPerHour}
-                  onChange={(event) =>
-                    setForm({ ...form, messagesPerHour: Number(event.target.value) })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cap">Teto por dia</Label>
-                <Input
-                  id="cap"
-                  type="number"
-                  min={1}
-                  max={1000}
-                  value={form.dailyCap}
-                  onChange={(event) => setForm({ ...form, dailyCap: Number(event.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="start">Começa às (BRT)</Label>
-                <Input
-                  id="start"
-                  type="number"
-                  min={0}
-                  max={23}
-                  value={form.windowStartHour}
-                  onChange={(event) =>
-                    setForm({ ...form, windowStartHour: Number(event.target.value) })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="end">Termina às (BRT)</Label>
-                <Input
-                  id="end"
-                  type="number"
-                  min={1}
-                  max={24}
-                  value={form.windowEndHour}
-                  onChange={(event) =>
-                    setForm({ ...form, windowEndHour: Number(event.target.value) })
-                  }
-                />
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.weekdaysOnly}
-                onChange={(event) => setForm({ ...form, weekdaysOnly: event.target.checked })}
-              />
-              Só em dias úteis
-            </label>
-
-            {form.messagesPerHour > 30 && (
-              <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  Acima de 30 por hora o risco de o número ser banido cresce muito — e é o mesmo
-                  número da confirmação de vaga, do código de check-in e do suporte.
-                </span>
-              </div>
-            )}
-
             <div className="space-y-2">
-              <Label>O que vai ser enviado</Label>
+              <Label htmlFor="devzapp-funnel-url">Link do funil DevZapp</Label>
               <p className="text-xs text-neutral-500">
-                Três variantes rodam alternadas, personalizadas com nome e cidade — mensagens
-                idênticas em série é o que caracteriza spam. Use <code>{"{nome}"}</code>,{" "}
-                <code>{"{primeiro_nome}"}</code> ou <code>{"{cidade}"}</code>; a frase de
-                descadastro (“responda SAIR”) é acrescentada automaticamente.
+                Cole aqui o link do funil da DevZapp — ex.:{" "}
+                <code>https://api.devzapp.com.br/funil/start/v2/execute/…</code>. A DevZapp cuida
+                do ritmo de envio, das variantes de mensagem e do disparo.
               </p>
-              <div className="space-y-3">
-                {variants.map((text, index) => (
-                  <div key={index} className="space-y-1">
-                    <span className="text-xs font-medium text-neutral-600">
-                      Variante {index + 1}
-                    </span>
-                    <textarea
-                      data-testid={`variant-${index}`}
-                      className="min-h-32 w-full rounded-md border border-neutral-300 p-2 text-xs"
-                      value={text}
-                      onChange={(event) => {
-                        const next = [...variants];
-                        next[index] = event.target.value;
-                        setVariants(next);
-                      }}
-                    />
-                    <pre className="whitespace-pre-wrap rounded-md bg-neutral-100 p-2 text-[11px] text-neutral-600">
-                      {renderPreview(text, "José da Silva") || "(vazia — não será usada)"}
-                    </pre>
-                  </div>
-                ))}
-              </div>
-              {!variantesPreenchidas && (
+              <Input
+                id="devzapp-funnel-url"
+                data-testid="devzapp-funnel-url"
+                value={form.devzappFunnelUrl}
+                onChange={(event) => setForm({ ...form, devzappFunnelUrl: event.target.value })}
+                placeholder="https://api.devzapp.com.br/funil/start/v2/execute/…"
+              />
+              {form.devzappFunnelUrl.trim() && !funnelUrlValida && (
                 <p className="text-xs text-red-600">
-                  As três variantes precisam de texto — elas rodam alternadas para não cair
-                  como spam.
+                  Cole um link válido, começando com https://.
                 </p>
               )}
             </div>
@@ -694,7 +573,7 @@ export default function CampanhasPage() {
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={!form.name.trim() || !variantesPreenchidas || createCampaign.isPending}
+              disabled={!form.name.trim() || !funnelUrlValida || createCampaign.isPending}
             >
               {createCampaign.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Criar (sem disparar)
