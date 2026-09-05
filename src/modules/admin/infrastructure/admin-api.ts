@@ -491,6 +491,11 @@ export interface VacancyItem {
   /** Taxa fixa. Soma com a percentual na NOSSA receita — o financeiro usa as
    *  duas, e o painel precisa da mesma conta. Opcional na janela de deploy. */
   fixedFeeInCents?: number | null;
+  /** Repasse líquido decomposto (INSS por cima, empresa+flag) — o que o
+   *  freelancer REALMENTE recebe. Quando presente, o painel mostra ESTE e dele
+   *  deriva o INSS provisionado. Nulo/ausente = Casa / flag OFF / vaga antiga →
+   *  cai no `freelancerAmountInCents` legado. */
+  repasseLiquidoInCents?: number | null;
   /** Quantidade de freelancers que se candidataram à vaga. */
   candidacyCount?: number;
   /**

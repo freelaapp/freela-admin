@@ -442,7 +442,9 @@ export default function VagasCasaPage() {
             candidatos: r.candidatos,
             valor: r.valor,
             valorCents: r.raw.payment ?? 0,
-            lucroCents:
+            // Casa nunca decompõe (INSS por cima é só empresa): resíduo = taxa % +
+            // taxa fixa, igual ao valor de antes — só o rótulo "lucro" vira "resíduo".
+            residuoCents:
               (r.raw.platformFeeInCents ?? 0) + (r.raw.fixedFeeInCents ?? 0),
             data: r.data,
             turno: r.horario,
@@ -565,10 +567,10 @@ export default function VagasCasaPage() {
                 }
               />
               <LinhaDetalhe
-                rotulo="Nossa taxa"
+                rotulo="Resíduo (nossa margem)"
                 valor={
                   detalhe.raw.platformFeeInCents != null
-                    ? `R$ ${(detalhe.raw.platformFeeInCents / 100).toFixed(2).replace(".", ",")}`
+                    ? `R$ ${(((detalhe.raw.platformFeeInCents ?? 0) + (detalhe.raw.fixedFeeInCents ?? 0)) / 100).toFixed(2).replace(".", ",")}`
                     : "—"
                 }
               />

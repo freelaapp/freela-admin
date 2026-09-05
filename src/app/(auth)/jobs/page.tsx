@@ -43,6 +43,7 @@ import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } f
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
 import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
 import type { VacancyItem, RefundType } from "@/modules/admin/infrastructure/admin-api";
+import { computeVacancyMoney } from "@/modules/admin/domain/vacancy-money";
 import { formatVacancyDate, formatVacancyTime, formatInstantDateTime, vacancyDayISO } from "@/lib/date.utils";
 
 const formatDate = formatVacancyDate;
@@ -75,6 +76,7 @@ function mapVacancyStatus(status: string) {
 function mapVacancyToRow(v: VacancyItem) {
   const start = formatTime(v.startTime);
   const end = formatTime(v.endTime);
+  const money = computeVacancyMoney(v);
   return {
     id: v.id,
     empresa: v.contractorCompanyName || v.contractorName || "Sem nome",
@@ -83,7 +85,9 @@ function mapVacancyToRow(v: VacancyItem) {
     qtd: 1,
     candidatos: v.candidacyCount ?? 0,
     preenchidas: v.status === "CLOSED" ? 1 : 0,
-    valor: `R$ ${(v.payment / 100).toFixed(2).replace(".", ",")}`,
+    // "Valor" = o que o CONTRATANTE paga (base + INSS por cima). Vagas decompostas
+    // (empresa) passam a mostrar a cobrança real; no legado fica igual (= base).
+    valor: `R$ ${(money.contractorPaidCents / 100).toFixed(2).replace(".", ",")}`,
     data: formatDate(v.date),
     // Quando a vaga foi PUBLICADA (≠ `data`, que é o dia do serviço).
     abertaEm: v.createdAt ? formatInstantDateTime(v.createdAt) : "—",
@@ -93,6 +97,7 @@ function mapVacancyToRow(v: VacancyItem) {
     providerName: v.providerName ?? null,
     consultor: v.referringConsultant?.name ?? null,
     raw: v,
+    money,
   };
 }
 
@@ -490,9 +495,10 @@ export default function JobsPage() {
             // Já formatados aqui: o painel não faz conta nem formata data, para
             // que o card e a linha da tabela nunca divirjam no mesmo número.
             valor: r.valor,
-            valorCents: r.raw.payment ?? 0,
-            // Taxa da plataforma + taxa fixa: o que fica para nós.
-            lucroCents: (r.raw.platformFeeInCents ?? 0) + (r.raw.fixedFeeInCents ?? 0),
+            valorCents: r.money.contractorPaidCents,
+            // Resíduo (nossa margem): base − repasse real quando decomposta
+            // (= taxa + pix + seguro); no legado, taxa % + taxa fixa.
+            residuoCents: r.money.residuoCents,
             data: r.data,
             turno: r.horario,
             freelancer: r.providerName,
@@ -681,16 +687,20 @@ export default function JobsPage() {
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
                   <p className="text-[#737373]">Contratante pagou</p>
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.valor}</p>
-                  {modalDetalhes.raw?.platformFeeInCents != null && (
+                  {modalDetalhes.money.decomposed && (
                     <p className="text-[10px] text-[#737373] mt-0.5">
-                      Plataforma: {formatCents(modalDetalhes.raw.platformFeeInCents)}
+                      Inclui INSS provisionado {formatCents(modalDetalhes.money.inssCents)} (pago por
+                      cima, em nome do freelancer)
                     </p>
                   )}
+                  <p className="text-[10px] text-[#737373] mt-0.5">
+                    Resíduo (nossa margem): {formatCents(modalDetalhes.money.residuoCents)}
+                  </p>
                 </div>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <p className="text-green-700 text-xs">Freelancer recebe</p>
                   <p className="font-semibold text-green-900">
-                    {formatCents(modalDetalhes.raw?.freelancerAmountInCents) ?? "—"}
+                    {formatCents(modalDetalhes.money.repasseCents)}
                   </p>
                 </div>
                 <div className="bg-[#f7f7f7] rounded-lg p-3">

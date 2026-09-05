@@ -38,13 +38,15 @@ export interface BoardVacancy {
    */
   valorCents: number;
   /**
-   * Nossa receita na vaga (taxa da plataforma + taxa fixa), em centavos.
+   * Nosso resíduo (margem) na vaga, em centavos. Vaga decomposta (INSS por cima,
+   * empresa): base − repasse real = taxa de serviço + pix + seguro. Legado: taxa
+   * da plataforma + taxa fixa.
    *
    * Separado do valor porque respondem perguntas diferentes: o valor diz quanto
-   * dinheiro passa pela etapa, o lucro diz quanto fica. Zero quando a vaga não
-   * tem snapshot de taxa (vagas antigas).
+   * dinheiro passa pela etapa, o resíduo diz quanto fica para nós (não é "lucro":
+   * não abate custos). Zero quando a vaga não tem snapshot de taxa (vagas antigas).
    */
-  lucroCents: number;
+  residuoCents: number;
   /** Dia do SERVIÇO, já formatado ("12/08"). */
   data: string;
   /** Faixa do turno, já formatada ("18:00 - 00:00"). */
@@ -479,22 +481,22 @@ export function VacancyBoard({
     [potencialPorBucket],
   );
 
-  /** Lucro por etapa e total — o que sobra para nós, não o que transaciona. */
-  const lucroPorBucket = useMemo(() => {
+  /** Resíduo (margem) por etapa e total — o que sobra para nós, não o que transaciona. */
+  const residuoPorBucket = useMemo(() => {
     const mapa = new Map<BoardBucket, number>();
     for (const coluna of COLUNAS) {
       const itens = porBucket.get(coluna.bucket) ?? [];
       mapa.set(
         coluna.bucket,
-        itens.reduce((soma, item) => soma + (item.lucroCents || 0), 0),
+        itens.reduce((soma, item) => soma + (item.residuoCents || 0), 0),
       );
     }
     return mapa;
   }, [porBucket]);
 
-  const lucroTotal = useMemo(
-    () => [...lucroPorBucket.values()].reduce((soma, valor) => soma + valor, 0),
-    [lucroPorBucket],
+  const residuoTotal = useMemo(
+    () => [...residuoPorBucket.values()].reduce((soma, valor) => soma + valor, 0),
+    [residuoPorBucket],
   );
 
   const horaAtualizacao = new Date(agora).toLocaleTimeString("pt-BR", {
@@ -534,15 +536,15 @@ export function VacancyBoard({
               {somaFormatada(potencialTotal)}
             </div>
           </div>
-          {/* Lucro à parte, e não somado ao potencial: o potencial é o dinheiro
-              que PASSA, o lucro é o que FICA. Juntar os dois num número só
-              inflaria a leitura da mesa. */}
+          {/* Resíduo à parte, e não somado ao potencial: o potencial é o dinheiro
+              que PASSA, o resíduo é o que FICA para nós (margem, não lucro —
+              não abate custos). Juntar os dois num número só inflaria a mesa. */}
           <div className="rounded-[10px] border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-2 text-right">
             <div className="text-[10.5px] font-semibold uppercase tracking-wide text-[#16A34A]">
-              Lucro potencial do dia
+              Resíduo do dia (nossa margem)
             </div>
             <div className="text-[20px] font-bold leading-tight tabular-nums text-[#166534]">
-              {somaFormatada(lucroTotal)}
+              {somaFormatada(residuoTotal)}
             </div>
           </div>
           <span className="flex items-center gap-1.5 text-[12px] text-[#64748B]">
@@ -610,7 +612,7 @@ export function VacancyBoard({
                     {somaFormatada(potencialPorBucket.get(coluna.bucket) ?? 0)}
                   </span>
                   <span className="text-[11px] font-semibold tabular-nums text-[#16A34A]">
-                    lucro {somaFormatada(lucroPorBucket.get(coluna.bucket) ?? 0)}
+                    resíduo {somaFormatada(residuoPorBucket.get(coluna.bucket) ?? 0)}
                   </span>
                 </div>
               </div>
