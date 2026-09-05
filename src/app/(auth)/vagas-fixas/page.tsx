@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
+import { formatCents } from "@/lib/money";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -35,13 +36,13 @@ function formatSalary(
   max: number | null,
   proposal?: number | null,
 ): string {
-  const fmt = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
   // Proposta única primeiro: é o campo que web e admin realmente gravam —
   // min/max ficam nulos nesses fluxos e a coluna vivia em "—".
-  if (proposal != null) return fmt(proposal);
-  if (min != null && max != null) return min === max ? fmt(min) : `${fmt(min)} – ${fmt(max)}`;
-  if (min != null) return `A partir de ${fmt(min)}`;
-  if (max != null) return `Até ${fmt(max)}`;
+  if (proposal != null) return formatCents(proposal);
+  if (min != null && max != null)
+    return min === max ? formatCents(min) : `${formatCents(min)} – ${formatCents(max)}`;
+  if (min != null) return `A partir de ${formatCents(min)}`;
+  if (max != null) return `Até ${formatCents(max)}`;
   return "—";
 }
 

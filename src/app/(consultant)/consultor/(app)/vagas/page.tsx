@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { formatCents } from "@/lib/money";
 import {
   Dialog,
   DialogClose,
@@ -51,9 +52,6 @@ const CANDIDACY_STATUS: Record<string, { label: string; variant: "default" | "su
   CANCELED: { label: "Cancelada", variant: "destructive" },
 };
 
-function formatBRL(cents: number): string {
-  return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
-}
 
 export default function ConsultorVagasPage() {
   const { data: vacancies, isLoading, isError } = useConsultantVacancies();
@@ -199,7 +197,7 @@ function VacancyCard({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#737373]">
         <span>{formatVacancyDate(v.date)}</span>
         {v.startTime && <span>{formatVacancyTime(v.startTime)}</span>}
-        <span className="font-medium text-[#1d1d1b]">{formatBRL(v.payment)}</span>
+        <span className="font-medium text-[#1d1d1b]">{formatCents(v.payment)}</span>
       </div>
 
       {!closed ? (

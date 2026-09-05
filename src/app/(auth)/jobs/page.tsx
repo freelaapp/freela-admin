@@ -44,15 +44,12 @@ import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-r
 import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
 import type { VacancyItem, RefundType } from "@/modules/admin/infrastructure/admin-api";
 import { computeVacancyMoney } from "@/modules/admin/domain/vacancy-money";
+import { formatCents } from "@/lib/money";
 import { formatVacancyDate, formatVacancyTime, formatInstantDateTime, vacancyDayISO } from "@/lib/date.utils";
 
 const formatDate = formatVacancyDate;
 const formatTime = formatVacancyTime;
 
-function formatCents(cents: number | null | undefined): string | null {
-  if (cents == null) return null;
-  return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
-}
 
 const PIX_KEY_TYPE_LABELS: Record<string, string> = {
   CPF: "CPF",
@@ -87,7 +84,7 @@ function mapVacancyToRow(v: VacancyItem) {
     preenchidas: v.status === "CLOSED" ? 1 : 0,
     // "Valor" = o que o CONTRATANTE paga (base + INSS por cima). Vagas decompostas
     // (empresa) passam a mostrar a cobrança real; no legado fica igual (= base).
-    valor: `R$ ${(money.contractorPaidCents / 100).toFixed(2).replace(".", ",")}`,
+    valor: formatCents(money.contractorPaidCents),
     data: formatDate(v.date),
     // Quando a vaga foi PUBLICADA (≠ `data`, que é o dia do serviço).
     abertaEm: v.createdAt ? formatInstantDateTime(v.createdAt) : "—",

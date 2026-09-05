@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { VacancyBoard } from "../jobs/_components/vacancy-board";
+import { formatCents } from "@/lib/money";
 import { resolveVacancyBucket } from "../jobs/_components/vacancy-bucket";
 import { VacancyRoadmap } from "../jobs/_components/vacancy-roadmap";
 import { VacancyDispatchCell } from "../jobs/_components/vacancy-dispatch-cell";
@@ -70,7 +71,7 @@ function mapToRow(v: CasaVacancyItem) {
     empresa: v.contractorCompanyName || v.contractorName || "Sem nome",
     cargo: v.serviceType,
     lugar: v.address || "N/A",
-    valor: `R$ ${(v.payment / 100).toFixed(2).replace(".", ",")}`,
+    valor: formatCents(v.payment),
     data: formatVacancyDate(v.date),
     // TIERED (diarista, piscineiro…): endTime é placeholder (start+1h) — mostrar
     // "12:00 - 13:00" afirmaria uma janela falsa; exibe chegada + faixa.
@@ -562,7 +563,7 @@ export default function VagasCasaPage() {
                 rotulo="Custo (freelancer)"
                 valor={
                   detalhe.raw.freelancerAmountInCents != null
-                    ? `R$ ${(detalhe.raw.freelancerAmountInCents / 100).toFixed(2).replace(".", ",")}`
+                    ? formatCents(detalhe.raw.freelancerAmountInCents)
                     : "—"
                 }
               />
@@ -570,7 +571,7 @@ export default function VagasCasaPage() {
                 rotulo="Resíduo (nossa margem)"
                 valor={
                   detalhe.raw.platformFeeInCents != null
-                    ? `R$ ${(((detalhe.raw.platformFeeInCents ?? 0) + (detalhe.raw.fixedFeeInCents ?? 0)) / 100).toFixed(2).replace(".", ",")}`
+                    ? formatCents((detalhe.raw.platformFeeInCents ?? 0) + (detalhe.raw.fixedFeeInCents ?? 0))
                     : "—"
                 }
               />
