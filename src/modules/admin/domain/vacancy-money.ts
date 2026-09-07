@@ -1,6 +1,11 @@
 /**
- * Dinheiro de uma vaga no painel, no modelo INSS por cima (spec 2026-09-04) já
- * aplicado em API/web/app. O admin recebe do backend campos legados
+ * Dinheiro de uma vaga no painel. Decisão do dono (2026-09-05): a PLATAFORMA cobra
+ * do contratante SÓ o valor do serviço. O INSS é PROVISÃO recolhida À PARTE pelo
+ * CONTRATANTE (guia/eSocial), em nome do freelancer — NÃO passa pela plataforma,
+ * NÃO sai do repasse. Logo, "o que o contratante pagou À PLATAFORMA" = o serviço
+ * (payment), SEM somar o INSS; o INSS é uma linha SEPARADA (a recolher fora).
+ *
+ * O admin recebe do backend campos legados
  * (`payment`/`freelancerAmountInCents`/`platformFeeInCents`/`fixedFeeInCents`) e,
  * quando a vaga é decomposta (empresa + flag), também o `repasseLiquidoInCents`
  * — o repasse REAL e imutável que o freelancer recebe. Deste helper saem os
@@ -8,10 +13,12 @@
  *
  * Modelo novo (repasseLiquidoInCents presente):
  *   • repasse   = repasseLiquidoInCents            (imutável; NÃO o net de 80%)
- *   • INSS      = round(repasse × 11%)             (provisionado, pago por cima)
- *   • cobrança  = payment + INSS                   (o contratante paga o INSS por cima)
+ *   • cobrança  = payment                          (a plataforma cobra só o serviço)
  *   • resíduo   = payment − repasse                (nossa margem = taxa + pix + seguro)
- *   e cobrança = resíduo + repasse + INSS.
+ *   • INSS      = round(repasse × 11%)             (provisão SEPARADA, a recolher FORA
+ *                                                   da plataforma pelo contratante;
+ *                                                   NÃO entra na cobrança nem no repasse)
+ *   e cobrança = resíduo + repasse.
  *
  * Modelo legado (Casa / flag OFF / vaga antiga): net de 80%, sem INSS, resíduo =
  * taxa % + taxa fixa — byte-idêntico ao que o painel mostrava antes (só o rótulo
@@ -32,14 +39,16 @@ export type VacancyMoneyInput = {
 };
 
 export type VacancyMoney = {
-  /** true quando a vaga é decomposta (INSS por cima). */
+  /** true quando a vaga é decomposta (empresa + flag): repasse imutável + INSS à parte. */
   decomposed: boolean;
   /** O que o freelancer REALMENTE recebe (repasse decomposto, ou net legado). */
   repasseCents: number;
-  /** INSS provisionado em nome do freelancer, pago POR CIMA pelo contratante.
-   *  0 no legado. */
+  /** INSS provisionado em nome do freelancer, recolhido À PARTE (fora da plataforma)
+   *  pelo contratante via guia/eSocial. NÃO entra no que foi pago à plataforma nem
+   *  sai do repasse. 0 no legado. */
   inssCents: number;
-  /** O que o contratante paga: base + INSS (decomposto) ou base (legado). */
+  /** O que o contratante paga À PLATAFORMA: só o serviço (= payment), decomposto ou
+   *  legado. O INSS é recolhido à parte, fora da plataforma, e NÃO entra aqui. */
   contractorPaidCents: number;
   /** Nossa margem (resíduo): base − repasse (decomposto) ou taxa % + taxa fixa (legado). */
   residuoCents: number;
@@ -56,7 +65,7 @@ export function computeVacancyMoney(v: VacancyMoneyInput): VacancyMoney {
       decomposed: true,
       repasseCents,
       inssCents,
-      contractorPaidCents: payment + inssCents, // INSS por cima
+      contractorPaidCents: payment, // a plataforma cobra só o serviço; INSS é à parte, fora da plataforma
       residuoCents: payment - repasseCents, // = taxa de serviço + pix + seguro
     };
   }

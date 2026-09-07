@@ -82,8 +82,8 @@ function mapVacancyToRow(v: VacancyItem) {
     qtd: 1,
     candidatos: v.candidacyCount ?? 0,
     preenchidas: v.status === "CLOSED" ? 1 : 0,
-    // "Valor" = o que o CONTRATANTE paga (base + INSS por cima). Vagas decompostas
-    // (empresa) passam a mostrar a cobrança real; no legado fica igual (= base).
+    // "Valor" = o que o contratante paga à plataforma (só o serviço; INSS é recolhido
+    // à parte, fora da plataforma). Decomposta ou legado, é sempre o serviço (= base).
     valor: formatCents(money.contractorPaidCents),
     data: formatDate(v.date),
     // Quando a vaga foi PUBLICADA (≠ `data`, que é o dia do serviço).
@@ -686,8 +686,10 @@ export default function JobsPage() {
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.valor}</p>
                   {modalDetalhes.money.decomposed && (
                     <p className="text-[10px] text-[#737373] mt-0.5">
-                      Inclui INSS provisionado {formatCents(modalDetalhes.money.inssCents)} (pago por
-                      cima, em nome do freelancer)
+                      INSS a recolher à parte (fora da plataforma):{" "}
+                      {formatCents(modalDetalhes.money.inssCents)} — provisionado em nome do
+                      freelancer, recolhido pelo contratante (guia/eSocial); não passa pela
+                      plataforma nem sai do repasse.
                     </p>
                   )}
                   <p className="text-[10px] text-[#737373] mt-0.5">
