@@ -22,8 +22,6 @@ import {
 } from "@/modules/admin/application/use-admin-referrals";
 import {
   detectColumnMapping,
-  normalizeTemplatePlaceholders,
-  renderPreview,
   rowsToContacts,
   toApiContacts,
   type ColumnMapping,
@@ -47,32 +45,7 @@ const ROLE_LABEL: Record<RegisteredRole, string> = {
 
 /** Teto da API por chamada. */
 const MAX_CONTACTS = 5000;
-/** A API separa as variantes do WhatsApp por uma linha só com `---`. */
-const VARIANT_SEPARATOR = "\n---\n";
 const PREVIEW_ROWS = 5;
-
-/**
- * Textos de partida para lista fria. Diferem dos da base (que falam "seu
- * cadastro já está pronto"): aqui a pessoa nunca ouviu falar da gente, e
- * fingir intimidade é o que gera denúncia.
- */
-const DEFAULT_VARIANTS = [
-  `Oi {primeiro_nome}, tudo bem? Aqui é do Freela Serviços.
-
-A gente conecta bares, restaurantes e eventos a garçons, cozinheiros, bartenders e auxiliares que atendem no mesmo dia. Você publica a vaga, escolhe quem se candidatou e paga só pelo serviço.
-
-Posso te mostrar como funciona?`,
-  `Olá {primeiro_nome}! Freela Serviços aqui.
-
-Faltou alguém na equipe? Temos profissionais prontos pra cobrir o turno — sem depender de indicação de conhecido. Cadastro leva 2 minutos e a vaga sai na hora.
-
-Quer o link pra publicar a primeira?`,
-  `Oi {primeiro_nome}, aqui é do Freela Serviços.
-
-Estabelecimentos da sua região já resolvem falta de equipe pela plataforma. Se fizer sentido pra você, te explico em 1 minuto como publicar uma vaga e receber candidatura no mesmo dia.
-
-Pode ser?`,
-];
 
 const FIELD_LABEL: Record<ContactField, string> = {
   name: "Nome",
@@ -124,15 +97,21 @@ async function parseSpreadsheetFile(file: File): Promise<ParsedSheet> {
   };
 }
 
-const DEFAULT_RHYTHM = {
-  // Metade do ritmo da campanha de base: número frio + lista fria é o pior
-  // cenário para o WhatsApp.
-  messagesPerHour: 10,
-  dailyCap: 60,
-  windowStartHour: 9,
-  windowEndHour: 18,
-  weekdaysOnly: true,
-};
+/**
+ * A DevZapp agora é dona do ritmo/variantes/disparo em si — a tela só
+ * precisa apontar para o funil certo. Aceita só link https:// não vazio: um
+ * link http ou vazio travaria o disparo mais tarde, sem aviso na hora de
+ * criar.
+ */
+function isValidDevzappFunnelUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  try {
+    return new URL(trimmed).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 interface Props {
   open: boolean;
@@ -152,9 +131,9 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
   // Marcado por padrão: lista fria é para quem NÃO conhece a plataforma;
   // mandar "vem conhecer" para quem já tem conta é o que gera denúncia.
   const [skipRegistered, setSkipRegistered] = useState(true);
-  const [variants, setVariants] = useState<string[]>(DEFAULT_VARIANTS);
-  const [rhythm, setRhythm] = useState(DEFAULT_RHYTHM);
+  const [devzappFunnelUrl, setDevzappFunnelUrl] = useState("");
   const [showAllInvalid, setShowAllInvalid] = useState(false);
+  const funnelUrlValida = isValidDevzappFunnelUrl(devzappFunnelUrl);
 
   const parsed = useMemo(
     () =>
@@ -184,8 +163,7 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
     setMapping({ name: null, phone: null, email: null });
     setPreview(null);
     setSkipRegistered(true);
-    setVariants(DEFAULT_VARIANTS);
-    setRhythm(DEFAULT_RHYTHM);
+    setDevzappFunnelUrl("");
     setShowAllInvalid(false);
   };
 
@@ -238,11 +216,7 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
         contacts: toApiContacts(contacts),
         listFileName: sheet.fileName,
         skipRegistered: skipping,
-        whatsappTemplate: variants
-          .map((v) => normalizeTemplatePlaceholders(v).trim())
-          .filter(Boolean)
-          .join(VARIANT_SEPARATOR),
-        ...rhythm,
+        devzappFunnelUrl: devzappFunnelUrl.trim(),
       });
       reset();
       onCreated(created);
@@ -266,7 +240,7 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
     willSend > 0 &&
     !allRegistered &&
     !tooMany &&
-    variants.some((v) => v.trim()) &&
+    funnelUrlValida &&
     !createCampaign.isPending;
 
   return (
@@ -281,18 +255,6 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
         </DialogHeader>
 
         <div className="space-y-5">
-          <div
-            className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900"
-            data-testid="cold-outreach-warning"
-          >
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              <strong>Disparo frio.</strong> Essas pessoas não pediram contato — é o cenário em
-              que o WhatsApp mais bloqueia número. Use ritmo baixo, janela comercial e mensagens
-              diferentes entre si. O número é o mesmo da confirmação de vaga e do suporte.
-            </span>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="ext-name">Nome da campanha</Label>
             <Input
@@ -571,103 +533,23 @@ export function ExternalListDialog({ open, onOpenChange, onCreated }: Props) {
           )}
 
           <div className="space-y-2">
-            <Label>Mensagens do WhatsApp</Label>
+            <Label htmlFor="ext-devzapp-funnel-url">Link do funil DevZapp</Label>
             <p className="text-xs text-neutral-500">
-              Três variantes rodam alternadas. Use <code>{"{nome}"}</code> ou{" "}
-              <code>{"{primeiro_nome}"}</code>; a frase de descadastro (“responda SAIR”) é
-              acrescentada automaticamente.
+              Cole aqui o link do funil da DevZapp — ex.:{" "}
+              <code>https://api.devzapp.com.br/funil/start/v2/execute/…</code>. A DevZapp cuida
+              do ritmo de envio, das variantes de mensagem e do disparo.
             </p>
-            <div className="grid gap-3 md:grid-cols-3">
-              {variants.map((text, index) => (
-                <div key={index} className="space-y-1">
-                  <textarea
-                    data-testid={`variant-${index}`}
-                    className="min-h-36 w-full rounded-md border border-neutral-300 p-2 text-xs"
-                    value={text}
-                    onChange={(event) => {
-                      const next = [...variants];
-                      next[index] = event.target.value;
-                      setVariants(next);
-                    }}
-                  />
-                  <pre className="whitespace-pre-wrap rounded-md bg-neutral-100 p-2 text-[11px] text-neutral-600">
-                    {renderPreview(text, contacts[0]?.name ?? "José da Silva") || "(vazia — não será usada)"}
-                  </pre>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="ext-rate">Mensagens por hora</Label>
-              <Input
-                id="ext-rate"
-                type="number"
-                min={1}
-                max={60}
-                value={rhythm.messagesPerHour}
-                onChange={(event) =>
-                  setRhythm({ ...rhythm, messagesPerHour: Number(event.target.value) })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ext-cap">Teto por dia</Label>
-              <Input
-                id="ext-cap"
-                type="number"
-                min={1}
-                max={1000}
-                value={rhythm.dailyCap}
-                onChange={(event) => setRhythm({ ...rhythm, dailyCap: Number(event.target.value) })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ext-start">Começa às (BRT)</Label>
-              <Input
-                id="ext-start"
-                type="number"
-                min={0}
-                max={23}
-                value={rhythm.windowStartHour}
-                onChange={(event) =>
-                  setRhythm({ ...rhythm, windowStartHour: Number(event.target.value) })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ext-end">Termina às (BRT)</Label>
-              <Input
-                id="ext-end"
-                type="number"
-                min={1}
-                max={24}
-                value={rhythm.windowEndHour}
-                onChange={(event) =>
-                  setRhythm({ ...rhythm, windowEndHour: Number(event.target.value) })
-                }
-              />
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={rhythm.weekdaysOnly}
-              onChange={(event) => setRhythm({ ...rhythm, weekdaysOnly: event.target.checked })}
+            <Input
+              id="ext-devzapp-funnel-url"
+              data-testid="devzapp-funnel-url"
+              value={devzappFunnelUrl}
+              onChange={(event) => setDevzappFunnelUrl(event.target.value)}
+              placeholder="https://api.devzapp.com.br/funil/start/v2/execute/…"
             />
-            Só em dias úteis
-          </label>
-
-          {rhythm.messagesPerHour > 20 && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                Em lista fria, acima de 20 por hora o risco de bloqueio do número é alto.
-              </span>
-            </div>
-          )}
+            {devzappFunnelUrl.trim() && !funnelUrlValida && (
+              <p className="text-xs text-red-600">Cole um link válido, começando com https://.</p>
+            )}
+          </div>
         </div>
 
         <DialogFooter>

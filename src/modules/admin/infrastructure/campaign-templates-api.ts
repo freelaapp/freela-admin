@@ -37,16 +37,17 @@ export interface UpsertCampaignTemplatePayload {
   audience: CampaignTemplateAudience;
   audienceFilters?: AudienceFilters;
   channels: CampaignChannel[];
-  whatsappTemplate?: string;
+  /**
+   * Link do funil da DevZapp. A DevZapp enrola cada contato desse template
+   * nesse funil e cuida do ritmo de envio, das variantes de mensagem e do
+   * disparo em si — o canal WHATSAPP só grava o link (mirror de
+   * `CreateCampaignPayload.devzappFunnelUrl` em `referrals-api.ts`).
+   */
+  devzappFunnelUrl?: string;
   pushTitle?: string;
   pushBody?: string;
   imageKey?: string;
   deepLink?: string;
-  messagesPerHour?: number;
-  dailyCap?: number;
-  windowStartHour?: number;
-  windowEndHour?: number;
-  weekdaysOnly?: boolean;
   maxPerRun?: number;
 }
 

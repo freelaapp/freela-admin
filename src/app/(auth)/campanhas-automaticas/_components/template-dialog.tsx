@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +42,6 @@ import {
 import {
   buildAudienceFilters,
   buildTemplatePayload,
-  previewVariant,
   templateToFormValues,
 } from "../_lib/template-form";
 import { ImageUploadField } from "./image-upload-field";
@@ -85,13 +84,17 @@ interface Props {
 /**
  * Diálogo criar/editar de template de campanha automática (recorrente):
  * agenda (WEEKLY/DATED) + público (recorte igual a `(auth)/campanhas`) +
- * canais + mensagem (WhatsApp 3 variantes / push) + imagem + ritmo.
+ * canais + mensagem (WhatsApp = link do funil DevZapp / push = título+corpo)
+ * + imagem + limite por execução.
+ *
+ * Canal WHATSAPP: a DevZapp é dona do ritmo de envio, das variantes de
+ * mensagem e do disparo em si (mesma migração do item #1, `(auth)/campanhas`
+ * — commit "Trocar ritmo/variantes por link do funil DevZapp"). O formulário
+ * só grava o link do funil (`devzappFunnelUrl`).
  *
  * Reusa, sem reescrever: os controles de recorte de público e o botão
  * "Contar" (`useAudienceOptions`/`usePreviewAudience`, de
- * `use-admin-referrals.ts`) e o preview de variante do WhatsApp
- * (`renderPreview`/`normalizeTemplatePlaceholders`, via `previewVariant` em
- * `_lib/template-form.ts`) — mesma lógica do editor de `(auth)/campanhas`.
+ * `use-admin-referrals.ts`) — mesma lógica do editor de `(auth)/campanhas`.
  * O upload de imagem segue a UX do `AdDialog` de `(auth)/propagandas`, mas
  * grava `imageKey` via `uploadCampaignTemplateImage` (Task 1).
  */
@@ -143,7 +146,6 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
   const cities = watch("cities");
   const selectedModules = watch("modules");
   const repeatsAnnually = watch("repeatsAnnually");
-  const messagesPerHour = watch("messagesPerHour");
 
   // Só busca as cidades com o diálogo aberto: a chamada monta a audiência
   // inteira no backend, então não vale disparar sem necessidade.
@@ -576,40 +578,19 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
           {/* ── Mensagem ───────────────────────────────────────────── */}
           {channels.includes("WHATSAPP") && (
             <section className="space-y-2">
-              <Label>Mensagem do WhatsApp</Label>
+              <Label htmlFor="tpl-devzapp-funnel-url">Link do funil DevZapp</Label>
               <p className="text-xs text-neutral-500">
-                Três variantes rodam alternadas, personalizadas com nome e cidade — mensagens
-                idênticas em série é o que caracteriza spam. Use <code>{"{nome}"}</code>,{" "}
-                <code>{"{primeiro_nome}"}</code> ou <code>{"{cidade}"}</code>.
+                Cole aqui o link do funil da DevZapp — ex.:{" "}
+                <code>https://api.devzapp.com.br/funil/start/v2/execute/…</code>. A DevZapp cuida
+                do ritmo de envio, das variantes de mensagem e do disparo.
               </p>
-              <Controller
-                control={control}
-                name="whatsappVariants"
-                render={({ field }) => (
-                  <div className="space-y-3">
-                    {field.value.map((text, index) => (
-                      <div key={index} className="space-y-1">
-                        <span className="text-xs font-medium text-neutral-600">
-                          Variante {index + 1}
-                        </span>
-                        <textarea
-                          className="min-h-32 w-full rounded-md border border-neutral-300 p-2 text-xs"
-                          value={text}
-                          onChange={(e) => {
-                            const next = [...field.value] as [string, string, string];
-                            next[index] = e.target.value;
-                            field.onChange(next);
-                          }}
-                        />
-                        <pre className="whitespace-pre-wrap rounded-md bg-neutral-100 p-2 text-[11px] text-neutral-600">
-                          {previewVariant(text) || "(vazia — não será usada)"}
-                        </pre>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <Input
+                id="tpl-devzapp-funnel-url"
+                data-testid="tpl-devzapp-funnel-url"
+                {...register("devzappFunnelUrl")}
+                placeholder="https://api.devzapp.com.br/funil/start/v2/execute/…"
               />
-              {errors.whatsappVariants && <ErrorText>{errors.whatsappVariants.message}</ErrorText>}
+              {errors.devzappFunnelUrl && <ErrorText>{errors.devzappFunnelUrl.message}</ErrorText>}
             </section>
           )}
 
@@ -662,91 +643,28 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
             </div>
           </section>
 
-          {/* ── Ritmo ──────────────────────────────────────────────── */}
-          <section className="space-y-3">
-            <Label>Ritmo</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="tpl-messagesPerHour">Mensagens por hora</Label>
+          {/* ── Limite por execução ────────────────────────────────── */}
+          <section className="w-56 space-y-1.5">
+            <Label htmlFor="tpl-maxPerRun">Máximo por execução (opcional)</Label>
+            <Controller
+              control={control}
+              name="maxPerRun"
+              render={({ field }) => (
                 <Input
-                  id="tpl-messagesPerHour"
+                  id="tpl-maxPerRun"
                   type="number"
                   min={1}
-                  max={60}
-                  {...register("messagesPerHour", { valueAsNumber: true })}
+                  value={field.value ?? ""}
+                  onChange={(e) =>
+                    field.onChange(e.target.value === "" ? undefined : Number(e.target.value))
+                  }
                 />
-                {errors.messagesPerHour && <ErrorText>{errors.messagesPerHour.message}</ErrorText>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tpl-dailyCap">Teto por dia</Label>
-                <Input
-                  id="tpl-dailyCap"
-                  type="number"
-                  min={1}
-                  max={1000}
-                  {...register("dailyCap", { valueAsNumber: true })}
-                />
-                {errors.dailyCap && <ErrorText>{errors.dailyCap.message}</ErrorText>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tpl-windowStartHour">Começa às (BRT)</Label>
-                <Input
-                  id="tpl-windowStartHour"
-                  type="number"
-                  min={0}
-                  max={23}
-                  {...register("windowStartHour", { valueAsNumber: true })}
-                />
-                {errors.windowStartHour && <ErrorText>{errors.windowStartHour.message}</ErrorText>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tpl-windowEndHour">Termina às (BRT)</Label>
-                <Input
-                  id="tpl-windowEndHour"
-                  type="number"
-                  min={1}
-                  max={24}
-                  {...register("windowEndHour", { valueAsNumber: true })}
-                />
-                {errors.windowEndHour && <ErrorText>{errors.windowEndHour.message}</ErrorText>}
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" {...register("weekdaysOnly")} />
-              Só em dias úteis
-            </label>
-
-            <div className="w-56 space-y-1.5">
-              <Label htmlFor="tpl-maxPerRun">Máximo por execução (opcional)</Label>
-              <Controller
-                control={control}
-                name="maxPerRun"
-                render={({ field }) => (
-                  <Input
-                    id="tpl-maxPerRun"
-                    type="number"
-                    min={1}
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value === "" ? undefined : Number(e.target.value))
-                    }
-                  />
-                )}
-              />
-              {errors.maxPerRun && <ErrorText>{errors.maxPerRun.message}</ErrorText>}
-              <p className="text-xs text-neutral-500">Vazio = sem limite além do ritmo acima.</p>
-            </div>
-
-            {messagesPerHour > 30 && (
-              <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  Acima de 30 por hora o risco de o número ser banido cresce muito — e é o mesmo
-                  número da confirmação de vaga, do código de check-in e do suporte.
-                </span>
-              </div>
-            )}
+              )}
+            />
+            {errors.maxPerRun && <ErrorText>{errors.maxPerRun.message}</ErrorText>}
+            <p className="text-xs text-neutral-500">
+              Vazio = roda a audiência inteira a cada execução.
+            </p>
           </section>
 
           <DialogFooter>

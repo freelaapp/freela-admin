@@ -1,8 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mock do client autenticado — mesmo padrão usado em campaign-templates-api.test.ts
+// (vi.hoisted evita o hoisting trap do vi.mock com closures externas).
+const { post } = vi.hoisted(() => ({
+  post: vi.fn(),
+}));
+
+vi.mock("@/modules/shared/infrastructure/authed-client", () => ({
+  createAuthedClient: () => ({ post }),
+}));
+
 import {
+  createCampaign,
   getCampaignCounts,
   readAlreadyRegistered,
   type CampaignDetail,
+  type CreateCampaignPayload,
   type ExternalListPreview,
 } from "./referrals-api";
 
@@ -13,6 +26,35 @@ const basePreview: ExternalListPreview = {
   alreadyRegistered: 2,
   byChannel: { whatsapp: 2, email: 1 },
 };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("createCampaign", () => {
+  it("faz POST /activation-campaigns com devzappFunnelUrl e sem ritmo/variantes", async () => {
+    const payload: CreateCampaignPayload = {
+      name: "Reativação contratantes",
+      audience: "CONTRACTORS_NEVER_PUBLISHED",
+      devzappFunnelUrl: "https://api.devzapp.com.br/funil/start/v2/execute/abc",
+    };
+    const created = { campaign: { id: "camp-1" } } as unknown as CampaignDetail;
+    post.mockResolvedValue({ data: { data: created } });
+
+    const result = await createCampaign(payload);
+
+    expect(post).toHaveBeenCalledWith("/activation-campaigns", payload);
+    // A DevZapp é dona do ritmo/variantes agora — o payload não carrega mais
+    // esses campos (o backend ignoraria/defaultaria de qualquer forma).
+    expect(payload).not.toHaveProperty("whatsappTemplate");
+    expect(payload).not.toHaveProperty("messagesPerHour");
+    expect(payload).not.toHaveProperty("dailyCap");
+    expect(payload).not.toHaveProperty("windowStartHour");
+    expect(payload).not.toHaveProperty("windowEndHour");
+    expect(payload).not.toHaveProperty("weekdaysOnly");
+    expect(result).toEqual(created);
+  });
+});
 
 describe("readAlreadyRegistered", () => {
   it("devolve as linhas quando a API manda alreadyRegisteredRows", () => {

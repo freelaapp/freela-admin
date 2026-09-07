@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2, ArrowUpCircle, Download, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ import {
   useClearLowPriority,
 } from "@/modules/admin/application/use-admin-providers";
 import { useAdminUpdateProvider } from "@/modules/admin/application/use-admin-update-provider";
+import { useCitiesCatalog } from "@/modules/admin/application/use-cities-catalog";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
   useExportProviders,
@@ -51,6 +53,37 @@ import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 type ModalType = "view" | "edit" | "ban" | "history" | "cargos" | "delete" | null;
 const DELETE_CONFIRM_WORD = "EXCLUIR";
 const PAGE_SIZE = 100;
+
+/** As 27 unidades federativas — trava o campo UF do formulário de edição. */
+const BRAZILIAN_UFS: { uf: string; name: string }[] = [
+  { uf: "AC", name: "Acre" },
+  { uf: "AL", name: "Alagoas" },
+  { uf: "AP", name: "Amapá" },
+  { uf: "AM", name: "Amazonas" },
+  { uf: "BA", name: "Bahia" },
+  { uf: "CE", name: "Ceará" },
+  { uf: "DF", name: "Distrito Federal" },
+  { uf: "ES", name: "Espírito Santo" },
+  { uf: "GO", name: "Goiás" },
+  { uf: "MA", name: "Maranhão" },
+  { uf: "MT", name: "Mato Grosso" },
+  { uf: "MS", name: "Mato Grosso do Sul" },
+  { uf: "MG", name: "Minas Gerais" },
+  { uf: "PA", name: "Pará" },
+  { uf: "PB", name: "Paraíba" },
+  { uf: "PR", name: "Paraná" },
+  { uf: "PE", name: "Pernambuco" },
+  { uf: "PI", name: "Piauí" },
+  { uf: "RJ", name: "Rio de Janeiro" },
+  { uf: "RN", name: "Rio Grande do Norte" },
+  { uf: "RS", name: "Rio Grande do Sul" },
+  { uf: "RO", name: "Rondônia" },
+  { uf: "RR", name: "Roraima" },
+  { uf: "SC", name: "Santa Catarina" },
+  { uf: "SP", name: "São Paulo" },
+  { uf: "SE", name: "Sergipe" },
+  { uf: "TO", name: "Tocantins" },
+];
 
 function mapProviderToRow(p: ProviderExportItem) {
   // Data de cadastro = criação da CONTA (shared.users). Se a API ainda não
@@ -173,6 +206,7 @@ export default function FreelancersPage() {
     ...serverFilters,
   });
   const { data: filterOptions } = useProvidersFilterOptions();
+  const { data: citiesCatalog } = useCitiesCatalog();
   const { exportCsv, isExporting } = useExportProviders();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -215,6 +249,31 @@ export default function FreelancersPage() {
     value,
     label: formatCargo(value),
   }));
+
+  // Catálogo IBGE agrupado por UF — é o que trava a cidade do formulário de
+  // edição a um valor oficial em vez de texto livre (fonte dos typos).
+  const citiesByUf = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const c of citiesCatalog ?? []) {
+      const list = map.get(c.uf);
+      if (list) list.push(c.name);
+      else map.set(c.uf, [c.name]);
+    }
+    for (const list of map.values()) list.sort((a, b) => a.localeCompare(b, "pt-BR"));
+    return map;
+  }, [citiesCatalog]);
+
+  // Cidades disponíveis para o UF selecionado no formulário de edição. Se o
+  // cadastro já tem uma cidade que não está no catálogo (dado legado/typo
+  // antigo), ela entra como primeira opção — abrir o modal não pode apagar
+  // silenciosamente o valor salvo.
+  const editCityOptions = useMemo(() => {
+    const base = citiesByUf.get(editForm.uf) ?? [];
+    if (editForm.city && !base.includes(editForm.city)) {
+      return [editForm.city, ...base];
+    }
+    return base;
+  }, [citiesByUf, editForm.uf, editForm.city]);
 
   const openModal = async (type: ModalType, item: Row) => {
     setModalType(type);
@@ -629,22 +688,45 @@ export default function FreelancersPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1.5 col-span-2">
                   <Label htmlFor="cidade">Cidade</Label>
-                  <Input
+                  <NativeSelect
                     id="cidade"
                     value={editForm.city}
+                    disabled={!editForm.uf}
                     onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))}
-                  />
+                  >
+                    <option value="">
+                      {editForm.uf ? "Selecione a cidade" : "Selecione o estado primeiro"}
+                    </option>
+                    {editCityOptions.map((city) => (
+                      <option key={city} value={city}>
+                        {city}
+                      </option>
+                    ))}
+                  </NativeSelect>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="uf">UF</Label>
-                  <Input
+                  <NativeSelect
                     id="uf"
-                    maxLength={2}
                     value={editForm.uf}
-                    onChange={(e) =>
-                      setEditForm((f) => ({ ...f, uf: e.target.value.toUpperCase() }))
-                    }
-                  />
+                    onChange={(e) => {
+                      const uf = e.target.value;
+                      setEditForm((f) => ({
+                        ...f,
+                        uf,
+                        // Trocar o estado invalida a cidade escolhida — evita
+                        // salvar um par UF/cidade inconsistente.
+                        city: (citiesByUf.get(uf) ?? []).includes(f.city) ? f.city : "",
+                      }));
+                    }}
+                  >
+                    <option value="">UF</option>
+                    {BRAZILIAN_UFS.map(({ uf, name }) => (
+                      <option key={uf} value={uf}>
+                        {uf} — {name}
+                      </option>
+                    ))}
+                  </NativeSelect>
                 </div>
               </div>
               <div className="space-y-1.5">

@@ -322,21 +322,16 @@ export interface CreateCampaignPayload {
   contacts?: ExternalContact[];
   listFileName?: string;
   /**
-   * Texto do WhatsApp com `{{nome}}`/`{{primeiro_nome}}`. Até 3 variantes
-   * separadas por uma linha `---`; rodam alternadas. Obrigatório na lista
-   * externa (o padrão da API fala de "seu cadastro").
+   * Link do funil da DevZapp. A DevZapp enrola cada contato nesse funil e
+   * cuida do ritmo de envio, das variantes de mensagem e do disparo em si —
+   * o backend só grava o link e deixa de rodar o disparo próprio.
    */
-  whatsappTemplate?: string;
+  devzappFunnelUrl: string;
   /**
    * Lista externa: descarta na criação quem já tem conta (telefone E.164 ou
    * e-mail em `users`). Se sobrar ninguém, a API responde `EMPTY_AUDIENCE`.
    */
   skipRegistered?: boolean;
-  messagesPerHour?: number;
-  dailyCap?: number;
-  windowStartHour?: number;
-  windowEndHour?: number;
-  weekdaysOnly?: boolean;
 }
 
 export async function getCampaigns(): Promise<{
