@@ -575,6 +575,15 @@ export function TemplateDialog({ open, template, onOpenChange, onSaved }: Props)
             {errors.channels && <ErrorText>{errors.channels.message}</ErrorText>}
           </section>
 
+          {/* Sem canal escolhido, a área de mensagem fica vazia — a dica
+              evita a confusão de "não tem campo do funil" (só aparece ao
+              marcar WhatsApp). */}
+          {channels.length === 0 && (
+            <p className="text-sm text-neutral-500">
+              Selecione um canal acima (Push e/ou WhatsApp) para configurar a mensagem.
+            </p>
+          )}
+
           {/* ── Mensagem ───────────────────────────────────────────── */}
           {channels.includes("WHATSAPP") && (
             <section className="space-y-2">
