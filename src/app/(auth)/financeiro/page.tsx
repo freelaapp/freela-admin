@@ -550,7 +550,7 @@ function TransacaoVagaDialog({
                   valor={v.baseAmountInCents != null ? formatCurrency(v.baseAmountInCents) : "—"}
                 />
                 <Linha
-                  rotulo="Custo (freelancer)"
+                  rotulo="Repasse ao freelancer"
                   valor={
                     v.freelancerAmountInCents != null
                       ? formatCurrency(v.freelancerAmountInCents)
@@ -573,7 +573,8 @@ function TransacaoVagaDialog({
                     mesma conta do KPI de lucro no topo, que desconta o gateway
                     uma vez só, no total. */}
                 <p className="mt-2 text-xs text-[#a3a3a3]">
-                  Receita = taxa da plataforma + taxa fixa, antes da taxa do gateway.
+                  Receita = taxa de serviço (já com o desconto do plano) + taxa Pix, antes da
+                  taxa do gateway. Custo = repasse real ao freelancer.
                 </p>
               </div>
             )}

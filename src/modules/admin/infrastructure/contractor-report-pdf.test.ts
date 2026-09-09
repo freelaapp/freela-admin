@@ -339,3 +339,63 @@ describe("generateContractorReportPdf — estorno à carteira", () => {
     expect(todos).toMatch(/Taxa = valor pago l[ií]quido de estornos - repasse/);
   });
 });
+
+/**
+ * Modelo "INSS por fora" (dono, 05-07/09/2026): o INSS NÃO é descontado de nada nem
+ * retido pela plataforma — o contratante recolhe à parte. A legenda antiga dizia o
+ * oposto ("descontado do total… e retido"), o mesmo texto proibido no web.
+ */
+describe("generateContractorReportPdf — legenda do INSS (por fora)", () => {
+  beforeEach(() => {
+    textCalls.length = 0;
+  });
+
+  it("no layout com decomposição a legenda diz que o INSS é à parte, e nunca 'descontado'/'retido'", () => {
+    const row = {
+      vacancy_id: "v-dec",
+      title: "Garçom",
+      vacancy_service: "garcom",
+      vacancy_status: "CLOSED",
+      date: "2026-09-08",
+      start_time: null,
+      end_time: null,
+      created_at: "2026-09-01T00:00:00Z",
+      base_amount_in_cents: 15606,
+      freelancer_amount_in_cents: 12484,
+      platform_fee_in_cents: 3122,
+      taxa_servico_in_cents: 3121,
+      seguro_in_cents: 300,
+      total_freelance_in_cents: 12000,
+      inss_in_cents: 1320,
+      repasse_liquido_in_cents: 12000,
+      provides_meal: null,
+      contractor_payment: { status: "COMPLETED", value: 15606 },
+      candidacy_id: "c1",
+      candidacy_status: "ACCEPTED",
+      freelancer_name: "Ana",
+      freelancer_email: null,
+      freelancer_phone: null,
+      freelancer_cpf_casa: null,
+      candidacy_role: null,
+      repasse: { amount: 12000, status: "COMPLETED", pixKey: null, pixKeyType: null },
+    } as unknown as ContractorReportRow;
+
+    generateContractorReportPdf({
+      contractor: {
+        companyName: "Bar X",
+        contactName: null,
+        contactPhone: null,
+        city: null,
+        uf: null,
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+      rows: [row],
+    } as unknown as ContractorReportResult);
+
+    const legenda = textCalls.map((c) => c.text).find((t) => t.includes("INSS:"));
+    expect(legenda).toBeDefined();
+    expect(legenda).toMatch(/À PARTE/);
+    expect(legenda).toMatch(/não sai do repasse/);
+    expect(legenda).not.toMatch(/descontad|retid|retém/i);
+  });
+});

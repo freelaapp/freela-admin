@@ -682,25 +682,66 @@ export default function JobsPage() {
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.preenchidas}</p>
                 </div>
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
-                  <p className="text-[#737373]">Contratante pagou</p>
+                  <p className="text-[#737373]">Contratante pagou à plataforma</p>
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.valor}</p>
-                  {modalDetalhes.money.decomposed && (
-                    <p className="text-[10px] text-[#737373] mt-0.5">
-                      INSS a recolher à parte (fora da plataforma):{" "}
-                      {formatCents(modalDetalhes.money.inssCents)} — provisionado em nome do
-                      freelancer, recolhido pelo contratante (guia/eSocial); não passa pela
-                      plataforma nem sai do repasse.
+                  {/* Discriminação (épico INSS por fora, 09/09): o que compõe o pago.
+                     Taxa de serviço já líquida do desconto do plano; Pix e seguro
+                     são fixos; o repasse fecha a conta. Legado: taxa − desconto + Pix. */}
+                  <dl className="mt-1.5 space-y-0.5 text-[10px] text-[#737373]">
+                    {modalDetalhes.money.taxaServicoCents != null && (
+                      <div className="flex justify-between gap-2">
+                        <dt>
+                          Taxa de serviço
+                          {modalDetalhes.money.discountCents > 0 && (
+                            <span className="text-green-700">
+                              {" "}
+                              (plano: −{formatCents(modalDetalhes.money.discountCents)})
+                            </span>
+                          )}
+                        </dt>
+                        <dd className="tabular-nums">{formatCents(modalDetalhes.money.taxaServicoCents)}</dd>
+                      </div>
+                    )}
+                    {modalDetalhes.money.pixCents != null && (
+                      <div className="flex justify-between gap-2">
+                        <dt>Taxa Pix</dt>
+                        <dd className="tabular-nums">{formatCents(modalDetalhes.money.pixCents)}</dd>
+                      </div>
+                    )}
+                    {modalDetalhes.money.seguroCents != null && (
+                      <div className="flex justify-between gap-2">
+                        <dt>Seguro</dt>
+                        <dd className="tabular-nums">{formatCents(modalDetalhes.money.seguroCents)}</dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between gap-2">
+                      <dt>Repasse ao freelancer</dt>
+                      <dd className="tabular-nums">{formatCents(modalDetalhes.money.repasseCents)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-2 border-t border-[#e5e5e5] pt-0.5 font-medium text-[#1d1d1b]">
+                      <dt>Nosso resíduo (taxa + Pix)</dt>
+                      <dd className="tabular-nums">{formatCents(modalDetalhes.money.residuoCents)}</dd>
+                    </div>
+                  </dl>
+                  {!modalDetalhes.money.reconciles && (
+                    <p className="mt-1 text-[10px] font-medium text-red-700">
+                      Atenção: taxa + Pix + seguro + repasse não fecham com o valor pago. Conferir a vaga.
                     </p>
                   )}
-                  <p className="text-[10px] text-[#737373] mt-0.5">
-                    Resíduo (nossa margem): {formatCents(modalDetalhes.money.residuoCents)}
-                  </p>
                 </div>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <p className="text-green-700 text-xs">Freelancer recebe</p>
                   <p className="font-semibold text-green-900">
                     {formatCents(modalDetalhes.money.repasseCents)}
                   </p>
+                  {modalDetalhes.money.decomposed && (
+                    <p className="text-[10px] text-green-800 mt-0.5">
+                      INSS a recolher à parte: {formatCents(modalDetalhes.money.inssCents)} —
+                      provisionado em nome do freelancer e recolhido pelo contratante
+                      (guia/eSocial), fora da plataforma. Não é cobrado aqui e não sai do
+                      repasse.
+                    </p>
+                  )}
                 </div>
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
                   <p className="text-[#737373]">Data</p>

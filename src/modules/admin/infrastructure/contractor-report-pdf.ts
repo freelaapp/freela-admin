@@ -357,7 +357,7 @@ export function generateContractorReportPdf(
       ? [`† Valor pago líquido de ${brl(totEstorno)} estornados à carteira (corte por atraso/ajuste).`]
       : []),
     anyDecomposition
-      ? '* repasse ainda não confirmado (pendente/falhou). Taxa serviço + Pix + Seguro + Repasse líquido = Você paga · INSS: descontado do total da vaga e retido para a guia do INSS/prestação de contas — é a diferença entre o Total da vaga e o Você paga · "—" = vaga anterior à decomposição (modelo antigo).'
+      ? '* repasse ainda não confirmado (pendente/falhou). Taxa serviço + Pix + Seguro + Repasse líquido = Você paga (o que a plataforma cobra) · INSS: 11% do repasse, provisionado em nome do freelancer e recolhido À PARTE por você (guia/eSocial), fora da plataforma — não entra no Você paga e não sai do repasse · "—" = vaga anterior à decomposição (modelo antigo).'
       : "* repasse ainda não confirmado (pendente/falhou). Repasse = pago ao freelancer · Taxa = valor pago líquido de estornos - repasse · Valor pago = pago pelo contratante, líquido de estornos à carteira (uma vez por vaga).",
   ];
   if (y + 4 * notas.length > PH - 12) {

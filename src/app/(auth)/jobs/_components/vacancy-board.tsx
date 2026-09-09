@@ -38,9 +38,9 @@ export interface BoardVacancy {
    */
   valorCents: number;
   /**
-   * Nosso resíduo (margem) na vaga, em centavos. Vaga decomposta (INSS por cima,
-   * empresa): base − repasse real = taxa de serviço + pix + seguro. Legado: taxa
-   * da plataforma + taxa fixa.
+   * Nosso resíduo (margem) na vaga, em centavos: taxa de serviço (já líquida do
+   * desconto do plano) + taxa Pix — a mesma conta do lucro do financeiro. O
+   * seguro não entra (vai à seguradora) e o INSS é à parte (fora da plataforma).
    *
    * Separado do valor porque respondem perguntas diferentes: o valor diz quanto
    * dinheiro passa pela etapa, o resíduo diz quanto fica para nós (não é "lucro":

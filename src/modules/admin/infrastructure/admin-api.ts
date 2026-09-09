@@ -509,6 +509,19 @@ export interface VacancyItem {
    *  deriva o INSS provisionado. Nulo/ausente = Casa / flag OFF / vaga antiga →
    *  cai no `freelancerAmountInCents` legado. */
   repasseLiquidoInCents?: number | null;
+  /**
+   * Decomposição completa (api 09/09/2026, épico INSS por fora). Opcionais na
+   * janela de deploy; o painel cai nos legados quando ausentes.
+   */
+  subscriptionDiscountInCents?: number | null;
+  taxaServicoInCents?: number | null;
+  seguroInCents?: number | null;
+  totalFreelanceInCents?: number | null;
+  inssInCents?: number | null;
+  /** O que o freelancer recebe de fato (repasse real, ou net legado). */
+  providerTakeInCents?: number | null;
+  /** Margem real: taxa decomposta (líquida do desconto) ou bruta − desconto. */
+  platformMarginInCents?: number | null;
   /** Quantidade de freelancers que se candidataram à vaga. */
   candidacyCount?: number;
   /**
