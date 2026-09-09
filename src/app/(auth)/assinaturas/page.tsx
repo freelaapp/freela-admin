@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ChoicePills } from "@/components/ui/choice-pills";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
   Dialog,
@@ -49,6 +50,13 @@ const PLAN_LABEL: Record<PlanCode, string> = {
   VIP: "Vip",
   ENTERPRISE: "Grandes Redes",
 };
+
+/** Pílulas de plano (mesma ordem do PLAN_LABEL). */
+const PLAN_OPTIONS = (Object.keys(PLAN_LABEL) as PlanCode[]).map((code) => ({
+  value: code,
+  label: PLAN_LABEL[code],
+}));
+
 
 const ACTION_LABEL: Record<AdminActionType, string> = {
   PLAN_ASSIGNED: "Plano alterado",
@@ -364,19 +372,16 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <Label htmlFor="c-plano">Plano</Label>
-                  <NativeSelect
-                    id="c-plano"
+                  <Label>Plano</Label>
+                  {/* Pílulas, não <select>: o popup nativo abria e fechava na
+                     hora em alguns ambientes (relato de 09/09/2026). */}
+                  <ChoicePills<PlanCode | "">
+                    aria-label="Plano da cortesia"
+                    className="mt-1"
+                    options={[{ value: "", label: "Manter o atual" }, ...PLAN_OPTIONS]}
                     value={courtesyPlan}
-                    onChange={(e) => setCourtesyPlan(e.target.value as PlanCode | "")}
-                  >
-                    <option value="">Manter o atual</option>
-                    {(Object.keys(PLAN_LABEL) as PlanCode[]).map((code) => (
-                      <option key={code} value={code}>
-                        {PLAN_LABEL[code]}
-                      </option>
-                    ))}
-                  </NativeSelect>
+                    onChange={setCourtesyPlan}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="c-meses">Meses</Label>
@@ -427,24 +432,19 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
                   Trocar de plano
                 </h3>
                 <p className="text-sm text-neutral-600">Vale na hora, sem cobrança.</p>
-                <NativeSelect
+                <ChoicePills<PlanCode>
+                  aria-label="Trocar de plano"
+                  options={PLAN_OPTIONS}
                   value={pendingPlan ?? detail.plan.code}
                   disabled={busy}
-                  onChange={(e) => {
-                    const planCode = e.target.value as PlanCode;
+                  onChange={(planCode) => {
                     setPendingPlan(planCode);
                     changePlan.mutate(
                       { storeId: row.storeId, planCode },
                       { onSettled: () => setPendingPlan(null) },
                     );
                   }}
-                >
-                  {(Object.keys(PLAN_LABEL) as PlanCode[]).map((code) => (
-                    <option key={code} value={code}>
-                      {PLAN_LABEL[code]}
-                    </option>
-                  ))}
-                </NativeSelect>
+                />
               </div>
 
               <div className="space-y-2">
