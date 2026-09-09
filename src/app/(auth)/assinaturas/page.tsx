@@ -270,6 +270,11 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
   const [courtesyNote, setCourtesyNote] = useState("");
   const [extendDays, setExtendDays] = useState("30");
   const [quotaDelta, setQuotaDelta] = useState("5");
+  // Plano escolhido no select "Trocar de plano". Sem isto o select era
+  // controlado só por `detail.plan.code` e VOLTAVA ao plano antigo até o
+  // refetch chegar (parecia que a troca "fechava" sozinha). `null` = segue o
+  // detalhe; volta a `null` quando a troca falha.
+  const [pendingPlan, setPendingPlan] = useState<PlanCode | null>(null);
 
   if (!row) return null;
 
@@ -423,14 +428,16 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
                 </h3>
                 <p className="text-sm text-neutral-600">Vale na hora, sem cobrança.</p>
                 <NativeSelect
-                  value={detail.plan.code}
+                  value={pendingPlan ?? detail.plan.code}
                   disabled={busy}
-                  onChange={(e) =>
-                    changePlan.mutate({
-                      storeId: row.storeId,
-                      planCode: e.target.value as PlanCode,
-                    })
-                  }
+                  onChange={(e) => {
+                    const planCode = e.target.value as PlanCode;
+                    setPendingPlan(planCode);
+                    changePlan.mutate(
+                      { storeId: row.storeId, planCode },
+                      { onSettled: () => setPendingPlan(null) },
+                    );
+                  }}
                 >
                   {(Object.keys(PLAN_LABEL) as PlanCode[]).map((code) => (
                     <option key={code} value={code}>

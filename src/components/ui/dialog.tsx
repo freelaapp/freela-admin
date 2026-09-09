@@ -17,13 +17,26 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onOpenChange, children, className }: DialogProps) {
+  // Só fecha quando o clique COMEÇOU no overlay. Um `click` solto no overlay
+  // também chega quando a pessoa escolhe uma opção num `<select>` nativo dentro
+  // do diálogo: o popup fecha e o browser entrega o clique ao que está sob o
+  // ponteiro — e o overlay cobre a tela inteira. Era o "card fecha ao trocar o
+  // plano" das Assinaturas (09/09/2026).
+  const pressStartedOnOverlay = React.useRef(false);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         data-testid="dialog-overlay"
-        onClick={() => onOpenChange(false)}
+        onPointerDown={(e) => {
+          pressStartedOnOverlay.current = e.target === e.currentTarget;
+        }}
+        onClick={(e) => {
+          const startedHere = pressStartedOnOverlay.current;
+          pressStartedOnOverlay.current = false;
+          if (startedHere && e.target === e.currentTarget) onOpenChange(false);
+        }}
       />
       <div className={cn("relative z-50 w-full max-w-lg mx-4", className)}>{children}</div>
     </div>
