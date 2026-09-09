@@ -62,7 +62,10 @@ export function useSubscriptionMutations(storeId: string | null) {
       planCode?: PlanCode;
       months: number;
       note?: string;
-    }) => grantCourtesy(vars.storeId, vars),
+    }) =>
+      // Só o corpo do endpoint: o `storeId` vai na URL, e a API (whitelist)
+      // recusava a chamada inteira com 'O campo "storeId" não é permitido'.
+      grantCourtesy(vars.storeId, { planCode: vars.planCode, months: vars.months, note: vars.note }),
     onSuccess: (_data, vars) => {
       invalidate();
       toast.success(
@@ -84,7 +87,7 @@ export function useSubscriptionMutations(storeId: string | null) {
 
   const extend = useMutation({
     mutationFn: (vars: { storeId: string; days: number; note?: string }) =>
-      extendPeriod(vars.storeId, vars),
+      extendPeriod(vars.storeId, { days: vars.days, note: vars.note }),
     onSuccess: (_data, vars) => {
       invalidate();
       toast.success(`Ciclo estendido em ${vars.days} dias.`);
@@ -94,7 +97,7 @@ export function useSubscriptionMutations(storeId: string | null) {
 
   const quota = useMutation({
     mutationFn: (vars: { storeId: string; delta: number; note?: string }) =>
-      adjustQuota(vars.storeId, vars),
+      adjustQuota(vars.storeId, { delta: vars.delta, note: vars.note }),
     onSuccess: (_data, vars) => {
       invalidate();
       toast.success(
