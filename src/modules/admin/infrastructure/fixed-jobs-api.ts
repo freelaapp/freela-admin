@@ -165,8 +165,12 @@ export interface FixedJobMatchAxisResult {
   detail: string;
 }
 
-/** Decomposição do score de compatibilidade — o "porquê" da nota, não só o número. */
-export interface FixedJobMatchBreakdown {
+/**
+ * Decomposição v1/v2 do score — o "porquê" da nota por EIXO. Não tem `version`
+ * (só o v3 carrega). É o shape gravado até a fase 3 do Match e o que a API
+ * devolve enquanto `MATCH_V3_ENABLED` está desligada.
+ */
+export interface FixedJobMatchBreakdownV2 {
   /** null = pontuado, mas nenhum eixo da vaga se aplicou (só sobrava o perfil). */
   total: number | null;
   // Partial, não Record cheio: card pontuado antes de 10/08/2026 foi gravado
@@ -174,6 +178,76 @@ export interface FixedJobMatchBreakdown {
   // se fosse objeto.
   weights: Partial<Record<FixedJobMatchAxis, number>>;
   axes: Partial<Record<FixedJobMatchAxis, FixedJobMatchAxisResult>>;
+}
+
+// --- Match v3 (spec 2026-09-11/13, atrás de MATCH_V3_ENABLED) --------------
+// Modelo de 4 critérios (Currículo 50 / Distância 20 / Disponibilidade 20 /
+// Avaliação 10). A API só emite este shape quando a flag está ligada; o card
+// só o lê quando `version === 3`. Espelha `MatchV3Breakdown` do backend.
+
+/** Chaves dos 4 critérios do v3, na ordem de exibição. */
+export type FixedJobMatchV3CriterionKey =
+  | "curriculum"
+  | "distance"
+  | "availability"
+  | "rating";
+
+/** Motivo do BLOQUEIO (fase 3): currículo ilegível/ausente ou disponibilidade não cadastrada. */
+export type FixedJobMatchV3BlockedReason = "CURRICULUM" | "AVAILABILITY";
+
+/** Um dos 4 critérios do v3. `score: 'NA'` = sem dado para comparar (sai da média). */
+export interface FixedJobMatchV3Criterion {
+  key: FixedJobMatchV3CriterionKey;
+  /** Rótulo em PT pronto para exibir (ex.: "Currículo"). */
+  label: string;
+  /** Peso do critério (0–1). */
+  weight: number;
+  /** 0–100, ou 'NA' quando não há dado para comparar. */
+  score: number | "NA";
+  /** Frase curta e objetiva do porquê da nota. */
+  justification: string;
+}
+
+/** Composição interna da nota de currículo (transparência no painel). */
+export interface FixedJobMatchV3CurriculumSubscores {
+  experience: number;
+  skills: number;
+  education: number;
+  overall: number;
+}
+
+/** Decomposição v3 do score — 4 critérios + estado (SCORED/BLOCKED). */
+export interface FixedJobMatchBreakdownV3 {
+  /** Discriminador de versão (v1/v2 não têm). */
+  version: 3;
+  /** 'BLOCKED' (fase 3) = match não pontua mesmo havendo critérios avaliáveis. */
+  status: "SCORED" | "BLOCKED";
+  /** Motivos do bloqueio; `[]` quando SCORED. */
+  blockedReasons: FixedJobMatchV3BlockedReason[];
+  /** 0–100, ou null quando nada pôde ser comparado OU o match está BLOQUEADO. */
+  total: number | null;
+  /** Palavra da faixa ("Excelente" …); null se total null. */
+  classification: string | null;
+  /** Frase da faixa ("Excelente aderência" …); null se total null. */
+  classificationLabel: string | null;
+  /** Sempre os 4 critérios, na ordem currículo/distância/disp./avaliação — mesmo BLOQUEADO. */
+  criteria: FixedJobMatchV3Criterion[];
+  /** Composição do critério de currículo (ou null). */
+  curriculumSubscores: FixedJobMatchV3CurriculumSubscores | null;
+}
+
+/**
+ * Decomposição do score — v1/v2 (por eixo) OU v3 (4 critérios). É união
+ * porque a mesma vaga pode ter cards gravados antes e depois de ligar o v3.
+ * Use `isMatchBreakdownV3` para discriminar.
+ */
+export type FixedJobMatchBreakdown = FixedJobMatchBreakdownV2 | FixedJobMatchBreakdownV3;
+
+/** Discrimina o breakdown v3 (4 critérios) do v1/v2 (por eixo). */
+export function isMatchBreakdownV3(
+  breakdown: FixedJobMatchBreakdown | null | undefined,
+): breakdown is FixedJobMatchBreakdownV3 {
+  return !!breakdown && "version" in breakdown && breakdown.version === 3;
 }
 
 /** Card do kanban: a candidatura + estágio + resultado do score de compatibilidade. */

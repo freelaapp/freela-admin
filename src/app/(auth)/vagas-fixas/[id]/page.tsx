@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Building2,
-  Check,
   Copy,
   Download,
   FileWarning,
@@ -17,6 +16,7 @@ import {
   MapPin,
   Phone,
   RotateCcw,
+  Search,
   User,
   Users,
   Video,
@@ -26,6 +26,8 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { ChoicePills } from "@/components/ui/choice-pills";
 import {
   Dialog,
   DialogContent,
@@ -463,6 +465,12 @@ function ApplicationCard({
 // Página
 // ---------------------------------------------------------------------------
 
+/** Quantos candidatos mostrar por vez na aba Lista antes do "Ver mais". */
+const LISTA_PAGE_SIZE = 20;
+
+/** Filtro de status da aba Lista. */
+type ListaFiltro = "todos" | "ativos" | "negados";
+
 export default function VagaFixaCandidatosPage() {
   const params = useParams<{ id: string }>();
   const postId = params?.id ?? "";
@@ -492,6 +500,11 @@ export default function VagaFixaCandidatosPage() {
   const [profileApplication, setProfileApplication] = useState<
     FixedJobAdminApplication | FixedJobKanbanCard | null
   >(null);
+
+  // Aba Lista: filtro por status + busca + "Ver mais" (paginação client-side).
+  const [listaFiltro, setListaFiltro] = useState<ListaFiltro>("ativos");
+  const [listaBusca, setListaBusca] = useState("");
+  const [listaVisiveis, setListaVisiveis] = useState(LISTA_PAGE_SIZE);
 
   function moveCard(card: FixedJobKanbanCard, stage: FixedJobKanbanStage) {
     const destino = stageTitle(kanbanQuery.data, stage);
@@ -536,6 +549,25 @@ export default function VagaFixaCandidatosPage() {
 
   const activeApplications = (applications ?? []).filter((a) => a.status !== "REJECTED");
   const rejectedApplications = (applications ?? []).filter((a) => a.status === "REJECTED");
+
+  // Aba Lista filtrada por status + busca, paginada client-side pelo "Ver mais".
+  const listaBase =
+    listaFiltro === "ativos"
+      ? activeApplications
+      : listaFiltro === "negados"
+        ? rejectedApplications
+        : (applications ?? []);
+  const listaTermo = listaBusca.trim().toLowerCase();
+  const listaFiltrada = listaTermo
+    ? listaBase.filter(
+        (a) =>
+          (a.applicantName ?? "").toLowerCase().includes(listaTermo) ||
+          (a.applicantEmail ?? "").toLowerCase().includes(listaTermo) ||
+          (a.applicantPhone ?? "").toLowerCase().includes(listaTermo),
+      )
+    : listaBase;
+  const listaMostrada = listaFiltrada.slice(0, listaVisiveis);
+  const listaRestantes = listaFiltrada.length - listaMostrada.length;
 
   function changeStatus(application: FixedJobAdminApplication, status: FixedJobApplicationStatus) {
     statusMutation.mutate(
@@ -696,30 +728,44 @@ export default function VagaFixaCandidatosPage() {
           <p className="text-sm text-[#737373]">Nenhuma candidatura recebida nesta vaga.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          <div className="space-y-3">
-            {activeApplications.length > 0 ? (
-              activeApplications.map((application) => (
-                <ApplicationCard
-                  key={application.id}
-                  application={application}
-                  onOpenProfile={setProfileApplication}
-                  onChangeStatus={changeStatus}
-                  isPending={statusMutation.isPending}
-                />
-              ))
-            ) : (
-              <p className="text-sm text-[#737373]">Nenhum candidato ativo nesta vaga.</p>
-            )}
+        <div className="space-y-4">
+          {/* Busca + filtro de status (client-side sobre as candidaturas já carregadas). */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="relative min-w-[220px] max-w-sm flex-1">
+              <Search
+                size={15}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#a3a3a3]"
+                aria-hidden
+              />
+              <Input
+                value={listaBusca}
+                onChange={(e) => {
+                  setListaBusca(e.target.value);
+                  setListaVisiveis(LISTA_PAGE_SIZE);
+                }}
+                placeholder="Buscar por nome, e-mail ou telefone…"
+                className="pl-8"
+                aria-label="Buscar candidato"
+              />
+            </div>
+            <ChoicePills
+              aria-label="Filtrar candidatos por status"
+              options={[
+                { value: "ativos", label: `Ativos (${activeApplications.length})` },
+                { value: "negados", label: `Negados (${rejectedApplications.length})` },
+                { value: "todos", label: `Todos (${applications?.length ?? 0})` },
+              ]}
+              value={listaFiltro}
+              onChange={(value) => {
+                setListaFiltro(value);
+                setListaVisiveis(LISTA_PAGE_SIZE);
+              }}
+            />
           </div>
 
-          {rejectedApplications.length > 0 ? (
+          {listaMostrada.length > 0 ? (
             <div className="space-y-3">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-[#737373]">
-                <Check size={15} className="text-[#a3a3a3]" />
-                Candidatos negados ({rejectedApplications.length})
-              </h3>
-              {rejectedApplications.map((application) => (
+              {listaMostrada.map((application) => (
                 <ApplicationCard
                   key={application.id}
                   application={application}
@@ -728,6 +774,22 @@ export default function VagaFixaCandidatosPage() {
                   isPending={statusMutation.isPending}
                 />
               ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-[#e5e5e5] bg-white py-10 text-center text-sm text-[#737373]">
+              Nenhum candidato com o filtro atual.
+            </p>
+          )}
+
+          {listaRestantes > 0 ? (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setListaVisiveis((v) => v + LISTA_PAGE_SIZE)}
+              >
+                Ver mais {Math.min(LISTA_PAGE_SIZE, listaRestantes)} de {listaRestantes}
+              </Button>
             </div>
           ) : null}
         </div>
