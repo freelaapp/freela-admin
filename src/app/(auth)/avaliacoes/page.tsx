@@ -108,6 +108,8 @@ export default function AvaliacoesPage() {
   const [selectedAuthor, setSelectedAuthor] = useState<AuthorProfile | null>(null);
   /** Nota exata (1–5), ou `null` para todas. */
   const [notaFiltro, setNotaFiltro] = useState<number | null>(null);
+  /** Avaliação aberta para ler o comentário inteiro (a tabela só cabe um trecho). */
+  const [selectedComment, setSelectedComment] = useState<Row | null>(null);
 
   const todasAsLinhas: Row[] = feedbacks?.map(mapFeedbackToRow) ?? [];
   const rows =
@@ -171,9 +173,19 @@ export default function AvaliacoesPage() {
     },
     {
       header: "Comentário",
-      accessor: (row: Row) => (
-        <span className="text-sm text-[#737373] max-w-xs truncate block">{row.comentario || "—"}</span>
-      ),
+      accessor: (row: Row) =>
+        row.comentario ? (
+          <button
+            type="button"
+            onClick={() => setSelectedComment(row)}
+            title="Ver comentário completo"
+            className="block max-w-xs truncate text-left text-sm text-[#737373] hover:text-[#1d1d1b] hover:underline cursor-pointer"
+          >
+            {row.comentario}
+          </button>
+        ) : (
+          <span className="text-sm text-[#737373]">—</span>
+        ),
       className: "hidden lg:table-cell",
     },
     {
@@ -359,6 +371,53 @@ export default function AvaliacoesPage() {
         onOpenChange={(open) => !open && setSelectedAuthor(null)}
         author={selectedAuthor}
       />
+
+      {/* Modal Comentário completo — a tabela só mostra um trecho; aqui vem inteiro. */}
+      <Dialog open={!!selectedComment} onOpenChange={(open) => !open && setSelectedComment(null)}>
+        <DialogContent>
+          <DialogClose onClick={() => setSelectedComment(null)} />
+          <DialogHeader>
+            <DialogTitle>Avaliação</DialogTitle>
+            <DialogDescription>Comentário completo da avaliação.</DialogDescription>
+          </DialogHeader>
+          {selectedComment && (
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-[#737373]">Autor</p>
+                  <p className="truncate font-semibold text-[#1d1d1b]">{selectedComment.freelancer}</p>
+                </div>
+                <div className="shrink-0">{renderStars(selectedComment.nota)}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-[#f7f7f7] p-3 min-w-0">
+                  <p className="text-xs text-[#737373]">Job</p>
+                  <p className="truncate font-medium text-[#1d1d1b]">{selectedComment.empresa}</p>
+                </div>
+                <div className="rounded-lg bg-[#f7f7f7] p-3">
+                  <p className="text-xs text-[#737373]">Data</p>
+                  <p className="font-medium text-[#1d1d1b]">{selectedComment.data}</p>
+                </div>
+              </div>
+              <div className="rounded-lg bg-[#f7f7f7] p-3">
+                <p className="mb-1 text-xs text-[#737373]">Comentário</p>
+                <p className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap break-words text-[#1d1d1b]">
+                  {selectedComment.comentario}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSelectedComment(null)}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal Aceitar Contestação */}
       <Dialog open={!!modalAceitar} onOpenChange={(open) => !open && setModalAceitar(null)}>
