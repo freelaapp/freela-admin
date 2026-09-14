@@ -45,6 +45,9 @@ import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
 import type { VacancyItem, RefundType } from "@/modules/admin/infrastructure/admin-api";
 import { computeVacancyMoney } from "@/modules/admin/domain/vacancy-money";
 import { formatCents } from "@/lib/money";
+import { IssueReportQueue } from "@/components/admin/vacancy/issue-report-queue";
+import { IssueReportResolution } from "@/components/admin/vacancy/issue-report-resolution";
+import { useOpenIssueReports } from "@/modules/admin/application/use-issue-reports";
 import { formatVacancyDate, formatVacancyTime, formatInstantDateTime, vacancyDayISO } from "@/lib/date.utils";
 
 const formatDate = formatVacancyDate;
@@ -124,6 +127,8 @@ export default function JobsPage() {
   const { data: contractors } = useAdminContractors();
   // Dropdown de consultor é exclusivo do super-admin (mesma regra da tela de consultores).
   const { data: consultants } = useAdminConsultants();
+  // Relatos de problema (F6) abertos — a fila do topo e o aviso dentro do modal.
+  const { data: openReports } = useOpenIssueReports();
   const [statusFilter, setStatusFilter] = useState<"all" | VacancyBucket>("all");
   /** Dia do serviço, "YYYY-MM-DD" vindo do `<input type="date">`. "" = todas. */
   const [dataFiltro, setDataFiltro] = useState("");
@@ -223,6 +228,21 @@ export default function JobsPage() {
   );
   const contar = (bucket: VacancyBucket) => contagemPorBucket[bucket] ?? 0;
   const contractorMap = new Map(contractors?.map((c) => [c.id, c]));
+
+  const openReportForVacancy = (vacancyId: string) =>
+    openReports?.find((r) => r.vacancyId === vacancyId && r.status === "OPEN") ?? null;
+
+  /** Abre o modal de detalhes de uma vaga a partir da fila de relatos. */
+  const openVacancyById = (vacancyId: string) => {
+    const row = allRows.find((r) => r.raw.id === vacancyId);
+    if (row) {
+      setModalDetalhes(row);
+      return;
+    }
+    // Vaga fora da lista carregada (outro consultor/período): cai na busca por ID.
+    setBuscaIdInput(vacancyId);
+    setModalBuscarId(true);
+  };
 
   const handleConfirmCancel = async () => {
     if (!cancelTarget) return;
@@ -506,6 +526,11 @@ export default function JobsPage() {
 
       <div className="mb-6" />
 
+      <IssueReportQueue
+        reports={openReports?.filter((r) => r.module !== "FREELA_EM_CASA")}
+        onOpen={openVacancyById}
+      />
+
       {modoPainel ? (
         <VacancyBoard
           // `allRows` e não `rows`: o painel mostra o fluxo inteiro, ignorando o
@@ -688,6 +713,16 @@ export default function JobsPage() {
           </DialogHeader>
           {modalDetalhes && (
             <div className="space-y-3 text-sm max-h-[60vh] overflow-y-auto pr-1 -mr-1">
+              <IssueReportResolution
+                vacancy={modalDetalhes.raw}
+                report={openReportForVacancy(modalDetalhes.raw.id)}
+                onResolved={() => setModalDetalhes(null)}
+                onRequestCancel={() => {
+                  setCancelTarget(modalDetalhes);
+                  setCancelReason("");
+                  setCancelRefundType("FULL");
+                }}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
                   <p className="text-[#737373]">Empresa</p>

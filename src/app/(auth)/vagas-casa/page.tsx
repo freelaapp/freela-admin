@@ -8,6 +8,9 @@ import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { VacancyBoard } from "../jobs/_components/vacancy-board";
 import { formatCents } from "@/lib/money";
+import { IssueReportQueue } from "@/components/admin/vacancy/issue-report-queue";
+import { IssueReportResolution } from "@/components/admin/vacancy/issue-report-resolution";
+import { useOpenIssueReports } from "@/modules/admin/application/use-issue-reports";
 import { resolveVacancyBucket } from "../jobs/_components/vacancy-bucket";
 import { VacancyRoadmap } from "../jobs/_components/vacancy-roadmap";
 import { VacancyDispatchCell } from "../jobs/_components/vacancy-dispatch-cell";
@@ -111,6 +114,8 @@ export default function VagasCasaPage() {
     isFetching,
   } = useAdminCasaVacancies(selectedConsultantId || undefined);
   const { data: consultants } = useAdminConsultants();
+  // Relatos de problema (F6) abertos — a fila do topo e o aviso dentro do modal.
+  const { data: openReports } = useOpenIssueReports();
   const [statusFilter, setStatusFilter] = useState<StatusKey>("all");
   // Modo Painel: as vagas em colunas por etapa, igual ao de Empresa.
   const [modoPainel, setModoPainel] = useState(false);
@@ -303,6 +308,19 @@ export default function VagasCasaPage() {
   }
 
   const allRows: Row[] = vacancies?.map(mapToRow) ?? [];
+
+  const openReportForVacancy = (vacancyId: string) =>
+    openReports?.find((r) => r.vacancyId === vacancyId && r.status === "OPEN") ?? null;
+
+  /** Abre o modal de detalhes de uma vaga a partir da fila de relatos. */
+  const openVacancyById = (vacancyId: string) => {
+    const row = allRows.find((r) => r.raw.id === vacancyId);
+    if (row) {
+      setDetalhe(row);
+      return;
+    }
+    toast.info("Vaga não está na lista atual — ajuste os filtros para encontrá-la.");
+  };
   const rows =
     statusFilter === "all"
       ? allRows
@@ -430,6 +448,11 @@ export default function VagasCasaPage() {
         </button>
       </div>
 
+      <IssueReportQueue
+        reports={openReports?.filter((r) => r.module === "FREELA_EM_CASA")}
+        onOpen={openVacancyById}
+      />
+
       {modoPainel ? (
         <VacancyBoard
           // `allRows`: as colunas JÁ são o recorte por etapa, então o filtro de
@@ -552,6 +575,12 @@ export default function VagasCasaPage() {
           </DialogHeader>
           {detalhe && (
             <div className="space-y-1.5 text-sm">
+              <IssueReportResolution
+                vacancy={detalhe.raw}
+                report={openReportForVacancy(detalhe.raw.id)}
+                onResolved={() => setDetalhe(null)}
+                onRequestCancel={() => openCancelModal(detalhe)}
+              />
               <LinhaDetalhe
                 rotulo="Etapa"
                 valor={ETAPA_LABEL[detalhe.bucket] ?? detalhe.bucket}
