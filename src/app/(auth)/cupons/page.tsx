@@ -187,10 +187,17 @@ function CouponDialog({ onClose }: { onClose: () => void }) {
   const [singleUse, setSingleUse] = useState(true);
   // Validade expressa em DIAS a partir de hoje (o backend persiste como expiresAt).
   const [validityDays, setValidityDays] = useState("");
+  // Jornada mínima da vaga (horas). Default 6 (pedido do dono); vazio = sem restrição.
+  const [minJobHours, setMinJobHours] = useState("6");
+
+  const minHoursValid =
+    minJobHours.trim() === "" ||
+    (Number.isInteger(Number(minJobHours)) && Number(minJobHours) >= 1 && Number(minJobHours) <= 24);
 
   const canSave =
     code.trim().length > 0 &&
     contractorUserId.length > 0 &&
+    minHoursValid &&
     // Validade preenchida precisa ser > 0; vazia significa "sem expiração" e segue válida.
     (validityDays === "" || Number(validityDays) > 0) &&
     (discountType === "PERCENT"
@@ -206,6 +213,8 @@ function CouponDialog({ onClose }: { onClose: () => void }) {
       amountOffInCents: discountType === "FIXED" ? toCents(amount) : undefined,
       contractorUserId,
       singleUse,
+      minJobHours:
+        minJobHours.trim() && Number(minJobHours) > 0 ? Number(minJobHours) : undefined,
       // Converte "válido por N dias" em data de expiração (fim do N-ésimo dia),
       // para o cupom valer o dia inteiro exibido na tabela, não até a hora da criação.
       expiresAt:
@@ -277,6 +286,19 @@ function CouponDialog({ onClose }: { onClose: () => void }) {
             ) : (
               <ContractorCombobox options={options} value={contractorUserId} onChange={setContractorUserId} />
             )}
+          </Field>
+          <Field label="Mínimo de horas da vaga (opcional)">
+            <Input
+              type="number"
+              min={1}
+              max={24}
+              placeholder="Ex: 6"
+              value={minJobHours}
+              onChange={(e) => setMinJobHours(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              O cupom só vale em vagas com jornada igual ou maior. Vazio = qualquer vaga.
+            </p>
           </Field>
           <div className="grid grid-cols-2 gap-3 items-end">
             <Field label="Validade (dias, opcional)">

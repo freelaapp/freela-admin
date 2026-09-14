@@ -15,6 +15,8 @@ export interface Coupon {
   contractorUserId: string;
   singleUse: boolean;
   active: boolean;
+  /** Jornada mínima da vaga (horas) para o cupom valer. null = sem restrição. */
+  minJobHours: number | null;
   expiresAt: string | null;
   redeemedAt: string | null;
   redeemedVacancyId: string | null;
@@ -28,6 +30,8 @@ export interface CreateCouponInput {
   amountOffInCents?: number;
   contractorUserId: string;
   singleUse?: boolean;
+  /** Jornada mínima da vaga (horas) para o cupom valer. Omitido = sem restrição. */
+  minJobHours?: number;
   expiresAt?: string | null;
 }
 
