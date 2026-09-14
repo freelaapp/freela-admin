@@ -5,6 +5,7 @@ import axios from "axios";
 import {
   adminCancelVacancy,
   adminRestartVacancy,
+  adminFinalizeVacancy,
   type RefundType,
 } from "../infrastructure/admin-api";
 
@@ -35,6 +36,15 @@ export function useAdminRestartVacancy() {
   return useMutation({
     mutationFn: ({ vacancyId, reason }: { vacancyId: string; reason: string }) =>
       adminRestartVacancy(vacancyId, reason),
+    onSuccess: () => invalidateVacancies(qc),
+  });
+}
+
+/** Finaliza a vaga (job concluído + repasse ao freelancer) — "deu tudo certo, pode pagar". */
+export function useFinalizeVacancy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vacancyId }: { vacancyId: string }) => adminFinalizeVacancy(vacancyId),
     onSuccess: () => invalidateVacancies(qc),
   });
 }

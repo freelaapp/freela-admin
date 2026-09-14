@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, LayoutGrid, Clock, Check, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw } from "lucide-react";
+import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
 import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feedbacks-section";
@@ -39,7 +39,7 @@ import {
   useVacancyCandidacies,
 } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
-import { useAdminCancelVacancy, useAdminRestartVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
+import { useAdminCancelVacancy, useAdminRestartVacancy, useFinalizeVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
 import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
 import type { VacancyItem, RefundType } from "@/modules/admin/infrastructure/admin-api";
@@ -189,6 +189,7 @@ export default function JobsPage() {
   const [cancelRefundType, setCancelRefundType] = useState<RefundType>("FULL");
   const cancelMutation = useAdminCancelVacancy();
   const restartMutation = useAdminRestartVacancy();
+  const finalizeMutation = useFinalizeVacancy();
 
   const [removeTarget, setRemoveTarget] = useState<{
     vacancyId: string;
@@ -270,6 +271,33 @@ export default function JobsPage() {
       setModalDetalhes(null);
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Falha ao reabrir a vaga."));
+    }
+  };
+
+  /** "Deu tudo certo": conclui a vaga e paga o repasse (PIX) ao freelancer. */
+  const handleFinalizeVacancy = async () => {
+    if (!modalDetalhes) return;
+    if (
+      !window.confirm(
+        "Finalizar esta vaga e pagar o freelancer?\n\nMarca o serviço como concluído e dispara o repasse (PIX) ao freelancer, junto dos documentos fiscais. Use quando o serviço foi realizado e está tudo certo. Não paga em dobro se já foi pago.",
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await finalizeMutation.mutateAsync({ vacancyId: modalDetalhes.raw.id });
+      if (res.repasseStatus === "COMPLETED") {
+        toast.success("Vaga finalizada e repasse pago ao freelancer.");
+      } else if (res.repasseStatus === "FAILED") {
+        toast.warning(
+          `Vaga finalizada, mas o repasse falhou: ${res.failureReason ?? "motivo desconhecido"}. Corrija e use "pagar repasse".`,
+        );
+      } else {
+        toast.success("Vaga finalizada. O repasse ainda não foi processado.");
+      }
+      setModalDetalhes(null);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Falha ao finalizar a vaga."));
     }
   };
 
@@ -937,6 +965,18 @@ export default function JobsPage() {
             </div>
           )}
           <DialogFooter>
+            {modalDetalhes && modalDetalhes.status !== "cancelled" && (
+              <Button
+                variant="outline"
+                onClick={handleFinalizeVacancy}
+                disabled={finalizeMutation.isPending}
+                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                title="Marca o serviço como concluído e paga o repasse (PIX) ao freelancer"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Finalizar e pagar
+              </Button>
+            )}
             {modalDetalhes && modalDetalhes.status !== "cancelled" && (
               <Button
                 variant="outline"

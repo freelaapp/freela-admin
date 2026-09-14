@@ -667,6 +667,31 @@ export async function adminReinstateCandidacy(
   return res.data.data;
 }
 
+// Finalização admin da vaga — endpoint COMPARTILHADO (empresa + Casa), base
+// própria `/v1/admins/vacancies` (não o prefixo de módulo).
+const adminsVacanciesApi = createAuthedClient("/v1/admins/vacancies");
+
+/** Resultado da finalização admin da vaga (job concluído + repasse disparado). */
+export interface AdminFinalizeVacancyResult {
+  jobId: string;
+  jobCompleted: boolean;
+  /** Repasse ao freelancer: COMPLETED = PIX saiu; FAILED = ver failureReason; NONE = sem repasse. */
+  repasseStatus: string;
+  failureReason: string | null;
+}
+
+/**
+ * Finaliza a vaga pelo painel: marca o job concluído + vaga fechada e dispara o
+ * repasse (PIX) ao freelancer, que também emite os documentos fiscais.
+ * Idempotente (não paga em dobro). Vale para vaga de empresa e de Casa.
+ */
+export async function adminFinalizeVacancy(
+  vacancyId: string,
+): Promise<AdminFinalizeVacancyResult> {
+  const res = await adminsVacanciesApi.post(`/${vacancyId}/finalize`);
+  return res.data.data;
+}
+
 export async function getVacancyCandidacies(vacancyId: string): Promise<VacancyCandidacyItem[]> {
   const res = await adminApi.get(`/vacancies/${vacancyId}/candidacies`);
   return res.data.data;
