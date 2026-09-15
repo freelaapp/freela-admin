@@ -1,3 +1,5 @@
+import { isAxiosError } from "axios";
+
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -695,6 +697,51 @@ export async function adminFinalizeVacancy(
 export async function getVacancyCandidacies(vacancyId: string): Promise<VacancyCandidacyItem[]> {
   const res = await adminApi.get(`/vacancies/${vacancyId}/candidacies`);
   return res.data.data;
+}
+
+/** Motivo de cada (re)precificação — rótulo da entrada no histórico. */
+export type PricingChangeReason =
+  | "CREATE"
+  | "UPDATE"
+  | "PROPOSAL_ACCEPT"
+  | "COUNTER_ACCEPT"
+  | (string & {});
+
+/**
+ * Uma linha do histórico de preço da vaga (endpoint `pricing-history`).
+ * Cada entrada é uma (re)precificação: criação, ajuste ou negociação de valor.
+ */
+export interface VacancyPriceHistoryEntry {
+  /** Quando o preço foi (re)calculado (ISO). */
+  calculatedAt: string;
+  /** CREATE | UPDATE | PROPOSAL_ACCEPT | COUNTER_ACCEPT | null (logs antigos). */
+  changeReason: PricingChangeReason | null;
+  /** Proposta que originou a mudança, quando veio da negociação. */
+  proposalId: string | null;
+  /** Valor de serviço (base), em centavos. */
+  baseAmountInCents: number;
+  /** Total que o contratante paga, em centavos. */
+  chargeAmountInCents: number;
+  /** Líquido do freelancer (repasse) — o que ele recebe, em centavos. */
+  freelancerAmountInCents: number;
+}
+
+/**
+ * Histórico cronológico de preço da vaga: cada (re)precificação com o motivo, o
+ * total pago pelo contratante e o líquido do freelancer. Endpoint compartilhado
+ * (empresa + Casa) sob a permissão `JOBS`. Vazio (`[]`) quando a flag de
+ * negociação está desligada e o backend responde 404.
+ */
+export async function getVacancyPriceHistory(
+  vacancyId: string,
+): Promise<VacancyPriceHistoryEntry[]> {
+  try {
+    const res = await adminsVacanciesApi.get(`/${vacancyId}/pricing-history`);
+    return res.data.data;
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) return [];
+    throw error;
+  }
 }
 
 export interface VacancyFeedbackEntry {

@@ -5,6 +5,7 @@ import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
 import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feedbacks-section";
+import { VacancyPriceHistorySection } from "@/components/admin/vacancy/vacancy-price-history-section";
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
 import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
@@ -933,6 +934,10 @@ export default function JobsPage() {
               </div>
 
               <VacancyRoadmap vacancy={modalDetalhes.raw} />
+
+              {modalDetalhes.raw?.id && (
+                <VacancyPriceHistorySection vacancyId={modalDetalhes.raw.id} />
+              )}
 
               <VacancyDocumentsCell
                 variant="full"
