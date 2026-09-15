@@ -627,6 +627,13 @@ export interface VacancyCandidacyItem {
   confirmationChannel?: string | null;
   /** Prazo do handshake. Vencido + sem confirmedAt = o prazo passou. */
   confirmDeadlineAt?: string | null;
+  /**
+   * Nota de compatibilidade (0-100) do candidato com a vaga — mesmo cálculo do
+   * painel do contratante, sem IA. Presente só com `FREELA_CANDIDATE_MATCH_ENABLED`
+   * ligada no backend; `null` quando não há dado da vaga para comparar; ausente
+   * quando o recurso está desligado. A lista já vem ordenada por essa nota.
+   */
+  matchScore?: number | null;
 }
 
 export interface AdminConfirmCandidacyResult {
