@@ -96,7 +96,9 @@ export function VacancyCandidacyList({
         <p className="text-xs text-[#737373]">Nenhum candidato ainda.</p>
       )}
       {!loading && candidacies && candidacies.length > 0 && (
-        <div className="flex flex-col gap-2">
+        // Rola a lista por dentro: sem isso, muitos candidatos esticam o modal
+        // para além da tela (o Dialog não limita altura) e não dava pra rolar.
+        <div className="flex flex-col gap-2 max-h-[55vh] overflow-y-auto pr-1">
           {candidacies.map((c) => {
             // Nunca rotular status desconhecido como "Pendente": WITHDRAWN e
             // CANCELLED_BY_CONTRACTOR caíam no fallback e o admin mostrava
