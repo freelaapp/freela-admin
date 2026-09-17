@@ -230,6 +230,12 @@ export function generateContractorReportPdf(
       doc.text(fit(txt, col.w - 1, size), col.x, y);
     }
   };
+  // Igual ao `cell` alinhado à direita, mas numa baseline explícita — usado nas
+  // sub-linhas de decomposição do estorno, desenhadas abaixo do "Valor pago".
+  const cellRightAt = (txt: string, col: Col, size: number, atY: number) => {
+    doc.setFontSize(size);
+    doc.text(fit(txt, col.w - 1, size), col.x + col.w - 1, atY, { align: "right" });
+  };
   const drawHeader = () => {
     doc.setFillColor(238, 168, 38);
     doc.rect(L, y - 4, RIGHT - L, 6.5, "F");
@@ -268,9 +274,15 @@ export function generateContractorReportPdf(
   drawHeader();
 
   doc.setFont("helvetica", "normal");
+  const SUBLINE_DY = 3.2; // passo vertical de cada sub-linha de estorno
   let i = 0;
   for (const r of linhas) {
-    if (y > PH - 22) {
+    // Vaga com estorno ganha duas sub-linhas (Valor total / Estorno) abaixo do
+    // "Valor pago"; a linha cresce e o zebrado + quebra de página precisam
+    // considerar essa altura extra.
+    const hasEstorno = r.estornoCents > 0 && r.pagoCents != null;
+    const rowH = hasEstorno ? 6 + 2 * SUBLINE_DY : 6;
+    if (y > PH - 22 - (rowH - 6)) {
       doc.addPage();
       y = 16;
       drawHeader();
@@ -279,7 +291,7 @@ export function generateContractorReportPdf(
     i++;
     if (i % 2 === 0) {
       doc.setFillColor(248, 248, 245);
-      doc.rect(L, y - 4, RIGHT - L, 6, "F");
+      doc.rect(L, y - 4, RIGHT - L, rowH, "F");
     }
     doc.setFont("helvetica", "normal");
     doc.setTextColor(35, 35, 35);
@@ -316,7 +328,21 @@ export function generateContractorReportPdf(
       doc.setTextColor(35, 35, 35);
       cell(brl(r.pagoCents) + (r.estornoCents > 0 ? "†" : ""), cols[6], 8);
     }
-    y += 6;
+
+    // Decomposição do estorno: o "Valor pago" (prominente, com o marcador "†")
+    // continua sendo o líquido = valor real. Abaixo dele empilhamos a cobrança
+    // original e o estorno como desconto. Sinal de menos em ASCII "-" — a
+    // helvetica padrão do jsPDF não tem U+2212 (viraria aspas/quadrado).
+    if (hasEstorno) {
+      const pagoCol = anyDecomposition ? cols[8] : cols[6];
+      const total = (r.pagoCents ?? 0) + r.estornoCents; // cobrança original = real + estorno
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(120, 120, 120);
+      cellRightAt("Valor total " + brl(total), pagoCol, 6.5, y + SUBLINE_DY);
+      doc.setTextColor(176, 58, 46);
+      cellRightAt("Estorno - " + brl(r.estornoCents), pagoCol, 6.5, y + 2 * SUBLINE_DY);
+    }
+    y += rowH;
   }
 
   if (y > PH - 22) {
