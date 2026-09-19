@@ -11,6 +11,7 @@ import { VacancyBoard } from "./_components/vacancy-board";
 import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
 import { VacancyDocumentsCell } from "./_components/vacancy-documents-cell";
 import {
+  useResendVacancyGroupMessage,
   useSendVacancyStageMessage,
   useVacancyOutreach,
 } from "@/modules/admin/application/use-vacancy-outreach";
@@ -109,7 +110,7 @@ import { VacancyRoadmap, formatStepAt } from "./_components/vacancy-roadmap";
 
 export default function JobsPage() {
   // Área controlada por permissão; o filtro por consultor segue super-admin.
-  const { isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const { isChecking, allowed } = useAreaGuard("JOBS");
   const [selectedConsultantId, setSelectedConsultantId] = useState<string>("");
   // Modo Painel: as vagas em colunas por etapa, para acompanhar na TV. Fica na
@@ -119,6 +120,9 @@ export default function JobsPage() {
   // Avisos já enviados + disparo. Uma consulta para o painel inteiro.
   const { enviados: avisosEnviados, registros: registrosDisparo } = useVacancyOutreach();
   const enviarAviso = useSendVacancyStageMessage();
+  // Reenvio do anúncio no grupo da cidade — o atalho da primeira ação da etapa
+  // "aberta sem candidato" na área de trabalho do suporte.
+  const reenviarNoGrupo = useResendVacancyGroupMessage();
   const [avisandoId, setAvisandoId] = useState<string | null>(null);
   const { data: vacancies, isLoading, isError, isFetching } = useAdminVacancies(
     selectedConsultantId || undefined,
@@ -553,9 +557,29 @@ export default function JobsPage() {
             data: r.data,
             turno: r.horario,
             freelancer: r.providerName,
+            freelancerTelefone: r.raw.providerPhone ?? null,
+            // Contato e telefone vêm do cadastro do contratante, não da vaga:
+            // é o número que o suporte usa para a saudação e para as cobranças.
+            contratanteContato: contractorMap.get(r.raw.contractorId)?.contactName ?? null,
+            contratanteTelefone: contractorMap.get(r.raw.contractorId)?.contactPhone ?? null,
             raw: r.raw,
           }))}
           isFetching={isFetching}
+          // Vagas Empresa é onde o time de suporte trabalha: o painel aqui não
+          // é só o quadro da TV, é a fila de atendimento.
+          areaDeTrabalho
+          quemTicou={user?.name ?? null}
+          onReenviarGrupo={async (vacancyId) => {
+            setAvisandoId(vacancyId);
+            try {
+              await reenviarNoGrupo.mutateAsync({ vacancyId, module: "empresa" });
+              toast.success("Vaga reenviada no grupo da cidade.");
+            } catch (e) {
+              toast.error(getAxiosErrorMessage(e) || "Não foi possível reenviar no grupo.");
+            } finally {
+              setAvisandoId(null);
+            }
+          }}
           // Mesmo modal da tabela: o quadro devolve só o id e a página resolve
           // a linha, para não haver duas telas de detalhe da vaga.
           onSelect={(vacancyId) =>

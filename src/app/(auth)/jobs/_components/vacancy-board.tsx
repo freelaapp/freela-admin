@@ -1,9 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ClipboardCheck } from "lucide-react";
 
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
+import { useSupportChecklist } from "@/modules/admin/application/use-support-checklist";
+import type { OutreachStage } from "@/modules/admin/infrastructure/vacancy-outreach-api";
 import type { VacancyBucket } from "./vacancy-bucket";
+import {
+  calcularJanela,
+  compararUrgencia,
+  resolverPendencias,
+  type JanelaDaVaga,
+  type PendenciasDaVaga,
+} from "./support-actions";
+import { SupportAlertBanner, type AlertaDeVaga } from "./support-alert-banner";
+import { SupportWorkspace } from "./support-workspace";
 
 /**
  * Modo Painel: as vagas em colunas por etapa do funil.
@@ -53,6 +65,14 @@ export interface BoardVacancy {
   turno: string;
   /** Freelancer aceito, quando já houver. */
   freelancer: string | null;
+  /**
+   * Contatos para os atalhos da área de trabalho. Opcionais: o Freela em Casa
+   * não expõe telefone na listagem, e a gaveta prefere dizer "sem telefone" a
+   * exigir três `null` de quem não tem o dado.
+   */
+  freelancerTelefone?: string | null;
+  contratanteContato?: string | null;
+  contratanteTelefone?: string | null;
   raw: VacancyItem;
 }
 
@@ -271,6 +291,8 @@ function CardVaga({
   avisadoEm,
   onAvisar,
   avisando,
+  pendencias,
+  onAbrirAcoes,
 }: {
   item: BoardVacancy;
   cor: string;
@@ -280,24 +302,40 @@ function CardVaga({
   avisadoEm?: string;
   onAvisar?: (vacancyId: string, stage: AvisoStage) => void;
   avisando?: boolean;
+  /** Checklist do suporte para esta vaga. Ausente = painel sem área de trabalho. */
+  pendencias?: PendenciasDaVaga;
+  onAbrirAcoes?: (vacancyId: string) => void;
 }) {
   const atencao = precisaDeAtencao(item, agora);
   const jaAvisado = Boolean(avisadoEm);
-  // Avisado vence o alerta de urgência na cor: se a cobrança já saiu, o que
-  // interessa saber de longe é que alguém tratou aquele card.
-  const corBorda = jaAvisado ? COR_AVISADO : atencao ? "#F97316" : cor;
+  const temCritica = (pendencias?.criticasPendentes.length ?? 0) > 0;
+  // Ordem da cor da borda: ação crítica pendente vence tudo — é o estado que
+  // custa dinheiro. Depois "já avisado" (alguém tratou), depois a urgência de
+  // horário, e por fim a cor da própria etapa.
+  const corBorda = temCritica
+    ? "#DC2626"
+    : jaAvisado
+      ? COR_AVISADO
+      : atencao
+        ? "#F97316"
+        : cor;
 
   return (
-    <div className="relative">
+    <div
+      style={{
+        borderLeftColor: corBorda,
+        background: temCritica ? "#FEF2F2" : jaAvisado ? "#F0FDF4" : undefined,
+      }}
+      className={`rounded-[10px] border border-[#E2E8F0] border-l-[3px] bg-white shadow-[0_1px_2px_rgba(15,23,42,.04)] transition-all hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(15,23,42,.08)] ${
+        atencao ? "ring-1 ring-[#F97316]/30" : ""
+      }`}
+    >
     <button
       type="button"
       onClick={() => onSelect(item.id)}
       // O card abre o MESMO modal de detalhes da tabela — não existe uma
       // segunda tela de vaga. `text-left` porque button centraliza por padrão.
-      style={{ borderLeftColor: corBorda, background: jaAvisado ? "#F0FDF4" : undefined }}
-      className={`w-full cursor-pointer rounded-[10px] border border-[#E2E8F0] border-l-[3px] bg-white px-3 py-2.5 text-left shadow-[0_1px_2px_rgba(15,23,42,.04)] transition-all hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(15,23,42,.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#94A3B8] ${
-        atencao ? "ring-1 ring-[#F97316]/30" : ""
-      }`}
+      className="w-full cursor-pointer rounded-t-[10px] px-3 py-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#94A3B8]"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
         {/* Id encurtado: o suficiente para casar com o suporte sem ocupar a
@@ -356,26 +394,54 @@ function CardVaga({
       ) : null}
     </button>
 
-      {/* Fora do <button> de propósito: botão dentro de botão é HTML inválido
-          e o clique de um dispararia o outro. */}
-      {aviso && onAvisar ? (
-        <button
-          type="button"
-          disabled={avisando}
-          onClick={() => onAvisar(item.id, aviso.stage)}
-          className={`absolute bottom-2 right-2.5 cursor-pointer rounded-md px-2 py-1 text-[11px] font-semibold transition-colors disabled:cursor-wait disabled:opacity-60 ${
-            jaAvisado
-              ? "bg-[#DCFCE7] text-[#166534] hover:bg-[#BBF7D0]"
-              : "bg-[#1d1d1b] text-white hover:bg-[#333]"
-          }`}
-          title={
-            jaAvisado
-              ? "Já avisado — clique para mandar de novo"
-              : `Mandar no WhatsApp: ${aviso.rotulo.toLowerCase()}`
-          }
-        >
-          {avisando ? "Enviando…" : jaAvisado ? "Reenviar" : aviso.rotulo}
-        </button>
+      {/* Rodapé FORA do <button> do card: botão dentro de botão é HTML inválido
+          e o clique de um dispararia o outro. É aqui que mora a operação —
+          quantas ações do checklist já saíram e a cobrança da etapa. */}
+      {(pendencias && onAbrirAcoes) || (aviso && onAvisar) ? (
+        <div className="flex items-center gap-1.5 border-t border-[#F1F5F9] px-2.5 py-1.5">
+          {pendencias && onAbrirAcoes ? (
+            <button
+              type="button"
+              onClick={() => onAbrirAcoes(item.id)}
+              title={
+                temCritica
+                  ? `${pendencias.criticasPendentes.length} ação(ões) crítica(s) pendente(s)`
+                  : "Abrir a área de trabalho do suporte"
+              }
+              className={`inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+                temCritica
+                  ? "bg-[#DC2626] text-white hover:bg-[#B91C1C]"
+                  : pendencias.concluida
+                    ? "bg-[#DCFCE7] text-[#166534] hover:bg-[#BBF7D0]"
+                    : "bg-[#F1F5F9] text-[#334155] hover:bg-[#E2E8F0]"
+              }`}
+            >
+              <ClipboardCheck className="h-3 w-3" aria-hidden />
+              {pendencias.feitas}/{pendencias.total}
+              {temCritica ? ` · ${pendencias.criticasPendentes.length} crítica(s)` : ""}
+            </button>
+          ) : null}
+
+          {aviso && onAvisar ? (
+            <button
+              type="button"
+              disabled={avisando}
+              onClick={() => onAvisar(item.id, aviso.stage)}
+              className={`ml-auto cursor-pointer rounded-md px-2 py-1 text-[11px] font-semibold transition-colors disabled:cursor-wait disabled:opacity-60 ${
+                jaAvisado
+                  ? "bg-[#DCFCE7] text-[#166534] hover:bg-[#BBF7D0]"
+                  : "bg-[#1d1d1b] text-white hover:bg-[#333]"
+              }`}
+              title={
+                jaAvisado
+                  ? "Já avisado — clique para mandar de novo"
+                  : `Mandar no WhatsApp: ${aviso.rotulo.toLowerCase()}`
+              }
+            >
+              {avisando ? "Enviando…" : jaAvisado ? "Reenviar" : aviso.rotulo}
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -403,6 +469,9 @@ export function VacancyBoard({
   avisados,
   onAvisar,
   avisando,
+  areaDeTrabalho = false,
+  quemTicou,
+  onReenviarGrupo,
 }: {
   vacancies: BoardVacancy[];
   isFetching: boolean;
@@ -416,8 +485,22 @@ export function VacancyBoard({
   onAvisar?: (vacancyId: string, stage: AvisoStage) => void;
   /** Vaga com envio em curso, para travar o botão sem travar o painel. */
   avisando?: string | null;
+  /**
+   * Liga a área de trabalho do suporte: banner vermelho, checklist por vaga e
+   * a gaveta de ações. Desligada por padrão — quem quiser o painel como quadro
+   * de acompanhamento puro (a TV da sala) continua com o quadro de antes.
+   */
+  areaDeTrabalho?: boolean;
+  /** Nome de quem está no painel — vai gravado em cada tique do checklist. */
+  quemTicou?: string | null;
+  /** Reenvia o anúncio no grupo da cidade (atalho da primeira ação da etapa
+   *  "aberta sem candidato"). Ausente = a ação continua lá, só sem o botão. */
+  onReenviarGrupo?: (vacancyId: string) => Promise<void>;
 }) {
   const [busca, setBusca] = useState("");
+  /** Vaga com a área de trabalho aberta. */
+  const [acoesDe, setAcoesDe] = useState<string | null>(null);
+  const checklist = useSupportChecklist(quemTicou);
 
   // Um relógio só para o painel inteiro: recalcular por card a cada render
   // custaria caro com centenas de vagas. Um minuto basta.
@@ -439,6 +522,29 @@ export function VacancyBoard({
     );
   }, [ativas, busca]);
 
+  /**
+   * Checklist do suporte resolvido por vaga: a janela de tempo, a prioridade e
+   * o que ainda falta fazer.
+   *
+   * Uma passada só para o painel inteiro — o banner, a ordem das colunas e o
+   * rodapé de cada card leem daqui, e recalcular em cada um faria três verdades
+   * diferentes do mesmo checklist.
+   */
+  const contexto = useMemo(() => {
+    const mapa = new Map<string, { janela: JanelaDaVaga; pendencias: PendenciasDaVaga }>();
+    if (!areaDeTrabalho) return mapa;
+    for (const v of visiveis) {
+      const janela = calcularJanela(v.raw, agora);
+      mapa.set(v.id, {
+        janela,
+        pendencias: resolverPendencias(v.bucket, janela, checklist.feitasDaVaga(v.id)),
+      });
+    }
+    return mapa;
+    // `checklist.feitasDaVaga` muda de identidade a cada tique — é ele que faz
+    // o banner apagar a linha no mesmo clique.
+  }, [areaDeTrabalho, visiveis, agora, checklist]);
+
   const porBucket = useMemo(() => {
     const mapa = new Map<BoardBucket, BoardVacancy[]>();
     for (const v of visiveis) {
@@ -446,13 +552,62 @@ export function VacancyBoard({
       lista.push(v);
       mapa.set(v.bucket, lista);
     }
-    // Mais RECENTE primeiro, pela data de abertura: a vaga que acabou de entrar
-    // é a que ninguém viu ainda, e o topo da coluna é o que se lê primeiro.
+    /**
+     * Ordem da coluna: a régua de prioridade primeiro, abertura só no empate.
+     *
+     * Era "mais recente primeiro", usando a novidade como proxy de "ninguém
+     * viu ainda". Com o checklist não é mais preciso adivinhar: o topo da
+     * coluna passa a ser o que tem menos tempo até o turno e ação pendente —
+     * exatamente a fila em que o suporte atende.
+     */
     for (const lista of mapa.values()) {
-      lista.sort((a, b) => aberturaEm(b.raw) - aberturaEm(a.raw));
+      lista.sort((a, b) => {
+        const ca = contexto.get(a.id);
+        const cb = contexto.get(b.id);
+        if (ca && cb) {
+          const urgencia = compararUrgencia(
+            { prioridade: ca.pendencias.prioridade, janela: ca.janela },
+            { prioridade: cb.pendencias.prioridade, janela: cb.janela },
+          );
+          if (urgencia !== 0) return urgencia;
+        }
+        return aberturaEm(b.raw) - aberturaEm(a.raw);
+      });
     }
     return mapa;
-  }, [visiveis]);
+  }, [visiveis, contexto]);
+
+  /**
+   * As vagas com ação crítica em aberto, na ordem de atendimento.
+   *
+   * Só as etapas do fluxo entram: cobrar uma ação de vaga cancelada seria pedir
+   * trabalho que não muda nada.
+   */
+  const alertas = useMemo<AlertaDeVaga[]>(() => {
+    const itens = visiveis
+      .filter((v) => v.bucket !== "cancelled" && v.bucket !== "lost")
+      .map((v) => ({ vaga: v, ctx: contexto.get(v.id) }))
+      .filter(
+        (i): i is { vaga: BoardVacancy; ctx: { janela: JanelaDaVaga; pendencias: PendenciasDaVaga } } =>
+          Boolean(i.ctx) && (i.ctx?.pendencias.criticasPendentes.length ?? 0) > 0,
+      );
+    itens.sort((a, b) =>
+      compararUrgencia(
+        { prioridade: a.ctx.pendencias.prioridade, janela: a.ctx.janela },
+        { prioridade: b.ctx.pendencias.prioridade, janela: b.ctx.janela },
+      ),
+    );
+    return itens.map(({ vaga, ctx }) => ({
+      id: vaga.id,
+      cargo: vaga.cargo,
+      empresa: vaga.empresa,
+      prioridade: ctx.pendencias.prioridade,
+      horasAteInicio: ctx.janela.horasAteInicio,
+      criticas: ctx.pendencias.criticasPendentes.map((a) => a.label),
+    }));
+  }, [visiveis, contexto]);
+
+  const vagaEmFoco = acoesDe ? (vacancies.find((v) => v.id === acoesDe) ?? null) : null;
 
   const canceladas = porBucket.get("cancelled")?.length ?? 0;
   const emAcompanhamento = visiveis.length - canceladas;
@@ -567,6 +722,10 @@ export function VacancyBoard({
         </div>
       </div>
 
+      {/* Banner vermelho acima de tudo: a vaga que vai ser cancelada por falta
+          de pagamento não pode depender de alguém rolar até a coluna certa. */}
+      <SupportAlertBanner alertas={alertas} onAbrir={setAcoesDe} />
+
       {/* Colunas: rolagem horizontal só quando a tela for estreita demais. */}
       <div className="flex items-start gap-3 overflow-x-auto pb-2">
         {COLUNAS.map((coluna) => {
@@ -633,6 +792,8 @@ export function VacancyBoard({
                       }
                       onAvisar={onAvisar}
                       avisando={avisando === item.id}
+                      pendencias={contexto.get(item.id)?.pendencias}
+                      onAbrirAcoes={setAcoesDe}
                     />
                   );
                 })}
@@ -658,6 +819,12 @@ export function VacancyBoard({
           entram — a cor de cada coluna já está no cabeçalho dela. */}
       <div className="mt-3 flex flex-wrap items-center gap-4 rounded-xl bg-white px-4 py-2.5 text-[11.5px] text-[#64748B]">
         <span className="font-semibold text-[#334155]">Legenda:</span>
+        {areaDeTrabalho ? (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#DC2626]" aria-hidden />
+            ação crítica do suporte ainda não feita
+          </span>
+        ) : null}
         <span className="flex items-center gap-1.5">
           <span
             style={{ background: COR_AVISADO }}
@@ -693,6 +860,39 @@ export function VacancyBoard({
           {ocultadas} vaga(s) já encerrada(s) fora do painel — use a tabela para ver o
           histórico completo.
         </p>
+      ) : null}
+
+      {/* Onde os tiques ficam guardados hoje. Dito na tela, e não só no código,
+          porque muda como o time trabalha: quem ticar numa máquina não aparece
+          ticado na outra enquanto a API não guardar isso. */}
+      {areaDeTrabalho ? (
+        <p className="mt-2 text-[11.5px] text-[#94A3B8]">
+          As ações ticadas ficam salvas neste navegador.
+        </p>
+      ) : null}
+
+      {vagaEmFoco ? (
+        <SupportWorkspace
+          vaga={vagaEmFoco}
+          janela={contexto.get(vagaEmFoco.id)?.janela ?? calcularJanela(vagaEmFoco.raw, agora)}
+          checklist={checklist}
+          ocupado={avisando === vagaEmFoco.id}
+          handlers={{
+            onReenviarGrupo,
+            onCobrar: onAvisar
+              ? async (vacancyId: string, stage: OutreachStage) => {
+                  onAvisar(vacancyId, stage as AvisoStage);
+                }
+              : undefined,
+            // Fecha a gaveta ao abrir o modal: os dois empilhados brigariam
+            // pelo Esc, e quem foi ver os candidatos já saiu do checklist.
+            onAbrirDetalhes: (vacancyId: string) => {
+              setAcoesDe(null);
+              onSelect(vacancyId);
+            },
+          }}
+          onClose={() => setAcoesDe(null)}
+        />
       ) : null}
     </div>
   );
