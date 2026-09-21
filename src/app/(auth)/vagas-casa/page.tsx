@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Eye, Loader2, RefreshCw, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -48,6 +48,7 @@ import { useAdminCasaVacancies } from "@/modules/admin/application/use-admin-cas
 import { useAdminCancelCasaVacancy } from "@/modules/admin/application/use-admin-cancel-casa-vacancy";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminConsultants } from "@/modules/admin/application/use-admin-consultants";
+import { useCatalogRoles } from "@/modules/admin/application/use-admin-catalog";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import type { CasaVacancyItem } from "@/modules/admin/infrastructure/casa-vacancies-api";
@@ -116,6 +117,19 @@ export default function VagasCasaPage() {
   const { data: consultants } = useAdminConsultants();
   // Relatos de problema (F6) abertos — a fila do topo e o aviso dentro do modal.
   const { data: openReports } = useOpenIssueReports();
+  const { data: catalogRoles } = useCatalogRoles();
+
+  // Rótulo de cargo pelo NOME do catálogo (slug `auxiliar-limpeza` → "Auxiliar
+  // de Limpeza"), e não o slug cru. Inclui aliases. Fallback: o próprio valor.
+  const roleNameBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const role of catalogRoles ?? []) {
+      map.set(role.slug, role.name);
+      for (const alias of role.aliases ?? []) map.set(alias, role.name);
+    }
+    return map;
+  }, [catalogRoles]);
+  const cargoLabel = (slug: string) => roleNameBySlug.get(slug) ?? slug;
   const [statusFilter, setStatusFilter] = useState<StatusKey>("all");
   // Modo Painel: as vagas em colunas por etapa, igual ao de Empresa.
   const [modoPainel, setModoPainel] = useState(false);
@@ -335,13 +349,17 @@ export default function VagasCasaPage() {
     },
     {
       header: "Serviço",
-      accessor: "cargo" as const,
+      accessor: (row: Row) => cargoLabel(row.cargo),
       sortable: true,
       sortAccessor: (r: Row) => r.cargo,
     },
     {
       header: "Lugar",
-      accessor: "lugar" as const,
+      accessor: (row: Row) => (
+        <span className="block max-w-[200px] truncate" title={row.lugar}>
+          {row.lugar}
+        </span>
+      ),
       className: "hidden md:table-cell",
     },
     ...(isSuperAdmin
