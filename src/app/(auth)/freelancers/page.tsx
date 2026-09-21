@@ -29,6 +29,7 @@ import {
 } from "@/modules/admin/application/use-admin-providers";
 import { useAdminUpdateProvider } from "@/modules/admin/application/use-admin-update-provider";
 import { useCitiesCatalog } from "@/modules/admin/application/use-cities-catalog";
+import { useCatalogRoles } from "@/modules/admin/application/use-admin-catalog";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
   useExportProviders,
@@ -206,7 +207,22 @@ export default function FreelancersPage() {
     ...serverFilters,
   });
   const { data: filterOptions } = useProvidersFilterOptions();
+  const { data: catalogRoles } = useCatalogRoles();
   const { data: citiesCatalog } = useCitiesCatalog();
+
+  // Rótulo de cargo pelo NOME do catálogo (slug `jardinagem` → "Jardineiro"), e
+  // não pelo title-case do slug ("Jardinagem"). Inclui os aliases, então a
+  // grafia antiga ainda no banco (`jardineiro`) também vira "Jardineiro" — assim
+  // o painel bate com o rótulo que o freelancer vê no app. Fallback: title-case.
+  const roleNameBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const role of catalogRoles ?? []) {
+      map.set(role.slug, role.name);
+      for (const alias of role.aliases ?? []) map.set(alias, role.name);
+    }
+    return map;
+  }, [catalogRoles]);
+  const cargoLabel = (slug: string) => roleNameBySlug.get(slug) ?? formatCargo(slug);
   const { exportCsv, isExporting } = useExportProviders();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -247,7 +263,7 @@ export default function FreelancersPage() {
   const cidadeOptions = filterOptions?.cities ?? [];
   const cargoOptions = (filterOptions?.services ?? []).map((value) => ({
     value,
-    label: formatCargo(value),
+    label: cargoLabel(value),
   }));
 
   // Catálogo IBGE agrupado por UF — é o que trava a cidade do formulário de
@@ -845,7 +861,7 @@ export default function FreelancersPage() {
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#eca826]/10 text-[#b87d12] text-sm font-medium"
                   >
                     <Briefcase className="w-3.5 h-3.5" />
-                    {formatCargo(c)}
+                    {cargoLabel(c)}
                   </span>
                 ))
               )}
