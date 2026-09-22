@@ -17,6 +17,8 @@ import {
 } from "@/modules/admin/application/use-vacancy-outreach";
 import { GROUP_BROADCAST_STAGE } from "@/modules/admin/infrastructure/vacancy-outreach-api";
 import type { OutreachStage } from "@/modules/admin/infrastructure/vacancy-outreach-api";
+import { useQueryClient } from "@tanstack/react-query";
+import { tickSupportActions } from "@/modules/admin/infrastructure/support-checklist-api";
 import { resolveVacancyBucket, type VacancyBucket } from "./_components/vacancy-bucket";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -123,7 +125,22 @@ export default function JobsPage() {
   // Reenvio do anúncio no grupo da cidade — o atalho da primeira ação da etapa
   // "aberta sem candidato" na área de trabalho do suporte.
   const reenviarNoGrupo = useResendVacancyGroupMessage();
+  const queryClient = useQueryClient();
   const [avisandoId, setAvisandoId] = useState<string | null>(null);
+
+  // Quando um disparo automático (reenviar no grupo / cobrar etapa) sai pelo
+  // botão, a ação correspondente do checklist do suporte é ticada sozinha — o
+  // painel passa a mostrar que ela já foi feita. Módulo fixo "bars-restaurants":
+  // a área de trabalho só está ligada em Vagas Empresa. Falhar aqui não estraga
+  // o disparo que já deu certo, então é silencioso.
+  const marcarAcaoDoChecklist = async (vacancyId: string, actionId: string) => {
+    try {
+      await tickSupportActions(vacancyId, [actionId], "bars-restaurants", user?.name ?? undefined);
+      await queryClient.invalidateQueries({ queryKey: ["admin", "support-checklist"] });
+    } catch {
+      /* silencioso de propósito */
+    }
+  };
   const { data: vacancies, isLoading, isError, isFetching } = useAdminVacancies(
     selectedConsultantId || undefined,
     // Só o painel repolla: ele fica aberto na TV sem ninguém para atualizar.
@@ -574,6 +591,8 @@ export default function JobsPage() {
             try {
               await reenviarNoGrupo.mutateAsync({ vacancyId, module: "empresa" });
               toast.success("Vaga reenviada no grupo da cidade.");
+              // Auto-tica "Divulgar de novo no grupo de WhatsApp".
+              await marcarAcaoDoChecklist(vacancyId, "divulgar_grupo");
             } catch (e) {
               toast.error(getAxiosErrorMessage(e) || "Não foi possível reenviar no grupo.");
             } finally {
@@ -595,6 +614,11 @@ export default function JobsPage() {
                 stage: stage as OutreachStage,
               });
               toast.success(`Aviso enviado para ${r.phone}.`);
+              // Auto-tica a cobrança correspondente à etapa avisada.
+              await marcarAcaoDoChecklist(
+                vacancyId,
+                stage === "awaitingSelection" ? "cobrar_escolha" : "cobrar_pagamento",
+              );
             } catch (e) {
               // A mensagem da API é específica ("contratante sem telefone"),
               // e é ela que diz o que fazer — não pode virar "tente de novo".
