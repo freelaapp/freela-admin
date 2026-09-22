@@ -442,11 +442,37 @@ export function formatarTempoRestante(horas: number | null): string {
   if (horas === null) return "sem data";
   const passado = horas < 0;
   const abs = Math.abs(horas);
-  const texto =
-    abs < 1
-      ? `${Math.max(1, Math.round(abs * 60))}min`
-      : abs < 48
-        ? `${Math.floor(abs)}h${String(Math.round((abs % 1) * 60)).padStart(2, "0")}`
-        : `${Math.floor(abs / 24)}d`;
+  let texto: string;
+  if (abs >= 48) {
+    texto = `${Math.floor(abs / 24)}d`;
+  } else {
+    // Conta em MINUTOS e só então divide: arredondar horas e minutos em
+    // separado deixava "2h60"/"60min" na borda (0,999h → 60min em vez de 1h00).
+    const totalMin = Math.round(abs * 60);
+    if (totalMin < 60) {
+      texto = `${Math.max(1, totalMin)}min`;
+    } else {
+      texto = `${Math.floor(totalMin / 60)}h${String(totalMin % 60).padStart(2, "0")}`;
+    }
+  }
   return passado ? `há ${texto}` : `em ${texto}`;
+}
+
+/**
+ * Qual relógio a vaga mostra, na convenção "horas até" (negativo = passado).
+ *
+ * Antes do turno o que aperta é quanto FALTA para começar. Depois que o serviço
+ * começa, tempo-até-o-início vira negativo e não diz mais nada de útil: o que
+ * importa passa a ser o FIM — em andamento, quanto falta para terminar; parada
+ * aguardando avaliação, há quanto tempo terminou (é a avaliação que trava o
+ * repasse). Devolve na mesma escala do `horasAteInicio` para o
+ * `formatarTempoRestante` render "em …"/"há …" sem outro caso especial.
+ */
+export function tempoDeReferencia(bucket: VacancyBucket, janela: JanelaDaVaga): number | null {
+  if (bucket === "inProgress" || bucket === "completedAwaitingReview") {
+    // `horasDesdeFim` é o espelho de "até o fim" (positivo = já terminou), então
+    // negá-lo devolve "horas até o fim": +2 = termina em 2h, −3 = terminou há 3h.
+    return janela.horasDesdeFim === null ? null : -janela.horasDesdeFim;
+  }
+  return janela.horasAteInicio;
 }

@@ -10,6 +10,7 @@ import {
   formatarTempoRestante,
   resolverPendencias,
   resolverPrioridade,
+  tempoDeReferencia,
   type JanelaDaVaga,
   type SupportAction,
 } from "./support-actions";
@@ -204,5 +205,37 @@ describe("formatarTempoRestante", () => {
   // nada" — o mínimo é 1min enquanto o horário não passou.
   it("nunca imprime 'em 0min'", () => {
     expect(formatarTempoRestante(0.004)).toBe("em 1min");
+  });
+
+  // Minuto arredondando para 60 caía em "2h60"/"60min"; conta em minutos e
+  // rola para a hora seguinte.
+  it("rola o minuto 60 para a hora seguinte", () => {
+    expect(formatarTempoRestante(0.999)).toBe("em 1h00");
+    expect(formatarTempoRestante(2.999)).toBe("em 3h00");
+    expect(formatarTempoRestante(-0.999)).toBe("há 1h00");
+  });
+});
+
+describe("tempoDeReferencia — qual relógio a etapa mostra", () => {
+  it("antes do turno conta o tempo até o início", () => {
+    expect(tempoDeReferencia("open", janela(6, null))).toBe(6);
+    expect(tempoDeReferencia("awaitingPayment", janela(2, null))).toBe(2);
+  });
+
+  it("em andamento conta o tempo até o FIM (termina em / terminou há)", () => {
+    // Começou há 1h (−1) e termina em 2h (horasDesdeFim −2) → "+2" = termina em 2h.
+    expect(tempoDeReferencia("inProgress", janela(-1, -2))).toBe(2);
+  });
+
+  it("aguardando avaliação conta há quanto tempo TERMINOU", () => {
+    // Terminou há 3h (horasDesdeFim 3) → −3 → formatarTempoRestante = "há 3h".
+    expect(tempoDeReferencia("completedAwaitingReview", janela(-9, 3))).toBe(-3);
+    expect(formatarTempoRestante(tempoDeReferencia("completedAwaitingReview", janela(-9, 3)))).toBe(
+      "há 3h00",
+    );
+  });
+
+  it("sem data legível no fim devolve null (pós-turno)", () => {
+    expect(tempoDeReferencia("completedAwaitingReview", janela(-9, null))).toBeNull();
   });
 });

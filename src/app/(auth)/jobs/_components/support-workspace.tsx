@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { Check, ExternalLink, Loader2, MessageCircle, Phone, Send, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ExternalLink, Loader2, MessageCircle, Send, X } from "lucide-react";
 
 import type { SupportChecklist } from "@/modules/admin/application/use-support-checklist";
 import type { OutreachStage } from "@/modules/admin/infrastructure/vacancy-outreach-api";
+import type { SupportRecipient } from "@/modules/admin/infrastructure/support-checklist-api";
 
 import {
   PRIORIDADE_COR,
@@ -12,10 +13,12 @@ import {
   acaoEstaCritica,
   formatarTempoRestante,
   resolverPendencias,
+  tempoDeReferencia,
   type JanelaDaVaga,
   type SupportAction,
 } from "./support-actions";
-import { montarMensagem, whatsappLink } from "./support-messages";
+import { montarMensagem } from "./support-messages";
+import { SupportSendDialog } from "./support-send-dialog";
 import type { VacancyBucket } from "./vacancy-bucket";
 
 /**
@@ -55,6 +58,16 @@ export interface WorkspaceHandlers {
   onReenviarGrupo?: (vacancyId: string) => Promise<void>;
   /** Dispara o aviso de etapa no WhatsApp do contratante. */
   onCobrar?: (vacancyId: string, stage: OutreachStage) => Promise<void>;
+  /**
+   * Envia a mensagem da ação pela plataforma (resolve o telefone no servidor) e
+   * tica a ação. Sem este handler, o atalho de WhatsApp não aparece.
+   */
+  onEnviarWhatsapp?: (
+    vacancyId: string,
+    actionId: string,
+    recipient: SupportRecipient,
+    text: string,
+  ) => Promise<void>;
   /** Abre o modal de detalhes da vaga (candidatos, dinheiro, documentos). */
   onAbrirDetalhes?: (vacancyId: string) => void;
 }
@@ -123,6 +136,7 @@ function AtalhoDaAcao({
     }),
     [vaga],
   );
+  const [dialogAberto, setDialogAberto] = useState(false);
 
   if (!acao.atalho) return null;
 
@@ -131,26 +145,38 @@ function AtalhoDaAcao({
 
   if (acao.atalho === "whatsappContratante" || acao.atalho === "whatsappFreelancer") {
     const paraFreela = acao.atalho === "whatsappFreelancer";
+    const recipient: SupportRecipient = paraFreela ? "freelancer" : "contractor";
     const telefone = paraFreela ? vaga.freelancerTelefone : vaga.contratanteTelefone;
-    const link = whatsappLink(telefone, montarMensagem(acao.id, contexto));
-    // Sem telefone o botão não desaparece: ele DIZ que falta o telefone. Um
-    // atalho que some deixa o suporte procurando o que nunca existiu.
-    if (!link) {
-      return (
-        <span
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-dashed border-[#E2E8F0] px-2 py-1 text-[11px] font-medium text-[#94A3B8]"
-          title={`Sem telefone do ${paraFreela ? "freelancer" : "contratante"} no cadastro`}
-        >
-          <Phone className="h-3 w-3" aria-hidden />
-          sem telefone
-        </span>
-      );
-    }
+    const enviar = handlers.onEnviarWhatsapp;
+    // Sem o handler de envio não há como mandar pela plataforma — some o atalho.
+    if (!enviar) return null;
     return (
-      <a href={link} target="_blank" rel="noopener noreferrer" className={classe}>
-        <MessageCircle className="h-3 w-3" aria-hidden />
-        {paraFreela ? "WhatsApp freela" : "WhatsApp contratante"}
-      </a>
+      <>
+        <button
+          type="button"
+          onClick={() => setDialogAberto(true)}
+          className={`${classe} cursor-pointer`}
+        >
+          <MessageCircle className="h-3 w-3" aria-hidden />
+          {paraFreela ? "WhatsApp freela" : "WhatsApp contratante"}
+        </button>
+        {dialogAberto ? (
+          <SupportSendDialog
+            titulo={acao.label}
+            destinatarioRotulo={
+              paraFreela
+                ? `Freelancer${vaga.freelancer ? ` · ${vaga.freelancer}` : ""}`
+                : `Contratante${vaga.contratanteContato ? ` · ${vaga.contratanteContato}` : ""}`
+            }
+            // O telefone é só para exibir/abrir o wa.me: o envio pela plataforma
+            // resolve o número no servidor, então mesmo em branco aqui vale tentar.
+            telefone={telefone ?? null}
+            textoInicial={montarMensagem(acao.id, contexto)}
+            onEnviar={(texto) => enviar(vaga.id, acao.id, recipient, texto)}
+            onClose={() => setDialogAberto(false)}
+          />
+        ) : null}
+      </>
     );
   }
 
@@ -360,7 +386,8 @@ export function SupportWorkspace({
               style={{ background: corFundo, color: cor }}
               className="rounded-full px-2 py-0.5 text-[11px] font-bold"
             >
-              {PRIORIDADE_ROTULO[pendencias.prioridade]} · {formatarTempoRestante(janela.horasAteInicio)}
+              {PRIORIDADE_ROTULO[pendencias.prioridade]} ·{" "}
+              {formatarTempoRestante(tempoDeReferencia(vaga.bucket, janela))}
             </span>
             <span className="font-mono text-[10.5px] font-semibold text-[#94A3B8]">
               {vaga.id.slice(0, 8)}

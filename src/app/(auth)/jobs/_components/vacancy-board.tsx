@@ -2,15 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ClipboardCheck } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
 import { useSupportChecklist } from "@/modules/admin/application/use-support-checklist";
 import type { OutreachStage } from "@/modules/admin/infrastructure/vacancy-outreach-api";
+import {
+  sendSupportAction,
+  type SupportRecipient,
+  type VacancyModule,
+} from "@/modules/admin/infrastructure/support-checklist-api";
 import type { VacancyBucket } from "./vacancy-bucket";
 import {
   calcularJanela,
   compararUrgencia,
   resolverPendencias,
+  tempoDeReferencia,
   type JanelaDaVaga,
   type PendenciasDaVaga,
 } from "./support-actions";
@@ -472,6 +480,7 @@ export function VacancyBoard({
   areaDeTrabalho = false,
   quemTicou,
   onReenviarGrupo,
+  module = "bars-restaurants",
 }: {
   vacancies: BoardVacancy[];
   isFetching: boolean;
@@ -496,11 +505,45 @@ export function VacancyBoard({
   /** Reenvia o anúncio no grupo da cidade (atalho da primeira ação da etapa
    *  "aberta sem candidato"). Ausente = a ação continua lá, só sem o botão. */
   onReenviarGrupo?: (vacancyId: string) => Promise<void>;
+  /** Módulo das vagas do quadro — grava no tique e resolve o telefone no envio.
+   *  Hoje só Empresa liga a área de trabalho, daí o default. */
+  module?: VacancyModule;
 }) {
+  const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
   /** Vaga com a área de trabalho aberta. */
   const [acoesDe, setAcoesDe] = useState<string | null>(null);
-  const checklist = useSupportChecklist(quemTicou);
+  const checklist = useSupportChecklist(quemTicou, module);
+
+  /**
+   * Envia a mensagem da ação pela plataforma (o backend resolve o telefone e
+   * TICA a ação) e recarrega o checklist para o tique aparecer na hora.
+   */
+  const enviarWhatsapp = async (
+    vacancyId: string,
+    actionId: string,
+    recipient: SupportRecipient,
+    text: string,
+  ) => {
+    try {
+      const { phone } = await sendSupportAction(vacancyId, {
+        actionId,
+        recipient,
+        text,
+        module,
+        by: quemTicou,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["admin", "support-checklist"] });
+      toast.success(`Mensagem enviada${phone ? ` para ${phone}` : ""}.`);
+    } catch (e) {
+      const msg =
+        (e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
+          ?.message ?? "Não foi possível enviar pela plataforma.";
+      // O erro aparece dentro do diálogo (onde está o foco), que mantém o wa.me
+      // como saída — sem toast duplicado.
+      throw new Error(msg);
+    }
+  };
 
   // Um relógio só para o painel inteiro: recalcular por card a cada render
   // custaria caro com centenas de vagas. Um minuto basta.
@@ -602,7 +645,7 @@ export function VacancyBoard({
       cargo: vaga.cargo,
       empresa: vaga.empresa,
       prioridade: ctx.pendencias.prioridade,
-      horasAteInicio: ctx.janela.horasAteInicio,
+      horasReferencia: tempoDeReferencia(vaga.bucket, ctx.janela),
       criticas: ctx.pendencias.criticasPendentes.map((a) => a.label),
     }));
   }, [visiveis, contexto]);
@@ -862,12 +905,11 @@ export function VacancyBoard({
         </p>
       ) : null}
 
-      {/* Onde os tiques ficam guardados hoje. Dito na tela, e não só no código,
-          porque muda como o time trabalha: quem ticar numa máquina não aparece
-          ticado na outra enquanto a API não guardar isso. */}
+      {/* Agora os tiques são compartilhados: o que uma pessoa marca aparece para
+          todo o time (o painel recarrega sozinho a cada minuto). */}
       {areaDeTrabalho ? (
         <p className="mt-2 text-[11.5px] text-[#94A3B8]">
-          As ações ticadas ficam salvas neste navegador.
+          As ações ticadas são compartilhadas com todo o time.
         </p>
       ) : null}
 
@@ -879,6 +921,7 @@ export function VacancyBoard({
           ocupado={avisando === vagaEmFoco.id}
           handlers={{
             onReenviarGrupo,
+            onEnviarWhatsapp: enviarWhatsapp,
             onCobrar: onAvisar
               ? async (vacancyId: string, stage: OutreachStage) => {
                   onAvisar(vacancyId, stage as AvisoStage);

@@ -21,7 +21,9 @@ export interface AlertaDeVaga {
   cargo: string;
   empresa: string;
   prioridade: SupportPriority;
-  horasAteInicio: number | null;
+  /** Relógio de referência da etapa (pré-turno = até o início; pós = desde o
+   *  fim), na convenção "horas até" (negativo = passado). */
+  horasReferencia: number | null;
   /** Rótulos das ações críticas ainda não ticadas, na ordem de execução. */
   criticas: string[];
 }
@@ -101,7 +103,7 @@ export function SupportAlertBanner({
                 </span>
               </span>
               <span className="shrink-0 text-[11.5px] font-bold tabular-nums text-[#B91C1C]">
-                {formatarTempoRestante(alerta.horasAteInicio)}
+                {formatarTempoRestante(alerta.horasReferencia)}
               </span>
             </button>
           </li>

@@ -1,19 +1,61 @@
 import "@testing-library/jest-dom";
 import * as React from "react";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { VacancyBoard, type BoardVacancy } from "./vacancy-board";
-import { resetSupportChecklistCache } from "@/modules/admin/application/use-support-checklist";
-import { CHECKLIST_STORAGE_KEY } from "@/modules/admin/infrastructure/support-checklist-storage";
+import type { ChecklistTickDto } from "@/modules/admin/infrastructure/support-checklist-api";
 
 /**
  * A área de trabalho do suporte ponta a ponta: a vaga entra no painel, o banner
- * vermelho a acusa, a gaveta abre e o tique apaga a linha do banner.
+ * vermelho a acusa, a gaveta abre e o tique apaga a linha do banner — e o tique
+ * agora vive na API (compartilhado), não mais no localStorage.
  *
- * É o teste que a lógica pura não alcança — `support-actions.test.ts` prova a
- * régua, este prova que ela chega à tela e volta.
+ * A API é dublada por um store em memória com estado: ticar grava, e uma
+ * remontagem relê o mesmo store — o que prova que o tique persiste do lado do
+ * servidor, não só na tela.
  */
+
+const backend = vi.hoisted(() => ({ store: [] as ChecklistTickDto[] }));
+
+vi.mock("@/modules/admin/infrastructure/support-checklist-api", () => ({
+  getSupportChecklist: vi.fn(async () => backend.store),
+  tickSupportAction: vi.fn(async (vacancyId: string, actionId: string, _m: string, by?: string) => {
+    if (!backend.store.some((t) => t.vacancyId === vacancyId && t.actionId === actionId)) {
+      backend.store.push({
+        vacancyId,
+        actionId,
+        checkedAt: new Date().toISOString(),
+        by: by ?? null,
+        sentTo: null,
+        sentWhatsappAt: null,
+      });
+    }
+  }),
+  untickSupportAction: vi.fn(async (vacancyId: string, actionId: string) => {
+    backend.store = backend.store.filter(
+      (t) => !(t.vacancyId === vacancyId && t.actionId === actionId),
+    );
+  }),
+  tickSupportActions: vi.fn(
+    async (vacancyId: string, actionIds: string[], _m: string, by?: string) => {
+      for (const actionId of actionIds) {
+        if (!backend.store.some((t) => t.vacancyId === vacancyId && t.actionId === actionId)) {
+          backend.store.push({
+            vacancyId,
+            actionId,
+            checkedAt: new Date().toISOString(),
+            by: by ?? null,
+            sentTo: null,
+            sentWhatsappAt: null,
+          });
+        }
+      }
+    },
+  ),
+  sendSupportAction: vi.fn(async () => ({ phone: "5511987654321", sentAt: new Date().toISOString() })),
+}));
 
 /** Amanhã às 20h, sempre no futuro: o painel só mostra vaga de hoje em diante. */
 function amanhaAs(hora: number): string {
@@ -51,28 +93,28 @@ function vaga(over: Partial<BoardVacancy> = {}): BoardVacancy {
   };
 }
 
-function renderBoard(vagas: BoardVacancy[] = [vaga()]) {
+function renderBoard(vagas: BoardVacancy[] = [vaga()], areaDeTrabalho = true) {
+  // Cliente por render: sem cache herdado entre testes e sem retry a atrapalhar.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <VacancyBoard
-      vacancies={vagas}
-      isFetching={false}
-      onSelect={() => {}}
-      areaDeTrabalho
-      quemTicou="Ana"
-    />,
+    <QueryClientProvider client={client}>
+      <VacancyBoard
+        vacancies={vagas}
+        isFetching={false}
+        onSelect={() => {}}
+        areaDeTrabalho={areaDeTrabalho}
+        quemTicou="Ana"
+      />
+    </QueryClientProvider>,
   );
 }
 
-function limpar() {
-  window.localStorage.clear();
-  // O store é cache de módulo: sem o reset, um teste que tica herda o tique no
-  // seguinte mesmo com o storage limpo. Dentro de `act` porque o reset avisa os
-  // componentes ainda montados.
-  act(() => resetSupportChecklistCache());
-}
-
-beforeEach(limpar);
-afterEach(limpar);
+beforeEach(() => {
+  backend.store = [];
+});
+afterEach(() => {
+  backend.store = [];
+});
 
 describe("painel com a área de trabalho do suporte", () => {
   it("acusa no banner vermelho a ação crítica que ainda não foi feita", () => {
@@ -84,7 +126,7 @@ describe("painel com a área de trabalho do suporte", () => {
     expect(banner).toHaveTextContent("Divulgar de novo no grupo de WhatsApp");
   });
 
-  it("abre a gaveta pelo banner e tica a ação, apagando a linha", () => {
+  it("abre a gaveta pelo banner e tica a ação, apagando a linha", async () => {
     renderBoard();
     fireEvent.click(within(screen.getByRole("alert")).getByText(/Garçom · Coco Bambu/));
 
@@ -98,11 +140,13 @@ describe("painel com a área de trabalho do suporte", () => {
 
     // Quem ticou e quando ficam registrados — checklist anônimo não sustenta
     // conversa de turno.
-    expect(gaveta).toHaveTextContent("Ana");
-    expect(screen.getByRole("alert")).not.toHaveTextContent("Enviar saudação ao contratante");
+    await waitFor(() => expect(gaveta).toHaveTextContent("Ana"));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).not.toHaveTextContent("Enviar saudação ao contratante"),
+    );
   });
 
-  it("guarda o tique entre remontagens do painel", () => {
+  it("guarda o tique entre remontagens do painel (persistido na API)", async () => {
     const { unmount } = renderBoard();
     fireEvent.click(within(screen.getByRole("alert")).getByText(/Garçom · Coco Bambu/));
     fireEvent.click(
@@ -110,24 +154,24 @@ describe("painel com a área de trabalho do suporte", () => {
         name: "Enviar saudação ao contratante",
       }),
     );
-    expect(window.localStorage.getItem(CHECKLIST_STORAGE_KEY)).toContain("saudacao");
+    await waitFor(() => expect(backend.store.some((t) => t.actionId === "saudacao")).toBe(true));
 
     unmount();
     renderBoard();
-    expect(screen.getByRole("alert")).not.toHaveTextContent("Enviar saudação ao contratante");
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).not.toHaveTextContent("Enviar saudação ao contratante"),
+    );
   });
 
   it("o card mostra o progresso e o número de críticas pendentes", () => {
     renderBoard();
     // 0 de 7 ações (1 de sempre + 6 da etapa "aberta sem candidato").
-    expect(screen.getByTitle(/ação\(ões\) crítica\(s\) pendente\(s\)/)).toHaveTextContent(
-      "0/7",
-    );
+    expect(screen.getByTitle(/ação\(ões\) crítica\(s\) pendente\(s\)/)).toHaveTextContent("0/7");
   });
 
   // Vaga concluída e avaliada não pede nada: cobrar ação dela seria pedir
   // trabalho que não muda nada.
-  it("não acende banner para vaga de ciclo fechado com a saudação já feita", () => {
+  it("não acende banner para vaga de ciclo fechado com a saudação já feita", async () => {
     const concluida = vaga({ id: "vaga-fechada", bucket: "completedReviewed" });
     renderBoard([concluida]);
     fireEvent.click(within(screen.getByRole("alert")).getByText(/Garçom · Coco Bambu/));
@@ -136,12 +180,12 @@ describe("painel com a área de trabalho do suporte", () => {
         name: "Enviar saudação ao contratante",
       }),
     );
-    expect(screen.queryByRole("alert")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 
   it("sem a área de trabalho, o painel continua o quadro de antes", () => {
-    render(<VacancyBoard vacancies={[vaga()]} isFetching={false} onSelect={() => {}} />);
+    renderBoard([vaga()], false);
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.queryByText(/As ações ticadas ficam salvas/)).toBeNull();
+    expect(screen.queryByText(/As ações ticadas são compartilhadas/)).toBeNull();
   });
 });
