@@ -59,7 +59,8 @@ export function useUpdateAdminPanelUser() {
 export function useResetAdminPanelUserAccess() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => resetPanelUserAccess(id),
+    mutationFn: ({ id, activate }: { id: string; activate?: boolean }) =>
+      resetPanelUserAccess(id, { activate }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: PANEL_USERS_KEY });
     },

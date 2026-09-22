@@ -79,9 +79,18 @@ export async function updatePanelUser(
 /**
  * Reenvia o acesso: gera nova senha temporária (trocada no próximo login),
  * derruba a sessão atual e reenvia o e-mail com as credenciais.
+ *
+ * Usuário desativado não entra com senha nenhuma: a API recusa (409) o reenvio
+ * para ele, a menos que venha `activate: true` — aí reativa na mesma operação.
  */
-export async function resetPanelUserAccess(id: string): Promise<PanelUserAccessResult> {
-  const res = await panelUsersApi.post(`/${id}/reset-access`);
+export async function resetPanelUserAccess(
+  id: string,
+  options: { activate?: boolean } = {},
+): Promise<PanelUserAccessResult> {
+  const res = await panelUsersApi.post(
+    `/${id}/reset-access`,
+    options.activate ? { activate: true } : {},
+  );
   return res.data.data;
 }
 

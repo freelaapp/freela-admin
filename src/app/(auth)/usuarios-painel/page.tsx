@@ -247,11 +247,14 @@ export default function UsuariosPainelPage() {
   async function handleReset() {
     if (!resetTarget) return;
     try {
-      const res = await resetMutation.mutateAsync(resetTarget.id);
+      // Desativado não entra com senha nenhuma — reenviar sem reativar mandava
+      // por e-mail uma senha que o login recusava.
+      const reactivate = !resetTarget.isActive;
+      const res = await resetMutation.mutateAsync({ id: resetTarget.id, activate: reactivate });
       const targetEmail = resetTarget.email;
       setResetTarget(null);
       setAccessResult({
-        title: "Acesso redefinido",
+        title: reactivate ? "Acesso reativado" : "Acesso redefinido",
         email: targetEmail,
         tempPassword: res.tempPassword,
         emailSent: res.emailSent,
@@ -357,7 +360,7 @@ export default function UsuariosPainelPage() {
               variant="ghost"
               size="sm"
               onClick={() => setResetTarget(row)}
-              title="Reenviar acesso"
+              title={row.isActive ? "Reenviar acesso" : "Ativar e reenviar acesso"}
               className="text-[#737373] hover:text-[#1d1d1b]"
             >
               <KeyRound className="w-4 h-4" />
@@ -604,12 +607,24 @@ export default function UsuariosPainelPage() {
         <DialogContent>
           <DialogClose onClick={() => setResetTarget(null)} />
           <DialogHeader>
-            <DialogTitle>Reenviar acesso</DialogTitle>
+            <DialogTitle>
+              {resetTarget && !resetTarget.isActive ? "Ativar e reenviar acesso" : "Reenviar acesso"}
+            </DialogTitle>
             <DialogDescription>
               Gera uma nova senha temporária para {resetTarget?.name ?? "o usuário"} e reenvia o
               e-mail com as credenciais.
             </DialogDescription>
           </DialogHeader>
+          {resetTarget && !resetTarget.isActive && (
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+              <Power className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-700">
+                Este usuário está <strong>desativado</strong> e não consegue entrar com senha
+                nenhuma. Ao confirmar, o acesso dele é <strong>reativado</strong> junto com o
+                envio da nova senha.
+              </p>
+            </div>
+          )}
           <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
             <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
             <div className="text-sm text-amber-700">
@@ -644,7 +659,7 @@ export default function UsuariosPainelPage() {
               ) : (
                 <>
                   <KeyRound className="w-4 h-4 mr-2" />
-                  Reenviar acesso
+                  {resetTarget && !resetTarget.isActive ? "Ativar e reenviar" : "Reenviar acesso"}
                 </>
               )}
             </Button>
