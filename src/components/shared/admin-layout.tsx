@@ -41,6 +41,7 @@ import {
   ShieldCheck,
   Shuffle,
   Activity,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNewVacancyChime } from "@/modules/admin/application/use-new-vacancy-chime";
@@ -75,6 +76,7 @@ const navItems: NavItem[] = [
   // não carregavam nada. O catálogo de cargos vive em /catalogo, que é a tela
   // mantida.
   { label: "Catálogo", icon: BookOpen, path: "/catalogo" },
+  { label: "Preços por região", icon: MapPin, path: "/precos-regiao" },
   { label: "Cargos semelhantes", icon: Shuffle, path: "/cargos-similares" },
   { label: "Cupons", icon: Ticket, path: "/cupons" },
   { label: "Treinamentos", icon: GraduationCap, path: "/treinamentos" },
