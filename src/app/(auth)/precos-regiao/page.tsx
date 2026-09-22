@@ -211,7 +211,8 @@ export default function PrecosRegiaoPage() {
           <DialogHeader>
             <DialogTitle>{draft?.editing ? "Editar índice" : "Nova regra de índice"}</DialogTitle>
             <DialogDescription>
-              Deixe a cidade em branco para uma regra da UF inteira. A cidade precisa ser o nome oficial (IBGE).
+              Deixe a cidade em branco para uma regra da UF inteira. Uma regra de cidade sempre
+              vence a regra da UF. A cidade precisa ser o nome oficial (IBGE).
             </DialogDescription>
           </DialogHeader>
           {draft && (
