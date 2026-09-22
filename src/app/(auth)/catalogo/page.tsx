@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
@@ -243,7 +242,6 @@ export default function CatalogoPage() {
                                       <th className="text-left font-medium py-2 px-2">Pagamento</th>
                                       <th className="text-left font-medium py-2 px-2">Preço</th>
                                       <th className="text-left font-medium py-2 px-2">Bônus</th>
-                                      <th className="text-left font-medium py-2 px-2">Diurno</th>
                                       <th className="text-right font-medium py-2 px-2">Ações</th>
                                     </tr>
                                   </thead>
@@ -283,7 +281,6 @@ export default function CatalogoPage() {
                                         <td className="py-2 px-2">
                                           <Badge variant="outline">{BONUS_LABEL[cr.role.bonusModel]}</Badge>
                                         </td>
-                                        <td className="py-2 px-2">{cr.isDaytimeOnly ? "Sim" : "—"}</td>
                                         <td className="py-2 px-2 text-right whitespace-nowrap">
                                           <Button
                                             size="icon"
@@ -462,7 +459,6 @@ function PriceDialog({
   const [pricingModel, setPricingModel] = useState<PricingModel>(categoryRole?.pricingModel ?? "HOURLY");
   const [hourly, setHourly] = useState(toReais(categoryRole?.hourlyRateInCents ?? 0));
   const [minHours, setMinHours] = useState(String(categoryRole?.minimumJourneyHours ?? 4));
-  const [daytime, setDaytime] = useState(categoryRole?.isDaytimeOnly ?? false);
   const [tierLabel, setTierLabel] = useState(categoryRole?.tierQualifierLabel ?? "");
   // priceText fica livre enquanto digita (o valor era re-formatado a cada
   // tecla — "50" virava "5,00" no segundo dígito); converte só no salvar.
@@ -484,7 +480,6 @@ function PriceDialog({
       dto: {
         hourlyRateInCents: toCents(hourly),
         minimumJourneyHours: Number(minHours) || 1,
-        isDaytimeOnly: daytime,
         pricingModel,
         tierQualifierLabel: pricingModel === "TIERED" ? tierLabel || null : null,
         tiers:
@@ -600,11 +595,6 @@ function PriceDialog({
               </Button>
             </div>
           )}
-
-          <div className="flex items-center justify-between pt-1">
-            <Label>Somente diurno</Label>
-            <Switch checked={daytime} onCheckedChange={setDaytime} />
-          </div>
         </div>
 
         <DialogFooter className="gap-2 sm:justify-between">
