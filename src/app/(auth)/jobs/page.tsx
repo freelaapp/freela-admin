@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw } from "lucide-react";
+import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, Bot } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
 import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feedbacks-section";
 import { VacancyPriceHistorySection } from "@/components/admin/vacancy/vacancy-price-history-section";
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
+import { SupportAutoSettingsDialog } from "./_components/support-auto-settings-dialog";
 import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
 import { VacancyDocumentsCell } from "./_components/vacancy-documents-cell";
 import {
@@ -119,6 +120,7 @@ export default function JobsPage() {
   // mesma tela porque é a MESMA lista, só desenhada de outro jeito — separar em
   // outra rota duplicaria a classificação por etapa.
   const [modoPainel, setModoPainel] = useState(false);
+  const [autoSettingsOpen, setAutoSettingsOpen] = useState(false);
   // Avisos já enviados + disparo. Uma consulta para o painel inteiro.
   const { enviados: avisosEnviados, registros: registrosDisparo } = useVacancyOutreach();
   const enviarAviso = useSendVacancyStageMessage();
@@ -530,6 +532,17 @@ export default function JobsPage() {
               <LayoutGrid className="w-4 h-4 mr-2" />
               {modoPainel ? "Ver tabela" : "Modo painel"}
             </Button>
+            {modoPainel ? (
+              <Button
+                variant="outline"
+                onClick={() => setAutoSettingsOpen(true)}
+                className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium"
+                title="Ligar/desligar o disparo automático das mensagens do suporte"
+              >
+                <Bot className="w-4 h-4 mr-2" />
+                Automação
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               onClick={() => setModalBuscarId(true)}
@@ -1268,6 +1281,12 @@ export default function JobsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Automação de mensagens do suporte (fase 2) */}
+      <SupportAutoSettingsDialog
+        open={autoSettingsOpen}
+        onClose={() => setAutoSettingsOpen(false)}
+      />
 
       {/* Modal Buscar Vaga por ID */}
       <Dialog

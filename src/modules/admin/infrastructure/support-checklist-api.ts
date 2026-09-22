@@ -72,3 +72,26 @@ export async function sendSupportAction(
   });
   return res.data.data;
 }
+
+// ─── Disparo automático (fase 2): toggles por ação ──────────────────────────
+
+export interface AutoActionSetting {
+  actionId: string;
+  label: string;
+  enabled: boolean;
+}
+
+export interface AutoSettings {
+  /** Flag mestre (env). Nada dispara sozinho com ele OFF, mesmo com ações ON. */
+  globalEnabled: boolean;
+  actions: AutoActionSetting[];
+}
+
+export async function getAutoSettings(): Promise<AutoSettings> {
+  const res = await api.get("/auto-settings");
+  return res.data.data;
+}
+
+export async function setAutoSetting(actionId: string, enabled: boolean): Promise<void> {
+  await api.put(`/auto-settings/${actionId}`, { enabled });
+}
