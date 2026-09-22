@@ -215,7 +215,7 @@ export default function PrecosRegiaoPage() {
             </DialogDescription>
           </DialogHeader>
           {draft && (
-            <div className="flex flex-col gap-3">
+            <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-1">
                   <Label htmlFor="uf">UF</Label>
