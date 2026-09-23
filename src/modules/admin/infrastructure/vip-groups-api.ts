@@ -49,6 +49,8 @@ export interface VipGroupMember {
   city: string | null;
   /** Completo para VIP_ADMIN/super-admin; `•••• 1234` para os demais. */
   phone: string | null;
+  /** `false` = freela banido/desativado; exibir aviso, não some da lista. */
+  providerActive: boolean;
 }
 
 export interface VipStoreDetail {
