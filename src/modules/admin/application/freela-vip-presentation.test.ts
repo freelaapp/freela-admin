@@ -5,12 +5,16 @@ import {
   cycleInviteBudget,
   filterKanbanCards,
   formatIndicator,
+  formatMonth,
   moveCardBetweenColumns,
   pct,
   scoreBand,
   sortCardsByScore,
   validateQuestionDraft,
   validateScoringConfig,
+  VIP_APPROVABLE_STATUSES,
+  VIP_NON_REJECTABLE_STATUSES,
+  VIP_RESCORABLE_STATUSES,
   VIP_STATUS_LABELS,
 } from "./freela-vip-presentation";
 import type { VipKanbanBoard, VipKanbanCard } from "../infrastructure/freela-vip-api";
@@ -122,6 +126,14 @@ describe("misc", () => {
     ]);
     expect(breakdownRows(null)).toEqual([]);
   });
+  it("breakdownRows usa weight como max quando o api não manda max, e preserva detail", () => {
+    const rows = breakdownRows({ totalTimeInRole: { weight: 20, fraction: 0.75, points: 15, detail: "3 anos" } });
+    expect(rows).toEqual([{ key: "totalTimeInRole", value: 15, max: 20, detail: "3 anos" }]);
+    expect(Math.round((rows[0].value / (rows[0].max as number)) * 100)).toBe(75);
+  });
+  it("breakdownRows gera max null quando o critério não tem weight nem max", () => {
+    expect(breakdownRows({ x: { points: 5, detail: "y" } })).toEqual([{ key: "x", value: 5, max: null, detail: "y" }]);
+  });
   it("alertLabel traduz código conhecido e mantém desconhecido", () => {
     expect(alertLabel("FORM_TOO_FAST")).toBe("Formulário preenchido rápido demais");
     expect(alertLabel({ code: "SHARED_REFERENCE_PHONE" })).toBe("Telefone de referência repetido");
@@ -129,5 +141,29 @@ describe("misc", () => {
   });
   it("todos os 17 status têm rótulo", () => {
     expect(Object.keys(VIP_STATUS_LABELS)).toHaveLength(17);
+  });
+  it("formatMonth converte ISO em mm/aaaa em UTC (sem deslocar o mês por fuso); null/invalido em —", () => {
+    expect(formatMonth("2024-03-01T00:00:00.000Z")).toBe("03/2024");
+    expect(formatMonth(null)).toBe("—");
+    expect(formatMonth(undefined)).toBe("—");
+    expect(formatMonth("not-a-date")).toBe("—");
+  });
+});
+
+describe("status legais da ficha (espelham o api)", () => {
+  // vip-manual-funnel.service.ts APPROVAL_NEXT: só INTERVIEW_SCHEDULED→REFERENCES_OK
+  // e BACKGROUND_OK→VIP_ACTIVE são oferecidos como "Aprovar etapa" na ficha.
+  it("VIP_APPROVABLE_STATUSES: só entrevista agendada e antecedentes ok", () => {
+    expect([...VIP_APPROVABLE_STATUSES]).toEqual(["INTERVIEW_SCHEDULED", "BACKGROUND_OK"]);
+  });
+  // vip-scoring.service.ts RESCORABLE_STATUSES — FORM_SUBMITTED NÃO está na lista real do api.
+  it("VIP_RESCORABLE_STATUSES: nota calculada, lista de espera, entrevista e referências ok (sem FORM_SUBMITTED)", () => {
+    expect([...VIP_RESCORABLE_STATUSES]).toEqual(["SCORED", "WAITLIST", "INTERVIEW_SCHEDULED", "REFERENCES_OK"]);
+    expect(VIP_RESCORABLE_STATUSES).not.toContain("FORM_SUBMITTED");
+  });
+  // vip-status-machine.ts: BACKGROUND_OK só transiciona para VIP_ACTIVE (reprovar é 409); os
+  // demais são os status terminais (sem transições de saída).
+  it("VIP_NON_REJECTABLE_STATUSES: terminais + antecedentes ok", () => {
+    expect([...VIP_NON_REJECTABLE_STATUSES]).toEqual(["VIP_ACTIVE", "VIP_SUSPENDED", "REJECTED", "WITHDREW", "BACKGROUND_OK"]);
   });
 });

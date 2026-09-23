@@ -19,6 +19,7 @@ import {
   getActiveVips,
   getVipApplication,
   getVipBackgroundDocuments,
+  getVipContractors,
   getVipCycle,
   getVipCycles,
   getVipDocumentDownload,
@@ -56,7 +57,10 @@ export const VIP_KEYS = {
   questions: (role?: string) => ["admin", "vip", "questions", role ?? "all"] as const,
   scoring: ["admin", "vip", "scoring"] as const,
   templates: ["admin", "vip", "templates"] as const,
-  contractors: ["admin", "contractors", "all"] as const,
+  /** Redes do seletor VIP (`GET /v1/vip/admin/contractors`, permissão any-of VIP). */
+  contractors: ["admin", "vip", "contractors"] as const,
+  /** @deprecated Compat apenas — nenhuma tela VIP usa mais isto (ver `useVipContractors`). */
+  adminContractors: ["admin", "contractors", "all"] as const,
 };
 
 const fail = (fallback: string) => (e: unknown) => toast.error(getAxiosErrorMessage(e, fallback));
@@ -67,9 +71,18 @@ export function useVipRole(): VipRole {
   return useMemo(() => vipRoleFromPermissions(hasPermission), [hasPermission]);
 }
 
-/** Lista de contratantes (para o seletor de rede). Cache longo: muda pouco. */
+/**
+ * @deprecated Compat apenas. Dependia da permissão `COMPANIES` (Empresas), que
+ * um admin só-VIP não tem — por isso nenhuma tela VIP usa mais isto. Ver
+ * `useVipContractors`.
+ */
 export function useAdminContractorsList() {
-  return useQuery({ queryKey: VIP_KEYS.contractors, queryFn: getAdminContractors, staleTime: 5 * 60_000 });
+  return useQuery({ queryKey: VIP_KEYS.adminContractors, queryFn: getAdminContractors, staleTime: 5 * 60_000 });
+}
+
+/** Redes (contratantes) do seletor VIP, via `/v1/vip/admin/contractors` — permissão any-of VIP, sem depender de `COMPANIES`. */
+export function useVipContractors() {
+  return useQuery({ queryKey: VIP_KEYS.contractors, queryFn: getVipContractors, staleTime: 5 * 60_000 });
 }
 
 // ─── Ciclos ──────────────────────────────────────────────────────────────────

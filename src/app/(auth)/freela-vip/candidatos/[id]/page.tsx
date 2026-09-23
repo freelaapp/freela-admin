@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useVipApplication, useVipApplicationMutations, useVipCycle, useVipRole } from "@/modules/admin/application/use-freela-vip";
-import { alertLabel, breakdownRows, formatDate, scoreBand, scoreBandClass, VIP_CRITERIA_LABELS, VIP_STATUS_LABELS } from "@/modules/admin/application/freela-vip-presentation";
+import { alertLabel, breakdownRows, formatDate, formatMonth, scoreBand, scoreBandClass, VIP_CRITERIA_LABELS, VIP_STATUS_LABELS } from "@/modules/admin/application/freela-vip-presentation";
 import { VipGuard } from "../../_components/vip-guard";
 import { ApplicationActions } from "../../_components/application-actions";
 import { BackgroundSection } from "../../_components/background-section";
@@ -74,6 +74,7 @@ function ApplicationScreen() {
               {rows.map((r) => (
                 <li key={r.key} className="text-[12.5px]">
                   <div className="flex justify-between"><span>{VIP_CRITERIA_LABELS[r.key] ?? r.key}</span><span className="tabular-nums">{r.value}{r.max !== null ? ` / ${r.max}` : ""}</span></div>
+                  {r.detail && <p className="text-[11px] text-[#64748B]">{r.detail}</p>}
                   {r.max !== null && r.max > 0 && <div className="h-1.5 rounded bg-[#F1F5F9]"><div className="h-1.5 rounded bg-[#334155]" style={{ width: `${Math.min(100, (r.value / r.max) * 100)}%` }} /></div>}
                 </li>
               ))}
@@ -103,7 +104,7 @@ function ApplicationScreen() {
           <ul className="divide-y divide-[#F1F5F9]">
             {d.experiences.map((e) => (
               <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-[12.5px]">
-                <span><strong>{e.company}</strong> · {e.role} · {e.type} · {e.startMonth ?? "?"} – {e.isCurrent ? "atual" : e.endMonth ?? "?"}{e.highVolume ? " · alto movimento" : ""} <Badge variant="secondary">{e.confirmed === "YES" ? "confirmada" : e.confirmed === "NO" ? "não confirmada" : "pendente"}</Badge></span>
+                <span><strong>{e.company}</strong> · {e.role} · {e.type} · {formatMonth(e.startMonth)} – {e.isCurrent ? "atual" : formatMonth(e.endMonth)}{e.highVolume ? " · alto movimento" : ""} <Badge variant="secondary">{e.confirmed === "YES" ? "confirmada" : e.confirmed === "NO" ? "não confirmada" : "pendente"}</Badge></span>
                 {role.canAdmin && (
                   <span className="flex gap-1">
                     <Button size="sm" variant="outline" disabled={m.confirmExperience.isPending} onClick={() => m.confirmExperience.mutate({ expId: e.id, confirmed: "YES" })}>Sim</Button>
@@ -137,7 +138,7 @@ function ApplicationScreen() {
 
         <Section title="Respostas">
           {d.answers.length === 0 ? <p className="text-[12.5px] text-[#94A3B8]">—</p> : (
-            <ul className="text-[12.5px]">{d.answers.map((a) => <li key={a.questionId}>Pergunta {a.questionId.slice(0, 8)} · opção {a.selectedOptionIndex + 1} · {a.pointsAwarded} pts</li>)}</ul>
+            <ul className="text-[12.5px]">{d.answers.map((a) => <li key={a.questionId}>Pergunta {a.questionId.slice(0, 8)} · opção {a.selectedOptionIndex + 1} · {a.pointsAwarded === null ? "—" : `${a.pointsAwarded} pts`}</li>)}</ul>
           )}
         </Section>
 

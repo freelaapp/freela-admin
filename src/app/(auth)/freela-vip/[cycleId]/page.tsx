@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAdminContractorsList, useVipCycle, useVipRole } from "@/modules/admin/application/use-freela-vip";
+import { useVipContractors, useVipCycle, useVipRole } from "@/modules/admin/application/use-freela-vip";
 import { cycleInviteBudget, formatDate } from "@/modules/admin/application/freela-vip-presentation";
 import { VipGuard } from "../_components/vip-guard";
 import { redeLabel } from "../_components/rede-select";
@@ -30,7 +30,7 @@ function CycleScreen() {
   const router = useRouter();
   const role = useVipRole();
   const { data: cycle, isLoading, isError, refetch } = useVipCycle(cycleId);
-  const { data: contractors } = useAdminContractorsList();
+  const { data: contractors } = useVipContractors();
   const [tab, setTab] = useState(role.canAdmin ? "pre" : "funil");
 
   if (isLoading) return <div className="flex justify-center py-12 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;

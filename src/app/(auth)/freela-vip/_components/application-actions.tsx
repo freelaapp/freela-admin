@@ -5,25 +5,32 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useVipApplicationMutations } from "@/modules/admin/application/use-freela-vip";
+import { VIP_APPROVABLE_STATUSES, VIP_NON_REJECTABLE_STATUSES, VIP_RESCORABLE_STATUSES } from "@/modules/admin/application/freela-vip-presentation";
 import type { VipApplicationDetail } from "@/modules/admin/infrastructure/freela-vip-api";
-
-const TERMINAL = new Set(["VIP_ACTIVE", "VIP_SUSPENDED", "REJECTED", "WITHDREW"]);
 
 export function ApplicationActions({ detail, cycleHasJustification }: { detail: VipApplicationDetail; cycleHasJustification: boolean }) {
   const m = useVipApplicationMutations(detail.id, detail.cycleId);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
   const busy = m.decide.isPending || m.rescore.isPending || m.openBackground.isPending;
-  const terminal = TERMINAL.has(detail.status);
+  const canApprove = VIP_APPROVABLE_STATUSES.includes(detail.status);
+  const canReject = !VIP_NON_REJECTABLE_STATUSES.includes(detail.status);
+  const canRescore = VIP_RESCORABLE_STATUSES.includes(detail.status);
   const canOpenBackground = detail.status === "REFERENCES_OK";
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Button size="sm" disabled={busy || terminal} onClick={() => m.decide.mutate({ action: "approve" })}>
-        {m.decide.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : detail.status === "BACKGROUND_OK" ? "Aprovar como VIP" : "Aprovar etapa"}
-      </Button>
-      <Button size="sm" variant="outline" disabled={busy || terminal} onClick={() => setRejectOpen(true)}>Reprovar</Button>
-      <Button size="sm" variant="outline" disabled={busy || !["FORM_SUBMITTED", "SCORED", "WAITLIST", "INTERVIEW_SCHEDULED", "REFERENCES_OK"].includes(detail.status)} onClick={() => m.rescore.mutate()}>Recalcular nota</Button>
+      <span title={!canApprove ? "Só é possível aprovar a partir de Entrevista agendada ou Antecedentes OK." : undefined}>
+        <Button size="sm" disabled={busy || !canApprove} onClick={() => m.decide.mutate({ action: "approve" })}>
+          {m.decide.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : detail.status === "BACKGROUND_OK" ? "Aprovar como VIP" : "Aprovar etapa"}
+        </Button>
+      </span>
+      <span title={!canReject ? "Reprovar não é permitido a partir de Antecedentes OK nem de um status já finalizado." : undefined}>
+        <Button size="sm" variant="outline" disabled={busy || !canReject} onClick={() => setRejectOpen(true)}>Reprovar</Button>
+      </span>
+      <span title={!canRescore ? "Recalcular só é possível com a candidatura em Nota calculada, Lista de espera, Entrevista ou Referências ok." : undefined}>
+        <Button size="sm" variant="outline" disabled={busy || !canRescore} onClick={() => m.rescore.mutate()}>Recalcular nota</Button>
+      </span>
       <span title={!cycleHasJustification ? "O ciclo não tem justificativa de antecedentes" : undefined}>
         <Button size="sm" variant="outline" disabled={busy || !canOpenBackground || !cycleHasJustification} onClick={() => m.openBackground.mutate()}>Abrir antecedentes</Button>
       </span>

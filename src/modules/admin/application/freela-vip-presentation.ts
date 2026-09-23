@@ -144,21 +144,29 @@ export function cycleInviteBudget(c: { targetVacancies: number; invitesPerVacanc
   return c.targetVacancies * c.invitesPerVacancy;
 }
 
-/** `scoreBreakdown` é JSON livre: número ou `{ points|score, max? }` por critério. */
+/**
+ * `scoreBreakdown` é JSON livre: número ou `{ points|score, weight?, max?, detail? }`
+ * por critério. O api manda `weight` (o teto do critério, `vip-score.ts`) — `max` só
+ * existe por compatibilidade com formatos antigos. Quando nenhum dos dois vem, a
+ * barra da ficha simplesmente não é desenhada (`max: null`).
+ */
 export function breakdownRows(
   breakdown: Record<string, unknown> | null | undefined,
-): { key: string; value: number; max: number | null }[] {
+): { key: string; value: number; max: number | null; detail?: string | null }[] {
   if (!breakdown) return [];
-  return Object.entries(breakdown).flatMap(([key, raw]) => {
-    if (typeof raw === "number") return [{ key, value: raw, max: null }];
-    if (raw && typeof raw === "object") {
-      const o = raw as { points?: number; score?: number; max?: number };
-      const value = typeof o.points === "number" ? o.points : typeof o.score === "number" ? o.score : null;
-      if (value === null) return [];
-      return [{ key, value, max: typeof o.max === "number" ? o.max : null }];
-    }
-    return [];
-  });
+  return Object.entries(breakdown).flatMap(
+    ([key, raw]): { key: string; value: number; max: number | null; detail?: string | null }[] => {
+      if (typeof raw === "number") return [{ key, value: raw, max: null }];
+      if (raw && typeof raw === "object") {
+        const o = raw as { points?: number; score?: number; max?: number; weight?: number; detail?: string | null };
+        const value = typeof o.points === "number" ? o.points : typeof o.score === "number" ? o.score : null;
+        if (value === null) return [];
+        const max = typeof o.max === "number" ? o.max : typeof o.weight === "number" ? o.weight : null;
+        return [{ key, value, max, detail: o.detail ?? undefined }];
+      }
+      return [];
+    },
+  );
 }
 
 const VIP_ALERT_LABELS: Record<string, string> = {
@@ -202,3 +210,34 @@ export function formatDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR");
 }
+
+/**
+ * ISO de início/fim de experiência → "mm/aaaa"; `null`/inválido → "—". Usa
+ * `getUTC*` (não `toLocaleDateString`) porque essas datas chegam como meia-noite
+ * UTC — ler em fuso local deslocaria o mês para trás em qualquer horário
+ * negativo (todo o Brasil).
+ */
+export function formatMonth(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${mm}/${d.getUTCFullYear()}`;
+}
+
+/**
+ * Status legais das ações da ficha (Chunk 6/7 do api) — mantidos aqui para não
+ * duplicar a regra em `application-actions.tsx` e para serem testados isoladamente.
+ */
+
+/** `APPROVAL_NEXT` de `vip-manual-funnel.service.ts`: só estes dois avançam com "Aprovar etapa". */
+export const VIP_APPROVABLE_STATUSES: readonly VipStatus[] = ["INTERVIEW_SCHEDULED", "BACKGROUND_OK"];
+
+/** `RESCORABLE_STATUSES` de `vip-scoring.service.ts` — cópia exata (sem `FORM_SUBMITTED`). */
+export const VIP_RESCORABLE_STATUSES: readonly VipStatus[] = ["SCORED", "WAITLIST", "INTERVIEW_SCHEDULED", "REFERENCES_OK"];
+
+/**
+ * Terminais (`VIP_ACTIVE`, `VIP_SUSPENDED`, `REJECTED`, `WITHDREW`) + `BACKGROUND_OK`,
+ * que `vip-status-machine.ts` só deixa avançar para `VIP_ACTIVE` (reprovar daí é 409).
+ */
+export const VIP_NON_REJECTABLE_STATUSES: readonly VipStatus[] = ["VIP_ACTIVE", "VIP_SUSPENDED", "REJECTED", "WITHDREW", "BACKGROUND_OK"];

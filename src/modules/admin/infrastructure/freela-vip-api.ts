@@ -15,6 +15,19 @@ export type VipStatus =
 
 export type VipSource = "BASE" | "LINK";
 
+/**
+ * Conta de um critério da nota — espelha `VipScoreCriterion` do api
+ * (`vip-score.ts`). `max` é aceito só por compatibilidade: o api manda
+ * `weight` (o teto do critério), não `max`.
+ */
+export interface VipScoreCriterion {
+  weight: number;
+  fraction?: number | null;
+  points: number;
+  detail?: string | null;
+  max?: number | null;
+}
+
 export interface VipCycle {
   id: string;
   targetContractorUserId: string;
@@ -169,7 +182,7 @@ export interface VipApplicationDetail {
     totalScore: number | null;
     curriculumScore: number | null;
     appScore: number | null;
-    breakdown: Record<string, unknown> | null;
+    breakdown: Record<string, VipScoreCriterion> | null;
   };
   alerts: unknown[];
   /** `null` em leitura; `backgroundResult` só com VIP_BACKGROUND. */
@@ -187,7 +200,7 @@ export interface VipApplicationDetail {
     id: string; company: string | null; name: string | null; phone: string | null;
     result: "CONFIRMED" | "NOT_CONFIRMED" | "NO_CONTACT" | "PENDING";
   }[];
-  answers: { questionId: string; selectedOptionIndex: number; pointsAwarded: number }[];
+  answers: { questionId: string; selectedOptionIndex: number; pointsAwarded: number | null }[];
   documents: { id: string; type: string; fileName: string; uploadedAt: string }[];
   history: VipEvent[];
   timestamps: Record<string, string | null>;
@@ -372,5 +385,20 @@ export async function putVipMessageTemplate(moment: string, text: string): Promi
 // ─── VIPs ativos por rede ────────────────────────────────────────────────────
 export async function getActiveVips(contractorUserId: string, status?: "VIP_ACTIVE" | "VIP_SUSPENDED"): Promise<VipActiveVip[]> {
   const res = await api.get("/vips", { params: { contractorUserId, ...(status ? { status } : {}) } });
+  return res.data.data ?? [];
+}
+
+// ─── Redes (seletor do painel VIP) ──────────────────────────────────────────
+/** Item do seletor de rede — só os campos que o painel VIP precisa (permissão any-of VIP, sem `COMPANIES`). */
+export interface VipContractorItem {
+  userId: string;
+  companyName: string | null;
+  contactName: string | null;
+  city: string | null;
+  uf: string | null;
+}
+
+export async function getVipContractors(): Promise<VipContractorItem[]> {
+  const res = await api.get("/contractors");
   return res.data.data ?? [];
 }

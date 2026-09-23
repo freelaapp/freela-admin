@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/native-select";
-import { useAdminContractorsList, useVipCycles, useVipCycleMutations, useVipRole } from "@/modules/admin/application/use-freela-vip";
+import { useVipContractors, useVipCycles, useVipCycleMutations, useVipRole } from "@/modules/admin/application/use-freela-vip";
 import { cycleInviteBudget, formatDate } from "@/modules/admin/application/freela-vip-presentation";
 import type { VipCycle } from "@/modules/admin/infrastructure/freela-vip-api";
 import { VipGuard } from "./_components/vip-guard";
@@ -28,7 +28,7 @@ function CyclesScreen() {
   const role = useVipRole();
   const [activeFilter, setActiveFilter] = useState<"all" | "true" | "false">("true");
   const { data: cycles = [], isLoading, isError, refetch } = useVipCycles(activeFilter === "all" ? undefined : activeFilter === "true");
-  const { data: contractors } = useAdminContractorsList();
+  const { data: contractors } = useVipContractors();
   const { update } = useVipCycleMutations();
   const [dialog, setDialog] = useState<{ open: boolean; cycle?: VipCycle }>({ open: false });
 

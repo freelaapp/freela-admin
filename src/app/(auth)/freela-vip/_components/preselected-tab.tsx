@@ -14,7 +14,10 @@ import { QueryError } from "./query-error";
 export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
   const budget = cycleInviteBudget(cycle);
   const [limitText, setLimitText] = useState(String(budget));
-  const limit = Math.max(1, Number(limitText) || budget);
+  // `limit` só muda ao commitar (blur/Enter) — cada tecla NÃO deve refazer a
+  // query de pré-selecionados (M-7). `limitText` é só o rascunho do input.
+  const [limit, setLimit] = useState(budget);
+  const commitLimit = () => setLimit(Math.max(1, Number(limitText) || budget));
   const { data, isLoading, isFetching, isError, refetch } = useVipPreselected(cycle.id, limit);
   const send = useSendVipInvites(cycle.id);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -41,7 +44,16 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="limit" className="text-[12px] text-[#64748B]">Quantos pré-selecionar</label>
-          <Input id="limit" inputMode="numeric" className="w-28" value={limitText} onChange={(e) => setLimitText(e.target.value)} />
+          <Input
+            id="limit"
+            inputMode="numeric"
+            className="w-28"
+            value={limitText}
+            onChange={(e) => setLimitText(e.target.value)}
+            onBlur={commitLimit}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitLimit(); } }}
+            title="Enter ou sair do campo aplica"
+          />
         </div>
         <p className="text-[12.5px] text-[#64748B]">Orçamento de convites: <strong>{budget}</strong> ({cycle.targetVacancies} vagas × {cycle.invitesPerVacancy}) · encontrados: {data?.total ?? "—"}</p>
         <div className="ml-auto flex flex-wrap gap-2">

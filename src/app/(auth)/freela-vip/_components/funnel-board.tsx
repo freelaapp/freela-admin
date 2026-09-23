@@ -63,7 +63,7 @@ export function FunnelBoard({ cycleId }: { cycleId: string }) {
               key={col.stage}
               className="w-full md:w-72 md:min-w-[270px] md:flex-shrink-0"
               onDragOver={(e) => { if (canMove) e.preventDefault(); }}
-              onDrop={() => onDrop(col.stage)}
+              onDrop={(e) => { e.preventDefault(); onDrop(col.stage); }}
             >
               <div className="rounded-xl border border-[#E2E8F0] border-t-4 border-t-[#334155] bg-white">
                 <div className="flex items-center justify-between border-b border-[#F1F5F9] px-3 py-2">
@@ -92,7 +92,7 @@ function Card({ card, canMove, dragging, onDragStart, onDragEnd, onOpen }: {
   return (
     <div
       draggable={canMove}
-      onDragStart={onDragStart}
+      onDragStart={(e) => { e.dataTransfer.setData("text/plain", card.id); e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={`cursor-pointer rounded-lg bg-[#F8FAFC] p-2.5 transition-colors hover:bg-[#F1F5F9] ${dragging ? "opacity-50" : ""}`}
