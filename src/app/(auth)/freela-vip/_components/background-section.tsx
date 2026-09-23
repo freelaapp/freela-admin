@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useVipApplicationMutations, useVipBackgroundDocuments, useVipDocumentDownload } from "@/modules/admin/application/use-freela-vip";
 import { formatDate } from "@/modules/admin/application/freela-vip-presentation";
 import type { VipStatus } from "@/modules/admin/infrastructure/freela-vip-api";
+import { QueryError } from "./query-error";
 
 const DOC_LABELS: Record<string, string> = {
   BACKGROUND_FEDERAL: "Certidão Polícia Federal",
@@ -17,7 +18,7 @@ const DOC_LABELS: Record<string, string> = {
 export function BackgroundSection({ applicationId, cycleId, status, backgroundResult }: {
   applicationId: string; cycleId: string; status: VipStatus; backgroundResult: "APT" | "NOT_APT" | "IN_ANALYSIS" | null;
 }) {
-  const { data: docs = [], isLoading } = useVipBackgroundDocuments(applicationId, true);
+  const { data: docs = [], isLoading, isError, refetch } = useVipBackgroundDocuments(applicationId, true);
   const download = useVipDocumentDownload(applicationId);
   const { decideBackground } = useVipApplicationMutations(applicationId, cycleId);
   const [confirm, setConfirm] = useState<"APT" | "NOT_APT" | null>(null);
@@ -31,6 +32,8 @@ export function BackgroundSection({ applicationId, cycleId, status, backgroundRe
 
       {isLoading ? (
         <div className="py-4 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>
+      ) : isError ? (
+        <QueryError compact message="Não foi possível carregar as certidões." onRetry={() => refetch()} />
       ) : docs.length === 0 ? (
         <p className="mt-2 text-[12.5px] text-[#92400E]">Nenhuma certidão enviada ainda.</p>
       ) : (
@@ -48,8 +51,8 @@ export function BackgroundSection({ applicationId, cycleId, status, backgroundRe
 
       {canDecide && (
         <div className="mt-3 flex gap-2">
-          <Button size="sm" onClick={() => setConfirm("APT")}>Apto</Button>
-          <Button size="sm" variant="outline" onClick={() => setConfirm("NOT_APT")}>Não apto</Button>
+          <Button size="sm" disabled={decideBackground.isPending} onClick={() => setConfirm("APT")}>Apto</Button>
+          <Button size="sm" variant="outline" disabled={decideBackground.isPending} onClick={() => setConfirm("NOT_APT")}>Não apto</Button>
         </div>
       )}
 

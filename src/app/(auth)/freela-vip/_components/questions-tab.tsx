@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useVipQuestionMutations, useVipQuestions } from "@/modules/admin/application/use-freela-vip";
 import { validateQuestionDraft } from "@/modules/admin/application/freela-vip-presentation";
 import type { VipQuestion } from "@/modules/admin/infrastructure/freela-vip-api";
+import { QueryError } from "./query-error";
 
 type Draft = { role: string; text: string; options: string[]; points: string[]; required: boolean; order: string; active: boolean };
 const empty = (): Draft => ({ role: "", text: "", options: ["", ""], points: ["0", "0"], required: true, order: "0", active: true });
@@ -18,7 +19,7 @@ const fromQ = (q: VipQuestion): Draft => ({ role: q.role, text: q.text, options:
 
 export function QuestionsTab() {
   const [roleFilter, setRoleFilter] = useState("");
-  const { data: questions = [], isLoading } = useVipQuestions(roleFilter.trim() || undefined);
+  const { data: questions = [], isLoading, isError, refetch } = useVipQuestions(roleFilter.trim() || undefined);
   const m = useVipQuestionMutations();
   const [dialog, setDialog] = useState<{ open: boolean; q?: VipQuestion }>({ open: false });
   const [d, setD] = useState<Draft>(empty());
@@ -42,10 +43,14 @@ export function QuestionsTab() {
         <div><Label htmlFor="qf">Função</Label><Input id="qf" className="w-48" placeholder="ex.: garcom" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} /></div>
         <Button className="ml-auto" onClick={() => setDialog({ open: true })}><Plus className="mr-1 h-4 w-4" aria-hidden />Nova pergunta</Button>
       </div>
-      {isLoading ? <div className="py-8 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div> : (
+      {isLoading ? (
+        <div className="py-8 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>
+      ) : isError ? (
+        <QueryError message="Não foi possível carregar as perguntas." onRetry={() => refetch()} />
+      ) : (
         <ul className="divide-y divide-[#F1F5F9] rounded-xl border border-[#E2E8F0] bg-white">
           {questions.map((q) => (
-            <li key={q.id} className="flex flex-wrap items-start justify-between gap-2 p-3 text-[13px]">
+            <li key={q.id} className="flex flex-col gap-2 p-3 text-[13px] sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
               <div>
                 <p className="font-medium text-[#0F172A]"><Badge variant="secondary">{q.role}</Badge> {q.text}{!q.active && <Badge variant="secondary" className="ml-1">inativa</Badge>}</p>
                 <ol className="mt-1 list-decimal pl-5 text-[12px] text-[#64748B]">{q.options.map((o, i) => <li key={i}>{o} — {q.pointsPerOption[i]} pts</li>)}</ol>

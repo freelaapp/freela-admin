@@ -28,7 +28,7 @@ export function ApplicationActions({ detail, cycleHasJustification }: { detail: 
         <Button size="sm" variant="outline" disabled={busy || !canOpenBackground || !cycleHasJustification} onClick={() => m.openBackground.mutate()}>Abrir antecedentes</Button>
       </span>
 
-      <Dialog open={rejectOpen} onOpenChange={(o) => !o && setRejectOpen(false)}>
+      <Dialog open={rejectOpen} onOpenChange={(o) => { if (!o) { setRejectOpen(false); setReason(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reprovar candidato</DialogTitle>
@@ -46,7 +46,7 @@ export function ApplicationActions({ detail, cycleHasJustification }: { detail: 
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setRejectOpen(false); setReason(""); }}>Cancelar</Button>
             <Button
               disabled={!reason.trim() || m.decide.isPending}
               onClick={() => m.decide.mutate({ action: "reject", rejectionReason: reason.trim() }, { onSuccess: () => { setRejectOpen(false); setReason(""); } })}

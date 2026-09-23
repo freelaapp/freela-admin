@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useVipIndicators } from "@/modules/admin/application/use-freela-vip";
 import { formatIndicator, VIP_STATUS_LABELS, type IndicatorKind } from "@/modules/admin/application/freela-vip-presentation";
 import type { VipIndicatorMetric, VipStatus } from "@/modules/admin/infrastructure/freela-vip-api";
+import { QueryError } from "./query-error";
 
 const TILES: { key: "taxaResposta" | "taxaAprovacaoNota" | "taxaAprovacaoFinal" | "tempoMedioProcessoDias" | "vipsPorVaga" | "permanencia"; label: string; kind: IndicatorKind }[] = [
   { key: "taxaResposta", label: "Taxa de resposta", kind: "percent" },
@@ -15,8 +16,9 @@ const TILES: { key: "taxaResposta" | "taxaAprovacaoNota" | "taxaAprovacaoFinal" 
 ];
 
 export function IndicatorsTab({ cycleId }: { cycleId: string }) {
-  const { data, isLoading } = useVipIndicators(cycleId);
-  if (isLoading || !data) return <div className="flex justify-center py-10 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+  const { data, isLoading, isError, refetch } = useVipIndicators(cycleId);
+  if (isLoading) return <div className="flex justify-center py-10 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+  if (isError || !data) return <QueryError message="Não foi possível carregar os indicadores." onRetry={() => refetch()} />;
 
   const entries = (o: Record<string, number>) => Object.entries(o).sort((a, b) => b[1] - a[1]);
 

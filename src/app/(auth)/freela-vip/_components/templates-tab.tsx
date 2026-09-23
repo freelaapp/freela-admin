@@ -6,13 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useSaveVipMessageTemplate, useVipMessageTemplates } from "@/modules/admin/application/use-freela-vip";
 import { formatDate, VIP_MOMENT_LABELS } from "@/modules/admin/application/freela-vip-presentation";
+import { QueryError } from "./query-error";
 
 export function TemplatesTab() {
-  const { data: templates = [], isLoading } = useVipMessageTemplates();
+  const { data: templates = [], isLoading, isError, refetch } = useVipMessageTemplates();
   const save = useSaveVipMessageTemplate();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   if (isLoading) return <div className="py-8 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+  if (isError) return <QueryError message="Não foi possível carregar as mensagens." onRetry={() => refetch()} />;
 
   return (
     <div className="flex flex-col gap-3">

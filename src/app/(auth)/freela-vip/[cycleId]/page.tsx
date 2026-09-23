@@ -15,6 +15,7 @@ import { redeLabel } from "../_components/rede-select";
 import { PreselectedTab } from "../_components/preselected-tab";
 import { FunnelBoard } from "../_components/funnel-board";
 import { IndicatorsTab } from "../_components/indicators-tab";
+import { QueryError } from "../_components/query-error";
 
 export default function VipCyclePage() {
   return (
@@ -28,11 +29,20 @@ function CycleScreen() {
   const { cycleId } = useParams<{ cycleId: string }>();
   const router = useRouter();
   const role = useVipRole();
-  const { data: cycle, isLoading } = useVipCycle(cycleId);
+  const { data: cycle, isLoading, isError, refetch } = useVipCycle(cycleId);
   const { data: contractors } = useAdminContractorsList();
   const [tab, setTab] = useState(role.canAdmin ? "pre" : "funil");
 
-  if (isLoading || !cycle) return <div className="flex justify-center py-12 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+  if (isLoading) return <div className="flex justify-center py-12 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+
+  if (isError || !cycle) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pb-8 sm:px-6">
+        <Button variant="outline" onClick={() => router.push("/freela-vip")}><ArrowLeft className="mr-1 h-4 w-4" aria-hidden />Ciclos</Button>
+        <QueryError message="Não foi possível carregar o ciclo." onRetry={() => refetch()} />
+      </div>
+    );
+  }
 
   const publicUrl = `${process.env.NEXT_PUBLIC_WEB_URL ?? ""}/vip/ciclo/${cycle.id}`;
 
@@ -60,7 +70,7 @@ function CycleScreen() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex-wrap">
           {role.canAdmin && <TabsTrigger value="pre">Pré-selecionados</TabsTrigger>}
           <TabsTrigger value="funil">Funil</TabsTrigger>
           <TabsTrigger value="ind">Indicadores</TabsTrigger>

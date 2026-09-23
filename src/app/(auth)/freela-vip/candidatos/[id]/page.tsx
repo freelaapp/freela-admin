@@ -10,6 +10,7 @@ import { alertLabel, breakdownRows, formatDate, scoreBand, scoreBandClass, VIP_C
 import { VipGuard } from "../../_components/vip-guard";
 import { ApplicationActions } from "../../_components/application-actions";
 import { BackgroundSection } from "../../_components/background-section";
+import { QueryError } from "../../_components/query-error";
 
 export default function VipApplicationPage() {
   return (
@@ -32,11 +33,20 @@ function ApplicationScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const role = useVipRole();
-  const { data: d, isLoading } = useVipApplication(id);
+  const { data: d, isLoading, isError, refetch } = useVipApplication(id);
   const { data: cycle } = useVipCycle(d?.cycleId ?? "");
   const m = useVipApplicationMutations(id, d?.cycleId);
 
-  if (isLoading || !d) return <div className="flex justify-center py-12 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+  if (isLoading) return <div className="flex justify-center py-12 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+
+  if (isError || !d) {
+    return (
+      <div className="flex flex-col gap-4 px-4 pb-8 sm:px-6">
+        <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-1 h-4 w-4" aria-hidden />Voltar</Button>
+        <QueryError message="Não foi possível carregar a ficha." onRetry={() => refetch()} />
+      </div>
+    );
+  }
 
   const band = scoreBand(d.score.totalScore);
   const rows = breakdownRows(d.score.breakdown);

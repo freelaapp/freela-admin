@@ -25,7 +25,7 @@ export default function VipConfigPage() {
         action={<Button variant="outline" onClick={() => router.push("/freela-vip")}><ArrowLeft className="mr-1 h-4 w-4" aria-hidden />Ciclos</Button>}
       />
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="perguntas">Perguntas</TabsTrigger>
           <TabsTrigger value="nota">Nota</TabsTrigger>
           <TabsTrigger value="mensagens">Mensagens</TabsTrigger>

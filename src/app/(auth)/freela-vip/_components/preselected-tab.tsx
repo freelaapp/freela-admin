@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSendVipInvites, useVipPreselected } from "@/modules/admin/application/use-freela-vip";
 import { cycleInviteBudget } from "@/modules/admin/application/freela-vip-presentation";
-import type { VipCycle, VipInviteResult } from "@/modules/admin/infrastructure/freela-vip-api";
+import type { VipCycle, VipInviteResult, VipPreselectedCandidate } from "@/modules/admin/infrastructure/freela-vip-api";
+import { QueryError } from "./query-error";
 
 export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
   const budget = cycleInviteBudget(cycle);
   const [limitText, setLimitText] = useState(String(budget));
   const limit = Math.max(1, Number(limitText) || budget);
-  const { data, isLoading, isFetching } = useVipPreselected(cycle.id, limit);
+  const { data, isLoading, isFetching, isError, refetch } = useVipPreselected(cycle.id, limit);
   const send = useSendVipInvites(cycle.id);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<VipInviteResult | null>(null);
@@ -22,6 +23,7 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
   const candidates = useMemo(() => data?.candidates ?? [], [data]);
   const allIds = useMemo(() => candidates.map((c) => c.providerGlobalId), [candidates]);
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const rowLabel = (c: VipPreselectedCandidate) => [c.city, c.roles.join(", ")].filter(Boolean).join(" · ") || c.providerGlobalId;
 
   // Uma mudança no limite troca a query e pode encolher `allIds`; sem isso, `selected`
   // manteria ids fora da tela e `send.mutate` convidaria gente que o admin não vê mais.
@@ -42,7 +44,7 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
           <Input id="limit" inputMode="numeric" className="w-28" value={limitText} onChange={(e) => setLimitText(e.target.value)} />
         </div>
         <p className="text-[12.5px] text-[#64748B]">Orçamento de convites: <strong>{budget}</strong> ({cycle.targetVacancies} vagas × {cycle.invitesPerVacancy}) · encontrados: {data?.total ?? "—"}</p>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setSelected(new Set(allIds))}>Selecionar todos</Button>
           <Button variant="outline" size="sm" onClick={() => setSelected(new Set())}>Limpar</Button>
           <Button size="sm" disabled={selected.size === 0 || send.isPending} onClick={submit}>
@@ -56,43 +58,65 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
 
       {isLoading ? (
         <div className="flex justify-center py-10 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>
+      ) : isError ? (
+        <QueryError message="Não foi possível carregar os pré-selecionados." onRetry={() => refetch()} />
       ) : (
-        <div className={`overflow-x-auto rounded-xl border border-[#E2E8F0] bg-white ${isFetching ? "opacity-70" : ""}`}>
-          <table className="w-full text-[13px]">
-            <thead className="bg-[#F8FAFC] text-left text-[12px] uppercase tracking-wide text-[#64748B]">
-              <tr>
-                <th className="px-3 py-2"><input type="checkbox" aria-label="Selecionar todos" checked={selected.size > 0 && selected.size === allIds.length} onChange={(e) => setSelected(e.target.checked ? new Set(allIds) : new Set())} /></th>
-                <th className="px-3 py-2">Cidade</th>
-                <th className="px-3 py-2">Dist.</th>
-                <th className="px-3 py-2">Funções</th>
-                <th className="px-3 py-2">Completude</th>
-                <th className="px-3 py-2">Histórico</th>
-                <th className="px-3 py-2">Serviços</th>
-                <th className="px-3 py-2">WhatsApp · foto</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F5F9]">
-              {candidates.map((c) => {
-                const rowLabel = [c.city, c.roles.join(", ")].filter(Boolean).join(" · ") || c.providerGlobalId;
-                return (
-                <tr key={c.providerGlobalId} className="hover:bg-[#F8FAFC]">
-                  <td className="px-3 py-2"><input type="checkbox" aria-label={`Selecionar candidato ${rowLabel}`} checked={selected.has(c.providerGlobalId)} onChange={() => toggle(c.providerGlobalId)} /></td>
-                  <td className="px-3 py-2">{c.city ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums">{c.distanceKm === null ? "—" : `${Math.round(c.distanceKm)} km`}</td>
-                  <td className="px-3 py-2 text-[#475569]">{c.roles.join(", ")}</td>
-                  <td className="px-3 py-2 tabular-nums">{Math.round(c.completenessScore)}%</td>
-                  <td className="px-3 py-2"><Badge variant="secondary">{c.hasCleanHistory ? "limpo" : "com ocorrência"}</Badge></td>
-                  <td className="px-3 py-2 tabular-nums">{c.totalCompletedServices} · {c.recentCompletedServices} rec.</td>
-                  <td className="px-3 py-2">{c.hasWhatsappPhone ? "✓" : "—"} · {c.hasAvatar ? "✓" : "—"}</td>
+        <>
+          <div className={`hidden md:block overflow-x-auto rounded-xl border border-[#E2E8F0] bg-white ${isFetching ? "opacity-70" : ""}`}>
+            <table className="w-full text-[13px]">
+              <thead className="bg-[#F8FAFC] text-left text-[12px] uppercase tracking-wide text-[#64748B]">
+                <tr>
+                  <th scope="col" className="px-3 py-2"><input type="checkbox" aria-label="Selecionar todos" checked={selected.size > 0 && selected.size === allIds.length} onChange={(e) => setSelected(e.target.checked ? new Set(allIds) : new Set())} /></th>
+                  <th scope="col" className="px-3 py-2">Cidade</th>
+                  <th scope="col" className="px-3 py-2">Dist.</th>
+                  <th scope="col" className="px-3 py-2">Funções</th>
+                  <th scope="col" className="px-3 py-2">Completude</th>
+                  <th scope="col" className="px-3 py-2">Histórico</th>
+                  <th scope="col" className="px-3 py-2">Serviços</th>
+                  <th scope="col" className="px-3 py-2">WhatsApp · foto</th>
                 </tr>
-                );
-              })}
-              {candidates.length === 0 && (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-[#94A3B8]">Ninguém na base atende aos filtros do ciclo (cidade/raio, função, WhatsApp, sem reprovação recente).</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-[#F1F5F9]">
+                {candidates.map((c) => (
+                  <tr key={c.providerGlobalId} className="hover:bg-[#F8FAFC]">
+                    <td className="px-3 py-2"><input type="checkbox" aria-label={`Selecionar candidato ${rowLabel(c)}`} checked={selected.has(c.providerGlobalId)} onChange={() => toggle(c.providerGlobalId)} /></td>
+                    <td className="px-3 py-2">{c.city ?? "—"}</td>
+                    <td className="px-3 py-2 tabular-nums">{c.distanceKm === null ? "—" : `${Math.round(c.distanceKm)} km`}</td>
+                    <td className="px-3 py-2 text-[#475569]">{c.roles.join(", ")}</td>
+                    <td className="px-3 py-2 tabular-nums">{Math.round(c.completenessScore)}%</td>
+                    <td className="px-3 py-2"><Badge variant="secondary">{c.hasCleanHistory ? "limpo" : "com ocorrência"}</Badge></td>
+                    <td className="px-3 py-2 tabular-nums">{c.totalCompletedServices} · {c.recentCompletedServices} rec.</td>
+                    <td className="px-3 py-2">{c.hasWhatsappPhone ? "✓" : "—"} · {c.hasAvatar ? "✓" : "—"}</td>
+                  </tr>
+                ))}
+                {candidates.length === 0 && (
+                  <tr><td colSpan={8} className="px-3 py-8 text-center text-[#94A3B8]">Ninguém na base atende aos filtros do ciclo (cidade/raio, função, WhatsApp, sem reprovação recente).</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className={`flex flex-col gap-2 md:hidden ${isFetching ? "opacity-70" : ""}`}>
+            {candidates.map((c) => (
+              <label key={c.providerGlobalId} className="flex flex-col gap-1 rounded-lg border border-[#E2E8F0] bg-white p-3 text-[13px]">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-[#0F172A]">{rowLabel(c)}</p>
+                  <input type="checkbox" aria-label={`Selecionar candidato ${rowLabel(c)}`} checked={selected.has(c.providerGlobalId)} onChange={() => toggle(c.providerGlobalId)} />
+                </div>
+                <div className="space-y-0.5 text-[#64748B]">
+                  <p>Distância: {c.distanceKm === null ? "—" : `${Math.round(c.distanceKm)} km`}</p>
+                  <p>Completude: {Math.round(c.completenessScore)}%</p>
+                  <p>Serviços: {c.totalCompletedServices} · {c.recentCompletedServices} recentes</p>
+                  <p>WhatsApp {c.hasWhatsappPhone ? "✓" : "—"} · foto {c.hasAvatar ? "✓" : "—"}</p>
+                </div>
+                <div><Badge variant="secondary">{c.hasCleanHistory ? "limpo" : "com ocorrência"}</Badge></div>
+              </label>
+            ))}
+            {candidates.length === 0 && (
+              <p className="rounded-lg border border-[#E2E8F0] bg-white p-4 text-center text-[13px] text-[#94A3B8]">Ninguém na base atende aos filtros do ciclo (cidade/raio, função, WhatsApp, sem reprovação recente).</p>
+            )}
+          </div>
+        </>
       )}
 
       <Dialog open={!!result} onOpenChange={(o) => !o && setResult(null)}>

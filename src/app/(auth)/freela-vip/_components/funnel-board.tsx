@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { useMoveVipStage, useVipKanban, useVipRole } from "@/modules/admin/application/use-freela-vip";
 import { filterKanbanCards, scoreBand, scoreBandClass, sortCardsByScore } from "@/modules/admin/application/freela-vip-presentation";
 import type { VipKanbanCard, VipStatus } from "@/modules/admin/infrastructure/freela-vip-api";
+import { QueryError } from "./query-error";
 
 export function FunnelBoard({ cycleId }: { cycleId: string }) {
   const router = useRouter();
   const role = useVipRole();
-  const { data: board, isLoading } = useVipKanban(cycleId);
+  const { data: board, isLoading, isError, refetch } = useVipKanban(cycleId);
   const move = useMoveVipStage(cycleId);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [city, setCity] = useState("");
@@ -31,8 +32,12 @@ export function FunnelBoard({ cycleId }: { cycleId: string }) {
     move.mutate({ applicationId: id, stage });
   }
 
-  if (isLoading || !board) {
+  if (isLoading) {
     return <div className="flex justify-center py-10 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+  }
+
+  if (isError || !board) {
+    return <QueryError message="Não foi possível carregar o funil." onRetry={() => refetch()} />;
   }
 
   return (
@@ -50,13 +55,13 @@ export function FunnelBoard({ cycleId }: { cycleId: string }) {
         <p className="ml-auto self-center text-[12.5px] text-[#64748B]">Ativos {board.totalActive} · reprovados {board.rejectedCount} · desistiram {board.withdrewCount}{!canMove && " · somente leitura"}</p>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-3">
+      <div className="flex flex-col gap-3 pb-3 md:flex-row md:overflow-x-auto">
         {board.columns.map((col) => {
           const cards = sortCardsByScore(filterKanbanCards(col.cards, { city, role: roleFilter, search }));
           return (
             <div
               key={col.stage}
-              className="min-w-[270px] flex-shrink-0"
+              className="w-full md:w-72 md:min-w-[270px] md:flex-shrink-0"
               onDragOver={(e) => { if (canMove) e.preventDefault(); }}
               onDrop={() => onDrop(col.stage)}
             >

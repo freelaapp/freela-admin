@@ -1,28 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSaveVipScoringConfig, useVipScoringConfig } from "@/modules/admin/application/use-freela-vip";
 import { formatDate, validateScoringConfig, VIP_CRITERIA_LABELS } from "@/modules/admin/application/freela-vip-presentation";
+import { QueryError } from "./query-error";
 
 export function ScoringTab() {
-  const { data, isLoading } = useVipScoringConfig();
+  const { data, isLoading, isError, refetch } = useVipScoringConfig();
   const save = useSaveVipScoringConfig();
   const [weights, setWeights] = useState<Record<string, string>>({});
   const [high, setHigh] = useState("70");
   const [waitlist, setWaitlist] = useState("50");
+  const seededVersion = useRef<number | null | undefined>(undefined);
 
+  // Só re-semeia o rascunho quando a VERSÃO da config muda (ex.: após salvar) —
+  // caso contrário, qualquer refetch/invalidation apagaria edições não salvas.
   useEffect(() => {
     if (!data) return;
+    if (seededVersion.current === data.version) return;
+    seededVersion.current = data.version;
     setWeights(Object.fromEntries(Object.entries(data.config.weights).map(([k, v]) => [k, String(v)])));
     setHigh(String(data.config.cutoffs.high));
     setWaitlist(String(data.config.cutoffs.waitlist));
   }, [data]);
 
-  if (isLoading || !data) return <div className="py-8 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+  if (isLoading) return <div className="py-8 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
+  if (isError || !data) return <QueryError message="Não foi possível carregar a configuração de nota." onRetry={() => refetch()} />;
 
   const numericWeights = Object.fromEntries(Object.entries(weights).map(([k, v]) => [k, Number(v)]));
   const cutoffs = { high: Number(high), waitlist: Number(waitlist) };
@@ -36,7 +43,7 @@ export function ScoringTab() {
       </p>
       <section className="rounded-xl border border-[#E2E8F0] bg-white p-4">
         <h3 className="mb-2 text-[14px] font-semibold">Pesos (soma {sum} / 100)</h3>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {Object.keys(weights).map((k) => (
             <div key={k}><Label htmlFor={`w-${k}`}>{VIP_CRITERIA_LABELS[k] ?? k}</Label><Input id={`w-${k}`} inputMode="numeric" value={weights[k]} onChange={(e) => setWeights({ ...weights, [k]: e.target.value })} /></div>
           ))}
