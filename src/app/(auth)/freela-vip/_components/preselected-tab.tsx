@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,9 +19,18 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [result, setResult] = useState<VipInviteResult | null>(null);
 
-  const candidates = data?.candidates ?? [];
+  const candidates = useMemo(() => data?.candidates ?? [], [data]);
   const allIds = useMemo(() => candidates.map((c) => c.providerGlobalId), [candidates]);
-  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  // Uma mudança no limite troca a query e pode encolher `allIds`; sem isso, `selected`
+  // manteria ids fora da tela e `send.mutate` convidaria gente que o admin não vê mais.
+  useEffect(() => {
+    setSelected((s) => {
+      const next = new Set([...s].filter((id) => allIds.includes(id)));
+      return next.size === s.size ? s : next;
+    });
+  }, [allIds]);
 
   const submit = () => send.mutate([...selected], { onSuccess: (r) => { setResult(r); setSelected(new Set()); } });
 
@@ -63,9 +72,11 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F1F5F9]">
-              {candidates.map((c) => (
+              {candidates.map((c) => {
+                const rowLabel = [c.city, c.roles.join(", ")].filter(Boolean).join(" · ") || c.providerGlobalId;
+                return (
                 <tr key={c.providerGlobalId} className="hover:bg-[#F8FAFC]">
-                  <td className="px-3 py-2"><input type="checkbox" aria-label="Selecionar candidato" checked={selected.has(c.providerGlobalId)} onChange={() => toggle(c.providerGlobalId)} /></td>
+                  <td className="px-3 py-2"><input type="checkbox" aria-label={`Selecionar candidato ${rowLabel}`} checked={selected.has(c.providerGlobalId)} onChange={() => toggle(c.providerGlobalId)} /></td>
                   <td className="px-3 py-2">{c.city ?? "—"}</td>
                   <td className="px-3 py-2 tabular-nums">{c.distanceKm === null ? "—" : `${Math.round(c.distanceKm)} km`}</td>
                   <td className="px-3 py-2 text-[#475569]">{c.roles.join(", ")}</td>
@@ -74,7 +85,8 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
                   <td className="px-3 py-2 tabular-nums">{c.totalCompletedServices} · {c.recentCompletedServices} rec.</td>
                   <td className="px-3 py-2">{c.hasWhatsappPhone ? "✓" : "—"} · {c.hasAvatar ? "✓" : "—"}</td>
                 </tr>
-              ))}
+                );
+              })}
               {candidates.length === 0 && (
                 <tr><td colSpan={8} className="px-3 py-8 text-center text-[#94A3B8]">Ninguém na base atende aos filtros do ciclo (cidade/raio, função, WhatsApp, sem reprovação recente).</td></tr>
               )}

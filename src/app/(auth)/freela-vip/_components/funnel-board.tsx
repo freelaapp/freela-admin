@@ -67,6 +67,9 @@ export function FunnelBoard({ cycleId }: { cycleId: string }) {
                 </div>
                 <div className="min-h-[80px] space-y-2 p-2">
                   {cards.map((k) => <Card key={k.id} card={k} canMove={canMove} dragging={draggingId === k.id} onDragStart={() => setDraggingId(k.id)} onDragEnd={() => setDraggingId(null)} onOpen={() => router.push(`/freela-vip/candidatos/${k.id}`)} />)}
+                  {cards.length === 0 && (
+                    <p className="py-3 text-center text-[11px] text-[#94A3B8]">Nenhum candidato nesta etapa</p>
+                  )}
                 </div>
               </div>
             </div>
