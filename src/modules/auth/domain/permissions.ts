@@ -30,6 +30,9 @@ export const ADMIN_PERMISSIONS = [
   "SUBSCRIPTIONS",
   "REFERRALS",
   "INSURANCE",
+  "VIP_ADMIN",
+  "VIP_BACKGROUND",
+  "VIP_READONLY",
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -51,6 +54,9 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermission, string> = {
   SUBSCRIPTIONS: "Assinaturas",
   REFERRALS: "Indicações",
   INSURANCE: "Seguro IZA",
+  VIP_ADMIN: "Freela VIP",
+  VIP_BACKGROUND: "Freela VIP — Antecedentes",
+  VIP_READONLY: "Freela VIP — Leitura",
 };
 
 export type AdminRole = "ADMIN" | "SUPER_ADMIN" | "RECRUITER";

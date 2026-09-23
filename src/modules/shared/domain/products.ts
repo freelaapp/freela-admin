@@ -40,6 +40,8 @@ export type NavItem = {
    * a qualquer usuário do painel — ver `modules/auth/domain/permissions.ts`.
    */
   permission?: AdminPermission;
+  /** Área liberada por QUALQUER uma destas permissões (ex.: Freela VIP). */
+  permissionAny?: readonly AdminPermission[];
   /** Tela ainda sem backend — navega, mas avisa que o produto não existe ainda. */
   comingSoon?: boolean;
 };

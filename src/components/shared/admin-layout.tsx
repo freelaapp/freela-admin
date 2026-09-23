@@ -42,6 +42,7 @@ import {
   Shuffle,
   Activity,
   MapPin,
+  Crown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNewVacancyChime } from "@/modules/admin/application/use-new-vacancy-chime";
@@ -71,6 +72,12 @@ const navItems: NavItem[] = [
   { label: "Vagas Empresa", icon: Briefcase, path: "/jobs", permission: "JOBS" },
   { label: "Vagas — Casa", icon: Home, path: "/vagas-casa", permission: "CASA_VACANCIES" },
   { label: "Vagas Fixas / CLT", icon: ClipboardList, path: "/vagas-fixas", permission: "FIXED_JOBS" },
+  {
+    label: "Freela VIP",
+    icon: Crown,
+    path: "/freela-vip",
+    permissionAny: ["VIP_ADMIN", "VIP_READONLY", "VIP_BACKGROUND"],
+  },
   { label: "Pipeline", icon: TrendingUp, path: "/pipeline" },
   // Cidades, Cargos e Cargos por Cidade saíram em 11/08/2026: não eram usadas e
   // não carregavam nada. O catálogo de cargos vive em /catalogo, que é a tela
@@ -175,7 +182,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const visibleNavItems = activeProduct.nav.filter(
     (item) =>
       (!item.superAdminOnly || isSuperAdmin) &&
-      (!item.permission || hasPermission(item.permission)),
+      (!item.permission || hasPermission(item.permission)) &&
+      (!item.permissionAny || item.permissionAny.some((p) => hasPermission(p))),
   );
 
   const displayName = user?.name || "Admin";
