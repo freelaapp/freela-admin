@@ -62,8 +62,17 @@ export function vipGroupActionLabel(status: VipGroupStatus): string | null {
   return null;
 }
 
-export function vipMembersPendingAdd(members: Array<{ whatsappState: VipMemberWhatsappState }>): number {
-  return members.filter((m) => m.whatsappState === "PENDING" || m.whatsappState === "FAILED").length;
+/**
+ * Quantos o "Adicionar pendentes ao grupo" vai tentar: fora do grupo
+ * (PENDING/FAILED) e com cadastro ativo — o `syncMissing` da API pula o
+ * freela banido (`providerActive: false`), então ele não entra na conta.
+ */
+export function vipMembersPendingAdd(
+  members: Array<{ whatsappState: VipMemberWhatsappState; providerActive?: boolean }>,
+): number {
+  return members.filter(
+    (m) => m.providerActive !== false && (m.whatsappState === "PENDING" || m.whatsappState === "FAILED"),
+  ).length;
 }
 
 export function vipEnsureResultMessage(group: { status: VipGroupStatus; lastError: string | null }): {

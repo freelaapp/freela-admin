@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useVipGroupMutations, useVipProviderSearch } from "@/modules/admin/application/use-vip-groups";
 import { QueryError } from "./query-error";
+
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
 
 /** Busca um freela por nome/telefone e coloca na lista VIP da loja (origem: equipe). */
 export function AddVipDialog({
@@ -20,8 +29,11 @@ export function AddVipDialog({
   onClose: () => void;
 }) {
   const [term, setTerm] = useState("");
-  const deferredTerm = useDeferredValue(term);
-  const { data: results = [], isFetching, isError, refetch } = useVipProviderSearch(deferredTerm, open);
+  const debouncedTerm = useDebounced(term, 300);
+  const { data: results = [], isFetching, isError, refetch } = useVipProviderSearch(debouncedTerm, open);
+  // Enquanto o debounce não alcança o que foi digitado, mostra "buscando" em vez
+  // do resultado (ou do "nenhum encontrado") do termo anterior.
+  const searching = isFetching || debouncedTerm !== term;
   const { add } = useVipGroupMutations(contractorUserId);
 
   const close = () => {
@@ -51,7 +63,7 @@ export function AddVipDialog({
           <div className="max-h-[60vh] overflow-y-auto">
             {term.trim().length < 2 ? (
               <p className="py-3 text-[12.5px] text-[#94A3B8]">Digite ao menos 2 letras ou 4 números.</p>
-            ) : isFetching ? (
+            ) : searching ? (
               <div className="flex justify-center py-6 text-[#94A3B8]">
                 <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
               </div>

@@ -60,6 +60,17 @@ describe("vip-groups-presentation", () => {
     ).toBe(2);
   });
 
+  it("freela banido fora do grupo não conta como pendente (o sync da API o pula)", () => {
+    expect(
+      vipMembersPendingAdd([
+        { whatsappState: "PENDING", providerActive: true },
+        { whatsappState: "PENDING", providerActive: false },
+        { whatsappState: "FAILED", providerActive: false },
+        { whatsappState: "IN_GROUP", providerActive: false },
+      ]),
+    ).toBe(1);
+  });
+
   it("mensagens de resultado", () => {
     expect(vipEnsureResultMessage({ status: "ACTIVE", lastError: null })).toEqual({ ok: true, text: "Grupo VIP ativo." });
     expect(vipEnsureResultMessage({ status: "FAILED", lastError: "Bot desconectado" })).toEqual({

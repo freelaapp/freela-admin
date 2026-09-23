@@ -70,7 +70,8 @@ function StoreScreen() {
   const status = data.group?.status ?? "NONE";
   const actionLabel = vipGroupActionLabel(status);
   const pendingAdd = vipMembersPendingAdd(data.members);
-  const emptyWarning = vipEmptyListWarning(data.members.length);
+  // Banido não conta: a API publica vaga PÚBLICA quando só sobram banidos na lista.
+  const emptyWarning = vipEmptyListWarning(data.members.filter((m) => m.providerActive).length);
 
   const removeButton = (m: VipGroupMember) =>
     role.canAdmin && (

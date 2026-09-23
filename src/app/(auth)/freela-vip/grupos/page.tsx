@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, MessageCircle } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -20,6 +20,15 @@ import {
 import type { VipStoreSummary } from "@/modules/admin/infrastructure/vip-groups-api";
 import { VipGuard } from "../_components/vip-guard";
 import { QueryError } from "../_components/query-error";
+
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
 
 export default function VipGroupsPage() {
   return (
@@ -75,10 +84,10 @@ function VipGroupsScreen() {
   const router = useRouter();
   const role = useVipRole();
   const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search.trim());
-  const { data: stores = [], isLoading, isError, refetch } = useVipGroups(deferredSearch);
+  const debouncedSearch = useDebounced(search.trim(), 300);
+  const { data: stores = [], isLoading, isError, refetch } = useVipGroups(debouncedSearch);
   const open = (store: VipStoreSummary) => router.push(`/freela-vip/grupos/${store.contractorUserId}`);
-  const emptyText = deferredSearch
+  const emptyText = debouncedSearch
     ? "Nenhuma loja com esse nome."
     : "Nenhuma loja no plano Grandes Redes ainda.";
 
