@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Crown, Loader2, Plus, Settings, Users } from "lucide-react";
+import { Crown, Loader2, MessageCircle, Plus, Settings, Users } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,9 @@ function CyclesScreen() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => router.push("/freela-vip/vips")}>
               <Crown className="mr-1 h-4 w-4" aria-hidden /> VIPs ativos
+            </Button>
+            <Button variant="outline" onClick={() => router.push("/freela-vip/grupos")}>
+              <MessageCircle className="mr-1 h-4 w-4" aria-hidden /> Grupos VIP
             </Button>
             {role.canAdmin && (
               <>
