@@ -54,3 +54,56 @@ export async function resendVacancyGroupMessage(
   const moduleApi = createAuthedClient(base);
   await moduleApi.post(`/vacancies/${vacancyId}/resend-group-message`, {});
 }
+
+// ─── Convidar compatíveis ──────────────────────────────────────────────────
+
+/** Freelancer que combina com a vaga e ainda não se candidatou. */
+export interface CompatibleFreelancer {
+  userId: string;
+  providerGlobalId: string | null;
+  name: string | null;
+  phone: string;
+  city: string | null;
+  distanceInKm: number | null;
+  /** 0–100; null = sem dado da vaga para comparar. */
+  matchScore: number | null;
+  averageRating: number | null;
+  totalCompletedServices: number;
+}
+
+export interface CompatibleInvitePreview {
+  vacancyId: string;
+  /** Texto do convite com `{nome}` — vira o primeiro nome de cada um no envio. */
+  template: string;
+  /** Quantos já foram convidados para esta vaga (não voltam na lista). */
+  alreadyInvited: number;
+  candidates: CompatibleFreelancer[];
+}
+
+export interface CompatibleInviteResult {
+  sent: Array<{ userId: string; name: string | null }>;
+  failed: Array<{ userId: string; name: string | null; reason: string }>;
+  skipped: number;
+}
+
+export async function getCompatibleFreelancers(
+  vacancyId: string,
+): Promise<CompatibleInvitePreview> {
+  const res = await outreachApi.get(`/${vacancyId}/compatible-freelancers`);
+  return res.data.data;
+}
+
+export async function sendCompatibleInvites(
+  vacancyId: string,
+  userIds: string[],
+  text: string,
+): Promise<CompatibleInviteResult> {
+  // A API manda as mensagens uma a uma, com intervalo entre elas: 10 convites
+  // passam fácil dos 30 s padrão do client.
+  const res = await outreachApi.post(
+    `/${vacancyId}/compatible-invites`,
+    { userIds, text },
+    { timeout: 90_000 },
+  );
+  return res.data.data;
+}

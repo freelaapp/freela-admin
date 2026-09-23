@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, Bot } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
+import { CompatibleInviteSection } from "@/components/admin/vacancy/compatible-invite-section";
 import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feedbacks-section";
 import { VacancyPriceHistorySection } from "@/components/admin/vacancy/vacancy-price-history-section";
 import { DataTable } from "@/components/shared/data-table";
@@ -1041,6 +1042,17 @@ export default function JobsPage() {
                   </div>
                 );
               })()}
+
+              {/* Convite só faz sentido enquanto a vaga pode receber candidato:
+                  aberta e com o turno ainda por começar (a API recusa o resto). */}
+              {modalDetalhes.raw?.id &&
+                modalDetalhes.raw.status === "OPEN" &&
+                Date.parse(modalDetalhes.raw.startTime) > Date.now() && (
+                  <CompatibleInviteSection
+                    key={modalDetalhes.raw.id}
+                    vacancyId={modalDetalhes.raw.id}
+                  />
+                )}
 
               <VacancyCandidacyList
                 candidacies={candidacies}

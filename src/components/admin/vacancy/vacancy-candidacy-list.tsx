@@ -47,7 +47,7 @@ export interface VacancyCandidacyListProps {
  * "0%". `undefined` = recurso desligado → não renderiza nada. Faixas iguais às
  * dos cards do contratante: ≥70 verde, ≥40 âmbar, abaixo cinza.
  */
-function MatchBadge({ score }: { score?: number | null }) {
+export function MatchBadge({ score }: { score?: number | null }) {
   if (score === undefined) return null;
   if (score === null) {
     return (

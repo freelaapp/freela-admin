@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  getCompatibleFreelancers,
   getVacancyOutreach,
   outreachKey,
   resendVacancyGroupMessage,
+  sendCompatibleInvites,
   sendVacancyStageMessage,
   type OutreachRecord,
   type OutreachStage,
@@ -58,5 +60,32 @@ export function useResendVacancyGroupMessage() {
       module?: "empresa" | "casa";
     }) => resendVacancyGroupMessage(vacancyId, module),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-outreach"] }),
+  });
+}
+
+/**
+ * Os 10 freelancers mais compatíveis com a vaga que ainda não se candidataram.
+ * Só busca quando `enabled` — a lista é calculada na hora e não vale a pena
+ * pagar essa conta a cada modal aberto.
+ */
+export function useCompatibleFreelancers(vacancyId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "vacancy-compatible-freelancers", vacancyId],
+    queryFn: () => getCompatibleFreelancers(vacancyId as string),
+    enabled: Boolean(vacancyId) && enabled,
+    staleTime: 0,
+  });
+}
+
+export function useSendCompatibleInvites(vacancyId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userIds, text }: { userIds: string[]; text: string }) =>
+      sendCompatibleInvites(vacancyId as string, userIds, text),
+    // Refaz a lista: quem foi convidado sai e entram os próximos.
+    onSettled: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "vacancy-compatible-freelancers", vacancyId],
+      }),
   });
 }
