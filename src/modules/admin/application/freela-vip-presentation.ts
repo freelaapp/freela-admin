@@ -230,14 +230,15 @@ export function formatMonth(iso: string | null | undefined): string {
  * duplicar a regra em `application-actions.tsx` e para serem testados isoladamente.
  */
 
-/** `APPROVAL_NEXT` de `vip-manual-funnel.service.ts`: só estes dois avançam com "Aprovar etapa". */
-export const VIP_APPROVABLE_STATUSES: readonly VipStatus[] = ["INTERVIEW_SCHEDULED", "BACKGROUND_OK"];
+/** `APPROVAL_NEXT` de `vip-manual-funnel.service.ts:44-48` — cópia exata: são só estes três que avançam com "Aprovar etapa". */
+export const VIP_APPROVABLE_STATUSES: readonly VipStatus[] = ["WAITLIST", "INTERVIEW_SCHEDULED", "BACKGROUND_OK"];
 
 /** `RESCORABLE_STATUSES` de `vip-scoring.service.ts` — cópia exata (sem `FORM_SUBMITTED`). */
 export const VIP_RESCORABLE_STATUSES: readonly VipStatus[] = ["SCORED", "WAITLIST", "INTERVIEW_SCHEDULED", "REFERENCES_OK"];
 
 /**
- * Terminais (`VIP_ACTIVE`, `VIP_SUSPENDED`, `REJECTED`, `WITHDREW`) + `BACKGROUND_OK`,
- * que `vip-status-machine.ts` só deixa avançar para `VIP_ACTIVE` (reprovar daí é 409).
+ * Status cuja lista de transições permitidas em `vip-status-machine.ts:20-24`
+ * (`ALLOWED_TRANSITIONS`) contém `REJECTED` — cópia exata. Fora desta lista
+ * (inclusive `BACKGROUND_OK`, que só avança para `VIP_ACTIVE`), reprovar é 409.
  */
-export const VIP_NON_REJECTABLE_STATUSES: readonly VipStatus[] = ["VIP_ACTIVE", "VIP_SUSPENDED", "REJECTED", "WITHDREW", "BACKGROUND_OK"];
+export const VIP_REJECTABLE_STATUSES: readonly VipStatus[] = ["SCORED", "WAITLIST", "INTERVIEW_SCHEDULED", "REFERENCES_OK", "BACKGROUND_PENDING"];

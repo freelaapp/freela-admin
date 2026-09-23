@@ -13,7 +13,7 @@ import {
   validateQuestionDraft,
   validateScoringConfig,
   VIP_APPROVABLE_STATUSES,
-  VIP_NON_REJECTABLE_STATUSES,
+  VIP_REJECTABLE_STATUSES,
   VIP_RESCORABLE_STATUSES,
   VIP_STATUS_LABELS,
 } from "./freela-vip-presentation";
@@ -151,19 +151,19 @@ describe("misc", () => {
 });
 
 describe("status legais da ficha (espelham o api)", () => {
-  // vip-manual-funnel.service.ts APPROVAL_NEXT: só INTERVIEW_SCHEDULED→REFERENCES_OK
-  // e BACKGROUND_OK→VIP_ACTIVE são oferecidos como "Aprovar etapa" na ficha.
-  it("VIP_APPROVABLE_STATUSES: só entrevista agendada e antecedentes ok", () => {
-    expect([...VIP_APPROVABLE_STATUSES]).toEqual(["INTERVIEW_SCHEDULED", "BACKGROUND_OK"]);
+  // vip-manual-funnel.service.ts APPROVAL_NEXT: WAITLIST→INTERVIEW_SCHEDULED,
+  // INTERVIEW_SCHEDULED→REFERENCES_OK e BACKGROUND_OK→VIP_ACTIVE — cópia exata.
+  it("VIP_APPROVABLE_STATUSES: lista de espera, entrevista agendada e antecedentes ok", () => {
+    expect([...VIP_APPROVABLE_STATUSES]).toEqual(["WAITLIST", "INTERVIEW_SCHEDULED", "BACKGROUND_OK"]);
   });
   // vip-scoring.service.ts RESCORABLE_STATUSES — FORM_SUBMITTED NÃO está na lista real do api.
   it("VIP_RESCORABLE_STATUSES: nota calculada, lista de espera, entrevista e referências ok (sem FORM_SUBMITTED)", () => {
     expect([...VIP_RESCORABLE_STATUSES]).toEqual(["SCORED", "WAITLIST", "INTERVIEW_SCHEDULED", "REFERENCES_OK"]);
     expect(VIP_RESCORABLE_STATUSES).not.toContain("FORM_SUBMITTED");
   });
-  // vip-status-machine.ts: BACKGROUND_OK só transiciona para VIP_ACTIVE (reprovar é 409); os
-  // demais são os status terminais (sem transições de saída).
-  it("VIP_NON_REJECTABLE_STATUSES: terminais + antecedentes ok", () => {
-    expect([...VIP_NON_REJECTABLE_STATUSES]).toEqual(["VIP_ACTIVE", "VIP_SUSPENDED", "REJECTED", "WITHDREW", "BACKGROUND_OK"]);
+  // vip-status-machine.ts ALLOWED_TRANSITIONS: só estes cinco têm REJECTED na lista de
+  // transições permitidas (BACKGROUND_OK, por exemplo, só avança para VIP_ACTIVE — reprovar dali é 409).
+  it("VIP_REJECTABLE_STATUSES: nota calculada, lista de espera, entrevista, referências ok e antecedentes pendentes", () => {
+    expect([...VIP_REJECTABLE_STATUSES]).toEqual(["SCORED", "WAITLIST", "INTERVIEW_SCHEDULED", "REFERENCES_OK", "BACKGROUND_PENDING"]);
   });
 });

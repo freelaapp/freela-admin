@@ -50,7 +50,7 @@ export function RedeSelect({
           </option>
         ))}
       </NativeSelect>
-      {isError && <QueryError compact message="Não foi possível carregar as redes. Peça ao super-admin para conferir suas permissões VIP." onRetry={() => refetch()} />}
+      {isError && <QueryError compact message="Não foi possível carregar as redes. Tente de novo; se persistir, peça ao super-admin para conferir suas permissões." onRetry={() => refetch()} />}
     </div>
   );
 }

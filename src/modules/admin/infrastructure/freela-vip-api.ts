@@ -389,7 +389,14 @@ export async function getActiveVips(contractorUserId: string, status?: "VIP_ACTI
 }
 
 // ─── Redes (seletor do painel VIP) ──────────────────────────────────────────
-/** Item do seletor de rede — só os campos que o painel VIP precisa (permissão any-of VIP, sem `COMPANIES`). */
+/**
+ * A tabela de contratantes é do módulo `bars-restaurants` (não do `vip`) — por
+ * isso este cliente usa o prefixo do admin de empresas, igual a `getAdminContractors`
+ * em `admin-api.ts`, em vez do `api` (`/v1/vip/admin`) usado no resto deste arquivo.
+ */
+const barsAdminApi = createAuthedClient("/v1/bars-restaurants/admin");
+
+/** Item do seletor de rede — só os campos que o painel VIP precisa (permissão any-of COMPANIES|VIP_ADMIN|VIP_READONLY|VIP_BACKGROUND). */
 export interface VipContractorItem {
   userId: string;
   companyName: string | null;
@@ -399,6 +406,6 @@ export interface VipContractorItem {
 }
 
 export async function getVipContractors(): Promise<VipContractorItem[]> {
-  const res = await api.get("/contractors");
+  const res = await barsAdminApi.get("/contractors/summary");
   return res.data.data ?? [];
 }

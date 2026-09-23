@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useVipApplicationMutations } from "@/modules/admin/application/use-freela-vip";
-import { VIP_APPROVABLE_STATUSES, VIP_NON_REJECTABLE_STATUSES, VIP_RESCORABLE_STATUSES } from "@/modules/admin/application/freela-vip-presentation";
+import { VIP_APPROVABLE_STATUSES, VIP_REJECTABLE_STATUSES, VIP_RESCORABLE_STATUSES } from "@/modules/admin/application/freela-vip-presentation";
 import type { VipApplicationDetail } from "@/modules/admin/infrastructure/freela-vip-api";
 
 export function ApplicationActions({ detail, cycleHasJustification }: { detail: VipApplicationDetail; cycleHasJustification: boolean }) {
@@ -14,18 +14,18 @@ export function ApplicationActions({ detail, cycleHasJustification }: { detail: 
   const [reason, setReason] = useState("");
   const busy = m.decide.isPending || m.rescore.isPending || m.openBackground.isPending;
   const canApprove = VIP_APPROVABLE_STATUSES.includes(detail.status);
-  const canReject = !VIP_NON_REJECTABLE_STATUSES.includes(detail.status);
+  const canReject = VIP_REJECTABLE_STATUSES.includes(detail.status);
   const canRescore = VIP_RESCORABLE_STATUSES.includes(detail.status);
   const canOpenBackground = detail.status === "REFERENCES_OK";
 
   return (
     <div className="flex flex-wrap gap-2">
-      <span title={!canApprove ? "Só é possível aprovar a partir de Entrevista agendada ou Antecedentes OK." : undefined}>
+      <span title={!canApprove ? "Só é possível aprovar a partir de Lista de espera, Entrevista agendada ou Antecedentes OK." : undefined}>
         <Button size="sm" disabled={busy || !canApprove} onClick={() => m.decide.mutate({ action: "approve" })}>
           {m.decide.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : detail.status === "BACKGROUND_OK" ? "Aprovar como VIP" : "Aprovar etapa"}
         </Button>
       </span>
-      <span title={!canReject ? "Reprovar não é permitido a partir de Antecedentes OK nem de um status já finalizado." : undefined}>
+      <span title={!canReject ? "Só é possível reprovar entre Pontuado e Antecedentes pendentes" : undefined}>
         <Button size="sm" variant="outline" disabled={busy || !canReject} onClick={() => setRejectOpen(true)}>Reprovar</Button>
       </span>
       <span title={!canRescore ? "Recalcular só é possível com a candidatura em Nota calculada, Lista de espera, Entrevista ou Referências ok." : undefined}>
