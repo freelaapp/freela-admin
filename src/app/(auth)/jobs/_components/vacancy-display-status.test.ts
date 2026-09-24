@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  GROUP_BROADCAST_STAGE,
+  type OutreachRecord,
+} from "@/modules/admin/infrastructure/vacancy-outreach-api";
+
 import { resolveVacancyBucket } from "./vacancy-bucket";
 import {
   displayVacancyStatus,
+  findGroupBroadcastRecord,
+  isRowNotBroadcast,
   isVacancyNotBroadcast,
   matchesStatusFilter,
   type VacancyDisplayStatus,
@@ -71,5 +78,63 @@ describe("isVacancyNotBroadcast", () => {
     expect(
       isVacancyNotBroadcast({ bucket: "open", groupBroadcastAt: null, outreachSentAt: "2026-09-24T12:05:00.000Z" }),
     ).toBe(false);
+  });
+});
+
+// Única definição de `disparoDe`/`naoDivulgada`: Empresa e Casa importam estas
+// duas em vez de cada página duplicar o mesmo par de closures (revisão 2026-09-24).
+describe("findGroupBroadcastRecord", () => {
+  const registro: OutreachRecord = {
+    vacancyId: "v1",
+    stage: GROUP_BROADCAST_STAGE,
+    lastSentAt: "2026-09-24T12:05:00.000Z",
+    sendCount: 1,
+  };
+  const registros = new Map<string, OutreachRecord>([[`v1::${GROUP_BROADCAST_STAGE}`, registro]]);
+
+  it("acha o registro pela vaga", () => {
+    expect(findGroupBroadcastRecord(registros, "v1")).toBe(registro);
+  });
+
+  it("sem registro para a vaga → undefined", () => {
+    expect(findGroupBroadcastRecord(registros, "v2")).toBeUndefined();
+  });
+});
+
+describe("isRowNotBroadcast", () => {
+  const semRegistro = new Map<string, OutreachRecord>();
+
+  it("aberta e nunca divulgada (groupBroadcastAt null) → não divulgada", () => {
+    expect(isRowNotBroadcast(semRegistro, { id: "v1", bucket: "open", raw: { groupBroadcastAt: null } })).toBe(true);
+  });
+
+  it("groupBroadcastAt já setado → não", () => {
+    expect(
+      isRowNotBroadcast(semRegistro, {
+        id: "v1",
+        bucket: "open",
+        raw: { groupBroadcastAt: "2026-09-24T12:00:00.000Z" },
+      }),
+    ).toBe(false);
+  });
+
+  it("vencida (bucket 'lost') → não", () => {
+    expect(isRowNotBroadcast(semRegistro, { id: "v1", bucket: "lost", raw: { groupBroadcastAt: null } })).toBe(
+      false,
+    );
+  });
+
+  it("groupBroadcastAt ausente (API anterior ao campo, não afirma nada) → não", () => {
+    expect(isRowNotBroadcast(semRegistro, { id: "v1", bucket: "open", raw: {} })).toBe(false);
+  });
+
+  it("reenvio já registrado no Disparo tira o selo mesmo com groupBroadcastAt null", () => {
+    const registros = new Map<string, OutreachRecord>([
+      [
+        `v1::${GROUP_BROADCAST_STAGE}`,
+        { vacancyId: "v1", stage: GROUP_BROADCAST_STAGE, lastSentAt: "2026-09-24T12:05:00.000Z", sendCount: 1 },
+      ],
+    ]);
+    expect(isRowNotBroadcast(registros, { id: "v1", bucket: "open", raw: { groupBroadcastAt: null } })).toBe(false);
   });
 });

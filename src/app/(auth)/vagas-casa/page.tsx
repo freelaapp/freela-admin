@@ -17,7 +17,8 @@ import { VacancyDispatchCell } from "../jobs/_components/vacancy-dispatch-cell";
 import { VacancyDocumentsCell } from "../jobs/_components/vacancy-documents-cell";
 import {
   displayVacancyStatus,
-  isVacancyNotBroadcast,
+  findGroupBroadcastRecord,
+  isRowNotBroadcast,
   matchesStatusFilter,
 } from "../jobs/_components/vacancy-display-status";
 import { NotBroadcastBadge, VacancyNotBroadcastNotice } from "../jobs/_components/vacancy-not-broadcast";
@@ -153,16 +154,6 @@ export default function VagasCasaPage() {
     useVacancyOutreach();
   const enviarAviso = useSendVacancyStageMessage();
   const [avisandoId, setAvisandoId] = useState<string | null>(null);
-
-  /** Registro do Disparo (anúncio no grupo) da vaga, quando há. */
-  const disparoDe = (vacancyId: string) => registrosDisparo.get(`${vacancyId}::${GROUP_BROADCAST_STAGE}`);
-  /** Selo "Não divulgada" (spec 2026-09-24 §A4). */
-  const naoDivulgada = (row: Row) =>
-    isVacancyNotBroadcast({
-      bucket: row.bucket,
-      groupBroadcastAt: row.raw.groupBroadcastAt,
-      outreachSentAt: disparoDe(row.id)?.lastSentAt,
-    });
 
   // Candidatos, avaliações e ações da vaga — as mesmas de Empresa, nas rotas
   // `/v1/home-services/admin` que o backend já servia antes desta tela usá-las.
@@ -443,7 +434,7 @@ export default function VagasCasaPage() {
       accessor: (row: Row) => (
         <div className="flex flex-wrap items-center gap-1">
           <StatusBadge status={row.statusExibido} />
-          {naoDivulgada(row) && <NotBroadcastBadge />}
+          {isRowNotBroadcast(registrosDisparo, row) && <NotBroadcastBadge />}
         </div>
       ),
     },
@@ -622,8 +613,12 @@ export default function VagasCasaPage() {
                 onResolved={() => setDetalhe(null)}
                 onRequestCancel={() => openCancelModal(detalhe)}
               />
-              {naoDivulgada(detalhe) && (
-                <VacancyNotBroadcastNotice vacancyId={detalhe.id} module="casa" record={disparoDe(detalhe.id)} />
+              {isRowNotBroadcast(registrosDisparo, detalhe) && (
+                <VacancyNotBroadcastNotice
+                  vacancyId={detalhe.id}
+                  module="casa"
+                  record={findGroupBroadcastRecord(registrosDisparo, detalhe.id)}
+                />
               )}
               <LinhaDetalhe
                 rotulo="Etapa"

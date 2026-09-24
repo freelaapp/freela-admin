@@ -22,7 +22,11 @@ import type { OutreachStage } from "@/modules/admin/infrastructure/vacancy-outre
 import { useQueryClient } from "@tanstack/react-query";
 import { tickSupportActions } from "@/modules/admin/infrastructure/support-checklist-api";
 import { resolveVacancyBucket, type VacancyBucket } from "./_components/vacancy-bucket";
-import { displayVacancyStatus, isVacancyNotBroadcast } from "./_components/vacancy-display-status";
+import {
+  displayVacancyStatus,
+  findGroupBroadcastRecord,
+  isRowNotBroadcast,
+} from "./_components/vacancy-display-status";
 import { NotBroadcastBadge, VacancyNotBroadcastNotice } from "./_components/vacancy-not-broadcast";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -136,16 +140,6 @@ export default function JobsPage() {
   const reenviarNoGrupo = useResendVacancyGroupMessage();
   const queryClient = useQueryClient();
   const [avisandoId, setAvisandoId] = useState<string | null>(null);
-
-  /** Registro do Disparo (anúncio no grupo) da vaga, quando há. */
-  const disparoDe = (vacancyId: string) => registrosDisparo.get(`${vacancyId}::${GROUP_BROADCAST_STAGE}`);
-  /** Selo "Não divulgada" (spec 2026-09-24 §A4). */
-  const naoDivulgada = (row: Row) =>
-    isVacancyNotBroadcast({
-      bucket: row.bucket,
-      groupBroadcastAt: row.raw.groupBroadcastAt,
-      outreachSentAt: disparoDe(row.id)?.lastSentAt,
-    });
 
   // Quando um disparo automático (reenviar no grupo / cobrar etapa) sai pelo
   // botão, a ação correspondente do checklist do suporte é ticada sozinha — o
@@ -518,7 +512,7 @@ export default function JobsPage() {
       accessor: (row: Row) => (
         <div className="flex flex-wrap items-center gap-1">
           <StatusBadge status={row.statusExibido} />
-          {naoDivulgada(row) && <NotBroadcastBadge />}
+          {isRowNotBroadcast(registrosDisparo, row) && <NotBroadcastBadge />}
         </div>
       ),
     },
@@ -807,11 +801,11 @@ export default function JobsPage() {
                   setCancelRefundType("FULL");
                 }}
               />
-              {naoDivulgada(modalDetalhes) && (
+              {isRowNotBroadcast(registrosDisparo, modalDetalhes) && (
                 <VacancyNotBroadcastNotice
                   vacancyId={modalDetalhes.id}
                   module="empresa"
-                  record={disparoDe(modalDetalhes.id)}
+                  record={findGroupBroadcastRecord(registrosDisparo, modalDetalhes.id)}
                 />
               )}
               <div className="grid grid-cols-2 gap-3">
