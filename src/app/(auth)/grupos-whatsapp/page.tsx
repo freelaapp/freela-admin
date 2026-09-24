@@ -61,6 +61,9 @@ function GruposWhatsappScreen() {
   const [deleteTarget, setDeleteTarget] = useState<AdminGroupView | null>(null);
 
   const defaultPhones = settingsQuery.data?.defaultPhones ?? [];
+  // Enquanto carrega ou depois de um erro, `defaultPhones` acima é só o fallback `[]` —
+  // NUNCA uma lista vazia confirmada. Quem edita/aplica precisa saber a diferença.
+  const settingsUnready = settingsQuery.isLoading || settingsQuery.isError || !settingsQuery.data;
   const groups = useMemo(() => groupsQuery.data?.groups ?? [], [groupsQuery.data]);
   const vipStores = useMemo(() => vipQuery.data ?? [], [vipQuery.data]);
   const targets = useMemo(() => buildApplyTargets(groups, vipStores), [groups, vipStores]);
@@ -85,7 +88,14 @@ function GruposWhatsappScreen() {
         }
       />
 
-      <DefaultPhonesCard defaultPhones={defaultPhones} loading={settingsQuery.isLoading} targets={targets} />
+      <DefaultPhonesCard
+        defaultPhones={defaultPhones}
+        isLoading={settingsQuery.isLoading}
+        isError={settingsQuery.isError}
+        unready={settingsUnready}
+        onRetry={() => settingsQuery.refetch()}
+        targets={targets}
+      />
 
       {groupsQuery.isLoading ? (
         <div className="flex h-[30vh] items-center justify-center">
@@ -119,7 +129,13 @@ function GruposWhatsappScreen() {
         </>
       )}
 
-      {createOpen && <CreateCityGroupDialog defaultPhones={defaultPhones} onClose={() => setCreateOpen(false)} />}
+      {createOpen && (
+        <CreateCityGroupDialog
+          defaultPhones={defaultPhones}
+          defaultPhonesLoaded={!settingsUnready}
+          onClose={() => setCreateOpen(false)}
+        />
+      )}
       {addTarget && <AddMembersDialog target={addTarget} onClose={() => setAddTarget(null)} />}
       {deleteTarget && <DeleteGroupDialog group={deleteTarget} onClose={() => setDeleteTarget(null)} />}
     </div>

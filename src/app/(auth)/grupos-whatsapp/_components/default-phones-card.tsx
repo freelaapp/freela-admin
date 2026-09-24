@@ -4,17 +4,25 @@ import { useState } from "react";
 import { Loader2, Pencil, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatPhoneBr } from "@/lib/utils";
+import { QueryError } from "@/app/(auth)/freela-vip/_components/query-error";
 import type { ApplyTarget } from "@/modules/admin/application/whatsapp-groups-presentation";
 import { ApplyDefaultsDialog } from "./apply-defaults-dialog";
 import { EditDefaultPhonesDialog } from "./edit-default-phones-dialog";
 
 export function DefaultPhonesCard({
   defaultPhones,
-  loading,
+  isLoading,
+  isError,
+  unready,
+  onRetry,
   targets,
 }: {
   defaultPhones: string[];
-  loading: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  /** Carregando, com erro ou ainda sem dado — `defaultPhones` não é confiável aqui. */
+  unready: boolean;
+  onRetry: () => void;
   targets: ApplyTarget[];
 }) {
   const [editOpen, setEditOpen] = useState(false);
@@ -30,13 +38,13 @@ export function DefaultPhonesCard({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} disabled={unready}>
             <Pencil className="h-4 w-4" aria-hidden /> Editar
           </Button>
           <Button
             size="sm"
             onClick={() => setApplyOpen(true)}
-            disabled={defaultPhones.length === 0}
+            disabled={unready || defaultPhones.length === 0}
             className="bg-[#eca826] text-white hover:bg-[#d8961f]"
           >
             <Users className="h-4 w-4" aria-hidden /> Adicionar em todos os grupos
@@ -44,8 +52,12 @@ export function DefaultPhonesCard({
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin text-[#a3a3a3]" aria-hidden />
+        {isLoading ? (
+          <p className="inline-flex items-center gap-2 text-[13px] text-[#a3a3a3]">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Carregando números padrão...
+          </p>
+        ) : isError ? (
+          <QueryError compact message="Não foi possível carregar os números padrão." onRetry={onRetry} />
         ) : defaultPhones.length === 0 ? (
           <p className="text-[13px] text-[#a3a3a3]">Nenhum número padrão cadastrado.</p>
         ) : (
@@ -56,8 +68,12 @@ export function DefaultPhonesCard({
           ))
         )}
       </div>
-      {editOpen && <EditDefaultPhonesDialog current={defaultPhones} onClose={() => setEditOpen(false)} />}
-      {applyOpen && <ApplyDefaultsDialog phones={defaultPhones} targets={targets} onClose={() => setApplyOpen(false)} />}
+      {/* Defesa extra: mesmo que o botão desabilitado já impeça o clique, o diálogo só
+          monta com `unready=false` — nunca abre seedado a partir de um dado incompleto. */}
+      {editOpen && !unready && <EditDefaultPhonesDialog current={defaultPhones} onClose={() => setEditOpen(false)} />}
+      {applyOpen && !unready && (
+        <ApplyDefaultsDialog phones={defaultPhones} targets={targets} onClose={() => setApplyOpen(false)} />
+      )}
     </section>
   );
 }

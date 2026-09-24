@@ -15,8 +15,24 @@ import {
   parsePhonesInput,
 } from "@/modules/admin/application/whatsapp-groups-presentation";
 
-/** Montado só enquanto aberto. Com números padrão, os participantes viram opcionais. */
-export function CreateCityGroupDialog({ defaultPhones, onClose }: { defaultPhones: string[]; onClose: () => void }) {
+/**
+ * Montado só enquanto aberto. Com números padrão, os participantes viram opcionais.
+ *
+ * `defaultPhonesLoaded=false` (config ainda carregando ou falhou) NÃO é o mesmo que
+ * "sem números padrão": o backend sempre funde os participantes digitados com os
+ * números padrão reais no momento da criação (independente do que este diálogo sabe),
+ * então enquanto não sabemos se existem defaults não exigimos participantes aqui — só
+ * o backend valida de verdade (e devolve o mesmo aviso se realmente não houver nenhum).
+ */
+export function CreateCityGroupDialog({
+  defaultPhones,
+  defaultPhonesLoaded,
+  onClose,
+}: {
+  defaultPhones: string[];
+  defaultPhonesLoaded: boolean;
+  onClose: () => void;
+}) {
   const createGroup = useCreateWhatsappGroup();
   const [city, setCity] = useState("");
   const [uf, setUf] = useState("");
@@ -24,7 +40,8 @@ export function CreateCityGroupDialog({ defaultPhones, onClose }: { defaultPhone
   const [sequence, setSequence] = useState("");
   const [participants, setParticipants] = useState("");
 
-  const alsoJoin = alsoJoinText(defaultPhones);
+  const alsoJoin = defaultPhonesLoaded ? alsoJoinText(defaultPhones) : null;
+  const knownEmptyDefaults = defaultPhonesLoaded && defaultPhones.length === 0;
   const sequenceNumber = /^\d+$/.test(sequence.trim()) ? Number(sequence.trim()) : null;
   const previewName =
     city.trim() && uf.trim()
@@ -43,7 +60,7 @@ export function CreateCityGroupDialog({ defaultPhones, onClose }: { defaultPhone
       return;
     }
     const parsed = parsePhonesInput(participants);
-    if (parsed.length === 0 && defaultPhones.length === 0) {
+    if (parsed.length === 0 && knownEmptyDefaults) {
       toast.error(NO_PARTICIPANTS_MESSAGE);
       return;
     }
@@ -105,7 +122,9 @@ export function CreateCityGroupDialog({ defaultPhones, onClose }: { defaultPhone
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="wpp-participants">
-              {defaultPhones.length > 0 ? "Participantes (opcional)" : "Participantes (telefones com DDD)"}
+              {defaultPhonesLoaded && defaultPhones.length > 0
+                ? "Participantes (opcional)"
+                : "Participantes (telefones com DDD)"}
             </Label>
             <Input
               id="wpp-participants"
