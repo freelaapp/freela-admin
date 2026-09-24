@@ -7,6 +7,7 @@ import {
   Phone,
   RotateCcw,
   ShieldCheck,
+  UserCheck,
   XCircle,
 } from "lucide-react";
 import type { VacancyCandidacyItem } from "@/modules/admin/infrastructure/admin-api";
@@ -37,6 +38,12 @@ export interface VacancyCandidacyListProps {
    */
   onReinstate?: (candidacyId: string, providerName: string) => void;
   reinstating?: boolean;
+  /**
+   * Coloca na vaga um candidato PENDENTE — o mesmo aceite que o contratante faz,
+   * feito pelo suporte. Ausente ⇒ o botão não aparece (área sem permissão).
+   */
+  onAccept?: (candidacyId: string, providerName: string) => void;
+  accepting?: boolean;
 }
 
 /**
@@ -80,6 +87,8 @@ export function VacancyCandidacyList({
   onUnlink,
   onReinstate,
   reinstating = false,
+  onAccept,
+  accepting = false,
 }: VacancyCandidacyListProps) {
   return (
     <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
@@ -176,9 +185,11 @@ export function VacancyCandidacyList({
                           "credencial do contratante"}
                       </span>
                       <span className="ml-1 rounded bg-green-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-green-700">
-                        {c.approvedBy.role === "EMPLOYEE"
-                          ? `Funcionário${c.approvedBy.employeeLabel ? ` · ${c.approvedBy.employeeLabel}` : ""}`
-                          : "Dono"}
+                        {c.approvedBy.role === "ADMIN"
+                          ? "Painel"
+                          : c.approvedBy.role === "EMPLOYEE"
+                            ? `Funcionário${c.approvedBy.employeeLabel ? ` · ${c.approvedBy.employeeLabel}` : ""}`
+                            : "Dono"}
                       </span>
                       {c.approvedBy.email && c.approvedBy.name && (
                         <span className="block text-green-700">
@@ -285,6 +296,27 @@ export function VacancyCandidacyList({
                       Recolocar na vaga
                     </button>
                   )}
+                {/*
+                  Colocar na vaga: o suporte aceita no lugar do contratante
+                  (pedido do dono, 24/09/2026). É o mesmo aceite do cliente —
+                  a vaga fecha, os outros candidatos são dispensados e o
+                  contratante recebe o aviso para pagar.
+                */}
+                {onAccept && c.status === "PENDING" && (
+                  <button
+                    onClick={() => onAccept(c.id, c.providerName ?? "Freelancer")}
+                    disabled={accepting}
+                    className="mt-2 mr-3 inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+                    title="Aceita este candidato no lugar do contratante"
+                  >
+                    {accepting ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <UserCheck className="h-3 w-3" />
+                    )}
+                    Colocar na vaga
+                  </button>
+                )}
                 {(c.status === "ACCEPTED" || c.status === "PENDING") &&
                   onUnlink && (
                     <button

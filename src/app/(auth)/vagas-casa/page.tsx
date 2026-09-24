@@ -40,6 +40,7 @@ import {
   useCasaVacancyFeedbacks,
   useConfirmCasaCandidacy,
   useReinstateCasaCandidacy,
+  useAcceptCasaCandidacy,
 } from "@/modules/admin/application/use-casa-vacancy-actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -163,6 +164,7 @@ export default function VagasCasaPage() {
     useCasaVacancyFeedbacks(detalhe?.raw.id ?? null);
   const confirmCandidacy = useConfirmCasaCandidacy(detalhe?.raw.id ?? null);
   const reinstateCandidacy = useReinstateCasaCandidacy(detalhe?.raw.id ?? null);
+  const acceptCandidacy = useAcceptCasaCandidacy(detalhe?.raw.id ?? null);
   const restartMutation = useAdminRestartCasaVacancy();
   const removeCandidacyMutation = useAdminRemoveCasaCandidacy();
 
@@ -193,6 +195,27 @@ export default function VagasCasaPage() {
           "Não foi possível confirmar. A candidatura precisa estar aceita.",
         ),
       );
+    }
+  }
+
+  /**
+   * Coloca na vaga um candidato PENDENTE, no lugar do contratante. É o mesmo
+   * aceite do cliente, então o aviso diz o que vai acontecer com os outros
+   * candidatos e com o pagamento antes de o operador confirmar.
+   */
+  async function handleAcceptCandidacy(candidacyId: string, nome: string) {
+    if (
+      !window.confirm(
+        `Colocar ${nome} nesta vaga?\n\nÉ o mesmo que o contratante aceitar: quando a vaga completa, os outros candidatos são dispensados, e o contratante é avisado para pagar.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await acceptCandidacy.mutateAsync(candidacyId);
+      toast.success(`${nome} foi colocado(a) na vaga. O contratante foi avisado.`);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível colocar na vaga."));
     }
   }
 
@@ -671,6 +694,8 @@ export default function VagasCasaPage() {
                 confirming={confirmCandidacy.isPending}
                 onReinstate={handleReinstateCandidacy}
                 reinstating={reinstateCandidacy.isPending}
+                onAccept={handleAcceptCandidacy}
+                accepting={acceptCandidacy.isPending}
                 onUnlink={({ candidacyId, providerName }) =>
                   setRemoveTarget({
                     vacancyId: detalhe.raw.id,

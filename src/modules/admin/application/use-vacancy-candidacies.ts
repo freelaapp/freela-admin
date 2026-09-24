@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  adminAcceptCandidacy,
   adminConfirmCandidacy,
   adminReinstateCandidacy,
   getVacancyCandidacies,
@@ -30,6 +31,23 @@ export function useConfirmCandidacy(vacancyId: string | null) {
       queryClient.invalidateQueries({
         queryKey: ["admin", "vacancy-candidacies", vacancyId],
       });
+    },
+  });
+}
+
+/**
+ * Coloca na vaga um candidato PENDENTE, no lugar do contratante.
+ *
+ * Invalida a lista de vagas junto com a da própria vaga: o aceite pode FECHAR
+ * a vaga, então a tabela atrás do modal fica errada se não recarregar.
+ */
+export function useAcceptCandidacy(vacancyId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (candidacyId: string) => adminAcceptCandidacy(candidacyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-candidacies", vacancyId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "vacancies"] });
     },
   });
 }

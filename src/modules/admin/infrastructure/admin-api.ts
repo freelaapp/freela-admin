@@ -604,7 +604,8 @@ export interface VacancyCandidacyApprovedBy {
   userId: string;
   name: string | null;
   email: string | null;
-  role: "OWNER" | "EMPLOYEE";
+  /** ADMIN = o suporte colocou o freelancer pelo painel ("Colocar na vaga"). */
+  role: "OWNER" | "EMPLOYEE" | "ADMIN";
   employeeLabel: string | null;
 }
 
@@ -678,6 +679,27 @@ export async function adminReinstateCandidacy(
   candidacyId: string,
 ): Promise<AdminReinstateCandidacyResult> {
   const res = await adminApi.post(`/candidacies/${candidacyId}/reinstate`);
+  return res.data.data;
+}
+
+export interface AdminAcceptCandidacyResult {
+  candidacyId: string;
+  vacancyId: string;
+  providerId: string;
+  status: string;
+}
+
+/**
+ * Coloca na vaga um candidato PENDENTE, no lugar do contratante.
+ *
+ * É o mesmo aceite do cliente: a vaga fecha, os outros candidatos são
+ * dispensados e o contratante recebe o aviso para pagar. O admin fica gravado
+ * como quem aprovou.
+ */
+export async function adminAcceptCandidacy(
+  candidacyId: string,
+): Promise<AdminAcceptCandidacyResult> {
+  const res = await adminApi.post(`/candidacies/${candidacyId}/accept`);
   return res.data.data;
 }
 

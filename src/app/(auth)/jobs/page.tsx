@@ -48,6 +48,7 @@ import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import {
   useConfirmCandidacy,
   useReinstateCandidacy,
+  useAcceptCandidacy,
   useVacancyCandidacies,
 } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
@@ -177,6 +178,28 @@ export default function JobsPage() {
   );
   const confirmCandidacy = useConfirmCandidacy(modalDetalhes?.raw.id ?? null);
   const reinstateCandidacy = useReinstateCandidacy(modalDetalhes?.raw.id ?? null);
+  const acceptCandidacy = useAcceptCandidacy(modalDetalhes?.raw.id ?? null);
+
+  /**
+   * Coloca na vaga um candidato PENDENTE, no lugar do contratante. É o mesmo
+   * aceite do cliente, então o aviso diz o que vai acontecer com os outros
+   * candidatos e com o pagamento antes de o operador confirmar.
+   */
+  async function handleAcceptCandidacy(candidacyId: string, nome: string) {
+    if (
+      !window.confirm(
+        `Colocar ${nome} nesta vaga?\n\nÉ o mesmo que o contratante aceitar: quando a vaga completa, os outros candidatos são dispensados, e o contratante é avisado para pagar.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await acceptCandidacy.mutateAsync(candidacyId);
+      toast.success(`${nome} foi colocado(a) na vaga. O contratante foi avisado.`);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível colocar na vaga."));
+    }
+  }
 
   /** Devolve a vaga a quem foi desalocado por não confirmar; confirma a presença junto. */
   async function handleReinstateCandidacy(candidacyId: string, nome: string) {
@@ -1083,6 +1106,8 @@ export default function JobsPage() {
                 confirming={confirmCandidacy.isPending}
                 onReinstate={handleReinstateCandidacy}
                 reinstating={reinstateCandidacy.isPending}
+                onAccept={handleAcceptCandidacy}
+                accepting={acceptCandidacy.isPending}
                 onUnlink={
                   modalDetalhes?.raw.id
                     ? ({ candidacyId, providerName }) =>

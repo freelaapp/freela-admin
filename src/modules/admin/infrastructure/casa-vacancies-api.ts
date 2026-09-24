@@ -2,6 +2,7 @@ import { createAuthedClient } from "@/modules/shared/infrastructure/authed-clien
 import type { AdminCreateVacancyInput, AdminCreatedVacancy } from "./admin-vacancies-api";
 import type { VacancyDocuments, VacancyDocumentsDetail } from "./admin-api";
 import type {
+  AdminAcceptCandidacyResult,
   AdminCancelVacancyResult,
   AdminConfirmCandidacyResult,
   AdminReinstateCandidacyResult,
@@ -183,6 +184,14 @@ export async function adminRemoveCasaCandidacy(
     `/vacancies/${vacancyId}/candidacies/${candidacyId}/remove`,
     reason ? { reason } : {},
   );
+  return res.data.data;
+}
+
+/** Coloca na vaga um candidato PENDENTE, no lugar do contratante. Ver o gêmeo em `admin-api`. */
+export async function adminAcceptCasaCandidacy(
+  candidacyId: string,
+): Promise<AdminAcceptCandidacyResult> {
+  const res = await casaAdminApi.post(`/candidacies/${candidacyId}/accept`);
   return res.data.data;
 }
 

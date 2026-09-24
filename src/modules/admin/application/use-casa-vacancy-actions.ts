@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  adminAcceptCasaCandidacy,
   adminConfirmCasaCandidacy,
   adminReinstateCasaCandidacy,
   adminRemoveCasaCandidacy,
@@ -78,6 +79,18 @@ export function useAdminRemoveCasaCandidacy() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "casa-vacancies"] });
       qc.invalidateQueries({ queryKey: ["admin", "casa-vacancy-candidacies"] });
+    },
+  });
+}
+
+/** Coloca na vaga um candidato PENDENTE. Ver o gêmeo de Empresa. */
+export function useAcceptCasaCandidacy(vacancyId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (candidacyId: string) => adminAcceptCasaCandidacy(candidacyId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "casa-vacancy-candidacies", vacancyId] });
+      qc.invalidateQueries({ queryKey: ["admin", "casa-vacancies"] });
     },
   });
 }
