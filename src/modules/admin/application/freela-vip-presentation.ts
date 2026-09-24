@@ -39,6 +39,20 @@ export function scoreBandClass(band: ScoreBand): string {
   }
 }
 
+export type VipHistoryLabel = { label: "sem histórico" | "limpo" | "com ocorrência"; tone: "muted" | "ok" | "warn" };
+
+/**
+ * `hasCleanHistory` (api) é `totalCompletedServices > 0 && !lowPriority` — quem nunca
+ * fez serviço cai em `false` e aparecia como "com ocorrência" sem ter ocorrência
+ * nenhuma. Aqui separamos "sem histórico" (zero serviços) de "com ocorrência" (fez
+ * serviço e está com prioridade baixa na reputação).
+ */
+export function vipHistoryLabel(c: { totalCompletedServices: number; hasCleanHistory: boolean }): VipHistoryLabel {
+  if (c.totalCompletedServices === 0) return { label: "sem histórico", tone: "muted" };
+  if (c.hasCleanHistory) return { label: "limpo", tone: "ok" };
+  return { label: "com ocorrência", tone: "warn" };
+}
+
 /** Fração (0–1) → "40%"; null → "—". */
 export function pct(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";

@@ -7,9 +7,30 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSendVipInvites, useVipPreselected } from "@/modules/admin/application/use-freela-vip";
-import { cycleInviteBudget } from "@/modules/admin/application/freela-vip-presentation";
+import { cycleInviteBudget, vipHistoryLabel, type VipHistoryLabel } from "@/modules/admin/application/freela-vip-presentation";
 import type { VipCycle, VipInviteResult, VipPreselectedCandidate } from "@/modules/admin/infrastructure/freela-vip-api";
 import { QueryError } from "./query-error";
+
+const HISTORY_TITLES: Record<VipHistoryLabel["label"], string> = {
+  "sem histórico": "Ainda não fez serviço pelo app",
+  limpo: "Já fez serviço e não está com prioridade baixa",
+  "com ocorrência": "Marcado com prioridade baixa na reputação",
+};
+
+const HISTORY_BADGE_VARIANT: Record<VipHistoryLabel["tone"], "muted" | "success" | "warning"> = {
+  muted: "muted",
+  ok: "success",
+  warn: "warning",
+};
+
+function HistoryBadge({ c }: { c: VipPreselectedCandidate }) {
+  const h = vipHistoryLabel(c);
+  return (
+    <Badge variant={HISTORY_BADGE_VARIANT[h.tone]} title={HISTORY_TITLES[h.label]}>
+      {h.label}
+    </Badge>
+  );
+}
 
 export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
   const budget = cycleInviteBudget(cycle);
@@ -96,8 +117,8 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
                     <td className="px-3 py-2 tabular-nums">{c.distanceKm === null ? "—" : `${Math.round(c.distanceKm)} km`}</td>
                     <td className="px-3 py-2 text-[#475569]">{c.roles.join(", ")}</td>
                     <td className="px-3 py-2 tabular-nums">{Math.round(c.completenessScore)}%</td>
-                    <td className="px-3 py-2"><Badge variant="secondary">{c.hasCleanHistory ? "limpo" : "com ocorrência"}</Badge></td>
-                    <td className="px-3 py-2 tabular-nums">{c.totalCompletedServices} · {c.recentCompletedServices} rec.</td>
+                    <td className="px-3 py-2"><HistoryBadge c={c} /></td>
+                    <td className="px-3 py-2 tabular-nums">{c.totalCompletedServices}</td>
                     <td className="px-3 py-2">{c.hasWhatsappPhone ? "✓" : "—"} · {c.hasAvatar ? "✓" : "—"}</td>
                   </tr>
                 ))}
@@ -118,10 +139,10 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
                 <div className="space-y-0.5 text-[#64748B]">
                   <p>Distância: {c.distanceKm === null ? "—" : `${Math.round(c.distanceKm)} km`}</p>
                   <p>Completude: {Math.round(c.completenessScore)}%</p>
-                  <p>Serviços: {c.totalCompletedServices} · {c.recentCompletedServices} recentes</p>
+                  <p>Serviços: {c.totalCompletedServices}</p>
                   <p>WhatsApp {c.hasWhatsappPhone ? "✓" : "—"} · foto {c.hasAvatar ? "✓" : "—"}</p>
                 </div>
-                <div><Badge variant="secondary">{c.hasCleanHistory ? "limpo" : "com ocorrência"}</Badge></div>
+                <div><HistoryBadge c={c} /></div>
               </label>
             ))}
             {candidates.length === 0 && (

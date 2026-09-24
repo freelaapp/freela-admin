@@ -12,6 +12,7 @@ import {
   sortCardsByScore,
   validateQuestionDraft,
   validateScoringConfig,
+  vipHistoryLabel,
   VIP_APPROVABLE_STATUSES,
   VIP_REJECTABLE_STATUSES,
   VIP_RESCORABLE_STATUSES,
@@ -37,6 +38,18 @@ describe("scoreBand / pct", () => {
     expect(pct(0.4)).toBe("40%");
     expect(pct(0.356)).toBe("36%");
     expect(pct(null)).toBe("—");
+  });
+});
+
+describe("vipHistoryLabel", () => {
+  it("total 0 e hasCleanHistory false (print do dono) → sem histórico, não com ocorrência", () => {
+    expect(vipHistoryLabel({ totalCompletedServices: 0, hasCleanHistory: false })).toEqual({ label: "sem histórico", tone: "muted" });
+  });
+  it("total > 0 e hasCleanHistory true → limpo", () => {
+    expect(vipHistoryLabel({ totalCompletedServices: 5, hasCleanHistory: true })).toEqual({ label: "limpo", tone: "ok" });
+  });
+  it("total > 0 e hasCleanHistory false → com ocorrência", () => {
+    expect(vipHistoryLabel({ totalCompletedServices: 3, hasCleanHistory: false })).toEqual({ label: "com ocorrência", tone: "warn" });
   });
 });
 
