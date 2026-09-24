@@ -3,23 +3,9 @@ import { createAuthedClient } from "@/modules/shared/infrastructure/authed-clien
 const whatsappApi = createAuthedClient("/v1/admins/vacancy-group-routes");
 
 /**
- * Routing is fully automatic from the WhatsApp group names ("Vagas <Cidade> <UF>"),
- * so the admin panel is read-only diagnostics: which groups were recognized and
- * which are off-pattern (and therefore unreachable by routing).
+ * Cliente da tela Grupos WhatsApp (`/v1/admins/vacancy-group-routes`). Respostas em
+ * `{ data }`; erros em `{ error: { code, message } }`.
  */
-export interface GroupDiagnostic {
-  jid: string;
-  name: string;
-  participants: number | null;
-  city: string | null;
-  uf: string | null;
-  recognized: boolean;
-}
-
-export async function getGroupDiagnostics(): Promise<GroupDiagnostic[]> {
-  const res = await whatsappApi.get("/diagnostics");
-  return res.data.data;
-}
 
 export interface CreatedWhatsappGroup {
   jid: string;

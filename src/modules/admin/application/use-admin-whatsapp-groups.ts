@@ -6,7 +6,6 @@ import {
   createWhatsappGroup,
   deleteAdminGroup,
   getAdminGroups,
-  getGroupDiagnostics,
   getGroupSettings,
   updateGroupSettings,
 } from "../infrastructure/whatsapp-groups-api";
@@ -16,15 +15,6 @@ export const ADMIN_GROUPS_KEYS = {
   list: ["admin", "whatsapp-groups", "list"] as const,
   settings: ["admin", "whatsapp-groups", "settings"] as const,
 };
-
-/** @deprecated Sai na Task 7 (a tela passa a usar `useAdminGroups`). */
-export function useGroupDiagnostics() {
-  return useQuery({
-    queryKey: ["admin", "whatsapp-group-diagnostics"],
-    queryFn: getGroupDiagnostics,
-    staleTime: 30000,
-  });
-}
 
 export function useAdminGroups() {
   return useQuery({ queryKey: ADMIN_GROUPS_KEYS.list, queryFn: () => getAdminGroups(), staleTime: 30_000 });
@@ -68,7 +58,6 @@ export function useCreateWhatsappGroup() {
     mutationFn: createWhatsappGroup,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ADMIN_GROUPS_KEYS.list });
-      qc.invalidateQueries({ queryKey: ["admin", "whatsapp-group-diagnostics"] });
     },
   });
 }
