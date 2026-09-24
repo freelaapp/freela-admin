@@ -16,6 +16,12 @@ import { VacancyRoadmap } from "../jobs/_components/vacancy-roadmap";
 import { VacancyDispatchCell } from "../jobs/_components/vacancy-dispatch-cell";
 import { VacancyDocumentsCell } from "../jobs/_components/vacancy-documents-cell";
 import {
+  displayVacancyStatus,
+  isVacancyNotBroadcast,
+  matchesStatusFilter,
+} from "../jobs/_components/vacancy-display-status";
+import { NotBroadcastBadge, VacancyNotBroadcastNotice } from "../jobs/_components/vacancy-not-broadcast";
+import {
   useSendVacancyStageMessage,
   useVacancyOutreach,
 } from "@/modules/admin/application/use-vacancy-outreach";
@@ -70,6 +76,8 @@ function mapVacancyStatus(status: string) {
 }
 
 function mapToRow(v: CasaVacancyItem) {
+  const bucket = resolveVacancyBucket(v);
+  const status = mapVacancyStatus(v.status);
   return {
     id: v.id,
     empresa: v.contractorCompanyName || v.contractorName || "Sem nome",
@@ -82,9 +90,11 @@ function mapToRow(v: CasaVacancyItem) {
     horario: v.pricingTierLabel
       ? `Chegada: ${formatVacancyTime(v.startTime)} · ${v.pricingTierLabel}`
       : `${formatVacancyTime(v.startTime)} - ${formatVacancyTime(v.endTime)}`,
-    status: mapVacancyStatus(v.status),
+    status,
+    // "Vencida" é só exibição (aberta no banco, horário já passou) — spec 2026-09-24 §C.
+    statusExibido: displayVacancyStatus(status, bucket),
     // Mesma régua do módulo Empresa — uma fonte só para os dois painéis.
-    bucket: resolveVacancyBucket(v),
+    bucket,
     candidatos: v.candidacyCount ?? 0,
     freelancer: v.providerName ?? null,
     consultor: v.referringConsultant?.name ?? null,
@@ -97,6 +107,7 @@ type Row = ReturnType<typeof mapToRow>;
 const statusFilters = [
   { key: "all", label: "Todas" },
   { key: "open", label: "Abertas" },
+  { key: "lost", label: "Vencidas" },
   { key: "filled", label: "Fechadas" },
   { key: "cancelled", label: "Canceladas" },
 ] as const;
@@ -142,6 +153,16 @@ export default function VagasCasaPage() {
     useVacancyOutreach();
   const enviarAviso = useSendVacancyStageMessage();
   const [avisandoId, setAvisandoId] = useState<string | null>(null);
+
+  /** Registro do Disparo (anúncio no grupo) da vaga, quando há. */
+  const disparoDe = (vacancyId: string) => registrosDisparo.get(`${vacancyId}::${GROUP_BROADCAST_STAGE}`);
+  /** Selo "Não divulgada" (spec 2026-09-24 §A4). */
+  const naoDivulgada = (row: Row) =>
+    isVacancyNotBroadcast({
+      bucket: row.bucket,
+      groupBroadcastAt: row.raw.groupBroadcastAt,
+      outreachSentAt: disparoDe(row.id)?.lastSentAt,
+    });
 
   // Candidatos, avaliações e ações da vaga — as mesmas de Empresa, nas rotas
   // `/v1/home-services/admin` que o backend já servia antes desta tela usá-las.
@@ -337,10 +358,7 @@ export default function VagasCasaPage() {
       "Vaga fora da lista atual (pode já ter sido encerrada). Se o problema já foi tratado, use “Arquivar” no relato.",
     );
   };
-  const rows =
-    statusFilter === "all"
-      ? allRows
-      : allRows.filter((r) => r.status === statusFilter);
+  const rows = allRows.filter((r) => matchesStatusFilter(r.statusExibido, statusFilter));
 
   const columns = [
     {
@@ -422,7 +440,12 @@ export default function VagasCasaPage() {
     },
     {
       header: "Status",
-      accessor: (row: Row) => <StatusBadge status={row.status} />,
+      accessor: (row: Row) => (
+        <div className="flex flex-wrap items-center gap-1">
+          <StatusBadge status={row.statusExibido} />
+          {naoDivulgada(row) && <NotBroadcastBadge />}
+        </div>
+      ),
     },
     {
       header: "Ações",
@@ -562,9 +585,7 @@ export default function VagasCasaPage() {
                     }`}
                   >
                     {f.label} (
-                    {f.key === "all"
-                      ? allRows.length
-                      : allRows.filter((r) => r.status === f.key).length}
+                    {allRows.filter((r) => matchesStatusFilter(r.statusExibido, f.key)).length}
                     )
                   </button>
                 ))}
@@ -601,6 +622,9 @@ export default function VagasCasaPage() {
                 onResolved={() => setDetalhe(null)}
                 onRequestCancel={() => openCancelModal(detalhe)}
               />
+              {naoDivulgada(detalhe) && (
+                <VacancyNotBroadcastNotice vacancyId={detalhe.id} module="casa" record={disparoDe(detalhe.id)} />
+              )}
               <LinhaDetalhe
                 rotulo="Etapa"
                 valor={ETAPA_LABEL[detalhe.bucket] ?? detalhe.bucket}

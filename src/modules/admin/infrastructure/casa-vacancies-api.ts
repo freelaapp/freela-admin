@@ -62,6 +62,11 @@ export interface CasaVacancyItem {
    */
   documents?: VacancyDocuments;
   documentsDetail?: VacancyDocumentsDetail;
+  /**
+   * Quando o anúncio saiu no grupo de WhatsApp (ISO). `null` = nunca saiu → selo
+   * "Não divulgada". Ausente = API anterior ao campo (não afirma nada).
+   */
+  groupBroadcastAt?: string | null;
 }
 
 export async function getAdminCasaOpenVacancies(consultantId?: string): Promise<CasaVacancyItem[]> {

@@ -20,13 +20,14 @@ type StatusVariant =
   | "finished"
   | "pending-deletion"
   | "deletion-suspended"
-  | "deleted";
+  | "deleted"
+  | "lost";
 
 interface StatusBadgeProps {
   status: StatusVariant | string;
 }
 
-const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "success" | "warning" | "outline" }> = {
+const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "success" | "warning" | "outline" | "muted" }> = {
   ativo: { label: "Ativo", variant: "success" },
   inativo: { label: "Inativo", variant: "secondary" },
   pendente: { label: "Pendente", variant: "warning" },
@@ -38,6 +39,8 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
   "em-andamento": { label: "Em Andamento", variant: "default" },
   urgente: { label: "Urgente", variant: "destructive" },
   open: { label: "Aberto", variant: "default" },
+  // Aberta no banco, mas o horário já passou (bucket `lost`) — só exibição, spec 2026-09-24 §C.
+  lost: { label: "Vencida", variant: "muted" },
   active: { label: "Ativo", variant: "success" },
   inactive: { label: "Inativo", variant: "secondary" },
   blocked: { label: "Bloqueado", variant: "destructive" },

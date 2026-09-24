@@ -22,6 +22,8 @@ import type { OutreachStage } from "@/modules/admin/infrastructure/vacancy-outre
 import { useQueryClient } from "@tanstack/react-query";
 import { tickSupportActions } from "@/modules/admin/infrastructure/support-checklist-api";
 import { resolveVacancyBucket, type VacancyBucket } from "./_components/vacancy-bucket";
+import { displayVacancyStatus, isVacancyNotBroadcast } from "./_components/vacancy-display-status";
+import { NotBroadcastBadge, VacancyNotBroadcastNotice } from "./_components/vacancy-not-broadcast";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -83,6 +85,8 @@ function mapVacancyToRow(v: VacancyItem) {
   const start = formatTime(v.startTime);
   const end = formatTime(v.endTime);
   const money = computeVacancyMoney(v);
+  const bucket = resolveVacancyBucket(v);
+  const status = mapVacancyStatus(v.status);
   return {
     id: v.id,
     empresa: v.contractorCompanyName || v.contractorName || "Sem nome",
@@ -98,8 +102,10 @@ function mapVacancyToRow(v: VacancyItem) {
     // Quando a vaga foi PUBLICADA (≠ `data`, que é o dia do serviço).
     abertaEm: v.createdAt ? formatInstantDateTime(v.createdAt) : "—",
     horario: `${start} - ${end}`,
-    status: mapVacancyStatus(v.status),
-    bucket: resolveVacancyBucket(v),
+    status,
+    // Vencida é só exibição (aberta no banco, horário já passou) — spec 2026-09-24 §C.
+    statusExibido: displayVacancyStatus(status, bucket),
+    bucket,
     providerName: v.providerName ?? null,
     consultor: v.referringConsultant?.name ?? null,
     raw: v,
@@ -130,6 +136,16 @@ export default function JobsPage() {
   const reenviarNoGrupo = useResendVacancyGroupMessage();
   const queryClient = useQueryClient();
   const [avisandoId, setAvisandoId] = useState<string | null>(null);
+
+  /** Registro do Disparo (anúncio no grupo) da vaga, quando há. */
+  const disparoDe = (vacancyId: string) => registrosDisparo.get(`${vacancyId}::${GROUP_BROADCAST_STAGE}`);
+  /** Selo "Não divulgada" (spec 2026-09-24 §A4). */
+  const naoDivulgada = (row: Row) =>
+    isVacancyNotBroadcast({
+      bucket: row.bucket,
+      groupBroadcastAt: row.raw.groupBroadcastAt,
+      outreachSentAt: disparoDe(row.id)?.lastSentAt,
+    });
 
   // Quando um disparo automático (reenviar no grupo / cobrar etapa) sai pelo
   // botão, a ação correspondente do checklist do suporte é ticada sozinha — o
@@ -499,7 +515,12 @@ export default function JobsPage() {
     },
     {
       header: "Status",
-      accessor: (row: Row) => <StatusBadge status={row.status} />,
+      accessor: (row: Row) => (
+        <div className="flex flex-wrap items-center gap-1">
+          <StatusBadge status={row.statusExibido} />
+          {naoDivulgada(row) && <NotBroadcastBadge />}
+        </div>
+      ),
     },
     {
       header: "Ações",
@@ -786,6 +807,13 @@ export default function JobsPage() {
                   setCancelRefundType("FULL");
                 }}
               />
+              {naoDivulgada(modalDetalhes) && (
+                <VacancyNotBroadcastNotice
+                  vacancyId={modalDetalhes.id}
+                  module="empresa"
+                  record={disparoDe(modalDetalhes.id)}
+                />
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
                   <p className="text-[#737373]">Empresa</p>
@@ -991,7 +1019,7 @@ export default function JobsPage() {
               <div className="bg-[#f7f7f7] rounded-lg p-3 flex items-center justify-between">
                 <div>
                   <p className="text-[#737373]">Status</p>
-                  <div className="mt-1"><StatusBadge status={modalDetalhes.status} /></div>
+                  <div className="mt-1"><StatusBadge status={modalDetalhes.statusExibido} /></div>
                 </div>
               </div>
 

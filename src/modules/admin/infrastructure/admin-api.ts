@@ -561,6 +561,11 @@ export interface VacancyItem {
   documents?: VacancyDocuments;
   /** Motivo (texto) por documento, quando não está OK — vira tooltip. */
   documentsDetail?: VacancyDocumentsDetail;
+  /**
+   * Quando o anúncio saiu no grupo de WhatsApp (ISO). `null` = nunca saiu → selo
+   * "Não divulgada". Ausente = API anterior ao campo (não afirma nada).
+   */
+  groupBroadcastAt?: string | null;
 }
 
 export type VacancyDocumentState = "OK" | "PENDING" | "FAILED" | "MISSING" | "NA";
