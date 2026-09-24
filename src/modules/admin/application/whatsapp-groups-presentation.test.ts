@@ -20,6 +20,7 @@ import {
   filterDedicatedGroups,
   filterVipStores,
   groupsCountLabel,
+  hasVipGroup,
   parseGroupsTab,
   parsePhonesInput,
   progressLabel,
@@ -139,6 +140,11 @@ describe("filtros", () => {
   it("dedicados: só DEDICATED, busca e status", () => {
     expect(filterDedicatedGroups(groups, { search: "coco", bot: "all" }).map((g) => g.id)).toEqual(["6"]);
     expect(filterDedicatedGroups(groups, { search: "", bot: "in" })).toEqual([]);
+  });
+
+  it("hasVipGroup: só status diferente de NONE", () => {
+    expect(hasVipGroup(store({ status: "ACTIVE" }))).toBe(true);
+    expect(hasVipGroup(store({ status: "NONE" }))).toBe(false);
   });
 
   it("VIP: só lojas com grupo; busca por loja, estado e bot", () => {

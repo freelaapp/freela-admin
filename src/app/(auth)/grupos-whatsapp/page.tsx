@@ -20,10 +20,11 @@ import type { AdminGroupView } from "@/modules/admin/infrastructure/whatsapp-gro
 import { AddMembersDialog } from "./_components/add-members-dialog";
 import { CityGroupsTab } from "./_components/city-groups-tab";
 import { CreateCityGroupDialog } from "./_components/create-city-group-dialog";
-import { DedicatedRulesSection } from "./_components/dedicated-rules-section";
+import { DedicatedGroupsTab } from "./_components/dedicated-groups-tab";
 import { DefaultPhonesCard } from "./_components/default-phones-card";
 import { DeleteGroupDialog } from "./_components/delete-group-dialog";
 import { DirectoryStatusBanner } from "./_components/directory-status-banner";
+import { VipGroupsTab } from "./_components/vip-groups-tab";
 
 function Spinner() {
   return (
@@ -118,12 +119,26 @@ function GruposWhatsappScreen() {
             <TabsList>
               <TabsTrigger value="cidades">Cidades</TabsTrigger>
               <TabsTrigger value="dedicados">Dedicados</TabsTrigger>
+              <TabsTrigger value="vip">VIP</TabsTrigger>
             </TabsList>
             <TabsContent value="cidades">
               <CityGroupsTab groups={groups} onAddMembers={openAdd} onDelete={setDeleteTarget} />
             </TabsContent>
             <TabsContent value="dedicados">
-              <DedicatedRulesSection />
+              <DedicatedGroupsTab
+                groups={groups}
+                defaultPhones={defaultPhones}
+                onAddMembers={openAdd}
+                onDelete={setDeleteTarget}
+              />
+            </TabsContent>
+            <TabsContent value="vip">
+              <VipGroupsTab
+                stores={vipStores}
+                isLoading={vipQuery.isLoading}
+                isError={vipQuery.isError}
+                onRetry={() => vipQuery.refetch()}
+              />
             </TabsContent>
           </Tabs>
         </>

@@ -30,6 +30,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  NO_PARTICIPANTS_MESSAGE,
+  alsoJoinText,
+} from "@/modules/admin/application/whatsapp-groups-presentation";
 
 function getAxiosErrorMessage(err: unknown): string | null {
   const e = err as { response?: { data?: { error?: { message?: string }; message?: string } } };
@@ -41,7 +45,7 @@ function getAxiosErrorMessage(err: unknown): string | null {
  * Data-driven: cada regra casa um contratante por empresa (+ cidade) e replica a vaga ao
  * grupo cujo nome segue o padrão "Notificações <rótulo>". O casamento do grupo é pelo NOME.
  */
-export function DedicatedRulesSection() {
+export function DedicatedRulesSection({ defaultPhones }: { defaultPhones: string[] }) {
   const { data: rules, isLoading } = useDedicatedGroups();
   const createRule = useCreateDedicatedGroup();
   const updateRule = useUpdateDedicatedGroup();
@@ -152,6 +156,10 @@ export function DedicatedRulesSection() {
       .split(/[\n,;]+/)
       .map((p) => p.trim())
       .filter(Boolean);
+    if (parsed.length === 0 && defaultPhones.length === 0) {
+      toast.error(NO_PARTICIPANTS_MESSAGE);
+      return;
+    }
     try {
       const group = await createWppGroup.mutateAsync({ id: wppTarget.id, participants: parsed });
       toast.success(`Grupo "${group.name}" criado.`);
@@ -165,10 +173,10 @@ export function DedicatedRulesSection() {
   };
 
   return (
-    <div className="mt-10 border-t border-[#e5e5e5] pt-8">
+    <div className="mt-8 border-t border-[#e5e5e5] pt-6">
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#171717]">Grupos de notificação dedicados</h2>
+          <h2 className="text-lg font-semibold text-[#171717]">Regras de grupo dedicado</h2>
           <p className="text-sm text-[#737373] max-w-2xl mt-1">
             Cada regra faz as vagas de um contratante irem TAMBÉM para um grupo próprio
             (&quot;Notificações &lt;rótulo&gt;&quot;), além do grupo da cidade. O contratante é
@@ -359,12 +367,15 @@ export function DedicatedRulesSection() {
             <DialogTitle>Criar grupo no WhatsApp</DialogTitle>
             <DialogDescription>
               Cria o grupo já no padrão para a regra {wppTarget ? `"${wppTarget.label}"` : ""}. A
-              instância (bot) entra como admin; informe ao menos um número inicial.
+              instância (bot) entra como admin;{" "}
+              {defaultPhones.length > 0 ? "os números padrão entram automaticamente." : "informe ao menos um número inicial."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="dg-participants">Participantes (telefones com DDD)</Label>
+              <Label htmlFor="dg-participants">
+                {defaultPhones.length > 0 ? "Participantes (opcional)" : "Participantes (telefones com DDD)"}
+              </Label>
               <Input
                 id="dg-participants"
                 value={participants}
@@ -372,7 +383,7 @@ export function DedicatedRulesSection() {
                 placeholder="11999999999, 11988888888"
               />
               <p className="text-xs text-[#737373]">
-                Separe por vírgula. Você adiciona os demais depois no WhatsApp.
+                {alsoJoinText(defaultPhones) ?? "Separe por vírgula. Você adiciona os demais depois no WhatsApp."}
               </p>
             </div>
             {wppTarget && (

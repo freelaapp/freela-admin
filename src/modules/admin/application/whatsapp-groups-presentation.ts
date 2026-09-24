@@ -152,12 +152,17 @@ export interface VipFilters {
 
 export const EMPTY_VIP_FILTERS: VipFilters = { search: "", state: "all", bot: "all" };
 
+/** A loja já tem grupo VIP (não `NONE`) — usado pra filtrar a lista e decidir o estado vazio da aba. */
+export function hasVipGroup(store: Pick<VipStoreSummary, "status">): boolean {
+  return store.status !== "NONE";
+}
+
 /** Aba VIP: só lojas com grupo (status ≠ NONE); busca por loja (ou nome do grupo), estado e bot. */
 export function filterVipStores(stores: VipStoreSummary[], f: VipFilters): VipStoreSummary[] {
   const needle = fold(f.search);
   return stores.filter(
     (s) =>
-      s.status !== "NONE" &&
+      hasVipGroup(s) &&
       (!needle || fold(s.storeName).includes(needle) || fold(s.groupName).includes(needle)) &&
       (f.state === "all" || s.status === f.state) &&
       matchesBot(s.botInGroup, f.bot),
