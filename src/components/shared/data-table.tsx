@@ -145,148 +145,161 @@ export function DataTable<T extends { id?: string | number }>({
         {filters}
       </div>
 
-      {/* Table */}
-      <div className="relative hidden overflow-x-auto md:block" data-testid="data-table-desktop">
-        <table
-          className={`w-full text-sm transition-[filter,opacity] duration-200 ${
-            isFetching ? "blur-[2px] opacity-60 pointer-events-none" : ""
-          }`}
-        >
-          <thead>
-            <tr className="border-b border-[#e5e5e5]">
-              {columns.map((col, i) => {
-                const isSortable = !!col.sortable && !!col.sortAccessor;
-                const active = sort?.index === i;
-                return (
-                  <th
-                    key={i}
-                    onClick={isSortable ? () => toggleSort(i) : undefined}
-                    className={`px-4 py-3 text-left font-medium text-[#737373] ${
-                      isSortable
-                        ? "cursor-pointer select-none hover:text-[#1d1d1b]"
-                        : ""
-                    } ${col.className || ""}`}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {col.header}
-                      {isSortable &&
-                        (active ? (
-                          sort!.direction === "asc" ? (
-                            <ChevronUp className="w-3.5 h-3.5 text-[#eca826]" />
+      {/* Table + cartões compartilham um único overlay/pill de carregamento
+          (fix round 1, 2026-09-24): antes ele vivia só dentro do wrapper
+          desktop (`hidden md:block`) e nunca aparecia no celular, onde a
+          lista vazia dizia "Nenhum resultado encontrado." mesmo durante o
+          1º carregamento (financeiro, diálogo de destinatários da campanha,
+          seguro). Agora o wrapper relative cobre as duas árvores. */}
+      <div className="relative">
+        {/* Table */}
+        <div className="hidden overflow-x-auto md:block" data-testid="data-table-desktop">
+          <table
+            className={`w-full text-sm transition-[filter,opacity] duration-200 ${
+              isFetching && sortedData.length > 0 ? "blur-[2px] opacity-60 pointer-events-none" : ""
+            }`}
+          >
+            <thead>
+              <tr className="border-b border-[#e5e5e5]">
+                {columns.map((col, i) => {
+                  const isSortable = !!col.sortable && !!col.sortAccessor;
+                  const active = sort?.index === i;
+                  return (
+                    <th
+                      key={i}
+                      onClick={isSortable ? () => toggleSort(i) : undefined}
+                      className={`px-4 py-3 text-left font-medium text-[#737373] ${
+                        isSortable
+                          ? "cursor-pointer select-none hover:text-[#1d1d1b]"
+                          : ""
+                      } ${col.className || ""}`}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {col.header}
+                        {isSortable &&
+                          (active ? (
+                            sort!.direction === "asc" ? (
+                              <ChevronUp className="w-3.5 h-3.5 text-[#eca826]" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5 text-[#eca826]" />
+                            )
                           ) : (
-                            <ChevronDown className="w-3.5 h-3.5 text-[#eca826]" />
-                          )
-                        ) : (
-                          <ChevronsUpDown className="w-3.5 h-3.5 text-[#a3a3a3]" />
-                        ))}
-                    </span>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {sortedData.map((row, rowIdx) => (
-              <tr
-                key={rowKey(row, rowIdx)}
-                className="border-b border-[#e5e5e5] last:border-0 hover:bg-[#f7f7f7] transition-colors"
-              >
-                {columns.map((col, colIdx) => (
-                  <td
-                    key={colIdx}
-                    className={`px-4 py-3 ${col.className || ""}`}
-                  >
-                    {renderCell(col, row)}
-                  </td>
-                ))}
+                            <ChevronsUpDown className="w-3.5 h-3.5 text-[#a3a3a3]" />
+                          ))}
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
-            ))}
-            {sortedData.length === 0 && (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-8 text-center text-[#737373]"
+            </thead>
+            <tbody>
+              {sortedData.map((row, rowIdx) => (
+                <tr
+                  key={rowKey(row, rowIdx)}
+                  className="border-b border-[#e5e5e5] last:border-0 hover:bg-[#f7f7f7] transition-colors"
                 >
-                  Nenhum resultado encontrado.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        {isFetching && (
+                  {columns.map((col, colIdx) => (
+                    <td
+                      key={colIdx}
+                      className={`px-4 py-3 ${col.className || ""}`}
+                    >
+                      {renderCell(col, row)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {sortedData.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="px-4 py-8 text-center text-[#737373]"
+                  >
+                    {isFetching ? "Carregando…" : "Nenhum resultado encontrado."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {/* Cartões: abaixo de md (spec 2026-09-24 §D) — mesma lista, busca e ordenação. */}
+        <div className="md:hidden" data-testid="data-table-cards">
+          {sortOptions.length > 0 && (
+            <div className="flex items-center gap-2 border-b border-[#e5e5e5] px-4 py-3">
+              <label htmlFor={sortSelectId} className="shrink-0 text-xs font-medium text-[#737373]">
+                Ordenar por
+              </label>
+              <select
+                id={sortSelectId}
+                value={sort ? `${sort.index}:${sort.direction}` : ""}
+                onChange={(e) => setSort(parseSortValue(e.target.value))}
+                className="h-10 min-w-0 flex-1 rounded-lg border border-[#e5e5e5] bg-white px-3 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+              >
+                <option value="">Padrão</option>
+                {sortOptions.flatMap(({ col, index }) => [
+                  <option key={`${index}:asc`} value={`${index}:asc`}>
+                    {col.header} (crescente)
+                  </option>,
+                  <option key={`${index}:desc`} value={`${index}:desc`}>
+                    {col.header} (decrescente)
+                  </option>,
+                ])}
+              </select>
+            </div>
+          )}
+          {sortedData.length > 0 ? (
+            <ul
+              className={`flex flex-col gap-2 p-3 transition-[filter,opacity] duration-200 ${
+                isFetching ? "blur-[2px] opacity-60 pointer-events-none" : ""
+              }`}
+            >
+              {sortedData.map((row, rowIdx) => (
+                <li key={rowKey(row, rowIdx)} className="rounded-lg border border-[#e5e5e5] bg-white p-3 text-sm">
+                  {card.title !== null && (
+                    <div className="break-words font-semibold text-[#1d1d1b]">
+                      {renderCell(columns[card.title], row)}
+                    </div>
+                  )}
+                  {card.fields.length > 0 && (
+                    <dl className="mt-2 space-y-1.5">
+                      {card.fields.map((index) => (
+                        <div key={index} className="flex items-start justify-between gap-3">
+                          <dt className="shrink-0 text-xs text-[#737373]">{columns[index].header}</dt>
+                          <dd className="min-w-0 break-words text-right text-[#1d1d1b]">
+                            {renderCell(columns[index], row)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                  {card.actions.length > 0 && (
+                    <div
+                      data-testid="data-table-card-actions"
+                      className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-[#f2f2f2] pt-2 [&_a]:min-h-10 [&_button]:inline-flex [&_button]:min-h-10 [&_button]:min-w-10 [&_button]:items-center [&_button]:justify-center"
+                    >
+                      {card.actions.map((index) => (
+                        <div key={index}>{renderCell(columns[index], row)}</div>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : isFetching ? (
+            <div className="flex items-center justify-center gap-2 px-4 py-8 text-[#737373]">
+              <Loader2 className="h-4 w-4 animate-spin text-[#eca826]" />
+              <span className="text-xs font-medium">Carregando…</span>
+            </div>
+          ) : (
+            <p className="px-4 py-8 text-center text-[#737373]">Nenhum resultado encontrado.</p>
+          )}
+        </div>
+        {isFetching && sortedData.length > 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 border border-[#e5e5e5] shadow-sm">
               <Loader2 className="h-4 w-4 animate-spin text-[#eca826]" />
               <span className="text-xs font-medium text-[#737373]">Carregando…</span>
             </div>
           </div>
-        )}
-      </div>
-      {/* Cartões: abaixo de md (spec 2026-09-24 §D) — mesma lista, busca e ordenação. */}
-      <div className="md:hidden" data-testid="data-table-cards">
-        {sortOptions.length > 0 && (
-          <div className="flex items-center gap-2 border-b border-[#e5e5e5] px-4 py-3">
-            <label htmlFor={sortSelectId} className="shrink-0 text-xs font-medium text-[#737373]">
-              Ordenar por
-            </label>
-            <select
-              id={sortSelectId}
-              value={sort ? `${sort.index}:${sort.direction}` : ""}
-              onChange={(e) => setSort(parseSortValue(e.target.value))}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-[#e5e5e5] bg-white px-3 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
-            >
-              <option value="">Padrão</option>
-              {sortOptions.flatMap(({ col, index }) => [
-                <option key={`${index}:asc`} value={`${index}:asc`}>
-                  {col.header} (crescente)
-                </option>,
-                <option key={`${index}:desc`} value={`${index}:desc`}>
-                  {col.header} (decrescente)
-                </option>,
-              ])}
-            </select>
-          </div>
-        )}
-        {sortedData.length > 0 ? (
-          <ul
-            className={`flex flex-col gap-2 p-3 transition-[filter,opacity] duration-200 ${
-              isFetching ? "blur-[2px] opacity-60 pointer-events-none" : ""
-            }`}
-          >
-            {sortedData.map((row, rowIdx) => (
-              <li key={rowKey(row, rowIdx)} className="rounded-lg border border-[#e5e5e5] bg-white p-3 text-sm">
-                {card.title !== null && (
-                  <div className="break-words font-semibold text-[#1d1d1b]">
-                    {renderCell(columns[card.title], row)}
-                  </div>
-                )}
-                {card.fields.length > 0 && (
-                  <dl className="mt-2 space-y-1.5">
-                    {card.fields.map((index) => (
-                      <div key={index} className="flex items-start justify-between gap-3">
-                        <dt className="shrink-0 text-xs text-[#737373]">{columns[index].header}</dt>
-                        <dd className="min-w-0 break-words text-right text-[#1d1d1b]">
-                          {renderCell(columns[index], row)}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                )}
-                {card.actions.length > 0 && (
-                  <div
-                    data-testid="data-table-card-actions"
-                    className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-[#f2f2f2] pt-2 [&_a]:min-h-10 [&_button]:inline-flex [&_button]:min-h-10 [&_button]:min-w-10 [&_button]:items-center [&_button]:justify-center"
-                  >
-                    {card.actions.map((index) => (
-                      <div key={index}>{renderCell(columns[index], row)}</div>
-                    ))}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="px-4 py-8 text-center text-[#737373]">Nenhum resultado encontrado.</p>
         )}
       </div>
       {footer && (

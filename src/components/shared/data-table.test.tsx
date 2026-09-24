@@ -115,4 +115,11 @@ describe("DataTable — cartões no celular", () => {
     expect(cards().queryByLabelText("Ordenar por")).not.toBeInTheDocument();
     expect(cards().getByText("Nenhum resultado encontrado.")).toBeInTheDocument();
   });
+
+  it("isFetching com lista vazia (1º carregamento): sem 'Nenhum resultado encontrado.', com indicador de carregamento nos cartões", () => {
+    render(<DataTable columns={columns()} data={[]} isFetching />);
+
+    expect(cards().queryByText("Nenhum resultado encontrado.")).not.toBeInTheDocument();
+    expect(cards().getByText("Carregando…")).toBeInTheDocument();
+  });
 });

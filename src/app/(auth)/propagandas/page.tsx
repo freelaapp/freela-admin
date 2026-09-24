@@ -153,6 +153,7 @@ export default function PropagandasPage() {
       accessor: (row: AdvertisementItem) => (
         <span className="font-medium text-[#1d1d1b]">{row.title}</span>
       ),
+      mobile: "title" as const,
     },
     {
       header: "Público",
