@@ -8,6 +8,7 @@ import {
   getDedicatedGroups,
   updateDedicatedGroup,
 } from "../infrastructure/dedicated-groups-api";
+import { ADMIN_GROUPS_KEYS } from "./use-admin-whatsapp-groups";
 
 const KEY = ["admin", "dedicated-notification-groups"];
 
@@ -56,6 +57,10 @@ export function useCreateDedicatedWhatsappGroup() {
   return useMutation({
     mutationFn: (vars: { id: string; participants: string[] }) =>
       createDedicatedWhatsappGroup(vars.id, vars.participants),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      // O grupo novo aparece na aba Dedicados.
+      qc.invalidateQueries({ queryKey: ADMIN_GROUPS_KEYS.list });
+    },
   });
 }

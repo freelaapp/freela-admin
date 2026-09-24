@@ -21,6 +21,8 @@ export interface VipStoreSummary {
   activeMembers: number;
   pendingAdd: number;
   pendingRemove: number;
+  /** Bot no grupo (API ≥ 2026-09-23). Ausente/null = não conferido ou loja sem grupo. */
+  botInGroup?: boolean | null;
 }
 
 export interface VipStoreGroup {
