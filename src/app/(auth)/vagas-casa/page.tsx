@@ -333,7 +333,9 @@ export default function VagasCasaPage() {
       setDetalhe(row);
       return;
     }
-    toast.info("Vaga não está na lista atual — ajuste os filtros para encontrá-la.");
+    toast.info(
+      "Vaga fora da lista atual (pode já ter sido encerrada). Se o problema já foi tratado, use “Arquivar” no relato.",
+    );
   };
   const rows =
     statusFilter === "all"
@@ -583,7 +585,7 @@ export default function VagasCasaPage() {
         open={Boolean(detalhe)}
         onOpenChange={(open) => !open && setDetalhe(null)}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogClose onClick={() => setDetalhe(null)} />
           <DialogHeader>
             <DialogTitle>{detalhe?.cargo ?? "Vaga"}</DialogTitle>

@@ -768,7 +768,7 @@ export default function JobsPage() {
 
       {/* Modal Detalhes da Vaga */}
       <Dialog open={!!modalDetalhes} onOpenChange={(open) => !open && setModalDetalhes(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogClose onClick={() => setModalDetalhes(null)} />
           <DialogHeader>
             <DialogTitle>Detalhes da Vaga</DialogTitle>
