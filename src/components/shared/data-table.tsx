@@ -1,14 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Search, ChevronUp, ChevronDown, ChevronsUpDown, Loader2 } from "lucide-react";
 
-interface Column<T> {
+/**
+ * Papel da coluna no cartão do celular (abaixo de `md`, spec 2026-09-24 §D).
+ * Sem isto: a 1ª coluna é o título; header "Ações" ou vazio vai para o rodapé;
+ * o resto vira "Rótulo: valor". `hide` tira a coluna só do cartão.
+ */
+export type ColumnMobileRole = "title" | "hide" | "actions";
+
+export interface Column<T> {
   header: string;
   accessor: keyof T | ((row: T) => React.ReactNode);
   sortAccessor?: (row: T) => string | number | Date | null | undefined;
   sortable?: boolean;
   className?: string;
+  mobile?: ColumnMobileRole;
 }
 
 interface DataTableProps<T> {
@@ -35,6 +43,37 @@ function compareValues(
   if (a instanceof Date && b instanceof Date) return a.getTime() - b.getTime();
   if (typeof a === "number" && typeof b === "number") return a - b;
   return String(a).localeCompare(String(b), "pt-BR");
+}
+
+/** Como as colunas se distribuem no cartão do celular. */
+export function planMobileCard<T>(columns: Column<T>[]): {
+  title: number | null;
+  fields: number[];
+  actions: number[];
+} {
+  const isActions = (col: Column<T>) => {
+    if (col.mobile) return col.mobile === "actions";
+    const header = col.header.trim().toLowerCase();
+    return header === "" || header === "ações";
+  };
+  const visible = columns
+    .map((col, index) => ({ col, index }))
+    .filter(({ col }) => col.mobile !== "hide");
+  const actions = visible.filter(({ col }) => isActions(col)).map(({ index }) => index);
+  const content = visible.filter(({ col }) => !isActions(col));
+  const title = (content.find(({ col }) => col.mobile === "title") ?? content[0])?.index ?? null;
+  const fields = content.map(({ index }) => index).filter((index) => index !== title);
+  return { title, fields, actions };
+}
+
+function renderCell<T>(col: Column<T>, row: T): React.ReactNode {
+  return typeof col.accessor === "function" ? col.accessor(row) : String(row[col.accessor] ?? "");
+}
+
+function parseSortValue(value: string): SortState | null {
+  const [index, direction] = value.split(":");
+  if (!index || (direction !== "asc" && direction !== "desc")) return null;
+  return { index: Number(index), direction };
 }
 
 export function DataTable<T extends { id?: string | number }>({
@@ -82,6 +121,13 @@ export function DataTable<T extends { id?: string | number }>({
     });
   };
 
+  const sortSelectId = useId();
+  const card = planMobileCard(columns);
+  const sortOptions = columns
+    .map((col, index) => ({ col, index }))
+    .filter(({ col }) => col.sortable && col.sortAccessor);
+  const rowKey = (row: T, rowIdx: number) => String((row as { id?: string | number }).id ?? rowIdx);
+
   return (
     <div className="bg-white rounded-xl border border-[#e5e5e5]">
       {/* Toolbar */}
@@ -100,7 +146,7 @@ export function DataTable<T extends { id?: string | number }>({
       </div>
 
       {/* Table */}
-      <div className="relative overflow-x-auto">
+      <div className="relative hidden overflow-x-auto md:block" data-testid="data-table-desktop">
         <table
           className={`w-full text-sm transition-[filter,opacity] duration-200 ${
             isFetching ? "blur-[2px] opacity-60 pointer-events-none" : ""
@@ -142,7 +188,7 @@ export function DataTable<T extends { id?: string | number }>({
           <tbody>
             {sortedData.map((row, rowIdx) => (
               <tr
-                key={String((row as { id?: string | number }).id ?? rowIdx)}
+                key={rowKey(row, rowIdx)}
                 className="border-b border-[#e5e5e5] last:border-0 hover:bg-[#f7f7f7] transition-colors"
               >
                 {columns.map((col, colIdx) => (
@@ -150,9 +196,7 @@ export function DataTable<T extends { id?: string | number }>({
                     key={colIdx}
                     className={`px-4 py-3 ${col.className || ""}`}
                   >
-                    {typeof col.accessor === "function"
-                      ? col.accessor(row)
-                      : String(row[col.accessor] ?? "")}
+                    {renderCell(col, row)}
                   </td>
                 ))}
               </tr>
@@ -176,6 +220,73 @@ export function DataTable<T extends { id?: string | number }>({
               <span className="text-xs font-medium text-[#737373]">Carregando…</span>
             </div>
           </div>
+        )}
+      </div>
+      {/* Cartões: abaixo de md (spec 2026-09-24 §D) — mesma lista, busca e ordenação. */}
+      <div className="md:hidden" data-testid="data-table-cards">
+        {sortOptions.length > 0 && (
+          <div className="flex items-center gap-2 border-b border-[#e5e5e5] px-4 py-3">
+            <label htmlFor={sortSelectId} className="shrink-0 text-xs font-medium text-[#737373]">
+              Ordenar por
+            </label>
+            <select
+              id={sortSelectId}
+              value={sort ? `${sort.index}:${sort.direction}` : ""}
+              onChange={(e) => setSort(parseSortValue(e.target.value))}
+              className="h-10 min-w-0 flex-1 rounded-lg border border-[#e5e5e5] bg-white px-3 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
+            >
+              <option value="">Padrão</option>
+              {sortOptions.flatMap(({ col, index }) => [
+                <option key={`${index}:asc`} value={`${index}:asc`}>
+                  {col.header} (crescente)
+                </option>,
+                <option key={`${index}:desc`} value={`${index}:desc`}>
+                  {col.header} (decrescente)
+                </option>,
+              ])}
+            </select>
+          </div>
+        )}
+        {sortedData.length > 0 ? (
+          <ul
+            className={`flex flex-col gap-2 p-3 transition-[filter,opacity] duration-200 ${
+              isFetching ? "blur-[2px] opacity-60 pointer-events-none" : ""
+            }`}
+          >
+            {sortedData.map((row, rowIdx) => (
+              <li key={rowKey(row, rowIdx)} className="rounded-lg border border-[#e5e5e5] bg-white p-3 text-sm">
+                {card.title !== null && (
+                  <div className="break-words font-semibold text-[#1d1d1b]">
+                    {renderCell(columns[card.title], row)}
+                  </div>
+                )}
+                {card.fields.length > 0 && (
+                  <dl className="mt-2 space-y-1.5">
+                    {card.fields.map((index) => (
+                      <div key={index} className="flex items-start justify-between gap-3">
+                        <dt className="shrink-0 text-xs text-[#737373]">{columns[index].header}</dt>
+                        <dd className="min-w-0 break-words text-right text-[#1d1d1b]">
+                          {renderCell(columns[index], row)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {card.actions.length > 0 && (
+                  <div
+                    data-testid="data-table-card-actions"
+                    className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-[#f2f2f2] pt-2 [&_a]:min-h-10 [&_button]:inline-flex [&_button]:min-h-10 [&_button]:min-w-10 [&_button]:items-center [&_button]:justify-center"
+                  >
+                    {card.actions.map((index) => (
+                      <div key={index}>{renderCell(columns[index], row)}</div>
+                    ))}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 py-8 text-center text-[#737373]">Nenhum resultado encontrado.</p>
         )}
       </div>
       {footer && (

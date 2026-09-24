@@ -447,6 +447,7 @@ export default function FreelancersPage() {
         </div>
       ),
       className: "w-12",
+      mobile: "hide" as const,
     },
     { header: "Nome", accessor: "nome" as const, sortable: true, sortAccessor: (row: Row) => row.nome },
     { header: "Telefone", accessor: "telefone" as const, className: "hidden md:table-cell" },
