@@ -7,6 +7,7 @@ import {
   EMPTY_CITY_FILTERS,
   SOURCE_LABELS,
   alsoJoinText,
+  applyConfirmText,
   applyPhonesToTargets,
   applySummaryText,
   botStatus,
@@ -24,6 +25,7 @@ import {
   parseGroupsTab,
   parsePhonesInput,
   progressLabel,
+  reconcileCityFilter,
   ufOptions,
   withUf,
 } from "./whatsapp-groups-presentation";
@@ -128,6 +130,13 @@ describe("filtros", () => {
     expect(withUf(f, "RN")).toEqual({ ...f, uf: "RN", city: "" });
   });
 
+  it("cidade filtrada que sumiu das opções deixa de filtrar (ex.: último grupo dela foi excluído)", () => {
+    const f = { ...EMPTY_CITY_FILTERS, uf: "SP", city: "Jundiaí", search: "x" };
+    expect(reconcileCityFilter(f, ["Campinas"])).toEqual({ ...f, city: "" });
+    expect(reconcileCityFilter(f, ["Jundiaí", "Campinas"])).toEqual(f);
+    expect(reconcileCityFilter({ ...f, city: "" }, [])).toEqual({ ...f, city: "" });
+  });
+
   it("cidades: busca sem acento, UF, cidade e status do bot", () => {
     const ids = (list: AdminGroupView[]) => list.map((g) => g.id);
     expect(ids(filterCityGroups(groups, { ...EMPTY_CITY_FILTERS, search: "jundiai" }))).toEqual(["1", "2", "5"]);
@@ -224,6 +233,15 @@ describe("adicionar os números padrão em todos os grupos", () => {
     expect(applySummaryText(3, [])).toBe("3 de 3 grupos receberam os números.");
     expect(applySummaryText(3, [{ name: "B", message: "x" }])).toBe("2 de 3 grupos receberam os números.");
     expect(applySummaryText(1, [])).toBe("1 de 1 grupo recebeu os números.");
+  });
+
+  it("texto de confirmação: singular com 1 número padrão, plural com mais de 1", () => {
+    expect(applyConfirmText(1, 5)).toBe(
+      "O número padrão vai ser adicionado a 5 grupos (cidades, dedicados e VIP ativos). Grupos com o bot fora ficam de fora.",
+    );
+    expect(applyConfirmText(3, 1)).toBe(
+      "Os 3 números padrão vão ser adicionados a 1 grupo (cidades, dedicados e VIP ativos). Grupos com o bot fora ficam de fora.",
+    );
   });
 });
 

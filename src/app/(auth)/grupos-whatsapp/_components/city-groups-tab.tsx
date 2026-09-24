@@ -8,6 +8,7 @@ import {
   cityOptions,
   filterCityGroups,
   groupsCountLabel,
+  reconcileCityFilter,
   ufOptions,
   withUf,
   type CityFilters,
@@ -28,7 +29,10 @@ export function CityGroupsTab({
   const [filters, setFilters] = useState<CityFilters>(EMPTY_CITY_FILTERS);
   const ufs = useMemo(() => ufOptions(groups), [groups]);
   const cities = useMemo(() => cityOptions(groups, filters.uf), [groups, filters.uf]);
-  const rows = useMemo(() => filterCityGroups(groups, filters), [groups, filters]);
+  // A cidade filtrada pode sumir das opções (ex.: o último grupo dela foi excluído e a lista
+  // recarregou) sem que a UF mude — ignora o filtro fantasma em vez de esvaziar a lista.
+  const effectiveFilters = useMemo(() => reconcileCityFilter(filters, cities), [filters, cities]);
+  const rows = useMemo(() => filterCityGroups(groups, effectiveFilters), [groups, effectiveFilters]);
   const hasAny = groups.some((g) => g.kind === "CITY");
 
   return (
@@ -50,7 +54,7 @@ export function CityGroupsTab({
         </NativeSelect>
         <NativeSelect
           aria-label="Cidade"
-          value={filters.city}
+          value={effectiveFilters.city}
           disabled={!filters.uf}
           onChange={(e) => setFilters({ ...filters, city: e.target.value })}
         >

@@ -66,7 +66,7 @@ export function groupsCountLabel(n: number): string {
 function fold(value: string | null | undefined): string {
   return (value ?? "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
 }
@@ -89,6 +89,15 @@ export const EMPTY_CITY_FILTERS: CityFilters = { search: "", uf: "", city: "", b
 /** Trocar a UF zera a cidade: a lista de cidades depende da UF. */
 export function withUf(filters: CityFilters, uf: string): CityFilters {
   return { ...filters, uf, city: "" };
+}
+
+/**
+ * Cidade filtrada some das opções atuais (ex.: o último grupo dessa cidade foi excluído e a
+ * lista recarregou) → o filtro deixa de valer em vez de esvaziar a lista por uma cidade fantasma
+ * que o `<select>` já nem mostra mais como selecionada.
+ */
+export function reconcileCityFilter(filters: CityFilters, cities: string[]): CityFilters {
+  return filters.city && !cities.includes(filters.city) ? { ...filters, city: "" } : filters;
 }
 
 export function ufOptions(groups: AdminGroupView[]): string[] {
@@ -222,6 +231,13 @@ export async function applyPhonesToTargets(
 
 export function progressLabel(done: number, total: number): string {
   return `${done} de ${total}`;
+}
+
+/** Texto da confirmação — singular/plural corretos tanto no número de telefones quanto no verbo. */
+export function applyConfirmText(phonesCount: number, targetsCount: number): string {
+  const subject = phonesCount === 1 ? "O número padrão" : `Os ${phonesCount} números padrão`;
+  const verb = phonesCount === 1 ? "vai ser adicionado" : "vão ser adicionados";
+  return `${subject} ${verb} a ${groupsCountLabel(targetsCount)} (cidades, dedicados e VIP ativos). Grupos com o bot fora ficam de fora.`;
 }
 
 export function applySummaryText(total: number, failures: ApplyFailure[]): string {

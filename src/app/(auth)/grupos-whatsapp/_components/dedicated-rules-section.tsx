@@ -44,8 +44,19 @@ function getAxiosErrorMessage(err: unknown): string | null {
  * Grupos de notificação DEDICADOS por contratante (ex.: "Notificações Coco Bambu Jundiaí").
  * Data-driven: cada regra casa um contratante por empresa (+ cidade) e replica a vaga ao
  * grupo cujo nome segue o padrão "Notificações <rótulo>". O casamento do grupo é pelo NOME.
+ *
+ * `defaultPhonesLoaded=false` (config ainda carregando ou falhou) NÃO é o mesmo que "sem
+ * números padrão": o backend sempre funde os participantes digitados com os números padrão
+ * reais no momento da criação, então enquanto não sabemos se existem defaults não exigimos
+ * participantes aqui — só o backend valida de verdade (mesma regra de `CreateCityGroupDialog`).
  */
-export function DedicatedRulesSection({ defaultPhones }: { defaultPhones: string[] }) {
+export function DedicatedRulesSection({
+  defaultPhones,
+  defaultPhonesLoaded,
+}: {
+  defaultPhones: string[];
+  defaultPhonesLoaded: boolean;
+}) {
   const { data: rules, isLoading } = useDedicatedGroups();
   const createRule = useCreateDedicatedGroup();
   const updateRule = useUpdateDedicatedGroup();
@@ -61,6 +72,9 @@ export function DedicatedRulesSection({ defaultPhones }: { defaultPhones: string
   const [wppOpen, setWppOpen] = useState(false);
   const [wppTarget, setWppTarget] = useState<DedicatedGroupRule | null>(null);
   const [participants, setParticipants] = useState("");
+
+  const alsoJoin = defaultPhonesLoaded ? alsoJoinText(defaultPhones) : null;
+  const knownEmptyDefaults = defaultPhonesLoaded && defaultPhones.length === 0;
 
   const previewName = label.trim() ? `Notificações ${label.trim().replace(/\s+/g, " ")}` : null;
 
@@ -156,7 +170,7 @@ export function DedicatedRulesSection({ defaultPhones }: { defaultPhones: string
       .split(/[\n,;]+/)
       .map((p) => p.trim())
       .filter(Boolean);
-    if (parsed.length === 0 && defaultPhones.length === 0) {
+    if (parsed.length === 0 && knownEmptyDefaults) {
       toast.error(NO_PARTICIPANTS_MESSAGE);
       return;
     }
@@ -368,13 +382,17 @@ export function DedicatedRulesSection({ defaultPhones }: { defaultPhones: string
             <DialogDescription>
               Cria o grupo já no padrão para a regra {wppTarget ? `"${wppTarget.label}"` : ""}. A
               instância (bot) entra como admin;{" "}
-              {defaultPhones.length > 0 ? "os números padrão entram automaticamente." : "informe ao menos um número inicial."}
+              {defaultPhonesLoaded && defaultPhones.length > 0
+                ? "os números padrão entram automaticamente."
+                : "informe ao menos um número inicial."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="dg-participants">
-                {defaultPhones.length > 0 ? "Participantes (opcional)" : "Participantes (telefones com DDD)"}
+                {defaultPhonesLoaded && defaultPhones.length > 0
+                  ? "Participantes (opcional)"
+                  : "Participantes (telefones com DDD)"}
               </Label>
               <Input
                 id="dg-participants"
@@ -383,7 +401,7 @@ export function DedicatedRulesSection({ defaultPhones }: { defaultPhones: string
                 placeholder="11999999999, 11988888888"
               />
               <p className="text-xs text-[#737373]">
-                {alsoJoinText(defaultPhones) ?? "Separe por vírgula. Você adiciona os demais depois no WhatsApp."}
+                {alsoJoin ?? "Separe por vírgula. Você adiciona os demais depois no WhatsApp."}
               </p>
             </div>
             {wppTarget && (

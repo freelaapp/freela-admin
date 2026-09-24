@@ -17,11 +17,13 @@ import { DedicatedRulesSection } from "./dedicated-rules-section";
 export function DedicatedGroupsTab({
   groups,
   defaultPhones,
+  defaultPhonesLoaded,
   onAddMembers,
   onDelete,
 }: {
   groups: AdminGroupView[];
   defaultPhones: string[];
+  defaultPhonesLoaded: boolean;
   onAddMembers: (group: AdminGroupView) => void;
   onDelete: (group: AdminGroupView) => void;
 }) {
@@ -52,7 +54,7 @@ export function DedicatedGroupsTab({
         onAddMembers={onAddMembers}
         onDelete={onDelete}
       />
-      <DedicatedRulesSection defaultPhones={defaultPhones} />
+      <DedicatedRulesSection defaultPhones={defaultPhones} defaultPhonesLoaded={defaultPhonesLoaded} />
     </div>
   );
 }

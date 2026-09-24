@@ -14,6 +14,7 @@ export function DefaultPhonesCard({
   isLoading,
   isError,
   unready,
+  targetsReady,
   onRetry,
   targets,
 }: {
@@ -22,11 +23,14 @@ export function DefaultPhonesCard({
   isError: boolean;
   /** Carregando, com erro ou ainda sem dado — `defaultPhones` não é confiável aqui. */
   unready: boolean;
+  /** Grupos + VIP terminaram de carregar com sucesso — só então `targets` reflete as três abas. */
+  targetsReady: boolean;
   onRetry: () => void;
   targets: ApplyTarget[];
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
+  const applyDisabled = unready || !targetsReady || defaultPhones.length === 0;
 
   return (
     <section className="rounded-xl border border-[#e5e5e5] bg-white p-4">
@@ -44,7 +48,8 @@ export function DefaultPhonesCard({
           <Button
             size="sm"
             onClick={() => setApplyOpen(true)}
-            disabled={unready || defaultPhones.length === 0}
+            disabled={applyDisabled}
+            title={!unready && !targetsReady ? "Aguarde os grupos e o VIP carregarem para aplicar a todos." : undefined}
             className="bg-[#eca826] text-white hover:bg-[#d8961f]"
           >
             <Users className="h-4 w-4" aria-hidden /> Adicionar em todos os grupos
@@ -68,10 +73,11 @@ export function DefaultPhonesCard({
           ))
         )}
       </div>
-      {/* Defesa extra: mesmo que o botão desabilitado já impeça o clique, o diálogo só
-          monta com `unready=false` — nunca abre seedado a partir de um dado incompleto. */}
+      {/* Defesa extra: mesmo que o botão desabilitado já impeça o clique, os diálogos só
+          montam com `unready=false` (e o de aplicar também exige `targetsReady=true`) —
+          nunca abrem seedados a partir de dado incompleto ou de listas ainda não assentadas. */}
       {editOpen && !unready && <EditDefaultPhonesDialog current={defaultPhones} onClose={() => setEditOpen(false)} />}
-      {applyOpen && !unready && (
+      {applyOpen && !unready && targetsReady && (
         <ApplyDefaultsDialog phones={defaultPhones} targets={targets} onClose={() => setApplyOpen(false)} />
       )}
     </section>

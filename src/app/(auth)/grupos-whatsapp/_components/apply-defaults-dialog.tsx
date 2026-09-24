@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
+  applyConfirmText,
   applyPhonesToTargets,
   applySummaryText,
   groupsCountLabel,
@@ -54,7 +55,7 @@ export function ApplyDefaultsDialog({
             {phase.step === "confirm" &&
               (targets.length === 0
                 ? "Nenhum grupo com o bot dentro para receber os números agora."
-                : `Os ${phones.length} números padrão vão ser adicionados a ${groupsCountLabel(targets.length)} (cidades, dedicados e VIP ativos). Grupos com o bot fora ficam de fora.`)}
+                : applyConfirmText(phones.length, targets.length))}
             {phase.step === "running" && "Adicionando um grupo por vez. Não feche esta janela."}
             {phase.step === "done" && applySummaryText(phase.total, phase.failures)}
           </DialogDescription>

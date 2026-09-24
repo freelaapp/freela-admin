@@ -67,6 +67,10 @@ function GruposWhatsappScreen() {
   const settingsUnready = settingsQuery.isLoading || settingsQuery.isError || !settingsQuery.data;
   const groups = useMemo(() => groupsQuery.data?.groups ?? [], [groupsQuery.data]);
   const vipStores = useMemo(() => vipQuery.data ?? [], [vipQuery.data]);
+  // "Adicionar em todos os grupos" só pode montar os alvos quando AMBAS as listas (grupos e VIP)
+  // terminaram de carregar com sucesso — do contrário aplicaria a um subconjunto parcial e
+  // reportaria como "concluído para todos".
+  const targetsReady = groupsQuery.isSuccess && vipQuery.isSuccess;
   const targets = useMemo(() => buildApplyTargets(groups, vipStores), [groups, vipStores]);
 
   const openAdd = (g: AdminGroupView) => {
@@ -94,6 +98,7 @@ function GruposWhatsappScreen() {
         isLoading={settingsQuery.isLoading}
         isError={settingsQuery.isError}
         unready={settingsUnready}
+        targetsReady={targetsReady}
         onRetry={() => settingsQuery.refetch()}
         targets={targets}
       />
@@ -102,7 +107,7 @@ function GruposWhatsappScreen() {
         <div className="flex h-[30vh] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-[#eca826]" />
         </div>
-      ) : groupsQuery.isError || !groupsQuery.data ? (
+      ) : !groupsQuery.data ? (
         <div
           role="alert"
           className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700"
@@ -114,6 +119,18 @@ function GruposWhatsappScreen() {
         </div>
       ) : (
         <>
+          {/* Refetch em segundo plano falhou, mas já temos dados: mantém a lista na tela e só avisa. */}
+          {groupsQuery.isError && (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800"
+            >
+              <span className="flex-1">Não deu para atualizar os grupos agora. Mostrando os últimos dados carregados.</span>
+              <Button size="sm" variant="outline" onClick={() => groupsQuery.refetch()}>
+                Tentar de novo
+              </Button>
+            </div>
+          )}
           <DirectoryStatusBanner list={groupsQuery.data} onRefresh={onRefresh} refreshing={refresh.isPending} />
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
@@ -128,6 +145,7 @@ function GruposWhatsappScreen() {
               <DedicatedGroupsTab
                 groups={groups}
                 defaultPhones={defaultPhones}
+                defaultPhonesLoaded={!settingsUnready}
                 onAddMembers={openAdd}
                 onDelete={setDeleteTarget}
               />
