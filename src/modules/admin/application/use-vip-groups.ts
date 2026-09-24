@@ -52,6 +52,19 @@ export function useVipProviderSearch(search: string, enabled: boolean) {
   });
 }
 
+/**
+ * "Criar grupo VIP" da tela Grupos WhatsApp (spec 2026-09-24 §E): a loja é escolhida
+ * no modal, por isso o id vem na chamada (e não no hook, como em `useVipGroupMutations`).
+ * Os toasts ficam com o diálogo.
+ */
+export function useEnsureVipGroupFor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (contractorUserId: string) => ensureVipGroup(contractorUserId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: VIP_GROUP_KEYS.all }),
+  });
+}
+
 export function useVipGroupMutations(contractorUserId: string) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: VIP_GROUP_KEYS.all });

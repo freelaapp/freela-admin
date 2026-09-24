@@ -4,7 +4,9 @@ import type { AdminGroupView } from "../infrastructure/whatsapp-groups-api";
 import type { VipStoreSummary } from "../infrastructure/vip-groups-api";
 import {
   BOT_STATUS_LABELS,
+  CREATE_ACTION_BY_TAB,
   EMPTY_CITY_FILTERS,
+  NO_VIP_STORE_WITHOUT_GROUP,
   SOURCE_LABELS,
   alsoJoinText,
   applyConfirmText,
@@ -15,6 +17,8 @@ import {
   canAddMembers,
   checkedAtLabel,
   cityOptions,
+  dedicatedGroupFailedText,
+  dedicatedGroupName,
   deleteGroupEffect,
   directoryBanners,
   filterCityGroups,
@@ -27,6 +31,7 @@ import {
   progressLabel,
   reconcileCityFilter,
   ufOptions,
+  vipStoresWithoutGroup,
   withUf,
 } from "./whatsapp-groups-presentation";
 
@@ -266,5 +271,40 @@ describe("estado do diretório e excluir", () => {
     );
     expect(deleteGroupEffect(null)).toBe(deleteGroupEffect(true));
     expect(deleteGroupEffect(false)).toBe("O bot já não está no grupo; ele só sai da lista.");
+  });
+});
+
+describe("Criar grupo por aba (spec 2026-09-24 §E)", () => {
+  it("cada aba tem o seu botão e o seu diálogo", () => {
+    expect(CREATE_ACTION_BY_TAB).toEqual({
+      cidades: { label: "Criar grupo", dialog: "city" },
+      dedicados: { label: "Criar grupo dedicado", dialog: "dedicated" },
+      vip: { label: "Criar grupo VIP", dialog: "vip" },
+    });
+  });
+
+  it("prévia do nome do grupo dedicado", () => {
+    expect(dedicatedGroupName("  Coco   Bambu Jundiaí ")).toBe("Notificações Coco Bambu Jundiaí");
+    expect(dedicatedGroupName("   ")).toBeNull();
+  });
+
+  it("texto da falha do 2º passo sem ponto duplicado", () => {
+    expect(dedicatedGroupFailedText("Instância desconectada.")).toBe(
+      "Regra criada, mas o grupo não foi criado: Instância desconectada. Tente de novo pelo botão da regra.",
+    );
+  });
+
+  it("lojas sem grupo: só status NONE, busca sem acento, A→Z", () => {
+    const loja = (contractorUserId: string, storeName: string, status: VipStoreSummary["status"]) =>
+      ({ contractorUserId, storeName, status }) as VipStoreSummary;
+    const stores = [
+      loja("1", "Outback Campinas", "NONE"),
+      loja("2", "Coco Bambu Jundiaí", "NONE"),
+      loja("3", "Coco Bambu Recife", "ACTIVE"),
+    ];
+
+    expect(vipStoresWithoutGroup(stores, "").map((s) => s.contractorUserId)).toEqual(["2", "1"]);
+    expect(vipStoresWithoutGroup(stores, "jundiai").map((s) => s.contractorUserId)).toEqual(["2"]);
+    expect(NO_VIP_STORE_WITHOUT_GROUP).toBe("Nenhuma loja Grandes Redes sem grupo.");
   });
 });

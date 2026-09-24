@@ -15,11 +15,18 @@ import {
   useRefreshAdminGroups,
 } from "@/modules/admin/application/use-admin-whatsapp-groups";
 import { useVipGroups } from "@/modules/admin/application/use-vip-groups";
-import { buildApplyTargets, parseGroupsTab } from "@/modules/admin/application/whatsapp-groups-presentation";
+import {
+  CREATE_ACTION_BY_TAB,
+  buildApplyTargets,
+  parseGroupsTab,
+  type CreateDialogKind,
+} from "@/modules/admin/application/whatsapp-groups-presentation";
 import type { AdminGroupView } from "@/modules/admin/infrastructure/whatsapp-groups-api";
 import { AddMembersDialog } from "./_components/add-members-dialog";
 import { CityGroupsTab } from "./_components/city-groups-tab";
 import { CreateCityGroupDialog } from "./_components/create-city-group-dialog";
+import { CreateDedicatedGroupDialog } from "./_components/create-dedicated-group-dialog";
+import { CreateVipGroupDialog } from "./_components/create-vip-group-dialog";
 import { DedicatedGroupsTab } from "./_components/dedicated-groups-tab";
 import { DefaultPhonesCard } from "./_components/default-phones-card";
 import { DeleteGroupDialog } from "./_components/delete-group-dialog";
@@ -57,7 +64,8 @@ function GruposWhatsappScreen() {
   const vipQuery = useVipGroups("");
   const refresh = useRefreshAdminGroups();
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createDialog, setCreateDialog] = useState<CreateDialogKind | null>(null);
+  const createAction = CREATE_ACTION_BY_TAB[tab];
   const [addTarget, setAddTarget] = useState<{ groupJid: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminGroupView | null>(null);
 
@@ -87,8 +95,8 @@ function GruposWhatsappScreen() {
         title="Grupos WhatsApp"
         description='Grupos criados pelo painel. A vaga vai para o grupo "Vagas Freela <Cidade> <UF>" da cidade do contratante; excluir tira o bot do grupo.'
         action={
-          <Button onClick={() => setCreateOpen(true)} className="bg-[#eca826] text-white hover:bg-[#d8961f]">
-            <Plus className="mr-1 h-4 w-4" /> Criar grupo
+          <Button onClick={() => setCreateDialog(createAction.dialog)} className="bg-[#eca826] text-white hover:bg-[#d8961f]">
+            <Plus className="mr-1 h-4 w-4" /> {createAction.label}
           </Button>
         }
       />
@@ -162,12 +170,22 @@ function GruposWhatsappScreen() {
         </>
       )}
 
-      {createOpen && (
+      {createDialog === "city" && (
         <CreateCityGroupDialog
           defaultPhones={defaultPhones}
           defaultPhonesLoaded={!settingsUnready}
-          onClose={() => setCreateOpen(false)}
+          onClose={() => setCreateDialog(null)}
         />
+      )}
+      {createDialog === "dedicated" && (
+        <CreateDedicatedGroupDialog
+          defaultPhones={defaultPhones}
+          defaultPhonesLoaded={!settingsUnready}
+          onClose={() => setCreateDialog(null)}
+        />
+      )}
+      {createDialog === "vip" && (
+        <CreateVipGroupDialog stores={vipStores} isLoading={vipQuery.isLoading} onClose={() => setCreateDialog(null)} />
       )}
       {addTarget && <AddMembersDialog target={addTarget} onClose={() => setAddTarget(null)} />}
       {deleteTarget && <DeleteGroupDialog group={deleteTarget} onClose={() => setDeleteTarget(null)} />}

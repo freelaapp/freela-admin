@@ -178,6 +178,37 @@ export function filterVipStores(stores: VipStoreSummary[], f: VipFilters): VipSt
   );
 }
 
+// ─── "Criar" conforme a aba (spec 2026-09-24 §E) ─────────────────────────────
+export type CreateDialogKind = "city" | "dedicated" | "vip";
+
+export const CREATE_ACTION_BY_TAB: Record<GroupsTab, { label: string; dialog: CreateDialogKind }> = {
+  cidades: { label: "Criar grupo", dialog: "city" },
+  dedicados: { label: "Criar grupo dedicado", dialog: "dedicated" },
+  vip: { label: "Criar grupo VIP", dialog: "vip" },
+};
+
+/** Nome que o grupo dedicado recebe: "Notificações <rótulo>" (null sem rótulo). */
+export function dedicatedGroupName(label: string): string | null {
+  const clean = label.trim().replace(/\s+/g, " ");
+  return clean ? `Notificações ${clean}` : null;
+}
+
+/** Toast quando a regra saiu e o grupo não (o motivo vem da API, sem o ponto final). */
+export function dedicatedGroupFailedText(reason: string): string {
+  const clean = reason.trim().replace(/[.!]+$/, "");
+  return `Regra criada, mas o grupo não foi criado: ${clean}. Tente de novo pelo botão da regra.`;
+}
+
+export const NO_VIP_STORE_WITHOUT_GROUP = "Nenhuma loja Grandes Redes sem grupo.";
+
+/** Lojas Grandes Redes SEM grupo (status NONE) para o "Criar grupo VIP"; busca por nome, A→Z. */
+export function vipStoresWithoutGroup(stores: VipStoreSummary[], search: string): VipStoreSummary[] {
+  const needle = fold(search);
+  return stores
+    .filter((s) => !hasVipGroup(s) && (!needle || fold(s.storeName).includes(needle)))
+    .sort((a, b) => byPt(a.storeName, b.storeName));
+}
+
 // ─── "Adicionar em todos os grupos" ──────────────────────────────────────────
 export interface ApplyTarget {
   groupJid: string;
