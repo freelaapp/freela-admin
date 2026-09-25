@@ -6,53 +6,34 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Plus, Loader2, UserPlus, Copy, Power, Eye } from "lucide-react";
+import { Plus, Loader2, UserPlus, Copy, Power, Eye, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import {
   useAdminConsultants,
-  useCreateAdminConsultant,
   useUpdateAdminConsultant,
 } from "@/modules/admin/application/use-admin-consultants";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { formatInstantDate } from "@/lib/date.utils";
-import type {
-  ConsultantItem,
-  CreateConsultantPayload,
-} from "@/modules/admin/infrastructure/consultants-api";
+import type { ConsultantItem } from "@/modules/admin/infrastructure/consultants-api";
 import { buildReferralLink } from "@/modules/admin/infrastructure/referral-link";
-
-const EMPTY_FORM = {
-  name: "",
-  code: "",
-  city: "",
-  uf: "",
-  phone: "",
-  email: "",
-  commissionRate: "",
-  notes: "",
-};
+import { ConsultantFormDialog } from "./_components/consultant-form-dialog";
+import {
+  DeleteConsultantDialog,
+  canDeleteConsultant,
+  deleteBlockedReason,
+} from "./_components/delete-consultant-dialog";
 
 export default function ConsultoresPage() {
   const router = useRouter();
   const { isHydrated, isSuperAdmin } = useAuth();
   const { data: consultants, isLoading, isError } = useAdminConsultants();
-  const createMutation = useCreateAdminConsultant();
   const updateMutation = useUpdateAdminConsultant();
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY_FORM });
+  // `null` no modal aberto = cadastro novo; com consultor = edição.
+  const [editing, setEditing] = useState<ConsultantItem | null>(null);
+  const [deleting, setDeleting] = useState<ConsultantItem | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,8 +50,14 @@ export default function ConsultoresPage() {
     );
   }
 
-  function resetForm() {
-    setForm({ ...EMPTY_FORM });
+  function openCreate() {
+    setEditing(null);
+    setModalOpen(true);
+  }
+
+  function openEdit(consultant: ConsultantItem) {
+    setEditing(consultant);
+    setModalOpen(true);
   }
 
   async function copyLink(code: string) {
@@ -98,44 +85,6 @@ export default function ConsultoresPage() {
       toast.error(getAxiosErrorMessage(err, "Erro ao atualizar consultor"));
     } finally {
       setTogglingId(null);
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.name.trim()) {
-      toast.error("Informe o nome do consultor.");
-      return;
-    }
-    if (!form.email.trim()) {
-      toast.error("Informe o e-mail (login do consultor). A senha temporária é enviada nele.");
-      return;
-    }
-
-    const rate = form.commissionRate.trim() ? Number(form.commissionRate.replace(",", ".")) : undefined;
-    if (rate !== undefined && (Number.isNaN(rate) || rate < 0 || rate > 100)) {
-      toast.error("Comissão deve ser um número entre 0 e 100.");
-      return;
-    }
-
-    const payload: CreateConsultantPayload = {
-      name: form.name.trim(),
-      ...(form.code.trim() ? { code: form.code.trim() } : {}),
-      ...(form.city.trim() ? { city: form.city.trim() } : {}),
-      ...(form.uf.trim() ? { uf: form.uf.trim() } : {}),
-      ...(form.phone.trim() ? { phone: form.phone.trim() } : {}),
-      ...(form.email.trim() ? { email: form.email.trim() } : {}),
-      ...(rate !== undefined ? { commissionRate: rate } : {}),
-      ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
-    };
-
-    try {
-      const created = await createMutation.mutateAsync(payload);
-      toast.success(`Consultor criado! Código: ${created.code}`);
-      setModalOpen(false);
-      resetForm();
-    } catch (err) {
-      toast.error(getAxiosErrorMessage(err, "Erro ao criar consultor"));
     }
   }
 
@@ -224,6 +173,15 @@ export default function ConsultoresPage() {
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => openEdit(row)}
+            title="Editar"
+            className="text-[#737373] hover:text-[#1d1d1b]"
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => toggleActive(row)}
             disabled={togglingId === row.id}
             title={row.isActive ? "Desativar" : "Ativar"}
@@ -235,6 +193,19 @@ export default function ConsultoresPage() {
               <Power className="w-4 h-4" />
             )}
           </Button>
+          {/* `span` segura o title: botão desabilitado não dispara hover em todo browser. */}
+          <span title={canDeleteConsultant(row) ? "Excluir" : deleteBlockedReason(row)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleting(row)}
+              disabled={!canDeleteConsultant(row)}
+              aria-label="Excluir"
+              className="text-red-500 hover:text-red-600 disabled:opacity-30"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </span>
         </div>
       ),
     },
@@ -247,7 +218,7 @@ export default function ConsultoresPage() {
         description="Parceiros que indicam novos cadastros por um link dedicado (?ref=código)"
         action={
           <Button
-            onClick={() => setModalOpen(true)}
+            onClick={openCreate}
             className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -276,7 +247,7 @@ export default function ConsultoresPage() {
             Cadastre o primeiro consultor para gerar um link de indicação.
           </p>
           <Button
-            onClick={() => setModalOpen(true)}
+            onClick={openCreate}
             className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -293,140 +264,18 @@ export default function ConsultoresPage() {
         />
       )}
 
-      <Dialog
+      <ConsultantFormDialog
         open={modalOpen}
+        onOpenChange={setModalOpen}
+        consultant={editing}
+      />
+
+      <DeleteConsultantDialog
+        consultant={deleting}
         onOpenChange={(open) => {
-          setModalOpen(open);
-          if (!open) resetForm();
+          if (!open) setDeleting(null);
         }}
-      >
-        <DialogContent>
-          <DialogClose onClick={() => setModalOpen(false)} />
-          <DialogHeader>
-            <DialogTitle>Novo Consultor</DialogTitle>
-            <DialogDescription>
-              O código de indicação é gerado automaticamente a partir do nome se não for
-              informado. Compartilhe o link <span className="font-mono">/cadastro?ref=CÓDIGO</span>{" "}
-              para vincular novos cadastros a este consultor.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Nome completo</Label>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Ex.: André Consultor"
-                autoFocus
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="code">Código (opcional)</Label>
-                <Input
-                  id="code"
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                  placeholder="Gerado se vazio"
-                  className="font-mono"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="commissionRate">Comissão (%)</Label>
-                <Input
-                  id="commissionRate"
-                  inputMode="decimal"
-                  value={form.commissionRate}
-                  onChange={(e) => setForm({ ...form, commissionRate: e.target.value })}
-                  placeholder="Ex.: 10"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-[1fr_auto] gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="city">Cidade</Label>
-                <Input
-                  id="city"
-                  value={form.city}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}
-                  placeholder="Ex.: Fortaleza"
-                />
-              </div>
-              <div className="space-y-1.5 w-20">
-                <Label htmlFor="uf">UF</Label>
-                <Input
-                  id="uf"
-                  maxLength={2}
-                  value={form.uf}
-                  onChange={(e) => setForm({ ...form, uf: e.target.value.toUpperCase() })}
-                  placeholder="CE"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="phone">Telefone</Label>
-              <Input
-                id="phone"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="(85) 99999-9999"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email (login do consultor) *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="andre@exemplo.com"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="notes">Observações</Label>
-              <Input
-                id="notes"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                placeholder="Anotações internas (opcional)"
-              />
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setModalOpen(false)}
-                disabled={createMutation.isPending}
-                className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={createMutation.isPending}
-                className="bg-[#eca826] text-white hover:bg-[#d4951e] font-medium"
-              >
-                {createMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Cadastrando...
-                  </>
-                ) : (
-                  "Cadastrar consultor"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      />
     </div>
   );
 }
