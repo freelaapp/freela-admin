@@ -50,3 +50,16 @@ export async function getVacancyNfse(vacancyId: string): Promise<VacancyNfse> {
   const res = await adminsRootApi.get(`/vacancies/${vacancyId}/documents/nfse`);
   return res.data.data;
 }
+
+export interface NfseReissueResult {
+  /** PENDING = enviada à prefeitura (responde em minutos); FAILED = recusada de novo. */
+  status: "PENDING" | "FAILED" | "ISSUED";
+  number: string | null;
+  failureReason: string | null;
+}
+
+/** Reemite a NF-e RECUSADA da vaga (só status FAILED; exige permissão Financeiro). */
+export async function reissueVacancyNfse(vacancyId: string): Promise<NfseReissueResult> {
+  const res = await adminsRootApi.post(`/vacancies/${vacancyId}/documents/nfse/reissue`);
+  return res.data.data;
+}

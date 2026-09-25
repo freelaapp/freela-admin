@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import axios from "axios";
-import { ExternalLink, FileText, Loader2 } from "lucide-react";
+import { ExternalLink, FileText, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { reissueVacancyNfse } from "@/modules/admin/infrastructure/vacancy-documents-api";
 
 import type { VacancyDocuments, VacancyDocumentsDetail } from "@/modules/admin/infrastructure/admin-api";
 import {
@@ -45,6 +47,35 @@ export function VacancyDocumentsCell({
   vacancyId?: string | null;
 }) {
   const [opening, setOpening] = useState<DocumentKey | null>(null);
+  const qc = useQueryClient();
+  // Reemitir é ato fiscal (nota nova na prefeitura): 1º toque arma, 2º confirma.
+  const [reissueArmed, setReissueArmed] = useState(false);
+  const [reissuing, setReissuing] = useState(false);
+
+  async function handleReissueNfse() {
+    if (!vacancyId) return;
+    if (!reissueArmed) {
+      setReissueArmed(true);
+      setTimeout(() => setReissueArmed(false), 6000);
+      return;
+    }
+    setReissueArmed(false);
+    setReissuing(true);
+    try {
+      const res = await reissueVacancyNfse(vacancyId);
+      if (res.status === "FAILED") {
+        toast.error(`A prefeitura recusou de novo: ${res.failureReason ?? "sem motivo informado"}`);
+      } else {
+        toast.success("NF-e reenviada. A prefeitura responde em alguns minutos; a nota vai por e-mail ao contratante.");
+      }
+      qc.invalidateQueries({ queryKey: ["admin", "vacancies"] });
+      qc.invalidateQueries({ queryKey: ["admin", "casa-vacancies"] });
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível reemitir a NF-e."));
+    } finally {
+      setReissuing(false);
+    }
+  }
 
   async function handleOpen(key: DocumentKey, label: string) {
     if (!vacancyId) return;
@@ -116,6 +147,24 @@ export function VacancyDocumentsCell({
                 <span aria-hidden="true">{badge.symbol}</span>
                 <span className="font-normal">{badge.label}</span>
               </span>
+              {key === "nfse" && vacancyId && (documents[key] ?? "").toUpperCase() === "FAILED" && (
+                <button
+                  type="button"
+                  onClick={handleReissueNfse}
+                  disabled={reissuing}
+                  title="Emite uma nova NF-e na prefeitura (a recusada não vale como nota)"
+                  className={`inline-flex min-h-8 items-center gap-1 rounded px-1.5 font-medium disabled:opacity-50 ${
+                    reissueArmed ? "bg-red-50 text-red-600" : "text-[#eca826] hover:text-[#d4951e]"
+                  }`}
+                >
+                  {reissuing ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  )}
+                  {reissueArmed ? "Confirmar reemissão" : "Reemitir"}
+                </button>
+              )}
               {openable && (
                 <button
                   type="button"
