@@ -1,11 +1,22 @@
-import { FileText } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import axios from "axios";
+import { ExternalLink, FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import type { VacancyDocuments, VacancyDocumentsDetail } from "@/modules/admin/infrastructure/admin-api";
 import {
   DOCUMENT_KEYS,
   documentBadge,
   toneClasses,
+  type DocumentKey,
 } from "@/modules/admin/application/system-health-presentation";
+import {
+  canOpenDocument,
+  openVacancyDocument,
+} from "@/modules/admin/application/vacancy-documents-open";
+import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 
 /**
  * Documentos da vaga — contrato, recibo, RPA e NF-e — em quatro pastilhas.
@@ -17,16 +28,40 @@ import {
  *
  * Sem `documents` (API anterior ao épico, ou vaga sem job) mostra "—" — não
  * pinta nada de vermelho por falta de informação.
+ *
+ * Com `vacancyId`, a variante `full` ganha "Abrir" em cada documento que existe
+ * (emitido; o contrato também com uma assinatura faltando) — abre numa aba nova
+ * pronto para imprimir/salvar em PDF; a NF-e abre o PDF da prefeitura.
  */
 export function VacancyDocumentsCell({
   documents,
   detail,
   variant = "compact",
+  vacancyId,
 }: {
   documents: VacancyDocuments | null | undefined;
   detail?: VacancyDocumentsDetail | null;
   variant?: "compact" | "full";
+  vacancyId?: string | null;
 }) {
+  const [opening, setOpening] = useState<DocumentKey | null>(null);
+
+  async function handleOpen(key: DocumentKey, label: string) {
+    if (!vacancyId) return;
+    setOpening(key);
+    try {
+      await openVacancyDocument(vacancyId, key);
+    } catch (err) {
+      toast.error(
+        axios.isAxiosError(err) || !(err instanceof Error)
+          ? getAxiosErrorMessage(err, `Não foi possível abrir o ${label.toLowerCase()}.`)
+          : err.message,
+      );
+    } finally {
+      setOpening(null);
+    }
+  }
+
   if (!documents) {
     return variant === "compact" ? (
       <span className="text-xs text-[#a3a3a3]" title="Sem informação de documentos">
@@ -63,13 +98,16 @@ export function VacancyDocumentsCell({
 
   return (
     <DocumentsBox>
-      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
-        {DOCUMENT_KEYS.map(({ key, label }, i) => {
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
+        {DOCUMENT_KEYS.map(({ key, label }) => {
           const badge = documentBadge(documents[key]);
           const motivo = detail?.[key];
+          const openable = Boolean(vacancyId) && canOpenDocument(key, documents[key]);
           return (
-            <span key={key} className="inline-flex items-center gap-1.5">
-              {i > 0 && <span className="text-[#a3a3a3]">·</span>}
+            <li
+              key={key}
+              className="flex items-center justify-between gap-2 rounded-md border border-[#e5e5e5] bg-white px-2 py-1"
+            >
               <span
                 title={motivo ?? badge.label}
                 className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium ${toneClasses(badge.tone).chip}`}
@@ -78,10 +116,26 @@ export function VacancyDocumentsCell({
                 <span aria-hidden="true">{badge.symbol}</span>
                 <span className="font-normal">{badge.label}</span>
               </span>
-            </span>
+              {openable && (
+                <button
+                  type="button"
+                  onClick={() => handleOpen(key, label)}
+                  disabled={opening !== null}
+                  title={`Abrir ${label} em uma nova aba`}
+                  className="inline-flex min-h-8 items-center gap-1 rounded px-1.5 font-medium text-[#eca826] hover:text-[#d4951e] disabled:opacity-50"
+                >
+                  {opening === key ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  )}
+                  Abrir
+                </button>
+              )}
+            </li>
           );
         })}
-      </div>
+      </ul>
       {detail && DOCUMENT_KEYS.some(({ key }) => detail[key]) && (
         <ul className="space-y-0.5 text-[11px] text-[#737373]">
           {DOCUMENT_KEYS.filter(({ key }) => detail[key]).map(({ key, label }) => (

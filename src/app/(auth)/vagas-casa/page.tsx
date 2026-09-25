@@ -687,6 +687,13 @@ export default function VagasCasaPage() {
                 <VacancyRoadmap vacancy={detalhe.raw} />
               </div>
 
+              <VacancyDocumentsCell
+                variant="full"
+                vacancyId={detalhe.raw.id}
+                documents={detalhe.raw.documents}
+                detail={detalhe.raw.documentsDetail}
+              />
+
               <VacancyCandidacyList
                 candidacies={candidacies}
                 loading={loadingCandidacies}
