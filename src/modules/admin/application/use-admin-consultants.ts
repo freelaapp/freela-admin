@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createAdminConsultant,
+  deleteAdminConsultant,
   getAdminConsultant,
   getAdminConsultants,
   updateAdminConsultant,
@@ -56,6 +57,18 @@ export function useResetConsultantAccess() {
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ["admin", "consultants"] });
       qc.invalidateQueries({ queryKey: ["admin", "consultants", id] });
+    },
+  });
+}
+
+export function useDeleteAdminConsultant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteAdminConsultant(id),
+    onSuccess: () => {
+      // Só a lista (`exact`): invalidar o detalhe do consultor apagado faria a tela
+      // de perfil — ainda montada até o redirect — refazer o GET e tomar 404.
+      qc.invalidateQueries({ queryKey: ["admin", "consultants"], exact: true });
     },
   });
 }
