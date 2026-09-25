@@ -18,6 +18,8 @@ import {
   Copy,
   Check,
   AlertTriangle,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -41,6 +43,12 @@ import { useCreateWhatsappGroup } from "@/modules/admin/application/use-admin-wh
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { formatInstantDate } from "@/lib/date.utils";
+import { ConsultantFormDialog } from "../_components/consultant-form-dialog";
+import {
+  DeleteConsultantDialog,
+  canDeleteConsultant,
+  deleteBlockedReason,
+} from "../_components/delete-consultant-dialog";
 
 export default function ConsultorProfilePage() {
   const router = useRouter();
@@ -61,6 +69,8 @@ export default function ConsultorProfilePage() {
     null,
   );
   const [copied, setCopied] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const openReset = () => {
     setResetResult(null);
@@ -185,6 +195,33 @@ export default function ConsultorProfilePage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
+              onClick={() => setEditOpen(true)}
+              disabled={!consultant}
+              className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium disabled:opacity-40"
+            >
+              <Pencil className="w-4 h-4 mr-2" />
+              Editar
+            </Button>
+            {/* `span` segura o title: botão desabilitado não dispara hover em todo browser. */}
+            <span
+              title={
+                consultant && !canDeleteConsultant(consultant)
+                  ? deleteBlockedReason(consultant)
+                  : undefined
+              }
+            >
+              <Button
+                variant="outline"
+                onClick={() => setDeleteOpen(true)}
+                disabled={!consultant || !canDeleteConsultant(consultant)}
+                className="border-red-200 text-red-600 hover:bg-red-50 font-medium disabled:opacity-40"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir
+              </Button>
+            </span>
+            <Button
+              variant="outline"
               onClick={openReset}
               disabled={!consultant?.email}
               title={
@@ -286,6 +323,14 @@ export default function ConsultorProfilePage() {
           )}
         </div>
       )}
+
+      <ConsultantFormDialog open={editOpen} onOpenChange={setEditOpen} consultant={consultant} />
+
+      <DeleteConsultantDialog
+        consultant={deleteOpen ? (consultant ?? null) : null}
+        onOpenChange={setDeleteOpen}
+        onDeleted={() => router.push("/consultores")}
+      />
 
       {/* Modal Criar grupo WhatsApp (prefilled do consultor) */}
       <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : closeModal())}>

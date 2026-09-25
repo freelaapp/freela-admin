@@ -1048,6 +1048,7 @@ export default function JobsPage() {
 
               <VacancyDocumentsCell
                 variant="full"
+                vacancyId={modalDetalhes.raw?.id}
                 documents={modalDetalhes.raw?.documents}
                 detail={modalDetalhes.raw?.documentsDetail}
               />

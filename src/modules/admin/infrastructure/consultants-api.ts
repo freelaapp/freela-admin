@@ -31,9 +31,20 @@ export interface CreateConsultantPayload {
   notes?: string;
 }
 
-export type UpdateConsultantPayload = Partial<CreateConsultantPayload> & {
+/**
+ * Edição: `null` limpa o campo salvo. O código não entra — é só leitura depois de
+ * criado (links `?ref=CÓDIGO` já distribuídos parariam de atribuir indicações).
+ */
+export interface UpdateConsultantPayload {
+  name?: string;
+  email?: string;
+  city?: string | null;
+  uf?: string | null;
+  phone?: string | null;
+  commissionRate?: number | null;
+  notes?: string | null;
   isActive?: boolean;
-};
+}
 
 export async function getAdminConsultants(): Promise<ConsultantItem[]> {
   const res = await adminsRootApi.get("/consultants");
@@ -58,6 +69,14 @@ export async function updateAdminConsultant(
 ): Promise<ConsultantItem> {
   const res = await adminsRootApi.patch(`/consultants/${id}`, payload);
   return res.data.data;
+}
+
+/**
+ * Exclui um consultor SEM cadastros indicados. Com indicações a API responde 409
+ * (`CONSULTANT_HAS_REFERRALS`) — nesse caso o caminho é desativar.
+ */
+export async function deleteAdminConsultant(id: string): Promise<void> {
+  await adminsRootApi.delete(`/consultants/${id}`);
 }
 
 export interface ResetConsultantAccessResult {
