@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2, ArrowUpCircle, Download, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
+import { PixKeyReplaceSection } from "@/components/admin/provider/pix-key-replace-section";
 import { CompletenessCard } from "./_components/completeness-card";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -681,6 +682,12 @@ export default function FreelancersPage() {
                   />
                 )}
               </div>
+
+              {/* Chave Pix pelo suporte: quem não consegue cadastrar pelo app ou
+                  teve o repasse recusado por chave inexistente. */}
+              {selectedItem.raw.providerGlobalId && (
+                <PixKeyReplaceSection providerGlobalId={selectedItem.raw.providerGlobalId} />
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Fechar</Button>
