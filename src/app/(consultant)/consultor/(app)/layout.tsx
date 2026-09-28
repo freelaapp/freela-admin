@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2, LogOut, LayoutDashboard, UserPlus, Briefcase } from "lucide-react";
+import { Briefcase, LayoutDashboard, Loader2, LogOut, User, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useConsultantAuth } from "@/modules/consultant/application/use-consultant-auth";
 
@@ -35,36 +35,48 @@ export default function ConsultorAppLayout({ children }: { children: React.React
 
   return (
     <div className="min-h-screen bg-[#f7f7f7]">
-      <header className="h-16 bg-[#1d1d1b] text-white flex items-center px-4 lg:px-6 gap-4">
-        <span className="text-lg font-bold tracking-tight">
+      <header className="flex h-16 items-center gap-2 bg-[#1d1d1b] px-4 text-white sm:gap-4 lg:px-6">
+        <span className="shrink-0 text-base font-bold tracking-tight sm:text-lg">
           FREELA <span className="text-[#eca826]">CONSULTOR</span>
         </span>
         {!onChangePassword && (
-          <nav className="ml-6 flex items-center gap-1">
-            <NavLink href="/consultor" active={pathname === "/consultor"} icon={LayoutDashboard}>
-              Meus cadastros
-            </NavLink>
-            <NavLink href="/consultor/vagas" active={pathname === "/consultor/vagas"} icon={Briefcase}>
-              Vagas
-            </NavLink>
+          <nav className="ml-2 flex min-w-0 items-center gap-1 overflow-x-auto sm:ml-6">
+            <NavLink
+              href="/consultor"
+              active={pathname === "/consultor"}
+              icon={LayoutDashboard}
+              label="Meus cadastros"
+            />
+            <NavLink
+              href="/consultor/vagas"
+              active={pathname === "/consultor/vagas"}
+              icon={Briefcase}
+              label="Vagas"
+            />
             <NavLink
               href="/consultor/cadastrar"
               active={pathname === "/consultor/cadastrar"}
               icon={UserPlus}
-            >
-              Novo cadastro
-            </NavLink>
+              label="Novo cadastro"
+            />
+            <NavLink
+              href="/consultor/perfil"
+              active={pathname === "/consultor/perfil"}
+              icon={User}
+              label="Meu perfil"
+            />
           </nav>
         )}
         <button
           onClick={logout}
-          className="ml-auto flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-[#d4d4d4] hover:bg-[#2e2e2e] hover:text-white transition-colors"
+          aria-label="Sair"
+          className="ml-auto flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-[#d4d4d4] transition-colors hover:bg-[#2e2e2e] hover:text-white"
         >
-          <LogOut className="w-4 h-4" />
-          Sair
+          <LogOut className="h-4 w-4" />
+          <span className="hidden sm:inline">Sair</span>
         </button>
       </header>
-      <main className="p-4 lg:p-6 max-w-4xl mx-auto">{children}</main>
+      <main className="mx-auto max-w-6xl p-4 lg:p-6">{children}</main>
     </div>
   );
 }
@@ -73,23 +85,28 @@ function NavLink({
   href,
   active,
   icon: Icon,
-  children,
+  label,
 }: {
   href: string;
   active: boolean;
   icon: typeof LayoutDashboard;
-  children: React.ReactNode;
+  label: string;
 }) {
+  // No celular só o ícone (4 itens + logo + Sair não cabem em 375px); o nome fica no
+  // aria-label/title. A partir de `lg` o texto aparece.
   return (
     <Link
       href={href}
+      aria-label={label}
+      title={label}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+        "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
         active ? "bg-[#eca826] text-white" : "text-[#d4d4d4] hover:bg-[#2e2e2e] hover:text-white",
       )}
     >
-      <Icon className="w-4 h-4" />
-      {children}
+      <Icon className="h-4 w-4" />
+      <span className="hidden lg:inline">{label}</span>
     </Link>
   );
 }
