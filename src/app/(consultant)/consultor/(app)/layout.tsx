@@ -13,6 +13,9 @@ export default function ConsultorAppLayout({ children }: { children: React.React
   const { isHydrated, isAuthenticated, mustChangePassword, logout } = useConsultantAuth();
 
   const onChangePassword = pathname === "/consultor/trocar-senha";
+  // Só a troca OBRIGATÓRIA (senha temporária) esconde o menu. Quem veio do "Meu perfil"
+  // trocar a senha por vontade própria precisa do menu para voltar.
+  const showNav = !(mustChangePassword && onChangePassword);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -35,12 +38,15 @@ export default function ConsultorAppLayout({ children }: { children: React.React
 
   return (
     <div className="min-h-screen bg-[#f7f7f7]">
-      <header className="flex h-16 items-center gap-2 bg-[#1d1d1b] px-4 text-white sm:gap-4 lg:px-6">
+      {/* No celular (360–375px) logo + 4 itens + Sair não cabem numa linha: o menu desce para
+          uma linha própria, de largura inteira (`order-last w-full`). A partir de `sm` volta
+          para a mesma linha, entre o logo e o Sair. */}
+      <header className="flex flex-wrap items-center gap-x-2 gap-y-1 bg-[#1d1d1b] px-4 py-2 text-white sm:h-16 sm:flex-nowrap sm:gap-4 sm:py-0 lg:px-6">
         <span className="shrink-0 text-base font-bold tracking-tight sm:text-lg">
           FREELA <span className="text-[#eca826]">CONSULTOR</span>
         </span>
-        {!onChangePassword && (
-          <nav className="ml-2 flex min-w-0 items-center gap-1 overflow-x-auto sm:ml-6">
+        {showNav && (
+          <nav className="order-last flex w-full items-center gap-1 sm:order-none sm:ml-6 sm:w-auto sm:min-w-0 sm:overflow-x-auto">
             <NavLink
               href="/consultor"
               active={pathname === "/consultor"}
@@ -92,8 +98,8 @@ function NavLink({
   icon: typeof LayoutDashboard;
   label: string;
 }) {
-  // No celular só o ícone (4 itens + logo + Sair não cabem em 375px); o nome fica no
-  // aria-label/title. A partir de `lg` o texto aparece.
+  // Até `lg` só o ícone; o nome fica no aria-label/title. No celular cada item ocupa
+  // 1/4 da linha do menu (alvo de toque maior). A partir de `lg` o texto aparece.
   return (
     <Link
       href={href}
@@ -101,7 +107,7 @@ function NavLink({
       title={label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+        "flex flex-1 shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:flex-none sm:py-1.5",
         active ? "bg-[#eca826] text-white" : "text-[#d4d4d4] hover:bg-[#2e2e2e] hover:text-white",
       )}
     >
