@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminCasaContractors } from "@/modules/admin/application/use-admin-casa-contractors";
 import type { CasaContractorItem } from "@/modules/admin/infrastructure/casa-contractors-api";
-import { formatReferralOrigin } from "@/modules/admin/infrastructure/admin-api";
+import { formatSignupOrigin } from "@/modules/admin/application/signup-origin-presentation";
+import { SignupOriginBadges } from "@/components/admin/signup-origin-badges";
 import { formatInstantDate } from "@/lib/date.utils";
 import { formatPhoneBr } from "@/lib/utils";
 import { downloadCsv } from "@/lib/csv";
@@ -46,7 +47,6 @@ function mapToRow(c: CasaContractorItem) {
     cidade: c.city || "—",
     uf: c.uf || "—",
     avaliacao: c.rating ?? 0,
-    origem: formatReferralOrigin(c),
     cadastro: c.createdAt ? formatInstantDate(c.createdAt) : "—",
     status: c.isActive ? ("active" as const) : ("inactive" as const),
     raw: c,
@@ -92,7 +92,7 @@ export default function ContratantesCasaPage() {
       c.city ?? "",
       c.uf ?? "",
       fullAddress(c),
-      formatReferralOrigin(c),
+      formatSignupOrigin(c),
       c.rating != null ? c.rating.toFixed(1).replace(".", ",") : "",
       c.isActive ? "Ativo" : "Inativo",
       c.createdAt ? formatInstantDate(c.createdAt) : "",
@@ -125,7 +125,11 @@ export default function ContratantesCasaPage() {
     { header: "Telefone", accessor: "telefone" as const },
     { header: "Cidade", accessor: "cidade" as const },
     { header: "UF", accessor: "uf" as const, className: "hidden md:table-cell" },
-    { header: "Origem do cadastro", accessor: "origem" as const, className: "hidden lg:table-cell" },
+    {
+      header: "Origem do cadastro",
+      accessor: (row: Row) => <SignupOriginBadges source={row.raw} />,
+      className: "hidden lg:table-cell",
+    },
     {
       header: "Cadastro",
       accessor: "cadastro" as const,
@@ -273,9 +277,10 @@ export default function ContratantesCasaPage() {
                   <MapPin className="w-4 h-4 text-[#737373]" />
                   {[selected.cidade, selected.uf].filter((v) => v && v !== "—").join("/") || "—"}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
-                  <User className="w-4 h-4 text-[#737373]" />
-                  Origem do cadastro: {selected.origem}
+                <div className="flex items-start gap-2 text-sm text-[#1d1d1b]">
+                  <User className="w-4 h-4 text-[#737373] mt-0.5 shrink-0" />
+                  <span className="shrink-0">Origem do cadastro:</span>
+                  <SignupOriginBadges source={selected.raw} />
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <CalendarDays className="w-4 h-4 text-[#737373]" />

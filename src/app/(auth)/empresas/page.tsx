@@ -26,7 +26,9 @@ import {
 } from "@/modules/admin/application/use-admin-contractors";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
-import { getContractorReport, formatReferralOrigin } from "@/modules/admin/infrastructure/admin-api";
+import { getContractorReport } from "@/modules/admin/infrastructure/admin-api";
+import { formatSignupOrigin } from "@/modules/admin/application/signup-origin-presentation";
+import { SignupOriginBadges } from "@/components/admin/signup-origin-badges";
 import { generateContractorReportPdf } from "@/modules/admin/infrastructure/contractor-report-pdf";
 import {
   useAdminContractorEmployee,
@@ -65,7 +67,6 @@ function mapContractorToRow(c: ContractorItem) {
     jobs: c.jobs,
     ticket: c.ticketMedio ? `R$ ${(c.ticketMedio / 100).toFixed(2)}` : "N/A",
     avaliacao: c.avaliacao ?? 0,
-    origem: formatReferralOrigin(c),
     // createdAt é instante UTC — formatInstantDate fixa Brasília.
     cadastro: c.createdAt ? formatInstantDate(c.createdAt) : "—",
     status: c.isActive ? ("active" as const) : ("inactive" as const),
@@ -214,7 +215,7 @@ export default function EmpresasPage() {
       c.segment ?? "",
       c.cnpj ?? "",
       c.cpf ?? "",
-      formatReferralOrigin(c),
+      formatSignupOrigin(c),
       c.jobs,
       c.ticketMedio != null ? (c.ticketMedio / 100).toFixed(2).replace(".", ",") : "",
       c.avaliacao != null ? c.avaliacao.toFixed(1).replace(".", ",") : "",
@@ -292,7 +293,11 @@ export default function EmpresasPage() {
     { header: "Telefone", accessor: "telefone" as const, className: "hidden lg:table-cell" },
     { header: "Cidade", accessor: "cidade" as const },
     { header: "Segmento", accessor: "segmento" as const, className: "hidden md:table-cell" },
-    { header: "Origem do cadastro", accessor: "origem" as const, className: "hidden lg:table-cell" },
+    {
+      header: "Origem do cadastro",
+      accessor: (row: Row) => <SignupOriginBadges source={row.raw} />,
+      className: "hidden lg:table-cell",
+    },
     {
       header: "Cadastro",
       accessor: "cadastro" as const,
@@ -416,9 +421,10 @@ export default function EmpresasPage() {
                 <User className="w-4 h-4 text-[#737373]" />
                 E-mail (login): {selectedItem.raw.registrationEmail || "—"}
               </div>
-              <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
-                <User className="w-4 h-4 text-[#737373]" />
-                Origem do cadastro: {selectedItem.origem}
+              <div className="flex items-start gap-2 text-sm text-[#1d1d1b]">
+                <User className="w-4 h-4 text-[#737373] mt-0.5 shrink-0" />
+                <span className="shrink-0">Origem do cadastro:</span>
+                <SignupOriginBadges source={selectedItem.raw} />
               </div>
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                 <CalendarDays className="w-4 h-4 text-[#737373]" />

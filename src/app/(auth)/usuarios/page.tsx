@@ -20,7 +20,8 @@ import {
 import { useAdminUsers } from "@/modules/admin/application/use-admin-users";
 import { useAdminDeletionStats } from "@/modules/admin/application/use-admin-deletion-stats";
 import type { UserItem } from "@/modules/admin/infrastructure/admin-api";
-import { formatReferralOrigin, changeUserEmail } from "@/modules/admin/infrastructure/admin-api";
+import { changeUserEmail } from "@/modules/admin/infrastructure/admin-api";
+import { SignupOriginBadges } from "@/components/admin/signup-origin-badges";
 import { formatInstantDate } from "@/lib/date.utils";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 
@@ -58,7 +59,6 @@ function mapUserToRow(u: UserItem) {
     deletionRequestedAt: u.deletionRequestedAt,
     deletionScheduledAt: u.deletionScheduledAt,
     deletedAt: u.deletedAt,
-    origem: formatReferralOrigin(u),
     raw: u,
   };
 }
@@ -153,9 +153,7 @@ export default function UsuariosPage() {
     { header: "Email", accessor: "email" as const },
     {
       header: "Origem",
-      accessor: (row: Row) => (
-        <span className="text-xs text-[#737373]">{row.origem}</span>
-      ),
+      accessor: (row: Row) => <SignupOriginBadges source={row.raw} />,
       className: "hidden lg:table-cell",
     },
     {
@@ -420,7 +418,7 @@ export default function UsuariosPage() {
               </div>
               <div className="bg-[#f7f7f7] rounded-lg p-3">
                 <p className="text-[#737373]">Origem do cadastro</p>
-                <p className="font-semibold text-[#1d1d1b]">{modalEditar.origem}</p>
+                <div className="mt-1"><SignupOriginBadges source={modalEditar.raw} /></div>
               </div>
 
               {(modalEditar.raw.status !== "ACTIVE") && (

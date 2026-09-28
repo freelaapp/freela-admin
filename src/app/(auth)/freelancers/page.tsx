@@ -8,6 +8,7 @@ import { PixKeyReplaceSection } from "@/components/admin/provider/pix-key-replac
 import { CompletenessCard } from "./_components/completeness-card";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { SignupOriginBadges } from "@/components/admin/signup-origin-badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -484,6 +485,13 @@ export default function FreelancersPage() {
       sortAccessor: (row: Row) => row.avaliacao,
     },
     { header: "Trabalhos", accessor: "trabalhos" as const, className: "hidden lg:table-cell", sortable: true, sortAccessor: (row: Row) => row.trabalhos },
+    {
+      // Origem da CONTA (indicação, campanha, UTM, Google/Apple, app/site/importação).
+      // API antiga não manda `signupOrigin` → "—".
+      header: "Origem",
+      accessor: (row: Row) => <SignupOriginBadges source={row.raw} />,
+      className: "hidden lg:table-cell",
+    },
     {
       // "Cadastro" = criação da CONTA do usuário. Se a API antiga não mandar
       // esse campo, mostramos a criação do perfil B&R com o rótulo explícito
