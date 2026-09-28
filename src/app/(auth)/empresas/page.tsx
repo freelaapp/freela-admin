@@ -421,7 +421,7 @@ export default function EmpresasPage() {
                 <User className="w-4 h-4 text-[#737373]" />
                 E-mail (login): {selectedItem.raw.registrationEmail || "—"}
               </div>
-              <div className="flex items-start gap-2 text-sm text-[#1d1d1b]">
+              <div className="flex min-w-0 flex-wrap items-start gap-2 text-sm text-[#1d1d1b]">
                 <User className="w-4 h-4 text-[#737373] mt-0.5 shrink-0" />
                 <span className="shrink-0">Origem do cadastro:</span>
                 <SignupOriginBadges source={selectedItem.raw} />

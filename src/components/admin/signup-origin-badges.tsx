@@ -17,21 +17,26 @@ const VARIANT: Record<SignupOriginTone, NonNullable<BadgeProps["variant"]>> = {
   legado: "outline",
 };
 
-/** Coluna "Origem": uma etiqueta por fonte (spec 2026-09-28 §3). */
+/**
+ * Coluna "Origem": uma etiqueta por fonte (spec 2026-09-28 §3). Etiqueta longa
+ * (nome de quem indicou, campanha/UTM sem espaço) quebra linha: nada de
+ * `whitespace-nowrap`, e `wrap-anywhere` (overflow-wrap:anywhere) porque o
+ * `break-words` não encolhe o min-content dentro do inline-flex do Badge.
+ */
 export function SignupOriginBadges({ source }: { source: SignupOriginSource }) {
   const labels = signupOriginLabels(source);
   if (labels.length === 1 && labels[0].key === "vazio") {
     return <span className="text-xs text-[#a3a3a3]">{labels[0].text}</span>;
   }
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex min-w-0 max-w-full flex-wrap gap-1">
       {labels.map((label) => (
         <Badge
           key={label.key}
           data-signup-origin={label.key}
           variant={VARIANT[label.tone]}
           title={label.title}
-          className="font-medium whitespace-nowrap"
+          className="max-w-full font-medium wrap-anywhere"
         >
           {label.text}
         </Badge>
