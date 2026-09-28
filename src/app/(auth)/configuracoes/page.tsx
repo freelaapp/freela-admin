@@ -12,6 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { SupportContactCard } from "./_components/support-contact-card";
 
 const sections = [
   { title: "Notificações", description: "Configure alertas e notificações do sistema", icon: Bell },
@@ -40,6 +41,8 @@ export default function ConfiguracoesPage() {
     <div>
       <PageHeader title="Configurações" description="Configurações gerais e integrações" />
 
+      <SupportContactCard />
+
       <Dialog open={showAlert} onOpenChange={setShowAlert}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -50,10 +53,10 @@ export default function ConfiguracoesPage() {
               </span>
             </DialogTitle>
             <DialogDescription>
-              A página de Configurações ainda não possui integração com o banco de dados.
-              As opções e integrações exibidas são <strong>dados fictícios</strong> para demonstração visual.
+              O card <strong>WhatsApp de suporte</strong> já é real: o número salvo ali aparece no site, no
+              app e nas mensagens.
               <br /><br />
-              A integração real será implementada em breve.
+              As demais opções desta página ainda são <strong>demonstração</strong> e serão ligadas em breve.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
