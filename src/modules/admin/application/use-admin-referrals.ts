@@ -8,6 +8,7 @@ import {
   getCampaign,
   getCampaignRecipients,
   getCampaigns,
+  getReferralMetrics,
   getReferralRewards,
   getReferralSummary,
   getReferrals,
@@ -37,11 +38,24 @@ export function useReferralSummary() {
   });
 }
 
+/** Funil do período. `range` vazio = todo o período. */
+export function useReferralMetrics(range: { from?: string; to?: string }) {
+  return useQuery({
+    queryKey: [...REFERRALS_KEY, "metrics", range.from ?? null, range.to ?? null],
+    queryFn: () => getReferralMetrics(range),
+    staleTime: 60_000,
+    // Troca de período mantém os números antigos na tela até os novos chegarem,
+    // em vez de piscar os cards para "—".
+    placeholderData: (previous) => previous,
+  });
+}
+
 export function useReferrals(filter: ReferralListFilter) {
   return useQuery({
     queryKey: [...REFERRALS_KEY, "list", filter],
     queryFn: () => getReferrals(filter),
     staleTime: 30_000,
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -50,6 +64,7 @@ export function useReferralRewards(filter: ReferralListFilter) {
     queryKey: [...REFERRALS_KEY, "rewards", filter],
     queryFn: () => getReferralRewards(filter),
     staleTime: 30_000,
+    placeholderData: (previous) => previous,
   });
 }
 

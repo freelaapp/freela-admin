@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
@@ -28,10 +28,21 @@ import {
   useReferrals,
 } from "@/modules/admin/application/use-admin-referrals";
 import type {
+  Paginated,
   ReferralItem,
   RewardItem,
   RewardStatus,
 } from "@/modules/admin/infrastructure/referrals-api";
+import {
+  describeReferralRange,
+  resolveReferralPeriod,
+  toInstantRange,
+  type ReferralPeriodSelection,
+} from "@/modules/admin/application/referral-period";
+import { ReferralFunnelSection } from "./_components/referral-funnel-section";
+
+/** Linhas por página nas duas listas. */
+const PAGE_SIZE = 50;
 
 const brl = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -73,6 +84,47 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
 }
 
 /**
+ * Paginação das listas. Antes as duas pediam 100 linhas e a tabela não tinha
+ * página: da 101ª em diante as indicações simplesmente não apareciam.
+ */
+function Pager({
+  data,
+  page,
+  onPage,
+}: {
+  data: Paginated<unknown> | undefined;
+  page: number;
+  onPage: (page: number) => void;
+}) {
+  if (!data || data.total === 0) return null;
+  const first = (page - 1) * data.pageSize + 1;
+  const last = Math.min(page * data.pageSize, data.total);
+  const lastPage = Math.max(1, Math.ceil(data.total / data.pageSize));
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-neutral-600">
+      <span>
+        {first}–{last} de {data.total.toLocaleString("pt-BR")}
+      </span>
+      {lastPage > 1 && (
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+            Anterior
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= lastPage}
+            onClick={() => onPage(page + 1)}
+          >
+            Próxima
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Etiqueta de quem indicou. Sem `kind` = API anterior a 12/08/2026, quando só
  * freelancer podia indicar — dizer "freelancer" ali seria chute, então não diz
  * nada.
@@ -95,16 +147,35 @@ function QuemIndicou({ kind }: { kind?: ReferralItem["referrerKind"] }) {
 export default function IndicacoesPage() {
   const { allowed, isChecking } = useAreaGuard("REFERRALS");
   const [tab, setTab] = useState<"rewards" | "referrals">("rewards");
-  const [search, setSearch] = useState("");
+  // Uma busca por aba: a mesma caixa filtrando as duas listas fazia a busca de
+  // um freelancer nas recompensas esvaziar a lista de indicações.
+  const [rewardSearch, setRewardSearch] = useState("");
+  const [referralSearch, setReferralSearch] = useState("");
   const [rewardStatus, setRewardStatus] = useState<RewardStatus | "">("PENDING");
+  const [rewardPage, setRewardPage] = useState(1);
+  const [referralPage, setReferralPage] = useState(1);
+  const [period, setPeriod] = useState<ReferralPeriodSelection>({
+    preset: "30d",
+    customFrom: "",
+    customTo: "",
+  });
+  const range = useMemo(() => resolveReferralPeriod(period), [period]);
 
   const summary = useReferralSummary();
   const rewards = useReferralRewards({
-    search: search || undefined,
+    search: rewardSearch || undefined,
     rewardStatus: rewardStatus || undefined,
-    pageSize: 100,
+    page: rewardPage,
+    pageSize: PAGE_SIZE,
   });
-  const referrals = useReferrals({ search: search || undefined, pageSize: 100 });
+  // A lista de indicações segue o período dos indicadores: o card "Cadastros
+  // pelo link" e a lista contam as mesmas linhas.
+  const referrals = useReferrals({
+    search: referralSearch || undefined,
+    ...toInstantRange(range),
+    page: referralPage,
+    pageSize: PAGE_SIZE,
+  });
 
   const approve = useApproveReward();
   const pay = usePayReward();
@@ -158,7 +229,8 @@ export default function IndicacoesPage() {
 
   const rewardColumns = [
     {
-      header: "Freelancer",
+      // Recompensa vai para quem indicou — freelancer ou contratante.
+      header: "Quem indicou",
       accessor: (row: RewardItem) => (
         <div>
           <p className="font-medium">{row.provider?.profile?.name ?? "—"}</p>
@@ -302,6 +374,18 @@ export default function IndicacoesPage() {
         description="Programa Indique e Ganhe — freelancer OU contratante traz um contratante EMPRESA (bar/restaurante) e recebe quando ele contrata. Indicado que se cadastra como freelancer ou como contratante Em Casa não conta."
       />
 
+      <ReferralFunnelSection
+        selection={period}
+        range={range}
+        onSelectionChange={(next) => {
+          setPeriod(next);
+          setReferralPage(1);
+        }}
+      />
+
+      <h2 className="mb-3 text-base font-semibold text-[#1d1d1b]">
+        Recompensas e situação <span className="font-normal text-neutral-500">· desde o início</span>
+      </h2>
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi
           label="A pagar (passivo)"
@@ -334,7 +418,10 @@ export default function IndicacoesPage() {
           <select
             className="ml-auto rounded-md border border-neutral-300 px-3 py-2 text-sm"
             value={rewardStatus}
-            onChange={(event) => setRewardStatus(event.target.value as RewardStatus | "")}
+            onChange={(event) => {
+              setRewardStatus(event.target.value as RewardStatus | "");
+              setRewardPage(1);
+            }}
           >
             <option value="">Todos os status</option>
             <option value="PENDING">A aprovar</option>
@@ -346,21 +433,42 @@ export default function IndicacoesPage() {
       </div>
 
       {tab === "rewards" ? (
-        <DataTable
-          columns={rewardColumns}
-          data={rewards.data?.items ?? []}
-          isFetching={rewards.isFetching}
-          searchPlaceholder="Buscar por freelancer…"
-          controlledSearch={{ value: search, onChange: setSearch }}
-        />
+        <>
+          <DataTable
+            columns={rewardColumns}
+            data={rewards.data?.items ?? []}
+            isFetching={rewards.isFetching}
+            searchPlaceholder="Buscar por quem indicou…"
+            controlledSearch={{
+              value: rewardSearch,
+              onChange: (value) => {
+                setRewardSearch(value);
+                setRewardPage(1);
+              },
+            }}
+          />
+          <Pager data={rewards.data} page={rewardPage} onPage={setRewardPage} />
+        </>
       ) : (
-        <DataTable
-          columns={referralColumns}
-          data={referrals.data?.items ?? []}
-          isFetching={referrals.isFetching}
-          searchPlaceholder="Buscar por nome, e-mail ou código…"
-          controlledSearch={{ value: search, onChange: setSearch }}
-        />
+        <>
+          <p className="mb-2 text-xs text-neutral-500">
+            Cadastros feitos em {describeReferralRange(range)} (período dos indicadores acima).
+          </p>
+          <DataTable
+            columns={referralColumns}
+            data={referrals.data?.items ?? []}
+            isFetching={referrals.isFetching}
+            searchPlaceholder="Buscar por nome, e-mail ou código…"
+            controlledSearch={{
+              value: referralSearch,
+              onChange: (value) => {
+                setReferralSearch(value);
+                setReferralPage(1);
+              },
+            }}
+          />
+          <Pager data={referrals.data} page={referralPage} onPage={setReferralPage} />
+        </>
       )}
 
       <Dialog open={Boolean(payTarget)} onOpenChange={(open) => !open && setPayTarget(null)}>

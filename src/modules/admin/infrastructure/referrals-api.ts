@@ -80,12 +80,54 @@ export interface ReferralListFilter {
   status?: ReferralStatus;
   rewardStatus?: RewardStatus;
   search?: string;
+  /** Instantes ISO com fuso (ver `toInstantRange`) — a API trata como `Date`. */
+  from?: string;
+  to?: string;
   page?: number;
   pageSize?: number;
 }
 
+/** Perfil que o indicado tem HOJE, não o que declarou no cadastro. */
+export type ReferredProfile = "empresa" | "casa" | "freelancer" | "semPerfil";
+
+/**
+ * Funil do Indique e Ganhe no período (dias de Brasília, fim inclusivo). Cada
+ * etapa conta pela data do próprio evento.
+ */
+export interface ReferralFunnelMetrics {
+  period: { from: string | null; to: string | null };
+  /** Aberturas da tela "Indique e ganhe" — medidas desde 28/09/2026. */
+  pageViews: { total: number; uniqueUsers: number; byPlatform: { web: number; app: number } };
+  /** Aberturas do link de cadastro com código — medidas desde 28/09/2026. */
+  linkOpens: { total: number; uniqueCodes: number };
+  /** Códigos criados; cada código é um link. */
+  codesGenerated: number;
+  signups: {
+    total: number;
+    byStatus: Record<ReferralStatus, number>;
+    byProfile: Record<ReferredProfile, number>;
+  };
+  vacancies: {
+    total: number;
+    contractors: number;
+    byModule: { "bars-restaurants": number; "home-services": number };
+  };
+}
+
 export async function getReferralSummary(): Promise<ReferralSummary> {
   const res = await adminsRootApi.get("/referrals/summary");
+  return res.data.data;
+}
+
+export async function getReferralMetrics(range: {
+  from?: string;
+  to?: string;
+}): Promise<ReferralFunnelMetrics> {
+  // Só manda o lado preenchido: `from=""` a API recusa (formato YYYY-MM-DD).
+  const params: Record<string, string> = {};
+  if (range.from) params.from = range.from;
+  if (range.to) params.to = range.to;
+  const res = await adminsRootApi.get("/referrals/metrics", { params });
   return res.data.data;
 }
 
