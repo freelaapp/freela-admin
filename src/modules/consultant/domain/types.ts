@@ -17,16 +17,67 @@ export interface CreateRegistrationPayload {
   cityId?: string;
 }
 
+export type RegistrationSource = "LINK" | "ON_BEHALF";
+export type RegistrationTypeFilter = "all" | "freelancer" | "contractor";
+
 export interface RegistrationItem {
   id: string;
   userId: string;
   name: string;
   email: string | null;
   phone: string | null;
+  /** Perfil de HOJE (`provider` | `contractor`); `null` = ainda sem perfil. */
   persona: string | null;
+  /** `bars-restaurants` (Empresa) ou `home-services` (Casa) — só contratante. */
   module: string | null;
+  companyName: string | null;
+  city: string | null;
+  uf: string | null;
+  source: RegistrationSource | null;
+  /** Contratante que já publicou vaga. */
+  hasVacancy: boolean;
   status: "pending" | "active";
   createdAt: string;
+}
+
+export interface RegistrationFilters {
+  type: RegistrationTypeFilter;
+  q: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface RegistrationPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: RegistrationItem[];
+}
+
+export interface ConsultantTotals {
+  registrations: number;
+  freelancers: number;
+  contractors: number;
+  contractorsWithVacancy: number;
+}
+
+export interface ConsultantProfile {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  code: string;
+  city: string | null;
+  uf: string | null;
+  referralLink: string;
+  commissionRate: number | null;
+  totals: ConsultantTotals;
+}
+
+/** O consultor edita só nome e telefone (telefone em E.164). */
+export interface UpdateConsultantProfilePayload {
+  name?: string;
+  phone?: string;
 }
 
 /** Produto a que a vaga pertence (define o endpoint consultor-scoped consultado). */

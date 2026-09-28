@@ -1,9 +1,13 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 import type {
+  ConsultantProfile,
   ConsultantVacancy,
   ConsultantVacancyCandidacy,
   CreateRegistrationPayload,
+  RegistrationFilters,
   RegistrationItem,
+  RegistrationPage,
+  UpdateConsultantProfilePayload,
   VacancyModule,
 } from "@/modules/consultant/domain/types";
 
@@ -46,6 +50,22 @@ export async function changeConsultantPasswordApi(
   await consultantApi.post("/me/change-password", { currentPassword, newPassword });
 }
 
+// ─── Perfil ───────────────────────────────────────────────────────────────────
+
+export async function getConsultantProfileApi(): Promise<ConsultantProfile> {
+  const res = await consultantApi.get("/me");
+  return res.data.data;
+}
+
+export async function updateConsultantProfileApi(
+  payload: UpdateConsultantProfilePayload,
+): Promise<ConsultantProfile> {
+  const res = await consultantApi.patch("/me", payload);
+  return res.data.data;
+}
+
+// ─── Cadastros ────────────────────────────────────────────────────────────────
+
 export async function createRegistrationApi(payload: CreateRegistrationPayload): Promise<{
   userId: string;
   inviteSentByWhatsApp: boolean;
@@ -57,9 +77,43 @@ export async function createRegistrationApi(payload: CreateRegistrationPayload):
   return res.data.data;
 }
 
-export async function listRegistrationsApi(): Promise<RegistrationItem[]> {
-  const res = await consultantApi.get("/me/registrations");
-  return res.data.data;
+function withRegistrationDefaults(item: Partial<RegistrationItem>): RegistrationItem {
+  return {
+    companyName: null,
+    city: null,
+    uf: null,
+    source: null,
+    hasVacancy: false,
+    ...item,
+  } as RegistrationItem;
+}
+
+/**
+ * Normaliza a resposta da lista. Aceita o formato ANTIGO (array, API antes do rollout de
+ * 29/09) como uma página única, para o painel não quebrar se subir antes da API.
+ */
+export function toRegistrationPage(raw: unknown, filters: RegistrationFilters): RegistrationPage {
+  if (Array.isArray(raw)) {
+    const items = (raw as Partial<RegistrationItem>[]).map(withRegistrationDefaults);
+    return { total: items.length, page: 1, pageSize: items.length || filters.pageSize, items };
+  }
+  const page = (raw ?? null) as Partial<RegistrationPage> | null;
+  const items = (page?.items ?? []).map(withRegistrationDefaults);
+  return {
+    total: page?.total ?? items.length,
+    page: page?.page ?? filters.page,
+    pageSize: page?.pageSize ?? filters.pageSize,
+    items,
+  };
+}
+
+export async function listRegistrationsApi(filters: RegistrationFilters): Promise<RegistrationPage> {
+  const params: Record<string, string | number> = { page: filters.page, pageSize: filters.pageSize };
+  if (filters.type !== "all") params.type = filters.type;
+  const q = filters.q.trim();
+  if (q) params.q = q;
+  const res = await consultantApi.get("/me/registrations", { params });
+  return toRegistrationPage(res.data.data, filters);
 }
 
 // ─── Vagas dos clientes indicados ─────────────────────────────────────────────
