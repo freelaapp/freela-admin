@@ -243,6 +243,34 @@ export interface ContractorItem {
   avaliacao: number | null;
   referredByConsultant?: { id: string; name: string; code: string } | null;
   referredByPartnership?: { id: string; name: string; code: string } | null;
+  /** Origem completa do cadastro. Ausente = API anterior a 29/09/2026. */
+  signupOrigin?: SignupOrigin | null;
+}
+
+// ─── Origem do cadastro (API 29/09/2026) ────────────────────────────────────
+
+export type SignupChannel = "web" | "app" | "import";
+
+/** Origem completa devolvida pelas listagens admin. Várias fontes podem coexistir. */
+export interface SignupOrigin {
+  referral: {
+    referrerName: string | null;
+    code: string;
+    status: "REGISTERED" | "QUALIFIED" | "REJECTED";
+  } | null;
+  consultant: { id: string; name: string } | null;
+  partnership: { id: string; name: string } | null;
+  campaign: { id: string; name: string } | null;
+  social: "google" | "apple" | null;
+  channel: SignupChannel | null;
+  utm: { source: string | null; medium: string | null; campaign: string | null } | null;
+}
+
+/** Campos de origem de um item de listagem: o novo e os dois antigos (queda p/ API antiga). */
+export interface SignupOriginSource {
+  signupOrigin?: SignupOrigin | null;
+  referredByPartnership?: { name: string; code?: string } | null;
+  referredByConsultant?: { name: string; code?: string } | null;
 }
 
 /**
@@ -411,6 +439,8 @@ export interface ProviderItem {
   lowPriority?: boolean;
   /** Desde quando está em baixa prioridade (ISO), quando `lowPriority` = true. */
   lowPrioritySince?: string | null;
+  /** Origem completa do cadastro. Ausente = API anterior a 29/09/2026. */
+  signupOrigin?: SignupOrigin | null;
 }
 
 export interface GetAdminProvidersParams {
@@ -919,6 +949,8 @@ export interface UserItem {
   createdAt: string;
   referredByConsultant?: { id: string; name: string; code: string } | null;
   referredByPartnership?: { id: string; name: string; code: string } | null;
+  /** Origem completa do cadastro. Ausente = API anterior a 29/09/2026. */
+  signupOrigin?: SignupOrigin | null;
 }
 
 export interface AdminUsersQuery {

@@ -1,4 +1,5 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { SignupOrigin } from "./admin-api";
 
 /**
  * Client admin do módulo Freela em Casa (home-services). Base distinta do client de
@@ -36,6 +37,8 @@ export interface CasaContractorItem {
   updatedAt: string;
   referredByConsultant?: { id: string; name: string; code: string } | null;
   referredByPartnership?: { id: string; name: string; code: string } | null;
+  /** Origem completa do cadastro. Ausente = API anterior a 29/09/2026. */
+  signupOrigin?: SignupOrigin | null;
 }
 
 /** Lista todos os contratantes do módulo Freela em Casa (Admin). */
