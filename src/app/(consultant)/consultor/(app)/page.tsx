@@ -115,7 +115,7 @@ export default function ConsultorDashboardPage() {
       />
 
       {totals && (
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiCard title="Cadastros" value={String(totals.registrations)} icon={Users} />
           <KpiCard title="Freelancers" value={String(totals.freelancers)} icon={User} />
           <KpiCard
@@ -156,7 +156,7 @@ export default function ConsultorDashboardPage() {
         <DataTable
           columns={COLUMNS}
           data={data?.items ?? []}
-          searchPlaceholder="Buscar por nome, e-mail ou telefone..."
+          searchPlaceholder="Buscar por nome, empresa, e-mail ou telefone..."
           controlledSearch={{ value: search, onChange: changeSearch }}
           isFetching={registrations.isFetching}
           filters={

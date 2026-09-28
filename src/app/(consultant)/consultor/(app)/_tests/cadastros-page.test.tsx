@@ -99,6 +99,14 @@ describe("Meus cadastros (consultor)", () => {
     });
   });
 
+  it("totais em 2 colunas já no celular (4 cards empilhados = rolagem demais)", async () => {
+    renderPage();
+
+    const grid = (await screen.findByText("Empresas com vaga")).closest(".grid");
+    expect(grid).toHaveClass("grid-cols-2", "lg:grid-cols-4");
+    expect(grid).not.toHaveClass("grid-cols-1");
+  });
+
   it("filtro por tipo volta para a página 1", async () => {
     renderPage();
     await screen.findAllByText("Bar do Zé");
@@ -119,7 +127,7 @@ describe("Meus cadastros (consultor)", () => {
     renderPage();
     await screen.findAllByText("Bar do Zé");
 
-    fireEvent.change(screen.getByPlaceholderText("Buscar por nome, e-mail ou telefone..."), {
+    fireEvent.change(screen.getByPlaceholderText("Buscar por nome, empresa, e-mail ou telefone..."), {
       target: { value: "  ana " },
     });
 
