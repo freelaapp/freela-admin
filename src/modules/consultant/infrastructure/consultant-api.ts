@@ -14,20 +14,21 @@ import type {
 /** Sessão do consultor — chave própria, isolada do `authUser` do staff. */
 export const CONSULTANT_STORAGE_KEY = "consultantUser";
 
-const consultantApi = createAuthedClient("/v1/consultants", {
+/** Mesma sessão para os dois clients; consultor desativado volta ao login com aviso. */
+const CONSULTANT_CLIENT_OPTIONS = {
   tokenStorageKey: CONSULTANT_STORAGE_KEY,
   loginPath: "/consultor/login",
-});
+  reasonByErrorCode: { CONSULTANT_INACTIVE: "desativado" },
+};
+
+const consultantApi = createAuthedClient("/v1/consultants", CONSULTANT_CLIENT_OPTIONS);
 
 /**
  * Endpoints consultor-scoped que vivem sob os módulos de produto
  * (`/v1/bars-restaurants/consultant`, `/v1/home-services/consultant`) — base distinta
  * da de `consultantApi`, mesma sessão de token.
  */
-const consultantModulesApi = createAuthedClient("/v1", {
-  tokenStorageKey: CONSULTANT_STORAGE_KEY,
-  loginPath: "/consultor/login",
-});
+const consultantModulesApi = createAuthedClient("/v1", CONSULTANT_CLIENT_OPTIONS);
 
 export interface ConsultantLoginResponse {
   accessToken: string;

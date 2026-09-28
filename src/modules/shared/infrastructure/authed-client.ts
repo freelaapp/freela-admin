@@ -44,6 +44,12 @@ export interface AuthedClientOptions {
    * Default `/login` (staff/admin); o consultor usa `/consultor/login`.
    */
   loginPath?: string;
+  /**
+   * Código de erro da API (`error.code` do corpo do 401) → valor de `?motivo=` no
+   * redirect para o login. Ex.: consultor desativado vai para `/consultor/login?motivo=desativado`
+   * e a tela explica o porquê. Sem mapa (staff) o redirect segue igual.
+   */
+  reasonByErrorCode?: Record<string, string>;
 }
 
 /** Anexa o Bearer token lido de `tokenStorageKey` na requisição. */
@@ -66,6 +72,20 @@ function attachToken(tokenStorageKey: string) {
   };
 }
 
+/** Para onde o 401 manda: o login, com `?motivo=` quando o código da API é conhecido. */
+export function buildLoginRedirect(
+  loginPath: string,
+  errorBody: unknown,
+  reasonByErrorCode: Record<string, string> = {},
+): string {
+  const code = (errorBody as { error?: { code?: unknown } } | null | undefined)?.error?.code;
+  const reason =
+    typeof code === "string" && Object.prototype.hasOwnProperty.call(reasonByErrorCode, code)
+      ? reasonByErrorCode[code]
+      : undefined;
+  return reason ? `${loginPath}?motivo=${encodeURIComponent(reason)}` : loginPath;
+}
+
 /**
  * Factory única para os clients axios autenticados do admin/consultor.
  *
@@ -81,6 +101,7 @@ export function createAuthedClient(
     tokenStorageKey = DEFAULT_TOKEN_STORAGE_KEY,
     redirectOn401 = true,
     loginPath = "/login",
+    reasonByErrorCode = {},
   } = options;
 
   const instance = axios.create({
@@ -112,7 +133,9 @@ export function createAuthedClient(
           const isReadRequest = method === "get" || method === "head";
           if (isReadRequest && window.location.pathname !== loginPath) {
             localStorage.removeItem(tokenStorageKey);
-            window.location.assign(loginPath);
+            window.location.assign(
+              buildLoginRedirect(loginPath, error.response?.data, reasonByErrorCode),
+            );
           }
         }
 

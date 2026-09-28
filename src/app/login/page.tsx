@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,14 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Entrando..." : "Entrar"}
             </Button>
-          </form></CardContent>
+          </form>
+          <p className="mt-4 text-center text-sm text-[#737373]">
+            Sou consultor →{" "}
+            <Link href="/consultor/login" className="font-medium text-[#eca826] hover:underline">
+              entrar no painel do consultor
+            </Link>
+          </p>
+        </CardContent>
       </Card>
     </div>
   );

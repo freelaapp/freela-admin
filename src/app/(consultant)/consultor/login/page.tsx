@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConsultantAuth } from "@/modules/consultant/application/use-consultant-auth";
+import { loginNoticeFromSearch } from "@/modules/consultant/application/login-notice";
 
 export default function ConsultorLoginPage() {
   const router = useRouter();
@@ -15,6 +16,12 @@ export default function ConsultorLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // Lido no cliente (sem useSearchParams, que exigiria Suspense no build estático).
+  useEffect(() => {
+    setNotice(loginNoticeFromSearch(window.location.search));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +46,11 @@ export default function ConsultorLoginPage() {
           <p className="text-sm text-[#737373]">Entre para cadastrar freelancers e contratantes</p>
         </CardHeader>
         <CardContent>
+          {notice && (
+            <p role="alert" className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {notice}
+            </p>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
