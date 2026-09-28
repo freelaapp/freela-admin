@@ -100,7 +100,9 @@ export function DialogFooter({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={cn("flex justify-end gap-2 mt-6", className)}>{children}</div>;
+  // `flex-wrap`: o diálogo tem largura fixa e, sem quebra, botão que não cabe
+  // era empurrado para a esquerda pelo `justify-end` e sumia cortado.
+  return <div className={cn("flex flex-wrap justify-end gap-2 mt-6", className)}>{children}</div>;
 }
 
 export function DialogClose({
