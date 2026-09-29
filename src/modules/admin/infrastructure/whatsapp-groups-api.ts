@@ -63,12 +63,32 @@ export interface AdminGroupView {
   createdAt: string;
   /** true = bot no grupo; false = conferido e fora; null = não deu para conferir. */
   botInGroup: boolean | null;
+  /** Nome no WhatsApp agora; null sem diretório ou com o bot fora. Opcional: API antiga não manda. */
+  liveName?: string | null;
+  /** Grupo de cidade: o nome atual ainda leva as vagas da cidade/UF? null = não dá para dizer. */
+  receivesVacancies?: boolean | null;
+}
+
+/** Grupo que recebia mensagem do bot e sumiu do diretório (bot tirado do grupo). */
+export interface LostGroup {
+  groupJid: string;
+  /** Nome no painel; null quando o grupo nunca foi cadastrado aqui. */
+  panelName: string | null;
+  city: string | null;
+  uf: string | null;
+  lastSentAt: string;
+  /** Começo da última mensagem enviada ao grupo. */
+  sample: string;
 }
 
 export interface AdminGroupsList {
   instance: { connected: boolean | null };
   directory: { ok: boolean; checkedAt: string | null };
   groups: AdminGroupView[];
+  /** Só vem com o diretório confirmado. Opcional: API antiga não manda. */
+  lostGroups?: LostGroup[];
+  /** Cidades do painel sem nenhum grupo que leve as vagas. Opcional: API antiga não manda. */
+  citiesWithoutGroup?: Array<{ city: string; uf: string }>;
 }
 
 /** `refresh` força o diretório do WhatsApp (ignora o cache de 5 min da API). */

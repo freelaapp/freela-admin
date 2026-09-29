@@ -1,5 +1,5 @@
 import { formatPhoneBr } from "@/lib/utils";
-import type { AdminGroupSource, AdminGroupView, AdminGroupsList } from "../infrastructure/whatsapp-groups-api";
+import type { AdminGroupSource, AdminGroupView, AdminGroupsList, LostGroup } from "../infrastructure/whatsapp-groups-api";
 import type { VipGroupStatus, VipStoreSummary } from "../infrastructure/vip-groups-api";
 
 // ─── Abas (?aba= na URL) ─────────────────────────────────────────────────────
@@ -289,6 +289,59 @@ export function directoryBanners(list: Pick<AdminGroupsList, "instance" | "direc
   }
   if (!list.directory.ok) {
     out.push({ tone: "amber", text: "Não deu para conferir os grupos agora." });
+  }
+  return out;
+}
+
+// ─── Avisos de grupo (incidente Salvador 28/09) ──────────────────────────────
+/** 'No WhatsApp: "Reserva BA"' quando o grupo foi renomeado lá; null se o nome bate. */
+export function renamedNote(group: Pick<AdminGroupView, "name" | "liveName">): string | null {
+  const live = group.liveName?.trim();
+  if (!live || live === group.name.trim()) return null;
+  return `No WhatsApp: "${live}"`;
+}
+
+/** Grupo de cidade que parou de receber as vagas: o nome que ele precisa ter no WhatsApp. */
+export function notReceivingHint(
+  group: Pick<AdminGroupView, "receivesVacancies" | "city" | "uf" | "sequence">,
+): string | null {
+  if (group.receivesVacancies !== false || !group.city || !group.uf) return null;
+  const expected = `Vagas Freela ${group.city} ${group.uf}${group.sequence ? ` #${group.sequence}` : ""}`;
+  return `Não recebe as vagas de ${group.city}/${group.uf}. Para voltar a receber, o nome no WhatsApp precisa ser "${expected}".`;
+}
+
+function dayMonthBrasilia(iso: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(iso));
+}
+
+function lostGroupLabel(group: LostGroup): string {
+  if (group.panelName) return `"${group.panelName}"`;
+  if (group.city && group.uf) return `de ${group.city}/${group.uf}`;
+  return `que recebia "${group.sample}"`;
+}
+
+/** Avisos vermelhos do topo: bot tirado de grupo (um por grupo) e cidades sem grupo (um só). */
+export function groupAlertBanners(
+  list: Pick<AdminGroupsList, "lostGroups" | "citiesWithoutGroup">,
+): DirectoryBanner[] {
+  const out: DirectoryBanner[] = (list.lostGroups ?? []).map((group) => ({
+    tone: "red",
+    text:
+      `O bot foi tirado do grupo ${lostGroupLabel(group)} (último envio em ${dayMonthBrasilia(group.lastSentAt)}). ` +
+      "As mensagens pararam de chegar lá — peça a um admin do grupo para adicionar o número do bot de volta.",
+  }));
+  const cities = list.citiesWithoutGroup ?? [];
+  if (cities.length > 0) {
+    out.push({
+      tone: "red",
+      text:
+        `Sem grupo recebendo vagas: ${cities.map((c) => `${c.city}/${c.uf}`).join(", ")}. ` +
+        "As vagas dessas cidades não vão para grupo nenhum.",
+    });
   }
   return out;
 }

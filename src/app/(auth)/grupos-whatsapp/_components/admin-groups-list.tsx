@@ -1,8 +1,14 @@
 "use client";
 
 import { Trash2, UserPlus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SOURCE_LABELS, canAddMembers } from "@/modules/admin/application/whatsapp-groups-presentation";
+import {
+  SOURCE_LABELS,
+  canAddMembers,
+  notReceivingHint,
+  renamedNote,
+} from "@/modules/admin/application/whatsapp-groups-presentation";
 import type { AdminGroupView } from "@/modules/admin/infrastructure/whatsapp-groups-api";
 import { BotStatusBadge } from "./bot-status-badge";
 
@@ -28,6 +34,29 @@ function RowActions({ group, onAddMembers, onDelete }: RowHandlers & { group: Ad
         <Trash2 className="h-4 w-4" aria-hidden /> Excluir
       </Button>
     </div>
+  );
+}
+
+/** Nome cadastrado + o nome no WhatsApp (se mudou) + o motivo de não receber vagas. */
+function GroupName({ group }: { group: AdminGroupView }) {
+  const renamed = renamedNote(group);
+  const hint = notReceivingHint(group);
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="font-medium text-[#171717]">{group.name}</span>
+      {renamed && <span className="text-[12px] font-normal text-[#737373]">{renamed}</span>}
+      {hint && <span className="text-[12px] font-normal text-red-700">{hint}</span>}
+    </div>
+  );
+}
+
+/** Selo vermelho quando o grupo de cidade parou de receber as vagas. */
+function NotReceivingBadge({ group }: { group: AdminGroupView }) {
+  if (group.receivesVacancies !== false) return null;
+  return (
+    <Badge variant="destructive" className="w-fit whitespace-nowrap">
+      Não recebe vagas
+    </Badge>
   );
 }
 
@@ -63,11 +92,16 @@ export function AdminGroupsList({
           <tbody className="divide-y divide-[#f0f0f0]">
             {groups.map((g) => (
               <tr key={g.id}>
-                <td className="px-4 py-2.5 font-medium text-[#171717]">{g.name}</td>
+                <td className="px-4 py-2.5">
+                  <GroupName group={g} />
+                </td>
                 {showLocation && <td className="px-4 py-2.5 text-[#525252]">{g.city ?? "—"}</td>}
                 {showLocation && <td className="px-4 py-2.5 text-[#525252]">{g.uf ?? "—"}</td>}
                 <td className="px-4 py-2.5">
-                  <BotStatusBadge botInGroup={g.botInGroup} />
+                  <div className="flex flex-col gap-1">
+                    <BotStatusBadge botInGroup={g.botInGroup} />
+                    <NotReceivingBadge group={g} />
+                  </div>
                 </td>
                 <td className="hidden px-4 py-2.5 text-[#525252] lg:table-cell">{SOURCE_LABELS[g.source]}</td>
                 <td className="px-4 py-2.5">
@@ -82,9 +116,10 @@ export function AdminGroupsList({
       <div className="flex flex-col gap-2 md:hidden">
         {groups.map((g) => (
           <div key={g.id} className="rounded-lg border border-[#e5e5e5] bg-white p-3 text-[13px]">
-            <p className="font-medium text-[#171717]">{g.name}</p>
+            <GroupName group={g} />
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[#737373]">
               <BotStatusBadge botInGroup={g.botInGroup} />
+              <NotReceivingBadge group={g} />
               {showLocation && g.city && (
                 <span>
                   {g.city}

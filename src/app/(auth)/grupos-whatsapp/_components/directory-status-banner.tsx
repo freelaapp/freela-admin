@@ -2,7 +2,7 @@
 
 import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { checkedAtLabel, directoryBanners } from "@/modules/admin/application/whatsapp-groups-presentation";
+import { checkedAtLabel, directoryBanners, groupAlertBanners } from "@/modules/admin/application/whatsapp-groups-presentation";
 import type { AdminGroupsList } from "@/modules/admin/infrastructure/whatsapp-groups-api";
 
 const TONE = {
@@ -22,7 +22,7 @@ export function DirectoryStatusBanner({
   const checked = checkedAtLabel(list.directory.checkedAt);
   return (
     <div className="flex flex-col gap-2">
-      {directoryBanners(list).map((b) => (
+      {[...groupAlertBanners(list), ...directoryBanners(list)].map((b) => (
         <div key={b.text} role="status" className={TONE[b.tone]}>
           {b.text}
         </div>
