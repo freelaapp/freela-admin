@@ -119,7 +119,7 @@ function CyclesScreen() {
                   </tr>
                 ))}
                 {cycles.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-[#94A3B8]">Nenhum ciclo. Clique em "Novo ciclo" para começar a seleção de uma loja.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-[#94A3B8]">Nenhum ciclo. Clique em &quot;Novo ciclo&quot; para começar a seleção de uma loja.</td></tr>
                 )}
               </tbody>
             </table>

@@ -32,7 +32,12 @@ function HistoryBadge({ c }: { c: VipPreselectedCandidate }) {
   );
 }
 
-export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
+/** Nome do cadastro; sem nome (API antiga), cidade · funções. */
+function rowLabel(c: VipPreselectedCandidate): string {
+  return c.name?.trim() || [c.city, c.roles.join(", ")].filter(Boolean).join(" · ") || "Freela sem nome";
+}
+
+export function PreselectedTab({ cycle, onSent }: { cycle: VipCycle; onSent?: () => void }) {
   const budget = cycleInviteBudget(cycle);
   const [limitText, setLimitText] = useState(String(budget));
   // `limit` só muda ao commitar (blur/Enter) — cada tecla NÃO deve refazer a
@@ -47,7 +52,7 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
   const candidates = useMemo(() => data?.candidates ?? [], [data]);
   const allIds = useMemo(() => candidates.map((c) => c.providerGlobalId), [candidates]);
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const rowLabel = (c: VipPreselectedCandidate) => [c.city, c.roles.join(", ")].filter(Boolean).join(" · ") || c.providerGlobalId;
+  const nameById = useMemo(() => new Map(candidates.map((c) => [c.providerGlobalId, rowLabel(c)])), [candidates]);
 
   // Uma mudança no limite troca a query e pode encolher `allIds`; sem isso, `selected`
   // manteria ids fora da tela e `send.mutate` convidaria gente que o admin não vê mais.
@@ -62,6 +67,11 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
 
   return (
     <div className="flex flex-col gap-3">
+      <p className="text-[12.5px] text-[#475569]">
+        Freelas da base que combinam com o ciclo (cidade/raio, função, WhatsApp, sem reprovação recente), do mais completo para o menos.
+        Marque e envie: cada um recebe o convite pelo WhatsApp com o link do formulário (vale 7 dias). Quem já foi convidado sai
+        daqui e aparece em &quot;Convites enviados&quot;.
+      </p>
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="limit" className="text-[12px] text-[#64748B]">Quantos pré-selecionar</label>
@@ -100,6 +110,7 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
               <thead className="bg-[#F8FAFC] text-left text-[12px] uppercase tracking-wide text-[#64748B]">
                 <tr>
                   <th scope="col" className="px-3 py-2"><input type="checkbox" aria-label="Selecionar todos" checked={selected.size > 0 && selected.size === allIds.length} onChange={(e) => setSelected(e.target.checked ? new Set(allIds) : new Set())} /></th>
+                  <th scope="col" className="px-3 py-2">Nome</th>
                   <th scope="col" className="px-3 py-2">Cidade</th>
                   <th scope="col" className="px-3 py-2">Dist.</th>
                   <th scope="col" className="px-3 py-2">Funções</th>
@@ -113,6 +124,7 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
                 {candidates.map((c) => (
                   <tr key={c.providerGlobalId} className="hover:bg-[#F8FAFC]">
                     <td className="px-3 py-2"><input type="checkbox" aria-label={`Selecionar candidato ${rowLabel(c)}`} checked={selected.has(c.providerGlobalId)} onChange={() => toggle(c.providerGlobalId)} /></td>
+                    <td className="px-3 py-2 font-medium text-[#0F172A]">{c.name ?? "—"}</td>
                     <td className="px-3 py-2">{c.city ?? "—"}</td>
                     <td className="px-3 py-2 tabular-nums">{c.distanceKm === null ? "—" : `${Math.round(c.distanceKm)} km`}</td>
                     <td className="px-3 py-2 text-[#475569]">{c.roles.join(", ")}</td>
@@ -123,7 +135,7 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
                   </tr>
                 ))}
                 {candidates.length === 0 && (
-                  <tr><td colSpan={8} className="px-3 py-8 text-center text-[#94A3B8]">Ninguém na base atende aos filtros do ciclo (cidade/raio, função, WhatsApp, sem reprovação recente).</td></tr>
+                  <tr><td colSpan={9} className="px-3 py-8 text-center text-[#94A3B8]">Ninguém na base atende aos filtros do ciclo (cidade/raio, função, WhatsApp, sem reprovação recente).</td></tr>
                 )}
               </tbody>
             </table>
@@ -137,6 +149,7 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
                   <input type="checkbox" aria-label={`Selecionar candidato ${rowLabel(c)}`} checked={selected.has(c.providerGlobalId)} onChange={() => toggle(c.providerGlobalId)} />
                 </div>
                 <div className="space-y-0.5 text-[#64748B]">
+                  {c.name && <p>{[c.city, c.roles.join(", ")].filter(Boolean).join(" · ")}</p>}
                   <p>Distância: {c.distanceKm === null ? "—" : `${Math.round(c.distanceKm)} km`}</p>
                   <p>Completude: {Math.round(c.completenessScore)}%</p>
                   <p>Serviços: {c.totalCompletedServices}</p>
@@ -158,10 +171,14 @@ export function PreselectedTab({ cycle }: { cycle: VipCycle }) {
           <p className="text-[13px]">Enviados: <strong>{result?.invited.length ?? 0}</strong> · Pulados: <strong>{result?.skipped.length ?? 0}</strong></p>
           {result && result.skipped.length > 0 && (
             <ul className="max-h-[40vh] overflow-y-auto text-[12.5px] text-[#64748B]">
-              {result.skipped.map((s) => <li key={s.providerGlobalId}>{s.providerGlobalId} — {s.reason === "ALREADY_INVITED" ? "já convidado" : s.reason}</li>)}
+              {result.skipped.map((s) => <li key={s.providerGlobalId}>{nameById.get(s.providerGlobalId) ?? "Freela"} — {s.reason === "ALREADY_INVITED" ? "já convidado" : s.reason}</li>)}
             </ul>
           )}
-          <DialogFooter><Button onClick={() => setResult(null)}>Fechar</Button></DialogFooter>
+          <p className="text-[12.5px] text-[#475569]">Acompanhe quem abriu e reenvie em &quot;Convites enviados&quot;.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResult(null)}>Fechar</Button>
+            {onSent && <Button onClick={() => { setResult(null); onSent(); }}>Ver convites enviados</Button>}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -6,10 +6,11 @@ import { AlertTriangle, GripVertical, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useMoveVipStage, useVipKanban, useVipRole } from "@/modules/admin/application/use-freela-vip";
 import { filterKanbanCards, scoreBand, scoreBandClass, sortCardsByScore } from "@/modules/admin/application/freela-vip-presentation";
-import type { VipKanbanCard, VipStatus } from "@/modules/admin/infrastructure/freela-vip-api";
+import { groupColumnsByPhase, VIP_ACTOR_LABELS, vipNextStep } from "@/modules/admin/application/freela-vip-flow";
+import type { VipKanbanCard, VipKanbanColumn, VipStatus } from "@/modules/admin/infrastructure/freela-vip-api";
 import { QueryError } from "./query-error";
 
-export function FunnelBoard({ cycleId }: { cycleId: string }) {
+export function FunnelBoard({ cycleId, cycleHasBackground = false }: { cycleId: string; cycleHasBackground?: boolean }) {
   const router = useRouter();
   const role = useVipRole();
   const { data: board, isLoading, isError, refetch } = useVipKanban(cycleId);
@@ -55,40 +56,76 @@ export function FunnelBoard({ cycleId }: { cycleId: string }) {
         <p className="ml-auto self-center text-[12.5px] text-[#64748B]">Ativos {board.totalActive} · reprovados {board.rejectedCount} · desistiram {board.withdrewCount}{!canMove && " · somente leitura"}</p>
       </div>
 
-      <div className="flex flex-col gap-3 pb-3 md:flex-row md:overflow-x-auto">
-        {board.columns.map((col) => {
-          const cards = sortCardsByScore(filterKanbanCards(col.cards, { city, role: roleFilter, search }));
-          return (
-            <div
-              key={col.stage}
-              className="w-full md:w-72 md:min-w-[270px] md:flex-shrink-0"
-              onDragOver={(e) => { if (canMove) e.preventDefault(); }}
-              onDrop={(e) => { e.preventDefault(); onDrop(col.stage); }}
-            >
-              <div className="rounded-xl border border-[#E2E8F0] border-t-4 border-t-[#334155] bg-white">
-                <div className="flex items-center justify-between border-b border-[#F1F5F9] px-3 py-2">
-                  <h3 className="text-[12px] font-semibold text-[#0F172A]">{col.title}</h3>
-                  <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[11px] text-[#64748B]">{col.count}</span>
-                </div>
-                <div className="min-h-[80px] space-y-2 p-2">
-                  {cards.map((k) => <Card key={k.id} card={k} canMove={canMove} dragging={draggingId === k.id} onDragStart={() => setDraggingId(k.id)} onDragEnd={() => setDraggingId(null)} onOpen={() => router.push(`/freela-vip/candidatos/${k.id}`)} />)}
-                  {cards.length === 0 && (
-                    <p className="py-3 text-center text-[11px] text-[#94A3B8]">Nenhum candidato nesta etapa</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      <p className="text-[12.5px] text-[#475569]">
+        Clique no candidato para abrir a ficha — lá aparece o próximo passo com o botão certo. Arrastar entre colunas fica para
+        ajustes pontuais.
+      </p>
+
+      {groupColumnsByPhase(board).map((phase) => (
+        <section key={phase.key} aria-label={phase.title} className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h3 className="text-[13.5px] font-semibold text-[#0F172A]">{phase.title}</h3>
+            <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[11px] tabular-nums text-[#64748B]">{phase.count}</span>
+            <span className="text-[12px] text-[#64748B]">{phase.hint}</span>
+          </div>
+          <div className="flex flex-col gap-3 pb-3 md:flex-row md:overflow-x-auto">
+            {phase.columns.map((col) => (
+              <Column
+                key={col.stage}
+                col={col}
+                cards={sortCardsByScore(filterKanbanCards(col.cards, { city, role: roleFilter, search }))}
+                canMove={canMove}
+                cycleHasBackground={cycleHasBackground}
+                draggingId={draggingId}
+                setDraggingId={setDraggingId}
+                onDrop={onDrop}
+                onOpen={(id) => router.push(`/freela-vip/candidatos/${id}`)}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function Column({ col, cards, canMove, cycleHasBackground, draggingId, setDraggingId, onDrop, onOpen }: {
+  col: VipKanbanColumn;
+  cards: VipKanbanCard[];
+  canMove: boolean;
+  cycleHasBackground: boolean;
+  draggingId: string | null;
+  setDraggingId: (id: string | null) => void;
+  onDrop: (stage: VipStatus) => void;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <div
+      className="w-full md:w-72 md:min-w-[270px] md:flex-shrink-0"
+      onDragOver={(e) => { if (canMove) e.preventDefault(); }}
+      onDrop={(e) => { e.preventDefault(); onDrop(col.stage); }}
+    >
+      <div className="rounded-xl border border-[#E2E8F0] border-t-4 border-t-[#334155] bg-white">
+        <div className="flex items-center justify-between border-b border-[#F1F5F9] px-3 py-2">
+          <h3 className="text-[12px] font-semibold text-[#0F172A]">{col.title}</h3>
+          <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[11px] text-[#64748B]">{col.count}</span>
+        </div>
+        <div className="min-h-[80px] space-y-2 p-2">
+          {cards.map((k) => <Card key={k.id} card={k} canMove={canMove} cycleHasBackground={cycleHasBackground} dragging={draggingId === k.id} onDragStart={() => setDraggingId(k.id)} onDragEnd={() => setDraggingId(null)} onOpen={() => onOpen(k.id)} />)}
+          {cards.length === 0 && (
+            <p className="py-3 text-center text-[11px] text-[#94A3B8]">Nenhum candidato nesta etapa</p>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function Card({ card, canMove, dragging, onDragStart, onDragEnd, onOpen }: {
-  card: VipKanbanCard; canMove: boolean; dragging: boolean; onDragStart: () => void; onDragEnd: () => void; onOpen: () => void;
+function Card({ card, canMove, cycleHasBackground, dragging, onDragStart, onDragEnd, onOpen }: {
+  card: VipKanbanCard; canMove: boolean; cycleHasBackground: boolean; dragging: boolean; onDragStart: () => void; onDragEnd: () => void; onOpen: () => void;
 }) {
   const band = scoreBand(card.totalScore);
+  const next = vipNextStep({ status: card.status, source: card.source }, { cycleHasBackground, canAdmin: canMove });
   return (
     <div
       draggable={canMove}
@@ -106,6 +143,9 @@ function Card({ card, canMove, dragging, onDragStart, onDragEnd, onOpen }: {
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${scoreBandClass(band)}`}>{card.totalScore === null ? "sem nota" : `nota ${Math.round(card.totalScore)}`}</span>
         {card.alertsCount > 0 && <span className="flex items-center gap-1 text-[11px] font-medium text-[#DC2626]"><AlertTriangle className="h-3.5 w-3.5" aria-hidden />{card.alertsCount}</span>}
       </div>
+      <p className={`mt-1.5 text-[11.5px] ${next.actor === "voce" ? "font-medium text-[#92400E]" : "text-[#64748B]"}`}>
+        {VIP_ACTOR_LABELS[next.actor]}{next.actionLabel ? ` · ${next.actionLabel}` : ""}
+      </p>
     </div>
   );
 }
