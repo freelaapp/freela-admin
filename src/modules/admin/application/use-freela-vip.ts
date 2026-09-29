@@ -35,6 +35,7 @@ import {
   putVipScoringConfig,
   rescoreVipApplication,
   sendVipInvites,
+  resendVipInvites,
   updateVipCycle,
   updateVipQuestion,
   type CreateVipCycleInput,
@@ -125,6 +126,19 @@ export function useSendVipInvites(cycleId: string) {
   });
 }
 
+export function useResendVipInvites(cycleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (applicationIds: string[]) => resendVipInvites(cycleId, applicationIds),
+    onSuccess: (_r, applicationIds) => {
+      qc.invalidateQueries({ queryKey: VIP_KEYS.kanban(cycleId) });
+      // Ficha aberta: o histórico ganha "Convite reenviado" sem recarregar.
+      for (const id of applicationIds) qc.invalidateQueries({ queryKey: VIP_KEYS.application(id) });
+    },
+    onError: fail("Erro ao reenviar convites."),
+  });
+}
+
 // ─── Funil ───────────────────────────────────────────────────────────────────
 export function useVipKanban(cycleId: string) {
   return useQuery({ queryKey: VIP_KEYS.kanban(cycleId), queryFn: () => getVipKanban(cycleId), enabled: !!cycleId, refetchInterval: 60_000 });
@@ -180,7 +194,7 @@ export function useVipApplicationMutations(id: string, cycleId?: string) {
   });
   const decide = useMutation({
     mutationFn: (v: { action: "approve" | "reject"; rejectionReason?: string }) => decideVipApplication(id, v.action, v.rejectionReason),
-    onSuccess: (r) => { refresh(); toast.success(r.promotedToVip ? "Promovido a VIP!" : "Candidatura atualizada."); },
+    onSuccess: (r) => { refresh(); toast.success(r.promotedToVip ? "Aprovado como VIP! Entrou nos favoritos e na lista VIP da loja." : "Etapa avançada."); },
     onError: fail("Erro ao decidir a candidatura."),
   });
   const rescore = useMutation({

@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useVipContractors, useVipCycle, useVipRole } from "@/modules/admin/application/use-freela-vip";
+import { useVipContractors, useVipCycle, useVipKanban, useVipRole } from "@/modules/admin/application/use-freela-vip";
 import { cycleInviteBudget, formatDate } from "@/modules/admin/application/freela-vip-presentation";
 import { buildVipCycleLink } from "@/modules/admin/infrastructure/referral-link";
 import { VipGuard } from "../_components/vip-guard";
@@ -17,6 +17,9 @@ import { PreselectedTab } from "../_components/preselected-tab";
 import { FunnelBoard } from "../_components/funnel-board";
 import { IndicatorsTab } from "../_components/indicators-tab";
 import { QueryError } from "../_components/query-error";
+import { InvitesTab } from "../_components/invites-tab";
+import { StoreGroupCard } from "../_components/store-group-card";
+import { TodoStrip, type CycleTab } from "../_components/todo-strip";
 
 export default function VipCyclePage() {
   return (
@@ -32,7 +35,8 @@ function CycleScreen() {
   const role = useVipRole();
   const { data: cycle, isLoading, isError, refetch } = useVipCycle(cycleId);
   const { data: contractors } = useVipContractors();
-  const [tab, setTab] = useState(role.canAdmin ? "pre" : "funil");
+  const { data: board } = useVipKanban(cycleId);
+  const [tab, setTab] = useState<CycleTab>(role.canAdmin ? "convidar" : "funil");
 
   if (isLoading) return <div className="flex justify-center py-12 text-[#94A3B8]"><Loader2 className="h-5 w-5 animate-spin" aria-hidden /></div>;
 
@@ -45,6 +49,7 @@ function CycleScreen() {
     );
   }
 
+  const hasBackground = !!cycle.backgroundJustification?.trim();
   const publicUrl = buildVipCycleLink(cycle.id, {
     webAppUrl: process.env.NEXT_PUBLIC_WEB_APP_URL,
     apiUrl: process.env.NEXT_PUBLIC_API_URL,
@@ -78,19 +83,30 @@ function CycleScreen() {
         }
       />
       <div className="flex flex-wrap gap-2 text-[12.5px]">
-        <Badge variant="secondary">{cycle.linkOpen ? "link aberto" : "link fechado"}</Badge>
+        <Badge variant="secondary" title="Com o link aberto, qualquer pessoa com o link público pode se inscrever.">{cycle.linkOpen ? "link público aberto" : "link público fechado"}</Badge>
         <Badge variant="secondary">{cycle.active ? "ativo" : "inativo"}</Badge>
-        <Badge variant="secondary">{cycle.backgroundJustification ? "com antecedentes" : "sem etapa de antecedentes"}</Badge>
+        <Badge variant="secondary">{cycle.backgroundJustification ? "pede antecedentes" : "sem etapa de antecedentes"}</Badge>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {board ? (
+          <TodoStrip board={board} cycleHasBackground={hasBackground} onGo={setTab} />
+        ) : (
+          <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 text-[12.5px] text-[#94A3B8]">Carregando o que há para fazer…</div>
+        )}
+        <StoreGroupCard contractorUserId={cycle.targetContractorUserId} canAdmin={role.canAdmin} />
+      </div>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as CycleTab)}>
         <TabsList className="flex-wrap">
-          {role.canAdmin && <TabsTrigger value="pre">Pré-selecionados</TabsTrigger>}
+          {role.canAdmin && <TabsTrigger value="convidar">Convidar</TabsTrigger>}
+          <TabsTrigger value="convites">Convites enviados</TabsTrigger>
           <TabsTrigger value="funil">Funil</TabsTrigger>
           <TabsTrigger value="ind">Indicadores</TabsTrigger>
         </TabsList>
-        {role.canAdmin && <TabsContent value="pre" className="mt-4"><PreselectedTab cycle={cycle} /></TabsContent>}
-        <TabsContent value="funil" className="mt-4"><FunnelBoard cycleId={cycle.id} /></TabsContent>
+        {role.canAdmin && <TabsContent value="convidar" className="mt-4"><PreselectedTab cycle={cycle} onSent={() => setTab("convites")} /></TabsContent>}
+        <TabsContent value="convites" className="mt-4"><InvitesTab cycleId={cycle.id} canAdmin={role.canAdmin} cycleActive={cycle.active} /></TabsContent>
+        <TabsContent value="funil" className="mt-4"><FunnelBoard cycleId={cycle.id} cycleHasBackground={hasBackground} /></TabsContent>
         <TabsContent value="ind" className="mt-4"><IndicatorsTab cycleId={cycle.id} /></TabsContent>
       </Tabs>
     </div>

@@ -72,6 +72,8 @@ export type UpdateVipCycleInput = Partial<Omit<CreateVipCycleInput, "targetContr
 export interface VipPreselectedCandidate {
   providerGlobalId: string;
   userId: string | null;
+  /** Nome do cadastro (API a partir de 29/09; ausente na API antiga). */
+  name?: string | null;
   city: string | null;
   distanceKm: number | null;
   roles: string[];
@@ -87,6 +89,8 @@ export interface VipPreselectedResult {
   candidates: VipPreselectedCandidate[];
   total: number;
   invitesBudget: number;
+  /** Convites da base já feitos no ciclo (API a partir de 29/09). */
+  alreadyInvited?: number;
 }
 
 export interface VipInviteResult {
@@ -106,6 +110,10 @@ export interface VipKanbanCard {
   totalScore: number | null;
   alertsCount: number;
   createdAt: string;
+  /** Convite da base (API a partir de 29/09; ausentes na API antiga). */
+  invitedAt?: string | null;
+  inviteExpiresAt?: string | null;
+  lastInviteSentAt?: string | null;
 }
 
 export interface VipKanbanColumn {
@@ -297,6 +305,47 @@ export async function sendVipInvites(id: string, candidateIds: string[]): Promis
   const res = await api.post(`/cycles/${id}/invites`, { candidateIds });
   return res.data.data;
 }
+export type VipWhatsappOutcome = "SENT" | "NO_PHONE" | "FAILED";
+/** `REQUEST_FAILED` é do painel: lote que não chegou a ser enviado (queda/timeout). */
+export type VipResendSkipReason = "NOT_FOUND" | "NOT_RESENDABLE" | "RECENTLY_SENT" | "REQUEST_FAILED";
+
+export interface VipResendResult {
+  resent: { applicationId: string; whatsapp: VipWhatsappOutcome }[];
+  skipped: { applicationId: string; reason: VipResendSkipReason }[];
+}
+
+/**
+ * Lote por chamada. A API aceita até 50, mas cada reenvio espera o WhatsApp
+ * (sequencial) — lotes de 10 cabem folgados no timeout de 30 s do cliente.
+ */
+export const VIP_RESEND_BATCH = 10;
+
+/**
+ * Reenvia o convite (mesmo link, +7 dias) em lotes e junta o resultado. Se um lote
+ * falha depois de outros terem ido, devolve o parcial e marca o resto como
+ * `REQUEST_FAILED` (nada se perde); se o primeiro falha, propaga o erro.
+ */
+export async function resendVipInvites(id: string, applicationIds: string[]): Promise<VipResendResult> {
+  const merged: VipResendResult = { resent: [], skipped: [] };
+  for (let i = 0; i < applicationIds.length; i += VIP_RESEND_BATCH) {
+    try {
+      const res = await api.post(`/cycles/${id}/invites/resend`, {
+        applicationIds: applicationIds.slice(i, i + VIP_RESEND_BATCH),
+      });
+      const data = res.data.data as VipResendResult;
+      merged.resent.push(...data.resent);
+      merged.skipped.push(...data.skipped);
+    } catch (error) {
+      if (i === 0) throw error;
+      merged.skipped.push(
+        ...applicationIds.slice(i).map((applicationId) => ({ applicationId, reason: "REQUEST_FAILED" as const })),
+      );
+      break;
+    }
+  }
+  return merged;
+}
+
 export async function getVipKanban(id: string): Promise<VipKanbanBoard> {
   const res = await api.get(`/cycles/${id}/kanban`);
   return res.data.data;

@@ -11,6 +11,7 @@ import { VipGuard } from "../../_components/vip-guard";
 import { ApplicationActions } from "../../_components/application-actions";
 import { BackgroundSection } from "../../_components/background-section";
 import { QueryError } from "../../_components/query-error";
+import { vipEventLabel } from "@/modules/admin/application/freela-vip-flow";
 
 export default function VipApplicationPage() {
   return (
@@ -60,7 +61,11 @@ function ApplicationScreen() {
         action={<Button variant="outline" onClick={() => router.push(`/freela-vip/${d.cycleId}`)}><ArrowLeft className="mr-1 h-4 w-4" aria-hidden />Funil</Button>}
       />
 
-      {role.canAdmin && <ApplicationActions detail={d} cycleHasJustification={!!cycle?.backgroundJustification} />}
+      <ApplicationActions
+        detail={d}
+        cycleHasJustification={cycle ? !!cycle.backgroundJustification?.trim() : null}
+        canAdmin={role.canAdmin}
+      />
       {role.readOnly && <p className="text-[12.5px] text-[#64748B]">Somente leitura: dados pessoais redigidos e sem ações.</p>}
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -161,9 +166,9 @@ function ApplicationScreen() {
           <ul className="divide-y divide-[#F1F5F9] text-[12.5px]">
             {d.history.map((h) => (
               <li key={h.id} className="py-1.5">
-                <span className="text-[#64748B]">{new Date(h.createdAt).toLocaleString("pt-BR")}</span> · {h.action}
+                <span className="text-[#64748B]">{new Date(h.createdAt).toLocaleString("pt-BR")}</span> · {vipEventLabel(h.action)}
                 {h.statusBefore || h.statusAfter ? ` · ${h.statusBefore ? VIP_STATUS_LABELS[h.statusBefore] : "—"} → ${h.statusAfter ? VIP_STATUS_LABELS[h.statusAfter] : "—"}` : ""}
-                {h.actorAdminId ? ` · admin ${h.actorAdminId.slice(0, 8)}` : ""}
+                {h.actorAdminId ? " · pela equipe" : h.actorUserId ? " · pelo candidato" : ""}
               </li>
             ))}
           </ul>

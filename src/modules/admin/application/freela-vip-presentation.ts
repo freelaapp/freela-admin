@@ -242,10 +242,8 @@ export function formatMonth(iso: string | null | undefined): string {
 /**
  * Status legais das ações da ficha (Chunk 6/7 do api) — mantidos aqui para não
  * duplicar a regra em `application-actions.tsx` e para serem testados isoladamente.
+ * Aprovar não está aqui: quem decide é `vipNextStep` (freela-vip-flow.ts).
  */
-
-/** `APPROVAL_NEXT` de `vip-manual-funnel.service.ts:44-48` — cópia exata: são só estes três que avançam com "Aprovar etapa". */
-export const VIP_APPROVABLE_STATUSES: readonly VipStatus[] = ["WAITLIST", "INTERVIEW_SCHEDULED", "BACKGROUND_OK"];
 
 /** `RESCORABLE_STATUSES` de `vip-scoring.service.ts` — cópia exata (sem `FORM_SUBMITTED`). */
 export const VIP_RESCORABLE_STATUSES: readonly VipStatus[] = ["SCORED", "WAITLIST", "INTERVIEW_SCHEDULED", "REFERENCES_OK"];
