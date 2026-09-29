@@ -21,6 +21,7 @@ const SKIP_REASON: Record<VipResendResult["skipped"][number]["reason"], string> 
   NOT_FOUND: "não encontrado neste ciclo",
   NOT_RESENDABLE: "já passou do formulário ou entrou pelo link",
   RECENTLY_SENT: "recebeu convite há menos de 12 h",
+  REQUEST_FAILED: "não enviado (a conexão caiu) — tente de novo",
 };
 
 const WHATSAPP_LABEL: Record<VipResendResult["resent"][number]["whatsapp"], string> = {
@@ -36,7 +37,7 @@ function when(iso: string | null | undefined): string {
 }
 
 /** Convidados que ainda não enviaram o formulário: situação, datas e reenvio. */
-export function InvitesTab({ cycleId, canAdmin }: { cycleId: string; canAdmin: boolean }) {
+export function InvitesTab({ cycleId, canAdmin, cycleActive = true }: { cycleId: string; canAdmin: boolean; cycleActive?: boolean }) {
   const router = useRouter();
   const { data: board, isLoading, isError, refetch } = useVipKanban(cycleId);
   const resend = useResendVipInvites(cycleId);
@@ -49,9 +50,17 @@ export function InvitesTab({ cycleId, canAdmin }: { cycleId: string; canAdmin: b
       .filter((c) => c.stage === "INVITED" || c.stage === "FORM_STARTED" || c.stage === "SELF_ENROLLED")
       .flatMap((c) => c.cards);
     return cards
-      .map((card) => ({ card, situation: vipInviteSituation(card, now) }))
+      .map((card) => {
+        const situation = vipInviteSituation(card, now);
+        return {
+          card,
+          situation: cycleActive || !situation.canResend
+            ? situation
+            : { ...situation, canResend: false, blockedReason: "Ciclo inativo — reative o ciclo para reenviar." },
+        };
+      })
       .sort((a, b) => (b.card.lastInviteSentAt ?? b.card.createdAt).localeCompare(a.card.lastInviteSentAt ?? a.card.createdAt));
-  }, [board]);
+  }, [board, cycleActive]);
   const nameById = useMemo(() => new Map(rows.map((r) => [r.card.id, r.card.displayName ?? "Candidato"])), [rows]);
   const resendableIds = rows.filter((r) => r.situation.canResend).map((r) => r.card.id);
 
@@ -172,7 +181,7 @@ function InviteRow({ card, situation, canAdmin, checked, onToggle, onResend, bus
           <span className="block truncate font-medium text-[#0F172A] hover:underline">{name}</span>
           <span className="block text-[12px] text-[#64748B]">
             {card.source === "LINK" ? "Entrou pelo link" : `Convidado em ${when(card.invitedAt)}`}
-            {card.lastInviteSentAt && card.lastInviteSentAt !== card.invitedAt ? ` · último envio ${when(card.lastInviteSentAt)}` : ""}
+            {card.lastInviteSentAt ? ` · reenviado em ${when(card.lastInviteSentAt)}` : ""}
             {card.inviteExpiresAt ? ` · vale até ${when(card.inviteExpiresAt)}` : ""}
           </span>
         </button>

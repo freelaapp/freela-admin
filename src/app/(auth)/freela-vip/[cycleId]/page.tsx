@@ -105,7 +105,7 @@ function CycleScreen() {
           <TabsTrigger value="ind">Indicadores</TabsTrigger>
         </TabsList>
         {role.canAdmin && <TabsContent value="convidar" className="mt-4"><PreselectedTab cycle={cycle} onSent={() => setTab("convites")} /></TabsContent>}
-        <TabsContent value="convites" className="mt-4"><InvitesTab cycleId={cycle.id} canAdmin={role.canAdmin} /></TabsContent>
+        <TabsContent value="convites" className="mt-4"><InvitesTab cycleId={cycle.id} canAdmin={role.canAdmin} cycleActive={cycle.active} /></TabsContent>
         <TabsContent value="funil" className="mt-4"><FunnelBoard cycleId={cycle.id} cycleHasBackground={hasBackground} /></TabsContent>
         <TabsContent value="ind" className="mt-4"><IndicatorsTab cycleId={cycle.id} /></TabsContent>
       </Tabs>

@@ -26,7 +26,8 @@ function resendToast(r: VipResendResult) {
  */
 export function ApplicationActions({ detail, cycleHasJustification, canAdmin = true }: {
   detail: VipApplicationDetail;
-  cycleHasJustification: boolean;
+  /** `null` enquanto o ciclo não carregou — sem ele não dá para saber se pede antecedentes. */
+  cycleHasJustification: boolean | null;
   canAdmin?: boolean;
 }) {
   const m = useVipApplicationMutations(detail.id, detail.cycleId);
@@ -34,7 +35,13 @@ export function ApplicationActions({ detail, cycleHasJustification, canAdmin = t
   const [rejectOpen, setRejectOpen] = useState(false);
   const [approveVipOpen, setApproveVipOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const step = vipNextStep({ status: detail.status, source: detail.source }, { cycleHasBackground: cycleHasJustification, canAdmin });
+  const cycleKnown = cycleHasJustification !== null;
+  const step = vipNextStep(
+    { status: detail.status, source: detail.source },
+    // Antes de o ciclo carregar, nada de botão principal: "Aprovar como VIP" x
+    // "Pedir antecedentes" depende dele.
+    { cycleHasBackground: !!cycleHasJustification, canAdmin: canAdmin && cycleKnown },
+  );
   const busy = m.decide.isPending || m.rescore.isPending || m.openBackground.isPending || resend.isPending;
   const canReject = canAdmin && VIP_REJECTABLE_STATUSES.includes(detail.status);
   const canRescore = canAdmin && VIP_RESCORABLE_STATUSES.includes(detail.status);

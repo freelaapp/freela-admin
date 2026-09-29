@@ -121,15 +121,32 @@ export function vipInviteSituation(card: VipKanbanCard, now: Date = new Date()):
   const base: Omit<VipInviteSituation, "canResend"> =
     card.status === "FORM_STARTED"
       ? { label: "Começou o formulário", tone: "ok" }
-      : expired
-        ? { label: "Link vencido", tone: "warn" }
-        : { label: "Não abriu", tone: "muted" };
+      : card.source === "LINK"
+        ? { label: "Entrou pelo link", tone: "muted" }
+        : expired
+          ? { label: "Link vencido", tone: "warn" }
+          : { label: "Não abriu", tone: "muted" };
   if (!resendable) return { ...base, canResend: false, blockedReason: "Entrou pelo link público — não há convite para reenviar." };
   const last = card.lastInviteSentAt ?? card.invitedAt;
   if (last && now.getTime() - new Date(last).getTime() < VIP_RESEND_COOLDOWN_MS) {
     return { ...base, canResend: false, blockedReason: "Convite enviado há menos de 12 h." };
   }
   return { ...base, canResend: true };
+}
+
+// ─── Orçamento de convites ───────────────────────────────────────────────────
+/**
+ * Quanto falta do orçamento do ciclo (vagas × convites por vaga) e se a seleção
+ * atual passa dele. Os já convidados saem da pré-seleção — sem esta conta, dava
+ * para convidar o orçamento inteiro de novo a cada visita.
+ */
+export function vipInviteBudget(
+  budget: number,
+  alreadyInvited: number | undefined,
+  selected: number,
+): { remaining: number; over: boolean } {
+  const remaining = Math.max(0, budget - (alreadyInvited ?? 0));
+  return { remaining, over: selected > remaining };
 }
 
 // ─── O que fazer agora ───────────────────────────────────────────────────────
@@ -143,10 +160,13 @@ export interface VipTodoCounts {
 }
 
 export function vipTodoCounts(board: VipKanbanBoard, ctx: { cycleHasBackground: boolean }): VipTodoCounts {
-  const n = (stage: VipStatus) => board.columns.find((c) => c.stage === stage)?.cards.length ?? 0;
+  const cardsOf = (stage: VipStatus) => board.columns.find((c) => c.stage === stage)?.cards ?? [];
+  const n = (stage: VipStatus) => cardsOf(stage).length;
+  const fromBase = (stage: VipStatus) => cardsOf(stage).filter((c) => c.source === "BASE").length;
   const refsOk = n("REFERENCES_OK");
   return {
-    invitesWaiting: n("INVITED") + n("FORM_STARTED"),
+    // Só convite da base conta como "sem resposta" — inscrito pelo link não foi convidado.
+    invitesWaiting: fromBase("INVITED") + fromBase("FORM_STARTED"),
     waitlist: n("WAITLIST"),
     interview: n("INTERVIEW_SCHEDULED"),
     requestBackground: ctx.cycleHasBackground ? refsOk : 0,

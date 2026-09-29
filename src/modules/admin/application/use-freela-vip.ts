@@ -130,8 +130,10 @@ export function useResendVipInvites(cycleId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (applicationIds: string[]) => resendVipInvites(cycleId, applicationIds),
-    onSuccess: () => {
+    onSuccess: (_r, applicationIds) => {
       qc.invalidateQueries({ queryKey: VIP_KEYS.kanban(cycleId) });
+      // Ficha aberta: o histórico ganha "Convite reenviado" sem recarregar.
+      for (const id of applicationIds) qc.invalidateQueries({ queryKey: VIP_KEYS.application(id) });
     },
     onError: fail("Erro ao reenviar convites."),
   });

@@ -61,7 +61,11 @@ function ApplicationScreen() {
         action={<Button variant="outline" onClick={() => router.push(`/freela-vip/${d.cycleId}`)}><ArrowLeft className="mr-1 h-4 w-4" aria-hidden />Funil</Button>}
       />
 
-      <ApplicationActions detail={d} cycleHasJustification={!!cycle?.backgroundJustification?.trim()} canAdmin={role.canAdmin} />
+      <ApplicationActions
+        detail={d}
+        cycleHasJustification={cycle ? !!cycle.backgroundJustification?.trim() : null}
+        canAdmin={role.canAdmin}
+      />
       {role.readOnly && <p className="text-[12.5px] text-[#64748B]">Somente leitura: dados pessoais redigidos e sem ações.</p>}
 
       <div className="grid gap-4 lg:grid-cols-2">

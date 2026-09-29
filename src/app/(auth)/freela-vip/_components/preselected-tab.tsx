@@ -10,6 +10,7 @@ import { useSendVipInvites, useVipPreselected } from "@/modules/admin/applicatio
 import { cycleInviteBudget, vipHistoryLabel, type VipHistoryLabel } from "@/modules/admin/application/freela-vip-presentation";
 import type { VipCycle, VipInviteResult, VipPreselectedCandidate } from "@/modules/admin/infrastructure/freela-vip-api";
 import { QueryError } from "./query-error";
+import { vipInviteBudget } from "@/modules/admin/application/freela-vip-flow";
 
 const HISTORY_TITLES: Record<VipHistoryLabel["label"], string> = {
   "sem histórico": "Ainda não fez serviço pelo app",
@@ -53,6 +54,9 @@ export function PreselectedTab({ cycle, onSent }: { cycle: VipCycle; onSent?: ()
   const allIds = useMemo(() => candidates.map((c) => c.providerGlobalId), [candidates]);
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const nameById = useMemo(() => new Map(candidates.map((c) => [c.providerGlobalId, rowLabel(c)])), [candidates]);
+  const budgetStatus = vipInviteBudget(budget, data?.alreadyInvited, selected.size);
+  // Com a API nova, "selecionar" pega só o que falta do orçamento (lista já vem na ordem de prioridade).
+  const selectableIds = data?.alreadyInvited !== undefined ? allIds.slice(0, budgetStatus.remaining) : allIds;
 
   // Uma mudança no limite troca a query e pode encolher `allIds`; sem isso, `selected`
   // manteria ids fora da tela e `send.mutate` convidaria gente que o admin não vê mais.
@@ -86,17 +90,31 @@ export function PreselectedTab({ cycle, onSent }: { cycle: VipCycle; onSent?: ()
             title="Enter ou sair do campo aplica"
           />
         </div>
-        <p className="text-[12.5px] text-[#64748B]">Orçamento de convites: <strong>{budget}</strong> ({cycle.targetVacancies} vagas × {cycle.invitesPerVacancy}) · encontrados: {data?.total ?? "—"}</p>
+        <p className="text-[12.5px] text-[#64748B]">
+          Orçamento de convites: <strong>{budget}</strong> ({cycle.targetVacancies} vagas × {cycle.invitesPerVacancy})
+          {data?.alreadyInvited !== undefined && <> · já convidados: <strong>{data.alreadyInvited}</strong> · faltam: <strong>{budgetStatus.remaining}</strong></>}
+          {" "}· encontrados: {data?.total ?? "—"}
+        </p>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => setSelected(new Set(allIds))}>Selecionar todos</Button>
+          <Button variant="outline" size="sm" disabled={selectableIds.length === 0} onClick={() => setSelected(new Set(selectableIds))}>
+            {data?.alreadyInvited !== undefined ? `Selecionar os ${selectableIds.length} primeiros` : "Selecionar todos"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setSelected(new Set())}>Limpar</Button>
           <Button size="sm" disabled={selected.size === 0 || send.isPending} onClick={submit}>
             {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <><Send className="mr-1 h-4 w-4" aria-hidden />Enviar convites ({selected.size})</>}
           </Button>
         </div>
       </div>
-      {selected.size > budget && (
-        <p className="rounded-lg bg-[#FFFBEB] px-3 py-2 text-[12.5px] text-[#92400E]">Você selecionou mais do que o orçamento de convites ({budget}). A API aceita, mas o ciclo foi dimensionado para {budget}.</p>
+      {data?.alreadyInvited !== undefined && budgetStatus.remaining === 0 && (
+        <p className="rounded-lg bg-[#F1F5F9] px-3 py-2 text-[12.5px] text-[#475569]">
+          O orçamento de convites deste ciclo já foi usado ({data.alreadyInvited} de {budget}). Reenvie em &quot;Convites enviados&quot; ou,
+          se precisar de mais gente, aumente as vagas do ciclo.
+        </p>
+      )}
+      {budgetStatus.over && (
+        <p className="rounded-lg bg-[#FFFBEB] px-3 py-2 text-[12.5px] text-[#92400E]">
+          Você selecionou mais do que falta do orçamento ({budgetStatus.remaining} de {budget}). Dá para enviar, mas o ciclo foi dimensionado para {budget} convites.
+        </p>
       )}
 
       {isLoading ? (

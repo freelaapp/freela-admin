@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { VipKanbanBoard, VipKanbanCard, VipStatus } from "../infrastructure/freela-vip-api";
 import {
   groupColumnsByPhase,
+  vipInviteBudget,
   vipEventLabel,
   vipInviteSituation,
   vipNextStep,
@@ -149,6 +150,19 @@ describe("vipInviteSituation", () => {
     expect(vipInviteSituation(card({ source: "LINK", status: "FORM_STARTED" }), NOW).canResend).toBe(false);
   });
 
+  it("inscrito pelo link que não começou: 'Entrou pelo link', não 'Não abriu'", () => {
+    const s = vipInviteSituation(card({ source: "LINK", status: "SELF_ENROLLED", invitedAt: null, inviteExpiresAt: null, lastInviteSentAt: null }), NOW);
+    expect(s.label).toBe("Entrou pelo link");
+    expect(s.canResend).toBe(false);
+  });
+
+  it("reenvio recente (lastInviteSentAt) trava; sem reenvio vale o invitedAt", () => {
+    const recent = card({ invitedAt: "2026-09-20T12:00:00.000Z", lastInviteSentAt: new Date(NOW.getTime() - HOUR).toISOString() });
+    expect(vipInviteSituation(recent, NOW).canResend).toBe(false);
+    const old = card({ invitedAt: "2026-09-20T12:00:00.000Z", lastInviteSentAt: null });
+    expect(vipInviteSituation(old, NOW).canResend).toBe(true);
+  });
+
   it("API antiga (sem datas): usa invitedAt ausente como 'pode reenviar'", () => {
     const s = vipInviteSituation(card({ invitedAt: undefined, inviteExpiresAt: undefined, lastInviteSentAt: undefined }), NOW);
     expect(s).toMatchObject({ label: "Não abriu", canResend: true });
@@ -174,6 +188,14 @@ describe("vipTodoCounts", () => {
     });
   });
 
+  it("convites sem resposta: só quem veio da base (inscrito pelo link não é convite)", () => {
+    const b = board({
+      INVITED: [card()],
+      FORM_STARTED: [card({ id: "l1", status: "FORM_STARTED", source: "LINK" }), card({ id: "b1", status: "FORM_STARTED" })],
+    });
+    expect(vipTodoCounts(b, { cycleHasBackground: false }).invitesWaiting).toBe(2);
+  });
+
   it("ciclo sem antecedentes: referências ok contam como 'para aprovar'", () => {
     const b = board({ REFERENCES_OK: [card({ id: "r", status: "REFERENCES_OK" })] });
     expect(vipTodoCounts(b, { cycleHasBackground: false })).toMatchObject({ requestBackground: 0, toApprove: 1 });
@@ -186,5 +208,18 @@ describe("vipEventLabel", () => {
     expect(vipEventLabel("INVITE_RESENT")).toBe("Convite reenviado");
     expect(vipEventLabel("APPROVED")).toBe("Aprovado pela equipe");
     expect(vipEventLabel("ALGO_NOVO")).toBe("ALGO_NOVO");
+  });
+});
+
+describe("vipInviteBudget", () => {
+  it("quanto falta do orçamento e se a seleção passa dele", () => {
+    expect(vipInviteBudget(40, 10, 20)).toEqual({ remaining: 30, over: false });
+    expect(vipInviteBudget(40, 30, 20)).toEqual({ remaining: 10, over: true });
+    expect(vipInviteBudget(40, 45, 0)).toEqual({ remaining: 0, over: false });
+    expect(vipInviteBudget(40, 45, 1)).toEqual({ remaining: 0, over: true });
+  });
+
+  it("API antiga (sem alreadyInvited) trata como 0 convidados", () => {
+    expect(vipInviteBudget(40, undefined, 40)).toEqual({ remaining: 40, over: false });
   });
 });

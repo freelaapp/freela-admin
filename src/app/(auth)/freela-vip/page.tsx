@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Crown, Loader2, MessageCircle, Plus, Settings, Users } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -32,6 +32,11 @@ function CyclesScreen() {
   const { data: contractors } = useVipContractors();
   const { update } = useVipCycleMutations();
   const [dialog, setDialog] = useState<{ open: boolean; cycle?: VipCycle }>({ open: false });
+  // "Como funciona" monta uma vez, no 1º carregamento: trocar o filtro não o reabre/fecha.
+  const [initialCycleCount, setInitialCycleCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isLoading && initialCycleCount === null) setInitialCycleCount(cycles.length);
+  }, [isLoading, cycles.length, initialCycleCount]);
 
   const renderActions = (c: VipCycle) => (
     <>
@@ -69,7 +74,7 @@ function CyclesScreen() {
         }
       />
 
-      <HowItWorks defaultOpen={cycles.length <= 1} />
+      {initialCycleCount !== null && <HowItWorks defaultOpen={initialCycleCount <= 1} />}
 
       <div className="flex items-center gap-2">
         <label htmlFor="f-active" className="text-[12.5px] text-[#64748B]">Mostrar</label>
