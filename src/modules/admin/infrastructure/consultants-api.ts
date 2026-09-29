@@ -85,10 +85,6 @@ export async function updateAdminConsultant(
 }
 
 /**
- * Exclui um consultor SEM cadastros indicados. Com indicações a API responde 409
- * (`CONSULTANT_HAS_REFERRALS`) — nesse caso o caminho é desativar.
- */
-/**
  * Exclui o consultor. Sem indicações a API apaga (HARD); com indicações faz
  * exclusão lógica (SOFT) — as indicações e a origem continuam.
  */

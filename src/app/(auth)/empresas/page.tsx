@@ -698,7 +698,10 @@ export default function EmpresasPage() {
       />
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent
-          className={cn("relative", modalType === "vaga" && "max-h-[85vh] overflow-y-auto")}
+          className={cn(
+            "relative",
+            (modalType === "vaga" || modalType === "delete") && "max-h-[88vh] overflow-y-auto",
+          )}
         >
           <DialogClose onClick={closeModal} />
           {renderModalContent()}

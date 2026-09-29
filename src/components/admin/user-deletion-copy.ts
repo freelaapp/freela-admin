@@ -80,9 +80,9 @@ export function describeUserDeletion(
         title: "Esta conta tem histórico — será desativada e anonimizada, não apagada",
         lines: [
           `Histórico: ${historyLines(preview.history).join(", ")}.`,
-          "A pessoa não consegue mais entrar e some das listas. Nome, e-mail, telefone e documentos são apagados.",
+          "A pessoa não consegue mais entrar e some das listas. Nome, e-mail, telefone, endereço e chaves PIX são apagados; CPF e PIS do freelancer ficam guardados para as obrigações fiscais.",
           "Vagas, serviços, pagamentos e notas continuam para a contabilidade e o suporte.",
-          "Vagas abertas são canceladas e candidaturas ativas, retiradas.",
+          "Vagas abertas são canceladas e candidaturas pendentes, retiradas.",
         ],
         confirmLabel: "Desativar e anonimizar",
         canConfirm: true,
