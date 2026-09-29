@@ -95,7 +95,7 @@ function VipGroupsScreen() {
     <div className="flex flex-col gap-4 px-4 pb-8 sm:px-6">
       <PageHeader
         title="Grupos VIP"
-        description="Grupo de WhatsApp VIP e lista VIP de cada loja Grandes Redes. Com a lista preenchida, as vagas da loja são só para os VIPs."
+        description="Lista VIP e grupo de WhatsApp VIP de cada loja do plano Grandes Redes."
         action={
           <Button variant="outline" onClick={() => router.push("/freela-vip")}>
             <ArrowLeft className="mr-1 h-4 w-4" aria-hidden />
@@ -103,6 +103,12 @@ function VipGroupsScreen() {
           </Button>
         }
       />
+
+      <ul className="grid gap-2 rounded-xl border border-[#E2E8F0] bg-white p-4 text-[12.5px] text-[#475569] sm:grid-cols-3">
+        <li><strong className="block text-[13px] text-[#0F172A]">Lista VIP</strong>Quem é aprovado como VIP num ciclo entra sozinho na lista da loja. A equipe também pode adicionar ou tirar gente.</li>
+        <li><strong className="block text-[13px] text-[#0F172A]">Grupo de WhatsApp</strong>Crie pelo botão &quot;Criar grupo&quot; (ou ele nasce quando a loja assina o Grandes Redes, com a função ligada). O bot coloca no grupo quem está na lista.</li>
+        <li><strong className="block text-[13px] text-[#0F172A]">Vagas só para VIPs</strong>Com a função de grupos VIP ligada no servidor, a loja com lista VIP publica vagas que só os VIPs veem e o aviso vai só para o grupo dela.</li>
+      </ul>
 
       <div className="max-w-md">
         <Label htmlFor="vip-groups-search">Filtrar por nome da loja</Label>

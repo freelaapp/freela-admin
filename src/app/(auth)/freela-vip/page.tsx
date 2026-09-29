@@ -12,6 +12,7 @@ import { cycleInviteBudget, formatDate } from "@/modules/admin/application/freel
 import type { VipCycle } from "@/modules/admin/infrastructure/freela-vip-api";
 import { VipGuard } from "./_components/vip-guard";
 import { CycleDialog } from "./_components/cycle-dialog";
+import { HowItWorks } from "./_components/how-it-works";
 import { redeLabel } from "./_components/rede-select";
 import { QueryError } from "./_components/query-error";
 
@@ -45,7 +46,7 @@ function CyclesScreen() {
     <div className="flex flex-col gap-4 px-4 pb-8 sm:px-6">
       <PageHeader
         title="Freela VIP"
-        description="Ciclos de seleção de freelancers VIP por rede (Grandes Redes)."
+        description="Seleção de freelancers VIP para as lojas do plano Grandes Redes. Cada ciclo é uma rodada de seleção de uma loja."
         action={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => router.push("/freela-vip/vips")}>
@@ -67,6 +68,8 @@ function CyclesScreen() {
           </div>
         }
       />
+
+      <HowItWorks defaultOpen={cycles.length <= 1} />
 
       <div className="flex items-center gap-2">
         <label htmlFor="f-active" className="text-[12.5px] text-[#64748B]">Mostrar</label>
@@ -116,7 +119,7 @@ function CyclesScreen() {
                   </tr>
                 ))}
                 {cycles.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-[#94A3B8]">Nenhum ciclo. Crie um para começar uma seleção.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-[#94A3B8]">Nenhum ciclo. Clique em "Novo ciclo" para começar a seleção de uma loja.</td></tr>
                 )}
               </tbody>
             </table>
