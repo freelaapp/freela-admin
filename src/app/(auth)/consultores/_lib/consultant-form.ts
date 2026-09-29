@@ -8,7 +8,11 @@ import type {
   CreateConsultantPayload,
   UpdateConsultantPayload,
 } from "@/modules/admin/infrastructure/consultants-api";
-import { formatPhoneMask, parseBrPhone } from "@/modules/consultant/application/phone-mask";
+import {
+  formatPhoneMask,
+  nationalPhoneDigits,
+  parseBrPhone,
+} from "@/modules/consultant/application/phone-mask";
 
 export interface ConsultantFormValues {
   name: string;
@@ -58,7 +62,10 @@ interface CommonFields {
 }
 
 /** Validação comum aos dois modos. Nome e e-mail (login do consultor) são obrigatórios. */
-function validateCommon(v: ConsultantFormValues): BuildResult<CommonFields> {
+function validateCommon(
+  v: ConsultantFormValues,
+  options: { skipPhone?: boolean } = {},
+): BuildResult<CommonFields> {
   const name = v.name.trim();
   if (!name) return { ok: false, error: "Informe o nome do consultor." };
 
@@ -78,7 +85,7 @@ function validateCommon(v: ConsultantFormValues): BuildResult<CommonFields> {
   // Telefone do consultor (WhatsApp de avisos): opcional; celular ou fixo com DDD;
   // vai em E.164, mesma régua da API.
   let phone = "";
-  if (v.phone.trim()) {
+  if (!options.skipPhone && v.phone.trim()) {
     const parsed = parseBrPhone(v.phone, { allowLandline: true });
     if (parsed.ok === false) return { ok: false, error: parsed.message };
     phone = parsed.e164;
@@ -135,11 +142,19 @@ export function buildCreateConsultantPayload(
  * Edição: manda todos os campos editáveis — opcional apagado vai como `null` para
  * limpar o valor salvo. O código não vai (só leitura: links `?ref=CÓDIGO` já
  * distribuídos parariam de atribuir) e o status tem botão próprio.
+ *
+ * Telefone: só é validado (e só vai) quando MUDOU em relação ao carregado
+ * (`originalPhone`) — como no "Editar empresa". Um legado torto e intocado não
+ * trava a edição dos outros campos; ausente no PATCH = a API não mexe.
  */
 export function buildUpdateConsultantPayload(
   v: ConsultantFormValues,
+  originalPhone?: string | null,
 ): BuildResult<UpdateConsultantPayload> {
-  const common = validateCommon(v);
+  const currentDigits = nationalPhoneDigits(v.phone);
+  const phoneUnchanged =
+    currentDigits !== "" && currentDigits === nationalPhoneDigits(originalPhone ?? "");
+  const common = validateCommon(v, { skipPhone: phoneUnchanged });
   if (!common.ok) return common;
   const f = common.payload;
 
@@ -150,7 +165,7 @@ export function buildUpdateConsultantPayload(
       email: f.email,
       city: f.city || null,
       uf: f.uf || null,
-      phone: f.phone || null,
+      ...(phoneUnchanged ? {} : { phone: f.phone || null }),
       commissionRate: f.commissionRate ?? null,
       notes: f.notes || null,
     },

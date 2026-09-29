@@ -7,7 +7,7 @@ import {
   consultantToFormValues,
   type ConsultantFormValues,
 } from "./consultant-form";
-import { BR_PHONE_MESSAGES } from "@/modules/consultant/application/phone-mask";
+import { BR_PHONE_MESSAGES, formatPhoneMask } from "@/modules/consultant/application/phone-mask";
 
 const filled: ConsultantFormValues = {
   name: "  André Consultor ",
@@ -144,6 +144,25 @@ describe("telefone do consultor", () => {
   it("update: telefone vazio vai como null", () => {
     const r = buildUpdateConsultantPayload(base);
     expect(r.ok && r.payload.phone).toBeNull();
+  });
+
+  it("update: telefone legado inválido e NÃO alterado não barra a edição de outro campo (e não vai)", () => {
+    const legacy = "+5555119876543";
+    const loaded = { ...base, phone: formatPhoneMask(legacy) };
+    const r = buildUpdateConsultantPayload({ ...loaded, notes: "novo" }, legacy);
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.payload.notes).toBe("novo");
+    expect(r.ok && "phone" in r.payload).toBe(false);
+  });
+
+  it("update: telefone ALTERADO continua passando pela régua", () => {
+    const legacy = "+5555119876543";
+    expect(buildUpdateConsultantPayload({ ...base, phone: "(85) 3333-444" }, legacy)).toEqual({
+      ok: false,
+      error: BR_PHONE_MESSAGES.INVALID_ANY,
+    });
+    const r = buildUpdateConsultantPayload({ ...base, phone: "(85) 3333-4444" }, legacy);
+    expect(r.ok && r.payload.phone).toBe("+558533334444");
   });
 
   it("edição: telefone salvo em E.164 aparece mascarado", () => {

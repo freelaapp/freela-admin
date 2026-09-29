@@ -87,7 +87,7 @@ function ConsultantFormBody({
     e.preventDefault();
 
     if (consultant) {
-      const result = buildUpdateConsultantPayload(form);
+      const result = buildUpdateConsultantPayload(form, consultant.phone);
       if (!result.ok) {
         toast.error(result.error);
         return;
