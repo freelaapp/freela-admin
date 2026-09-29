@@ -11,7 +11,6 @@ import {
   getAdminProviders,
   getProvidersFilterOptions,
   getProvidersCompleteness,
-  adminHardDeleteUser,
   adminSetFreelancerBanned,
   clearProviderLowPriority,
   type GetAdminProvidersParams,
@@ -41,17 +40,6 @@ export function useProvidersFilterOptions() {
     queryKey: ["admin", "providers", "filter-options"],
     queryFn: getProvidersFilterOptions,
     staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useAdminHardDeleteProvider() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
-      adminHardDeleteUser(userId, reason, "freelancer"),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "providers"] });
-    },
   });
 }
 

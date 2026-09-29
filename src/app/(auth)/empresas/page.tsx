@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   useAdminContractors,
-  useAdminHardDeleteContractor,
   useAdminUpdateContractor,
 } from "@/modules/admin/application/use-admin-contractors";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
@@ -47,9 +46,9 @@ import {
 import { formatInstantDate } from "@/lib/date.utils";
 import { downloadCsv } from "@/lib/csv";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
+import { ExcluirUsuarioPanel } from "@/components/admin/excluir-usuario-dialog";
 
 type ModalType = "view" | "edit" | "delete" | "employee" | "report" | "blocked" | "vaga" | null;
-const DELETE_CONFIRM_WORD = "EXCLUIR";
 
 function mapContractorToRow(c: ContractorItem) {
   return {
@@ -87,9 +86,6 @@ export default function EmpresasPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedItem, setSelectedItem] = useState<Row | null>(null);
-  const [deleteReason, setDeleteReason] = useState("");
-  const [deleteConfirm, setDeleteConfirm] = useState("");
-  const hardDelete = useAdminHardDeleteContractor();
   const updateContractor = useAdminUpdateContractor();
   const [editForm, setEditForm] = useState({
     companyName: "",
@@ -124,10 +120,6 @@ export default function EmpresasPage() {
     setModalType(type);
     setSelectedItem(item);
     setModalOpen(true);
-    if (type === "delete") {
-      setDeleteReason("");
-      setDeleteConfirm("");
-    }
     if (type === "edit") {
       setContactPhoneError(null);
       setEditForm({
@@ -231,22 +223,6 @@ export default function EmpresasPage() {
     toast.success(`${contractors.length} empresa(s) exportada(s).`);
   };
 
-  const handleHardDelete = async () => {
-    if (!selectedItem) return;
-    const userId = selectedItem.raw.userId;
-    if (!userId) {
-      toast.error("Usuário deste contratante não encontrado.");
-      return;
-    }
-    try {
-      await hardDelete.mutateAsync({ userId, reason: deleteReason.trim() });
-      toast.success(`${selectedItem.nome} foi excluído permanentemente.`);
-      closeModal();
-    } catch (err) {
-      toast.error(getAxiosErrorMessage(err, "Não foi possível excluir o contratante."));
-    }
-  };
-
   const handleSaveEdit = async () => {
     if (!selectedItem) return;
     // Contato só vai quando mudou — e aí precisa passar na régua BR (fixo aceito).
@@ -279,8 +255,6 @@ export default function EmpresasPage() {
     }
   };
 
-  const canConfirmDelete =
-    deleteReason.trim().length >= 20 && deleteConfirm.trim().toUpperCase() === DELETE_CONFIRM_WORD;
 
   if (isLoading) {
     return (
@@ -342,7 +316,7 @@ export default function EmpresasPage() {
           <button onClick={() => openModal("employee", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Gerenciar funcionário" : "Usuário da empresa não encontrado"}><UserCog className="w-4 h-4" /></button>
           <button onClick={() => openModal("blocked", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Freelancers bloqueados"><ShieldOff className="w-4 h-4" /></button>
           <button onClick={() => openModal("report", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Gerar relatório (PDF)"><FileText className="w-4 h-4" /></button>
-          <button onClick={() => openModal("delete", row)} className="p-1.5 rounded-md hover:bg-red-50 hover:text-red-600 text-red-500 cursor-pointer transition-colors" title="Excluir permanentemente"><Trash2 className="w-4 h-4" /></button>
+          <button onClick={() => openModal("delete", row)} className="p-1.5 rounded-md hover:bg-red-50 hover:text-red-600 text-red-500 cursor-pointer transition-colors" title="Excluir conta"><Trash2 className="w-4 h-4" /></button>
         </div>
       ),
     },
@@ -568,68 +542,25 @@ export default function EmpresasPage() {
           </>
         );
       case "delete":
-        return (
+        // Exclusão pelo painel (29/09/2026): a API apaga quem não tem histórico e
+        // desativa + anonimiza quem tem — a prévia diz qual antes de confirmar.
+        return selectedItem.raw.userId ? (
+          <ExcluirUsuarioPanel
+            key={selectedItem.raw.userId}
+            userId={selectedItem.raw.userId}
+            displayName={selectedItem.nome}
+            accountType="contractor"
+            onCancel={closeModal}
+            onDeleted={closeModal}
+          />
+        ) : (
           <>
             <DialogHeader>
-              <DialogTitle><span className="text-red-600">Excluir contratante permanentemente</span></DialogTitle>
-              <DialogDescription>
-                Esta ação é irreversível e apaga todos os dados do usuário.
-              </DialogDescription>
+              <DialogTitle>Excluir conta</DialogTitle>
+              <DialogDescription>Usuário deste contratante não encontrado.</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
-                <ShieldAlert className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-                <div className="text-sm text-red-700">
-                  <p className="font-medium">Hard delete — sem volta</p>
-                  <p className="mt-1">
-                    <strong>{selectedItem.nome}</strong> e tudo vinculado (perfis, vagas, jobs,
-                    candidaturas, avaliações e chat) serão removidos do banco. Repasses já
-                    liquidados são mantidos para rastro financeiro. A exclusão é bloqueada se houver
-                    job em andamento ou pagamento/repasse pendente.
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="delete-reason">Motivo da exclusão (mín. 20 caracteres)</Label>
-                <textarea
-                  id="delete-reason"
-                  value={deleteReason}
-                  onChange={(e) => setDeleteReason(e.target.value)}
-                  rows={3}
-                  placeholder="Descreva o motivo desta exclusão definitiva..."
-                  className="w-full rounded-lg border border-[#e5e5e5] bg-[#f7f7f7] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400/30 resize-none"
-                />
-                <p className="text-xs text-[#a3a3a3]">{deleteReason.trim().length}/20</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="delete-confirm">
-                  Digite <span className="font-bold text-red-600">{DELETE_CONFIRM_WORD}</span> para confirmar
-                </Label>
-                <Input
-                  id="delete-confirm"
-                  value={deleteConfirm}
-                  onChange={(e) => setDeleteConfirm(e.target.value)}
-                  placeholder={DELETE_CONFIRM_WORD}
-                  autoComplete="off"
-                />
-              </div>
-            </div>
             <DialogFooter>
-              <Button variant="outline" onClick={closeModal} disabled={hardDelete.isPending} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
-              <Button
-                onClick={handleHardDelete}
-                disabled={!canConfirmDelete || hardDelete.isPending}
-                className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {hardDelete.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Excluindo...
-                  </>
-                ) : (
-                  "Excluir permanentemente"
-                )}
-              </Button>
+              <Button variant="outline" onClick={closeModal}>Fechar</Button>
             </DialogFooter>
           </>
         );
@@ -767,7 +698,10 @@ export default function EmpresasPage() {
       />
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent
-          className={cn("relative", modalType === "vaga" && "max-h-[85vh] overflow-y-auto")}
+          className={cn(
+            "relative",
+            (modalType === "vaga" || modalType === "delete") && "max-h-[88vh] overflow-y-auto",
+          )}
         >
           <DialogClose onClick={closeModal} />
           {renderModalContent()}

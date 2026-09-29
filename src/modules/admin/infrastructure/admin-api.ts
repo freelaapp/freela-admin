@@ -918,6 +918,10 @@ export async function getAdminAllVacancies(consultantId?: string): Promise<Vacan
 export interface UserItem {
   id: string;
   email: string;
+  /** Nome do perfil. Ausente = API anterior a 29/09/2026. */
+  name?: string | null;
+  /** Telefone da conta (E.164). Ausente = API anterior a 29/09/2026. */
+  phone?: string | null;
   isActive: boolean;
   emailConfirmed: boolean;
   status: string;
@@ -970,16 +974,22 @@ export async function getAdminUsers(params: AdminUsersQuery = {}): Promise<Admin
   };
 }
 
+export interface UpdateUserBasicDataPayload {
+  name?: string;
+  email?: string;
+  /** E.164; `null` limpa (a API só aceita se a conta tiver e-mail). */
+  phone?: string | null;
+}
+
 /**
- * Altera o e-mail de login de uma conta. O backend valida unicidade e mantém a
- * conta confirmada (o titular loga com o novo e-mail + a senha atual). 409 = e-mail
- * já em uso; 404 = usuário não encontrado.
+ * Corrige nome, e-mail de login e/ou telefone de uma conta (só os campos
+ * enviados mudam). 409 = e-mail/telefone de outra conta ou conta excluída.
  */
-export async function changeUserEmail(
+export async function updateUserBasicData(
   userId: string,
-  email: string,
-): Promise<{ id: string; email: string }> {
-  const res = await adminApi.patch(`/users/${userId}/email`, { email });
+  payload: UpdateUserBasicDataPayload,
+): Promise<{ id: string; name: string | null; email: string | null; phone: string | null }> {
+  const res = await adminApi.patch(`/users/${userId}`, payload);
   return res.data.data;
 }
 
@@ -1197,26 +1207,58 @@ export async function getProviderHistory(providerId: string): Promise<ProviderHi
   return res.data.data;
 }
 
-// ─── Hard delete (permanent, irreversible) ───────────────────────────────────
+// ─── Tipo de conta (redação do aviso de exclusão) ───────────────────────────
 
 /** Tipo de conta — define a redação da notificação de exclusão (empresa vs freelancer). */
 export type HardDeleteAccountType = "contractor" | "freelancer";
 
+// ─── Exclusão pelo painel: apaga (sem histórico) ou anonimiza (com histórico) ──
+
 /**
- * Permanently deletes a user (hard delete). Hits the global admin route, not the
- * bars-restaurants-scoped base — so we pass an absolute URL to override baseURL
- * while still going through the auth interceptor.
- * `accountType` tailors the user-facing notification (company vs freelancer).
- * Backend returns 422 when blocked (active job / pending payment / pending repasse).
+ * HARD = conta sem histórico, será apagada de vez; SOFT = tem histórico, será
+ * desativada e anonimizada; BLOCKED = há serviço em andamento ou dinheiro
+ * pendente; ALREADY_DELETED = já excluída.
  */
-export async function adminHardDeleteUser(
+export type UserDeletionMode = "HARD" | "SOFT" | "BLOCKED" | "ALREADY_DELETED";
+
+export interface UserHistoryCounts {
+  vacancies: number;
+  candidacies: number;
+  fixedJobs: number;
+  repasses: number;
+  walletEntries: number;
+  referralsMade: number;
+  referralRewards: number;
+  paidSubscriptionCharges: number;
+}
+
+export interface UserDeletionPreview {
+  userId: string;
+  mode: UserDeletionMode;
+  history: UserHistoryCounts;
+  historyTotal: number;
+  /** Motivos (em português) que impedem excluir agora. */
+  blockers: string[];
+}
+
+export async function getUserDeletionPreview(userId: string): Promise<UserDeletionPreview> {
+  const res = await adminApi.get(`${API_BASE_URL}/v1/admin/users/${userId}/deletion-preview`);
+  return res.data.data;
+}
+
+/**
+ * Exclui a conta pelo painel. A API decide: sem histórico apaga, com histórico
+ * anonimiza. 422 USER_DELETE_BLOCKED (com os motivos) / 409 USER_ALREADY_DELETED.
+ */
+export async function adminDeleteUser(
   userId: string,
   reason: string,
   accountType?: HardDeleteAccountType,
-): Promise<void> {
-  await adminApi.delete(`${API_BASE_URL}/v1/admin/users/${userId}/hard-delete`, {
+): Promise<{ mode: "HARD" | "SOFT" }> {
+  const res = await adminApi.delete(`${API_BASE_URL}/v1/admin/users/${userId}`, {
     data: { reason, ...(accountType ? { accountType } : {}) },
   });
+  return res.data.data;
 }
 
 export default adminApi;

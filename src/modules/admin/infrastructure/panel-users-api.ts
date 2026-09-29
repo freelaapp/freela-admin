@@ -17,6 +17,8 @@ export interface PanelUser {
   permissions: string[];
   isActive: boolean;
   mustChangePassword: boolean;
+  /** Exclusão lógica. Ausente/nulo = não excluído (API anterior a 29/09/2026 não manda). */
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +38,9 @@ export interface CreatePanelUserPayload {
 
 export interface UpdatePanelUserPayload {
   name?: string;
+  /** Novo e-mail de login (único no painel). */
+  email?: string;
+  /** E.164 ou vazio (limpa). Só vai quando mudou. */
   phone?: string;
   role?: AdminRole;
   permissions?: string[];
@@ -50,8 +55,27 @@ export interface PanelUserAccessResult {
   emailSent: boolean;
 }
 
-export async function getPanelUsers(): Promise<PanelUser[]> {
-  const res = await panelUsersApi.get("");
+export async function getPanelUsers(
+  options: { includeDeleted?: boolean } = {},
+): Promise<PanelUser[]> {
+  const res = await panelUsersApi.get("", {
+    params: options.includeDeleted ? { includeDeleted: "true" } : undefined,
+  });
+  return res.data.data;
+}
+
+/**
+ * Exclusão LÓGICA: a API desativa, marca como excluído e derruba a sessão na
+ * hora. O registro fica (auditoria). 403 = você mesmo; 409 LAST_SUPER_ADMIN.
+ */
+export async function deletePanelUser(id: string): Promise<PanelUser> {
+  const res = await panelUsersApi.delete(`/${id}`);
+  return res.data.data;
+}
+
+/** Desfaz a exclusão; volta DESATIVADO (reativar = "Ativar e reenviar"). */
+export async function restorePanelUser(id: string): Promise<PanelUser> {
+  const res = await panelUsersApi.post(`/${id}/restore`);
   return res.data.data;
 }
 

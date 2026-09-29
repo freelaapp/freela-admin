@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   Pencil,
   Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -38,26 +39,40 @@ import {
 import {
   useAdminConsultant,
   useResetConsultantAccess,
+  useRestoreAdminConsultant,
 } from "@/modules/admin/application/use-admin-consultants";
 import { useCreateWhatsappGroup } from "@/modules/admin/application/use-admin-whatsapp-groups";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { formatInstantDate } from "@/lib/date.utils";
 import { ConsultantFormDialog } from "../_components/consultant-form-dialog";
-import {
-  DeleteConsultantDialog,
-  canDeleteConsultant,
-  deleteBlockedReason,
-} from "../_components/delete-consultant-dialog";
+import { DeleteConsultantDialog } from "../_components/delete-consultant-dialog";
+import { isConsultantDeleted } from "../_lib/consultant-delete";
 
 export default function ConsultorProfilePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const consultantId = params?.id ?? "";
   const { isHydrated, isSuperAdmin } = useAuth();
-  const { data: consultant, isLoading, isError } = useAdminConsultant(consultantId);
+  const {
+    data: consultant,
+    isLoading,
+    isError,
+    refetch: refetchConsultant,
+  } = useAdminConsultant(consultantId);
   const createGroup = useCreateWhatsappGroup();
   const resetAccess = useResetConsultantAccess();
+  const restoreMutation = useRestoreAdminConsultant();
+  const deleted = !!consultant && isConsultantDeleted(consultant);
+
+  const handleRestore = async () => {
+    try {
+      await restoreMutation.mutateAsync(consultantId);
+      toast.success("Consultor restaurado — ainda inativo. Reative pela lista de consultores.");
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível restaurar o consultor."));
+    }
+  };
 
   const [open, setOpen] = useState(false);
   const [city, setCity] = useState("");
@@ -192,6 +207,21 @@ export default function ConsultorProfilePage() {
         title={consultant?.name ?? "Perfil do consultor"}
         description="Perfil do consultor e ações rápidas."
         action={
+          deleted ? (
+            <Button
+              variant="outline"
+              onClick={handleRestore}
+              disabled={restoreMutation.isPending}
+              className="border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] font-medium"
+            >
+              {restoreMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RotateCcw className="w-4 h-4 mr-2" />
+              )}
+              Restaurar
+            </Button>
+          ) : (
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
@@ -202,24 +232,15 @@ export default function ConsultorProfilePage() {
               <Pencil className="w-4 h-4 mr-2" />
               Editar
             </Button>
-            {/* `span` segura o title: botão desabilitado não dispara hover em todo browser. */}
-            <span
-              title={
-                consultant && !canDeleteConsultant(consultant)
-                  ? deleteBlockedReason(consultant)
-                  : undefined
-              }
+            <Button
+              variant="outline"
+              onClick={() => setDeleteOpen(true)}
+              disabled={!consultant}
+              className="border-red-200 text-red-600 hover:bg-red-50 font-medium disabled:opacity-40"
             >
-              <Button
-                variant="outline"
-                onClick={() => setDeleteOpen(true)}
-                disabled={!consultant || !canDeleteConsultant(consultant)}
-                className="border-red-200 text-red-600 hover:bg-red-50 font-medium disabled:opacity-40"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Excluir
-              </Button>
-            </span>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Excluir
+            </Button>
             <Button
               variant="outline"
               onClick={openReset}
@@ -243,6 +264,7 @@ export default function ConsultorProfilePage() {
               Criar grupo WhatsApp
             </Button>
           </div>
+          )
         }
       />
 
@@ -264,15 +286,21 @@ export default function ConsultorProfilePage() {
               icon={<span className="text-xs font-semibold uppercase">{consultant.isActive ? "on" : "off"}</span>}
               label="Status"
             >
-              <span
-                className={
-                  consultant.isActive
-                    ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
-                    : "inline-flex items-center rounded-full bg-[#f1f1f1] px-2 py-0.5 text-xs font-medium text-[#737373]"
-                }
-              >
-                {consultant.isActive ? "Ativo" : "Inativo"}
-              </span>
+              {deleted ? (
+                <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                  Excluído{consultant.deletedAt ? ` em ${formatInstantDate(consultant.deletedAt)}` : ""}
+                </span>
+              ) : (
+                <span
+                  className={
+                    consultant.isActive
+                      ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+                      : "inline-flex items-center rounded-full bg-[#f1f1f1] px-2 py-0.5 text-xs font-medium text-[#737373]"
+                  }
+                >
+                  {consultant.isActive ? "Ativo" : "Inativo"}
+                </span>
+              )}
             </Field>
             <Field icon={<MapPin className="w-4 h-4" />} label="Cidade / UF">
               {consultant.city
@@ -329,7 +357,11 @@ export default function ConsultorProfilePage() {
       <DeleteConsultantDialog
         consultant={deleteOpen ? (consultant ?? null) : null}
         onOpenChange={setDeleteOpen}
-        onDeleted={() => router.push("/consultores")}
+        // Apagado de vez: o perfil não existe mais. Exclusão lógica: fica na tela,
+        // agora marcado como excluído.
+        onDeleted={(result) =>
+          result.mode === "HARD" ? router.push("/consultores") : void refetchConsultant()
+        }
       />
 
       {/* Modal Criar grupo WhatsApp (prefilled do consultor) */}
