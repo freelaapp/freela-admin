@@ -72,6 +72,8 @@ export type UpdateVipCycleInput = Partial<Omit<CreateVipCycleInput, "targetContr
 export interface VipPreselectedCandidate {
   providerGlobalId: string;
   userId: string | null;
+  /** Nome do cadastro (API a partir de 29/09; ausente na API antiga). */
+  name?: string | null;
   city: string | null;
   distanceKm: number | null;
   roles: string[];
@@ -106,6 +108,10 @@ export interface VipKanbanCard {
   totalScore: number | null;
   alertsCount: number;
   createdAt: string;
+  /** Convite da base (API a partir de 29/09; ausentes na API antiga). */
+  invitedAt?: string | null;
+  inviteExpiresAt?: string | null;
+  lastInviteSentAt?: string | null;
 }
 
 export interface VipKanbanColumn {
@@ -297,6 +303,31 @@ export async function sendVipInvites(id: string, candidateIds: string[]): Promis
   const res = await api.post(`/cycles/${id}/invites`, { candidateIds });
   return res.data.data;
 }
+export type VipWhatsappOutcome = "SENT" | "NO_PHONE" | "FAILED";
+export type VipResendSkipReason = "NOT_FOUND" | "NOT_RESENDABLE" | "RECENTLY_SENT";
+
+export interface VipResendResult {
+  resent: { applicationId: string; whatsapp: VipWhatsappOutcome }[];
+  skipped: { applicationId: string; reason: VipResendSkipReason }[];
+}
+
+/** Máximo por chamada na API; seleções maiores vão em lotes. */
+export const VIP_RESEND_BATCH = 50;
+
+/** Reenvia o convite (mesmo link, +7 dias). Quebra em lotes de 50 e junta o resultado. */
+export async function resendVipInvites(id: string, applicationIds: string[]): Promise<VipResendResult> {
+  const merged: VipResendResult = { resent: [], skipped: [] };
+  for (let i = 0; i < applicationIds.length; i += VIP_RESEND_BATCH) {
+    const res = await api.post(`/cycles/${id}/invites/resend`, {
+      applicationIds: applicationIds.slice(i, i + VIP_RESEND_BATCH),
+    });
+    const data = res.data.data as VipResendResult;
+    merged.resent.push(...data.resent);
+    merged.skipped.push(...data.skipped);
+  }
+  return merged;
+}
+
 export async function getVipKanban(id: string): Promise<VipKanbanBoard> {
   const res = await api.get(`/cycles/${id}/kanban`);
   return res.data.data;

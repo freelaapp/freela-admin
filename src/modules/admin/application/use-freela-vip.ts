@@ -35,6 +35,7 @@ import {
   putVipScoringConfig,
   rescoreVipApplication,
   sendVipInvites,
+  resendVipInvites,
   updateVipCycle,
   updateVipQuestion,
   type CreateVipCycleInput,
@@ -122,6 +123,17 @@ export function useSendVipInvites(cycleId: string) {
       qc.invalidateQueries({ queryKey: VIP_KEYS.indicators(cycleId) });
     },
     onError: fail("Erro ao enviar convites."),
+  });
+}
+
+export function useResendVipInvites(cycleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (applicationIds: string[]) => resendVipInvites(cycleId, applicationIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: VIP_KEYS.kanban(cycleId) });
+    },
+    onError: fail("Erro ao reenviar convites."),
   });
 }
 
