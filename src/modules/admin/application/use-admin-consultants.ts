@@ -8,14 +8,23 @@ import {
   getAdminConsultants,
   updateAdminConsultant,
   resetConsultantAccess,
+  restoreAdminConsultant,
   type CreateConsultantPayload,
   type UpdateConsultantPayload,
 } from "../infrastructure/consultants-api";
 
-export function useAdminConsultants() {
+/**
+ * Lista de consultores. Padrão: sem os excluídos (é o que os filtros de Jobs,
+ * Vagas Casa e Vagas Fixas usam). `includeDeleted` é o "Mostrar excluídos" da
+ * tela de consultores.
+ */
+export function useAdminConsultants(options: { includeDeleted?: boolean } = {}) {
+  const includeDeleted = !!options.includeDeleted;
   return useQuery({
-    queryKey: ["admin", "consultants"],
-    queryFn: getAdminConsultants,
+    queryKey: includeDeleted
+      ? ["admin", "consultants", { includeDeleted: true }]
+      : ["admin", "consultants"],
+    queryFn: () => getAdminConsultants({ includeDeleted }),
     staleTime: 30000,
   });
 }
@@ -66,9 +75,21 @@ export function useDeleteAdminConsultant() {
   return useMutation({
     mutationFn: (id: string) => deleteAdminConsultant(id),
     onSuccess: () => {
-      // Só a lista (`exact`): invalidar o detalhe do consultor apagado faria a tela
-      // de perfil — ainda montada até o redirect — refazer o GET e tomar 404.
+      // Listas (com e sem excluídos), sem o detalhe: invalidar o detalhe do
+      // consultor APAGADO faria a tela de perfil — ainda montada até o redirect —
+      // refazer o GET e tomar 404. Exclusão lógica atualiza o detalhe na tela.
       qc.invalidateQueries({ queryKey: ["admin", "consultants"], exact: true });
+      qc.invalidateQueries({ queryKey: ["admin", "consultants", { includeDeleted: true }] });
+    },
+  });
+}
+
+export function useRestoreAdminConsultant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => restoreAdminConsultant(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "consultants"] });
     },
   });
 }

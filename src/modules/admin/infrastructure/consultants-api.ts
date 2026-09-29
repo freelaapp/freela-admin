@@ -16,8 +16,17 @@ export interface ConsultantItem {
   notes: string | null;
   isActive: boolean;
   referralsCount: number;
+  /** Exclusão lógica (consultor com indicações). Ausente/nulo = não excluído. */
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** HARD = cadastro apagado (sem indicações); SOFT = exclusão lógica. */
+export interface DeleteConsultantResult {
+  ok: true;
+  mode: "HARD" | "SOFT";
+  referralsCount: number;
 }
 
 export interface CreateConsultantPayload {
@@ -46,8 +55,12 @@ export interface UpdateConsultantPayload {
   isActive?: boolean;
 }
 
-export async function getAdminConsultants(): Promise<ConsultantItem[]> {
-  const res = await adminsRootApi.get("/consultants");
+export async function getAdminConsultants(
+  options: { includeDeleted?: boolean } = {},
+): Promise<ConsultantItem[]> {
+  const res = await adminsRootApi.get("/consultants", {
+    params: options.includeDeleted ? { includeDeleted: "true" } : undefined,
+  });
   return res.data.data;
 }
 
@@ -75,8 +88,21 @@ export async function updateAdminConsultant(
  * Exclui um consultor SEM cadastros indicados. Com indicações a API responde 409
  * (`CONSULTANT_HAS_REFERRALS`) — nesse caso o caminho é desativar.
  */
-export async function deleteAdminConsultant(id: string): Promise<void> {
-  await adminsRootApi.delete(`/consultants/${id}`);
+/**
+ * Exclui o consultor. Sem indicações a API apaga (HARD); com indicações faz
+ * exclusão lógica (SOFT) — as indicações e a origem continuam.
+ */
+export async function deleteAdminConsultant(id: string): Promise<DeleteConsultantResult> {
+  const res = await adminsRootApi.delete(`/consultants/${id}`);
+  const data = res.data?.data ?? {};
+  // API anterior a 29/09/2026 só devolvia `{ ok: true }` (e só apagava sem indicações).
+  return { ok: true, mode: data.mode === "SOFT" ? "SOFT" : "HARD", referralsCount: data.referralsCount ?? 0 };
+}
+
+/** Desfaz a exclusão lógica; volta inativo. */
+export async function restoreAdminConsultant(id: string): Promise<ConsultantItem> {
+  const res = await adminsRootApi.post(`/consultants/${id}/restore`);
+  return res.data.data;
 }
 
 export interface ResetConsultantAccessResult {

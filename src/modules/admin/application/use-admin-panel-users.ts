@@ -3,9 +3,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createPanelUser,
+  deletePanelUser,
   getPanelUserPermissions,
   getPanelUsers,
   resetPanelUserAccess,
+  restorePanelUser,
   updatePanelUser,
   type CreatePanelUserPayload,
   type UpdatePanelUserPayload,
@@ -14,10 +16,10 @@ import { ADMIN_ME_QUERY_KEY } from "@/modules/auth/application/use-auth";
 
 const PANEL_USERS_KEY = ["admin", "panel-users"] as const;
 
-export function useAdminPanelUsers() {
+export function useAdminPanelUsers(includeDeleted = false) {
   return useQuery({
-    queryKey: PANEL_USERS_KEY,
-    queryFn: getPanelUsers,
+    queryKey: [...PANEL_USERS_KEY, { includeDeleted }],
+    queryFn: () => getPanelUsers({ includeDeleted }),
     staleTime: 30000,
   });
 }
@@ -61,6 +63,26 @@ export function useResetAdminPanelUserAccess() {
   return useMutation({
     mutationFn: ({ id, activate }: { id: string; activate?: boolean }) =>
       resetPanelUserAccess(id, { activate }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: PANEL_USERS_KEY });
+    },
+  });
+}
+
+export function useDeleteAdminPanelUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deletePanelUser(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: PANEL_USERS_KEY });
+    },
+  });
+}
+
+export function useRestoreAdminPanelUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => restorePanelUser(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: PANEL_USERS_KEY });
     },

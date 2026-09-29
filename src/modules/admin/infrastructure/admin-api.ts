@@ -918,6 +918,10 @@ export async function getAdminAllVacancies(consultantId?: string): Promise<Vacan
 export interface UserItem {
   id: string;
   email: string;
+  /** Nome do perfil. Ausente = API anterior a 29/09/2026. */
+  name?: string | null;
+  /** Telefone da conta (E.164). Ausente = API anterior a 29/09/2026. */
+  phone?: string | null;
   isActive: boolean;
   emailConfirmed: boolean;
   status: string;
@@ -980,6 +984,25 @@ export async function changeUserEmail(
   email: string,
 ): Promise<{ id: string; email: string }> {
   const res = await adminApi.patch(`/users/${userId}/email`, { email });
+  return res.data.data;
+}
+
+export interface UpdateUserBasicDataPayload {
+  name?: string;
+  email?: string;
+  /** E.164; `null` limpa (a API só aceita se a conta tiver e-mail). */
+  phone?: string | null;
+}
+
+/**
+ * Corrige nome, e-mail de login e/ou telefone de uma conta (só os campos
+ * enviados mudam). 409 = e-mail/telefone de outra conta ou conta excluída.
+ */
+export async function updateUserBasicData(
+  userId: string,
+  payload: UpdateUserBasicDataPayload,
+): Promise<{ id: string; name: string | null; email: string | null; phone: string | null }> {
+  const res = await adminApi.patch(`/users/${userId}`, payload);
   return res.data.data;
 }
 
@@ -1217,6 +1240,55 @@ export async function adminHardDeleteUser(
   await adminApi.delete(`${API_BASE_URL}/v1/admin/users/${userId}/hard-delete`, {
     data: { reason, ...(accountType ? { accountType } : {}) },
   });
+}
+
+// ─── Exclusão pelo painel: apaga (sem histórico) ou anonimiza (com histórico) ──
+
+/**
+ * HARD = conta sem histórico, será apagada de vez; SOFT = tem histórico, será
+ * desativada e anonimizada; BLOCKED = há serviço em andamento ou dinheiro
+ * pendente; ALREADY_DELETED = já excluída.
+ */
+export type UserDeletionMode = "HARD" | "SOFT" | "BLOCKED" | "ALREADY_DELETED";
+
+export interface UserHistoryCounts {
+  vacancies: number;
+  candidacies: number;
+  fixedJobs: number;
+  repasses: number;
+  walletEntries: number;
+  referralsMade: number;
+  referralRewards: number;
+  paidSubscriptionCharges: number;
+}
+
+export interface UserDeletionPreview {
+  userId: string;
+  mode: UserDeletionMode;
+  history: UserHistoryCounts;
+  historyTotal: number;
+  /** Motivos (em português) que impedem excluir agora. */
+  blockers: string[];
+}
+
+export async function getUserDeletionPreview(userId: string): Promise<UserDeletionPreview> {
+  const res = await adminApi.get(`${API_BASE_URL}/v1/admin/users/${userId}/deletion-preview`);
+  return res.data.data;
+}
+
+/**
+ * Exclui a conta pelo painel. A API decide: sem histórico apaga, com histórico
+ * anonimiza. 422 USER_DELETE_BLOCKED (com os motivos) / 409 USER_ALREADY_DELETED.
+ */
+export async function adminDeleteUser(
+  userId: string,
+  reason: string,
+  accountType?: HardDeleteAccountType,
+): Promise<{ mode: "HARD" | "SOFT" }> {
+  const res = await adminApi.delete(`${API_BASE_URL}/v1/admin/users/${userId}`, {
+    data: { reason, ...(accountType ? { accountType } : {}) },
+  });
+  return res.data.data;
 }
 
 export default adminApi;
