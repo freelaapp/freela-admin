@@ -43,6 +43,8 @@ import type {
   PlanCode,
   SubscriptionRow,
 } from "@/modules/admin/infrastructure/subscriptions-api";
+import { trialListBadge } from "@/modules/admin/domain/fixed-job-trial";
+import { FixedJobTrialSection } from "./_components/fixed-job-trial-section";
 
 const PLAN_LABEL: Record<PlanCode, string> = {
   FREE: "Grátis",
@@ -66,6 +68,10 @@ const ACTION_LABEL: Record<AdminActionType, string> = {
   PERIOD_EXTENDED: "Ciclo estendido",
   QUOTA_ADJUSTED: "Cota ajustada",
   CANCELLED: "Assinatura cancelada",
+  NOT_RENEWED: "Não renovado (voltou ao Grátis)",
+  FIXED_JOB_TRIAL_GRANTED: "Teste de vaga fixa liberado",
+  FIXED_JOB_TRIAL_UPDATED: "Teste de vaga fixa alterado",
+  FIXED_JOB_TRIAL_REVOKED: "Teste de vaga fixa encerrado",
 };
 
 const fmtDate = (iso: string | null) => {
@@ -180,13 +186,14 @@ export default function AssinaturasPage() {
               <TableHead>Plano</TableHead>
               <TableHead>Ciclo até</TableHead>
               <TableHead>Cortesia</TableHead>
+              <TableHead>Teste vaga fixa</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10 text-neutral-500">
+                <TableCell colSpan={7} className="text-center py-10 text-neutral-500">
                   <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
                   Carregando…
                 </TableCell>
@@ -195,7 +202,7 @@ export default function AssinaturasPage() {
 
             {!isLoading && rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10 text-neutral-500">
+                <TableCell colSpan={7} className="text-center py-10 text-neutral-500">
                   Nenhuma empresa encontrada.
                 </TableCell>
               </TableRow>
@@ -221,6 +228,15 @@ export default function AssinaturasPage() {
                 <TableCell>
                   {row.underCourtesy ? (
                     <Badge variant="success">até {fmtDate(row.courtesyUntil)}</Badge>
+                  ) : (
+                    <span className="text-neutral-400">—</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {trialListBadge(row.fixedJobTrial) ? (
+                    <Badge variant="warning" className="tabular-nums">
+                      {trialListBadge(row.fixedJobTrial)}
+                    </Badge>
                   ) : (
                     <span className="text-neutral-400">—</span>
                   )}
@@ -424,6 +440,14 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
               </Button>
             </section>
 
+            {/* ── Teste de vaga fixa (CLT) ───────────────────────── */}
+            <FixedJobTrialSection
+              key={row.storeId}
+              storeId={row.storeId}
+              planCode={detail.plan.code}
+              trial={detail.fixedJobTrial}
+            />
+
             {/* ── Plano, ciclo e cota ────────────────────────────── */}
             <section className="grid grid-cols-1 sm:grid-cols-2 gap-5 border-t border-neutral-200 pt-5">
               <div className="space-y-2">
@@ -514,7 +538,9 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
                       key={action.id}
                       className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-neutral-100 pb-2 last:border-0"
                     >
-                      <span className="font-medium">{ACTION_LABEL[action.action]}</span>
+                      <span className="font-medium">
+                        {ACTION_LABEL[action.action] ?? action.action}
+                      </span>
                       {action.toPlanCode && (
                         <span className="text-neutral-600">
                           {action.fromPlanCode ? `${PLAN_LABEL[action.fromPlanCode]} → ` : ""}
