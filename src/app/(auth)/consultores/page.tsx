@@ -6,10 +6,11 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, UserPlus, Copy, Power, Eye, Pencil, Trash2 } from "lucide-react";
+import { Plus, Loader2, UserPlus, Copy, Power, Eye, Pencil, Trash2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
   useAdminConsultants,
+  useRestoreAdminConsultant,
   useUpdateAdminConsultant,
 } from "@/modules/admin/application/use-admin-consultants";
 import { useAuth } from "@/modules/auth/application/use-auth";
@@ -18,17 +19,23 @@ import { formatInstantDate } from "@/lib/date.utils";
 import type { ConsultantItem } from "@/modules/admin/infrastructure/consultants-api";
 import { buildReferralLink } from "@/modules/admin/infrastructure/referral-link";
 import { ConsultantFormDialog } from "./_components/consultant-form-dialog";
-import {
-  DeleteConsultantDialog,
-  canDeleteConsultant,
-  deleteBlockedReason,
-} from "./_components/delete-consultant-dialog";
+import { DeleteConsultantDialog } from "./_components/delete-consultant-dialog";
+import { isConsultantDeleted } from "./_lib/consultant-delete";
 
 export default function ConsultoresPage() {
   const router = useRouter();
   const { isHydrated, isSuperAdmin } = useAuth();
-  const { data: consultants, isLoading, isError } = useAdminConsultants();
+  const [showDeleted, setShowDeleted] = useState(false);
+  const {
+    data: consultants,
+    isLoading,
+    isError,
+  } = useAdminConsultants({
+    includeDeleted: showDeleted,
+  });
   const updateMutation = useUpdateAdminConsultant();
+  const restoreMutation = useRestoreAdminConsultant();
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   // `null` no modal aberto = cadastro novo; com consultor = edição.
@@ -88,6 +95,20 @@ export default function ConsultoresPage() {
     }
   }
 
+  async function restore(consultant: ConsultantItem) {
+    setRestoringId(consultant.id);
+    try {
+      await restoreMutation.mutateAsync(consultant.id);
+      toast.success(
+        `${consultant.name} restaurado — ainda inativo. Use o botão de status para reativar.`,
+      );
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível restaurar o consultor."));
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
   const columns = [
     {
       header: "Nome",
@@ -131,17 +152,25 @@ export default function ConsultoresPage() {
     },
     {
       header: "Status",
-      accessor: (row: ConsultantItem) => (
-        <span
-          className={
-            row.isActive
-              ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
-              : "inline-flex items-center rounded-full bg-[#f1f1f1] px-2 py-0.5 text-xs font-medium text-[#737373]"
-          }
-        >
-          {row.isActive ? "Ativo" : "Inativo"}
-        </span>
-      ),
+      accessor: (row: ConsultantItem) =>
+        isConsultantDeleted(row) ? (
+          <span
+            className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+            title={row.deletedAt ? `Excluído em ${formatInstantDate(row.deletedAt)}` : undefined}
+          >
+            Excluído
+          </span>
+        ) : (
+          <span
+            className={
+              row.isActive
+                ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+                : "inline-flex items-center rounded-full bg-[#f1f1f1] px-2 py-0.5 text-xs font-medium text-[#737373]"
+            }
+          >
+            {row.isActive ? "Ativo" : "Inativo"}
+          </span>
+        ),
     },
     {
       header: "Cadastrado em",
@@ -150,64 +179,99 @@ export default function ConsultoresPage() {
     },
     {
       header: "Ações",
-      accessor: (row: ConsultantItem) => (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push(`/consultores/${row.id}`)}
-            title="Ver perfil"
-            className="text-[#737373] hover:text-[#1d1d1b]"
-          >
-            <Eye className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => copyLink(row.code)}
-            title="Copiar link de indicação"
-            className="text-[#737373] hover:text-[#1d1d1b]"
-          >
-            <Copy className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openEdit(row)}
-            title="Editar"
-            className="text-[#737373] hover:text-[#1d1d1b]"
-          >
-            <Pencil className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => toggleActive(row)}
-            disabled={togglingId === row.id}
-            title={row.isActive ? "Desativar" : "Ativar"}
-            className={row.isActive ? "text-red-500 hover:text-red-600" : "text-green-600 hover:text-green-700"}
-          >
-            {togglingId === row.id ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Power className="w-4 h-4" />
-            )}
-          </Button>
-          {/* `span` segura o title: botão desabilitado não dispara hover em todo browser. */}
-          <span title={canDeleteConsultant(row) ? "Excluir" : deleteBlockedReason(row)}>
+      accessor: (row: ConsultantItem) =>
+        isConsultantDeleted(row) ? (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push(`/consultores/${row.id}`)}
+              title="Ver perfil"
+              className="text-[#737373] hover:text-[#1d1d1b]"
+            >
+              <Eye className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => restore(row)}
+              disabled={restoringId === row.id}
+              title="Restaurar (volta inativo)"
+              className="text-[#737373] hover:text-[#1d1d1b]"
+            >
+              {restoringId === row.id ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4 mr-1" />
+                  Restaurar
+                </>
+              )}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push(`/consultores/${row.id}`)}
+              title="Ver perfil"
+              className="text-[#737373] hover:text-[#1d1d1b]"
+            >
+              <Eye className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => copyLink(row.code)}
+              title="Copiar link de indicação"
+              className="text-[#737373] hover:text-[#1d1d1b]"
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openEdit(row)}
+              title="Editar"
+              className="text-[#737373] hover:text-[#1d1d1b]"
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => toggleActive(row)}
+              disabled={togglingId === row.id}
+              title={row.isActive ? "Desativar" : "Ativar"}
+              className={
+                row.isActive
+                  ? "text-red-500 hover:text-red-600"
+                  : "text-green-600 hover:text-green-700"
+              }
+            >
+              {togglingId === row.id ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Power className="w-4 h-4" />
+              )}
+            </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setDeleting(row)}
-              disabled={!canDeleteConsultant(row)}
+              title={
+                row.referralsCount > 0
+                  ? "Excluir (exclusão lógica — mantém as indicações)"
+                  : "Excluir"
+              }
               aria-label="Excluir"
-              className="text-red-500 hover:text-red-600 disabled:opacity-30"
+              className="text-red-500 hover:text-red-600"
             >
               <Trash2 className="w-4 h-4" />
             </Button>
-          </span>
-        </div>
-      ),
+          </div>
+        ),
     },
   ];
 
@@ -235,7 +299,7 @@ export default function ConsultoresPage() {
         <div className="flex items-center justify-center h-[40vh]">
           <p className="text-red-500">Erro ao carregar consultores.</p>
         </div>
-      ) : consultants && consultants.length === 0 ? (
+      ) : consultants && consultants.length === 0 && !showDeleted ? (
         <div className="bg-white border border-[#e5e5e5] rounded-xl p-10 flex flex-col items-center justify-center text-center">
           <div className="w-12 h-12 rounded-full bg-[#eca826]/10 flex items-center justify-center mb-3">
             <UserPlus className="w-6 h-6 text-[#eca826]" />
@@ -261,14 +325,21 @@ export default function ConsultoresPage() {
           searchPlaceholder="Buscar por nome..."
           searchKey="name"
           defaultSort={{ index: 3, direction: "desc" }}
+          filters={
+            <label className="flex items-center gap-2 text-sm text-[#525252] cursor-pointer select-none whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+                className="h-4 w-4 rounded border-[#d4d4d4] accent-[#eca826]"
+              />
+              Mostrar excluídos
+            </label>
+          }
         />
       )}
 
-      <ConsultantFormDialog
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        consultant={editing}
-      />
+      <ConsultantFormDialog open={modalOpen} onOpenChange={setModalOpen} consultant={editing} />
 
       <DeleteConsultantDialog
         consultant={deleting}
