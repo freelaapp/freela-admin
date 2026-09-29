@@ -9,8 +9,11 @@ import {
   extendPeriod,
   getSubscription,
   grantCourtesy,
+  grantFixedJobTrial,
   listSubscriptions,
   revokeCourtesy,
+  revokeFixedJobTrial,
+  updateFixedJobTrial,
   type ListParams,
   type PlanCode,
 } from "../infrastructure/subscriptions-api";
@@ -107,5 +110,50 @@ export function useSubscriptionMutations(storeId: string | null) {
     onError: (e) => toast.error(getAxiosErrorMessage(e, "Erro ao ajustar a cota.")),
   });
 
-  return { changePlan, courtesy, endCourtesy, extend, quota };
+  // ── Teste de vaga fixa (CLT) ──────────────────────────────────────────────
+  // Só os campos preenchidos vão no corpo: a API é whitelist, e mandar
+  // `storeId`/`undefined` à toa já derrubou chamada do painel antes.
+  const trialGrant = useMutation({
+    mutationFn: (vars: { storeId: string; quota: number; days: number; note?: string }) =>
+      grantFixedJobTrial(vars.storeId, {
+        quota: vars.quota,
+        days: vars.days,
+        ...(vars.note ? { note: vars.note } : {}),
+      }),
+    onSuccess: (_data, vars) => {
+      invalidate();
+      toast.success(
+        vars.quota === 1
+          ? "Teste liberado: 1 vaga fixa."
+          : `Teste liberado: ${vars.quota} vagas fixas.`,
+      );
+    },
+    onError: (e) => toast.error(getAxiosErrorMessage(e, "Erro ao liberar o teste de vaga fixa.")),
+  });
+
+  const trialUpdate = useMutation({
+    mutationFn: (vars: { storeId: string; quota?: number; expiresOn?: string; note?: string }) =>
+      updateFixedJobTrial(vars.storeId, {
+        ...(vars.quota !== undefined ? { quota: vars.quota } : {}),
+        ...(vars.expiresOn ? { expiresOn: vars.expiresOn } : {}),
+        ...(vars.note ? { note: vars.note } : {}),
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Teste de vaga fixa atualizado.");
+    },
+    onError: (e) => toast.error(getAxiosErrorMessage(e, "Erro ao alterar o teste de vaga fixa.")),
+  });
+
+  const trialRevoke = useMutation({
+    mutationFn: (vars: { storeId: string; note?: string }) =>
+      revokeFixedJobTrial(vars.storeId, vars.note),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Teste de vaga fixa encerrado. As vagas já publicadas continuam.");
+    },
+    onError: (e) => toast.error(getAxiosErrorMessage(e, "Erro ao encerrar o teste de vaga fixa.")),
+  });
+
+  return { changePlan, courtesy, endCourtesy, extend, quota, trialGrant, trialUpdate, trialRevoke };
 }

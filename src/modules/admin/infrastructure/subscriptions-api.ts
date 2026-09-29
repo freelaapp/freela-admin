@@ -1,4 +1,5 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { FixedJobTrialAdmin, FixedJobTrialSummary } from "../domain/fixed-job-trial";
 
 const subscriptionsApi = createAuthedClient("/v1/admin/subscriptions");
 
@@ -21,6 +22,8 @@ export interface SubscriptionRow {
   currentPeriodEnd: string | null;
   courtesyUntil: string | null;
   underCourtesy: boolean;
+  /** Última concessão de teste de vaga fixa. Ausente = API anterior ao teste. */
+  fixedJobTrial?: FixedJobTrialSummary | null;
 }
 
 export interface SubscriptionListResult {
@@ -44,7 +47,11 @@ export type AdminActionType =
   | "COURTESY_REVOKED"
   | "PERIOD_EXTENDED"
   | "QUOTA_ADJUSTED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "NOT_RENEWED"
+  | "FIXED_JOB_TRIAL_GRANTED"
+  | "FIXED_JOB_TRIAL_UPDATED"
+  | "FIXED_JOB_TRIAL_REVOKED";
 
 export interface AdminAction {
   id: string;
@@ -88,6 +95,8 @@ export interface SubscriptionDetail {
   quota: QuotaBalance | null;
   quotaLedger: QuotaLedgerEntry[];
   adminActions: AdminAction[];
+  /** Última concessão de teste de vaga fixa (qualquer estado). */
+  fixedJobTrial?: FixedJobTrialAdmin | null;
 }
 
 export interface ListParams {
@@ -134,5 +143,29 @@ export async function extendPeriod(storeId: string, input: { days: number; note?
 
 export async function adjustQuota(storeId: string, input: { delta: number; note?: string }) {
   const res = await subscriptionsApi.post(`/${storeId}/quota`, input);
+  return res.data.data;
+}
+
+// ─── Teste de vaga fixa (CLT) ───────────────────────────────────────────────
+// Corpo só com o que o DTO aceita (whitelist): o storeId vai na URL.
+
+export async function grantFixedJobTrial(
+  storeId: string,
+  input: { quota: number; days: number; note?: string },
+): Promise<FixedJobTrialAdmin> {
+  const res = await subscriptionsApi.post(`/${storeId}/fixed-job-trial`, input);
+  return res.data.data;
+}
+
+export async function updateFixedJobTrial(
+  storeId: string,
+  input: { quota?: number; expiresOn?: string; note?: string },
+): Promise<FixedJobTrialAdmin> {
+  const res = await subscriptionsApi.patch(`/${storeId}/fixed-job-trial`, input);
+  return res.data.data;
+}
+
+export async function revokeFixedJobTrial(storeId: string, note?: string): Promise<FixedJobTrialAdmin> {
+  const res = await subscriptionsApi.delete(`/${storeId}/fixed-job-trial`, { data: { note } });
   return res.data.data;
 }
