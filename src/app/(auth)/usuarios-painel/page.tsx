@@ -18,6 +18,8 @@ import {
   KeyRound,
   Pencil,
   AlertTriangle,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -33,7 +35,9 @@ import {
   useAdminPanelPermissions,
   useAdminPanelUsers,
   useCreateAdminPanelUser,
+  useDeleteAdminPanelUser,
   useResetAdminPanelUserAccess,
+  useRestoreAdminPanelUser,
   useUpdateAdminPanelUser,
 } from "@/modules/admin/application/use-admin-panel-users";
 import { useAuth } from "@/modules/auth/application/use-auth";
@@ -48,6 +52,15 @@ import type {
   PanelUser,
   PermissionOption,
 } from "@/modules/admin/infrastructure/panel-users-api";
+import { formatPhoneMask } from "@/modules/consultant/application/phone-mask";
+import {
+  EMPTY_PANEL_USER_FORM,
+  buildPanelUserUpdatePayload,
+  isPanelUserDeleted,
+  panelUserDeleteBlock,
+  panelUserToForm,
+  type PanelUserFormState,
+} from "./_lib/panel-user-form";
 
 /** Fallback local caso o catálogo da API não carregue — a tela nunca fica sem checkboxes. */
 const FALLBACK_PERMISSIONS: PermissionOption[] = ADMIN_PERMISSIONS.map((key) => ({
@@ -61,21 +74,8 @@ const ROLE_LABEL: Record<string, string> = {
   RECRUITER: "Recrutador",
 };
 
-type FormState = {
-  name: string;
-  email: string;
-  phone: string;
-  role: AdminRole;
-  permissions: string[];
-};
-
-const EMPTY_FORM: FormState = {
-  name: "",
-  email: "",
-  phone: "",
-  role: "ADMIN",
-  permissions: [],
-};
+type FormState = PanelUserFormState;
+const EMPTY_FORM: FormState = EMPTY_PANEL_USER_FORM;
 
 /** Resultado de criação/reset — a senha temporária só aparece uma vez. */
 type AccessResult = {
@@ -89,17 +89,22 @@ export default function UsuariosPainelPage() {
   const router = useRouter();
   const { isHydrated, isSuperAdmin, user } = useAuth();
 
-  const { data: users, isLoading, isError } = useAdminPanelUsers();
+  const [showDeleted, setShowDeleted] = useState(false);
+  const { data: users, isLoading, isError } = useAdminPanelUsers(showDeleted);
   const { data: permissionCatalog } = useAdminPanelPermissions();
   const createMutation = useCreateAdminPanelUser();
   const updateMutation = useUpdateAdminPanelUser();
   const resetMutation = useResetAdminPanelUserAccess();
+  const deleteMutation = useDeleteAdminPanelUser();
+  const restoreMutation = useRestoreAdminPanelUser();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PanelUser | null>(null);
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState<PanelUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PanelUser | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [accessResult, setAccessResult] = useState<AccessResult | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -130,13 +135,7 @@ export default function UsuariosPainelPage() {
 
   function openEdit(row: PanelUser) {
     setEditing(row);
-    setForm({
-      name: row.name ?? "",
-      email: row.email,
-      phone: row.phone ?? "",
-      role: (row.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "ADMIN") as AdminRole,
-      permissions: [...row.permissions],
-    });
+    setForm(panelUserToForm(row));
     setFormOpen(true);
   }
 
@@ -209,15 +208,12 @@ export default function UsuariosPainelPage() {
 
     try {
       if (editing) {
-        await updateMutation.mutateAsync({
-          id: editing.id,
-          payload: {
-            name,
-            phone: form.phone.trim(),
-            role: form.role,
-            permissions: permissionsPayload,
-          },
-        });
+        const built = buildPanelUserUpdatePayload(form, editing);
+        if (built.ok === false) {
+          toast.error(built.error);
+          return;
+        }
+        await updateMutation.mutateAsync({ id: editing.id, payload: built.payload });
         toast.success("Usuário atualizado.");
         closeForm();
         return;
@@ -263,6 +259,33 @@ export default function UsuariosPainelPage() {
       toast.error(getAxiosErrorMessage(err, "Erro ao reenviar o acesso"));
     }
   }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      toast.success(`${deleteTarget.name ?? deleteTarget.email} foi excluído do painel.`);
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível excluir o usuário."));
+    }
+  }
+
+  async function handleRestore(row: PanelUser) {
+    setRestoringId(row.id);
+    try {
+      await restoreMutation.mutateAsync(row.id);
+      toast.success(
+        "Usuário restaurado — ainda desativado. Use \"Ativar e reenviar\" para devolver o acesso.",
+      );
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível restaurar o usuário."));
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  const allUsers = users ?? [];
 
   const permissionLabel = (key: string) =>
     permissions.find((p) => p.key === key)?.label ?? key;
@@ -322,17 +345,25 @@ export default function UsuariosPainelPage() {
     },
     {
       header: "Status",
-      accessor: (row: PanelUser) => (
-        <span
-          className={
-            row.isActive
-              ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
-              : "inline-flex items-center rounded-full bg-[#f1f1f1] px-2 py-0.5 text-xs font-medium text-[#737373]"
-          }
-        >
-          {row.isActive ? "Ativo" : "Inativo"}
-        </span>
-      ),
+      accessor: (row: PanelUser) =>
+        isPanelUserDeleted(row) ? (
+          <span
+            className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+            title={row.deletedAt ? `Excluído em ${formatInstantDate(row.deletedAt)}` : undefined}
+          >
+            Excluído
+          </span>
+        ) : (
+          <span
+            className={
+              row.isActive
+                ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+                : "inline-flex items-center rounded-full bg-[#f1f1f1] px-2 py-0.5 text-xs font-medium text-[#737373]"
+            }
+          >
+            {row.isActive ? "Ativo" : "Inativo"}
+          </span>
+        ),
     },
     {
       header: "Criado em",
@@ -345,6 +376,30 @@ export default function UsuariosPainelPage() {
       header: "Ações",
       accessor: (row: PanelUser) => {
         const isSelf = !!user?.id && user.id === row.id;
+        if (isPanelUserDeleted(row)) {
+          return (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleRestore(row)}
+                disabled={restoringId === row.id}
+                title="Restaurar (volta desativado)"
+                className="text-[#737373] hover:text-[#1d1d1b]"
+              >
+                {restoringId === row.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <RotateCcw className="w-4 h-4 mr-1" />
+                    Restaurar
+                  </>
+                )}
+              </Button>
+            </div>
+          );
+        }
+        const deleteBlock = panelUserDeleteBlock(row, user?.id, allUsers);
         return (
           <div className="flex items-center gap-1">
             <Button
@@ -383,6 +438,19 @@ export default function UsuariosPainelPage() {
                 <Power className="w-4 h-4" />
               )}
             </Button>
+            {/* `span` segura o title: botão desabilitado não dispara hover em todo browser. */}
+            <span title={deleteBlock ?? "Excluir"}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteTarget(row)}
+                disabled={!!deleteBlock}
+                aria-label="Excluir"
+                className="text-red-500 hover:text-red-600 disabled:opacity-30"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </span>
           </div>
         );
       },
@@ -415,7 +483,7 @@ export default function UsuariosPainelPage() {
         <div className="flex items-center justify-center h-[40vh]">
           <p className="text-red-500">Erro ao carregar os usuários do painel.</p>
         </div>
-      ) : users && users.length === 0 ? (
+      ) : users && users.length === 0 && !showDeleted ? (
         <div className="bg-white border border-[#e5e5e5] rounded-xl p-10 flex flex-col items-center justify-center text-center">
           <div className="w-12 h-12 rounded-full bg-[#eca826]/10 flex items-center justify-center mb-3">
             <ShieldCheck className="w-6 h-6 text-[#eca826]" />
@@ -437,9 +505,20 @@ export default function UsuariosPainelPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={users ?? []}
+          data={allUsers}
           searchPlaceholder="Buscar por e-mail..."
           searchKey="email"
+          filters={
+            <label className="flex items-center gap-2 text-sm text-[#525252] cursor-pointer select-none whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+                className="h-4 w-4 rounded border-[#d4d4d4] accent-[#eca826]"
+              />
+              Mostrar excluídos
+            </label>
+          }
         />
       )}
 
@@ -451,7 +530,7 @@ export default function UsuariosPainelPage() {
             <DialogTitle>{editing ? "Editar usuário do painel" : "Novo usuário do painel"}</DialogTitle>
             <DialogDescription>
               {editing
-                ? "Ajuste o papel e as áreas liberadas. A mudança vale no próximo carregamento da tela do usuário — sem precisar relogar."
+                ? "Ajuste os dados, o papel e as áreas liberadas. Papel e áreas valem na próxima ação do usuário — sem precisar relogar."
                 : "O usuário recebe uma senha temporária por e-mail e a troca no primeiro acesso."}
             </DialogDescription>
           </DialogHeader>
@@ -476,22 +555,22 @@ export default function UsuariosPainelPage() {
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 placeholder="jonathan@freelaservicos.com.br"
-                disabled={!!editing}
               />
               {editing && (
                 <p className="text-xs text-[#737373]">
-                  O e-mail de login não muda por aqui.
+                  Trocar o e-mail muda o login; a senha continua a mesma.
                 </p>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="pu-phone">Telefone</Label>
                 <Input
                   id="pu-phone"
+                  inputMode="tel"
                   value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  onChange={(e) => setForm({ ...form, phone: formatPhoneMask(e.target.value) })}
                   placeholder="(11) 99999-9999"
                 />
               </div>
@@ -505,6 +584,7 @@ export default function UsuariosPainelPage() {
                   }
                 >
                   <option value="ADMIN">Admin</option>
+                  <option value="RECRUITER">Recrutador</option>
                   <option value="SUPER_ADMIN">Super Admin</option>
                 </NativeSelect>
               </div>
@@ -596,6 +676,64 @@ export default function UsuariosPainelPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmação de exclusão (lógica) */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => (open || deleteMutation.isPending ? undefined : setDeleteTarget(null))}
+      >
+        <DialogContent className="max-h-[88vh] overflow-y-auto">
+          <DialogClose onClick={() => !deleteMutation.isPending && setDeleteTarget(null)} />
+          <DialogHeader>
+            <DialogTitle>Excluir usuário do painel</DialogTitle>
+            <DialogDescription>
+              Excluir <strong className="text-[#1d1d1b]">{deleteTarget?.name ?? deleteTarget?.email}</strong>{" "}
+              <span className="break-all">({deleteTarget?.email})</span>?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+            <Trash2 className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+            <ul className="text-sm text-red-700 list-disc pl-4 space-y-1">
+              <li>O acesso ao painel é cortado na hora, inclusive em telas já abertas.</li>
+              <li>O usuário some desta lista.</li>
+              <li>
+                O histórico continua: onde ele aprovou, criou ou cancelou algo, o nome dele segue
+                aparecendo.
+              </li>
+              <li>
+                Dá para desfazer: marque &quot;Mostrar excluídos&quot; e use &quot;Restaurar&quot;.
+              </li>
+            </ul>
+          </div>
+          <DialogFooter className="flex-col-reverse sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleteMutation.isPending}
+              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              className="bg-red-600 text-white hover:bg-red-700 font-medium"
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Excluir usuário
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
