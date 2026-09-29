@@ -7,6 +7,7 @@ import {
   Phone,
   RotateCcw,
   ShieldCheck,
+  Undo2,
   UserCheck,
   XCircle,
 } from "lucide-react";
@@ -44,6 +45,22 @@ export interface VacancyCandidacyListProps {
    */
   onAccept?: (candidacyId: string, providerName: string) => void;
   accepting?: boolean;
+  /**
+   * Devolve à lista (PENDENTE) quem foi recusado ou não selecionado.
+   * Ausente ⇒ o botão não aparece (área sem permissão).
+   */
+  onRestore?: (candidacyId: string, providerName: string) => void;
+  restoring?: boolean;
+  /** Vaga aberta? Só nela dá para voltar alguém para a lista de candidatos. */
+  vacancyOpen?: boolean;
+}
+
+/** Quem o "Recolocar" atende — aprovado e desalocado. */
+function canReinstate(c: { status: string; acceptedAt?: string | null }): boolean {
+  return (
+    Boolean(c.acceptedAt) &&
+    (c.status === "CANCELLED_BY_CONTRACTOR" || c.status === "WITHDRAWN" || c.status === "NOT_SELECTED")
+  );
 }
 
 /**
@@ -89,6 +106,9 @@ export function VacancyCandidacyList({
   reinstating = false,
   onAccept,
   accepting = false,
+  onRestore,
+  restoring = false,
+  vacancyOpen = false,
 }: VacancyCandidacyListProps) {
   return (
     <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
@@ -277,11 +297,7 @@ export function VacancyCandidacyList({
                   Recolocar confirma a presença junto: o prazo dela já passou, e
                   sem confirmar a varredura a cortaria de novo em minutos.
                 */}
-                {onReinstate &&
-                  c.acceptedAt &&
-                  (c.status === "CANCELLED_BY_CONTRACTOR" ||
-                    c.status === "WITHDRAWN" ||
-                    c.status === "NOT_SELECTED") && (
+                {onReinstate && canReinstate(c) && (
                     <button
                       onClick={() => onReinstate(c.id, c.providerName ?? "Freelancer")}
                       disabled={reinstating}
@@ -294,6 +310,31 @@ export function VacancyCandidacyList({
                         <RotateCcw className="h-3 w-3" />
                       )}
                       Recolocar na vaga
+                    </button>
+                  )}
+                {/*
+                  Voltar para candidatos: recusado (inclusive por engano do
+                  contratante) ou não selecionado volta a PENDENTE, para ser
+                  escolhido de novo. Antes disto era UPDATE em produção (duas
+                  vagas em 29/09/2026). Quem pode ser recolocado usa o botão de
+                  cima — um segundo botão verde no mesmo cartão só confundiria.
+                */}
+                {onRestore &&
+                  vacancyOpen &&
+                  (c.status === "REJECTED" || c.status === "NOT_SELECTED") &&
+                  !(onReinstate && canReinstate(c)) && (
+                    <button
+                      onClick={() => onRestore(c.id, c.providerName ?? "Freelancer")}
+                      disabled={restoring}
+                      className="mt-2 mr-3 inline-flex items-center gap-1.5 rounded-md border border-emerald-600 bg-white px-2 py-1 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-60"
+                      title="Devolve a pessoa à lista de candidatos, como pendente"
+                    >
+                      {restoring ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Undo2 className="h-3 w-3" />
+                      )}
+                      Voltar para candidatos
                     </button>
                   )}
                 {/*

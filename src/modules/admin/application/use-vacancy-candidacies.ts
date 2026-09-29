@@ -5,6 +5,7 @@ import {
   adminAcceptCandidacy,
   adminConfirmCandidacy,
   adminReinstateCandidacy,
+  adminRestoreCandidacy,
   getVacancyCandidacies,
 } from "../infrastructure/admin-api";
 
@@ -62,6 +63,22 @@ export function useReinstateCandidacy(vacancyId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (candidacyId: string) => adminReinstateCandidacy(candidacyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-candidacies", vacancyId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "vacancies"] });
+    },
+  });
+}
+
+/**
+ * "Voltar para candidatos": recusado/não selecionado volta a PENDENTE. Só a lista
+ * da própria vaga muda (a vaga continua aberta), mas a tabela de vagas conta
+ * candidatos — recarrega as duas.
+ */
+export function useRestoreCandidacy(vacancyId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (candidacyId: string) => adminRestoreCandidacy(candidacyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-candidacies", vacancyId] });
       queryClient.invalidateQueries({ queryKey: ["admin", "vacancies"] });

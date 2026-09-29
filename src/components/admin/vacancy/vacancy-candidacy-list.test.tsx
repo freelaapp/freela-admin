@@ -90,3 +90,45 @@ describe("VacancyCandidacyList — Aprovado por", () => {
     expect(screen.queryByText("Dono")).not.toBeInTheDocument();
   });
 });
+
+describe("VacancyCandidacyList — Voltar para candidatos", () => {
+  it("mostra o botão em recusado e não selecionado, com a vaga aberta, e repassa id + nome", () => {
+    const onRestore = vi.fn();
+    renderList(
+      [item({ id: "c-rej", status: "REJECTED" }), item({ id: "c-ns", status: "NOT_SELECTED", providerName: "Giselle" })],
+      { onRestore, vacancyOpen: true },
+    );
+
+    const buttons = screen.getAllByRole("button", { name: /voltar para candidatos/i });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]);
+    expect(onRestore).toHaveBeenCalledWith("c-ns", "Giselle");
+  });
+
+  it("não aparece com a vaga fechada nem em outros status", () => {
+    const { unmount } = renderList([item({ status: "REJECTED" })], { onRestore: vi.fn(), vacancyOpen: false });
+    expect(screen.queryByRole("button", { name: /voltar para candidatos/i })).not.toBeInTheDocument();
+    unmount();
+
+    renderList(
+      [item({ id: "a", status: "PENDING" }), item({ id: "b", status: "ACCEPTED" }), item({ id: "c", status: "WITHDRAWN" })],
+      { onRestore: vi.fn(), vacancyOpen: true },
+    );
+    expect(screen.queryByRole("button", { name: /voltar para candidatos/i })).not.toBeInTheDocument();
+  });
+
+  it("quem pode ser RECOLOCADO (já foi aprovado) não ganha um segundo botão", () => {
+    renderList([item({ status: "NOT_SELECTED", acceptedAt: "2026-09-29T11:41:19.000Z" })], {
+      onRestore: vi.fn(),
+      onReinstate: vi.fn(),
+      vacancyOpen: true,
+    });
+    expect(screen.getByRole("button", { name: /recolocar na vaga/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /voltar para candidatos/i })).not.toBeInTheDocument();
+  });
+
+  it("sem onRestore (área sem permissão) o botão não aparece", () => {
+    renderList([item({ status: "REJECTED" })], { vacancyOpen: true });
+    expect(screen.queryByRole("button", { name: /voltar para candidatos/i })).not.toBeInTheDocument();
+  });
+});

@@ -49,6 +49,7 @@ import {
   useConfirmCandidacy,
   useReinstateCandidacy,
   useAcceptCandidacy,
+  useRestoreCandidacy,
   useVacancyCandidacies,
 } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
@@ -179,6 +180,7 @@ export default function JobsPage() {
   const confirmCandidacy = useConfirmCandidacy(modalDetalhes?.raw.id ?? null);
   const reinstateCandidacy = useReinstateCandidacy(modalDetalhes?.raw.id ?? null);
   const acceptCandidacy = useAcceptCandidacy(modalDetalhes?.raw.id ?? null);
+  const restoreCandidacy = useRestoreCandidacy(modalDetalhes?.raw.id ?? null);
 
   /**
    * Coloca na vaga um candidato PENDENTE, no lugar do contratante. É o mesmo
@@ -198,6 +200,26 @@ export default function JobsPage() {
       toast.success(`${nome} foi colocado(a) na vaga. O contratante foi avisado.`);
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Não foi possível colocar na vaga."));
+    }
+  }
+
+  /**
+   * "Voltar para candidatos": recusado ou não selecionado volta a PENDENTE. Não
+   * aprova ninguém — o aviso diz isso, para o operador não achar que já colocou.
+   */
+  async function handleRestoreCandidacy(candidacyId: string, nome: string) {
+    if (
+      !window.confirm(
+        `Voltar ${nome} para a lista de candidatos?\n\nEla volta como pendente. Para colocá-la na vaga, use "Colocar na vaga" depois.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await restoreCandidacy.mutateAsync(candidacyId);
+      toast.success(`${nome} voltou para a lista de candidatos.`);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível voltar para a lista."));
     }
   }
 
@@ -1109,6 +1131,9 @@ export default function JobsPage() {
                 reinstating={reinstateCandidacy.isPending}
                 onAccept={handleAcceptCandidacy}
                 accepting={acceptCandidacy.isPending}
+                onRestore={handleRestoreCandidacy}
+                restoring={restoreCandidacy.isPending}
+                vacancyOpen={modalDetalhes?.raw.status === "OPEN"}
                 onUnlink={
                   modalDetalhes?.raw.id
                     ? ({ candidacyId, providerName }) =>

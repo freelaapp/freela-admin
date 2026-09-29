@@ -712,6 +712,25 @@ export async function adminAcceptCandidacy(
   return res.data.data;
 }
 
+export interface AdminRestoreCandidacyResult {
+  candidacyId: string;
+  vacancyId: string;
+  providerId: string;
+  status: "PENDING";
+}
+
+/**
+ * "Voltar para candidatos": devolve a PENDENTE quem foi recusado ou não
+ * selecionado, com a vaga aberta. Não aprova nem cobra — para colocar na vaga,
+ * é o "Colocar na vaga" depois.
+ */
+export async function adminRestoreCandidacy(
+  candidacyId: string,
+): Promise<AdminRestoreCandidacyResult> {
+  const res = await adminApi.post(`/candidacies/${candidacyId}/restore`);
+  return res.data.data;
+}
+
 // Finalização admin da vaga — endpoint COMPARTILHADO (empresa + Casa), base
 // própria `/v1/admins/vacancies` (não o prefixo de módulo).
 const adminsVacanciesApi = createAuthedClient("/v1/admins/vacancies");

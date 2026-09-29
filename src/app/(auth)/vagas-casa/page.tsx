@@ -41,6 +41,7 @@ import {
   useConfirmCasaCandidacy,
   useReinstateCasaCandidacy,
   useAcceptCasaCandidacy,
+  useRestoreCasaCandidacy,
 } from "@/modules/admin/application/use-casa-vacancy-actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -165,6 +166,7 @@ export default function VagasCasaPage() {
   const confirmCandidacy = useConfirmCasaCandidacy(detalhe?.raw.id ?? null);
   const reinstateCandidacy = useReinstateCasaCandidacy(detalhe?.raw.id ?? null);
   const acceptCandidacy = useAcceptCasaCandidacy(detalhe?.raw.id ?? null);
+  const restoreCandidacy = useRestoreCasaCandidacy(detalhe?.raw.id ?? null);
   const restartMutation = useAdminRestartCasaVacancy();
   const removeCandidacyMutation = useAdminRemoveCasaCandidacy();
 
@@ -216,6 +218,26 @@ export default function VagasCasaPage() {
       toast.success(`${nome} foi colocado(a) na vaga. O contratante foi avisado.`);
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Não foi possível colocar na vaga."));
+    }
+  }
+
+  /**
+   * "Voltar para candidatos": recusado ou não selecionado volta a PENDENTE. Não
+   * aprova ninguém — o aviso diz isso, para o operador não achar que já colocou.
+   */
+  async function handleRestoreCandidacy(candidacyId: string, nome: string) {
+    if (
+      !window.confirm(
+        `Voltar ${nome} para a lista de candidatos?\n\nEla volta como pendente. Para colocá-la na vaga, use "Colocar na vaga" depois.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await restoreCandidacy.mutateAsync(candidacyId);
+      toast.success(`${nome} voltou para a lista de candidatos.`);
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível voltar para a lista."));
     }
   }
 
@@ -703,6 +725,9 @@ export default function VagasCasaPage() {
                 reinstating={reinstateCandidacy.isPending}
                 onAccept={handleAcceptCandidacy}
                 accepting={acceptCandidacy.isPending}
+                onRestore={handleRestoreCandidacy}
+                restoring={restoreCandidacy.isPending}
+                vacancyOpen={detalhe.raw.status === "OPEN"}
                 onUnlink={({ candidacyId, providerName }) =>
                   setRemoveTarget({
                     vacancyId: detalhe.raw.id,

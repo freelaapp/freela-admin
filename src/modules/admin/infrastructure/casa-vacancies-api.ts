@@ -6,6 +6,7 @@ import type {
   AdminCancelVacancyResult,
   AdminConfirmCandidacyResult,
   AdminReinstateCandidacyResult,
+  AdminRestoreCandidacyResult,
   AdminRemoveCandidacyResult,
   AdminRestartVacancyResult,
   FeedbackItem,
@@ -192,6 +193,14 @@ export async function adminAcceptCasaCandidacy(
   candidacyId: string,
 ): Promise<AdminAcceptCandidacyResult> {
   const res = await casaAdminApi.post(`/candidacies/${candidacyId}/accept`);
+  return res.data.data;
+}
+
+/** "Voltar para candidatos" (recusado/não selecionado → pendente). Ver o gêmeo em `admin-api`. */
+export async function adminRestoreCasaCandidacy(
+  candidacyId: string,
+): Promise<AdminRestoreCandidacyResult> {
+  const res = await casaAdminApi.post(`/candidacies/${candidacyId}/restore`);
   return res.data.data;
 }
 

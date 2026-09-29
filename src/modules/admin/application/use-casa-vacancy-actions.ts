@@ -6,6 +6,7 @@ import {
   adminConfirmCasaCandidacy,
   adminReinstateCasaCandidacy,
   adminRemoveCasaCandidacy,
+  adminRestoreCasaCandidacy,
   adminRestartCasaVacancy,
   getCasaVacancyCandidacies,
   getCasaVacancyFeedbacks,
@@ -100,6 +101,18 @@ export function useReinstateCasaCandidacy(vacancyId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (candidacyId: string) => adminReinstateCasaCandidacy(candidacyId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "casa-vacancy-candidacies", vacancyId] });
+      qc.invalidateQueries({ queryKey: ["admin", "casa-vacancies"] });
+    },
+  });
+}
+
+/** "Voltar para candidatos" (recusado/não selecionado → pendente). Ver o gêmeo de Empresa. */
+export function useRestoreCasaCandidacy(vacancyId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (candidacyId: string) => adminRestoreCasaCandidacy(candidacyId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "casa-vacancy-candidacies", vacancyId] });
       qc.invalidateQueries({ queryKey: ["admin", "casa-vacancies"] });
