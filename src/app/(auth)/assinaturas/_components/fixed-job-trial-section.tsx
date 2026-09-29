@@ -4,12 +4,22 @@ import { useState } from "react";
 import { Briefcase, Loader2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSubscriptionMutations } from "@/modules/admin/application/use-admin-subscriptions";
 import {
   TRIAL_STATUS_LABEL,
   toSaoPauloDateInput,
+  todaySaoPauloDateInput,
+  trialEditCheck,
   trialUsageLabel,
   type FixedJobTrialAdmin,
   type FixedJobTrialStatus,
@@ -40,6 +50,9 @@ const fmtDate = (iso: string | null) => {
  * - sem teste, ou o último encerrado → só "Liberar teste";
  * - teste ativo → situação + alterar + encerrar;
  * - esgotado ou vencido → situação + alterar (reativa) + liberar um novo.
+ *
+ * Vencido só reativa com data nova: o "Salvar" fica travado até a data andar.
+ * Encerrar pede confirmação — não tem desfazer (reabrir é liberar outro teste).
  */
 export function FixedJobTrialSection({
   storeId,
@@ -59,6 +72,7 @@ export function FixedJobTrialSection({
   // `null` = segue o valor do teste atual; vira string quando o admin mexe.
   const [editQuota, setEditQuota] = useState<string | null>(null);
   const [editDate, setEditDate] = useState<string | null>(null);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
 
   const editable = !!trial && trial.status !== "REVOKED";
   const canGrant = !trial || trial.status !== "ACTIVE";
@@ -69,6 +83,15 @@ export function FixedJobTrialSection({
   const quotaChanged = !!trial && editQuota !== null && Number(editQuota) !== trial.quota;
   const dateChanged =
     !!trial && editDate !== null && editDate !== toSaoPauloDateInput(trial.expiresAt);
+  const editCheck = trial
+    ? trialEditCheck({
+        status: trial.status,
+        quotaChanged,
+        dateChanged,
+        newDate: dateValue,
+        today: todaySaoPauloDateInput(),
+      })
+    : { canSave: false, hint: null };
 
   const saveEdit = () => {
     trialUpdate.mutate(
@@ -145,18 +168,14 @@ export function FixedJobTrialSection({
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
-                  disabled={busy || (!quotaChanged && !dateChanged) || !Number(quotaValue)}
+                  disabled={busy || !editCheck.canSave || !Number(quotaValue)}
                   onClick={saveEdit}
                 >
                   {trialUpdate.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
                   Salvar alteração
                 </Button>
                 {trial.status === "ACTIVE" && (
-                  <Button
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => trialRevoke.mutate({ storeId })}
-                  >
+                  <Button variant="outline" disabled={busy} onClick={() => setConfirmingRevoke(true)}>
                     <X className="w-4 h-4 mr-1" />
                     Encerrar teste
                   </Button>
@@ -164,7 +183,45 @@ export function FixedJobTrialSection({
               </div>
             </div>
           )}
+          {editable && editCheck.hint && (
+            <p className="text-sm text-amber-800 bg-amber-50 rounded-md px-3 py-2">{editCheck.hint}</p>
+          )}
         </div>
+      )}
+
+      {trial && (
+        <Dialog
+          open={confirmingRevoke}
+          onOpenChange={(open) => !trialRevoke.isPending && setConfirmingRevoke(open)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Encerrar o teste de vaga fixa?</DialogTitle>
+              <DialogDescription>
+                {`Encerra agora, com ${trialUsageLabel(trial)}. A empresa volta à regra do plano; as vagas já publicadas continuam funcionando.`}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={trialRevoke.isPending}
+                onClick={() => setConfirmingRevoke(false)}
+              >
+                Voltar
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={trialRevoke.isPending}
+                onClick={() =>
+                  trialRevoke.mutate({ storeId }, { onSuccess: () => setConfirmingRevoke(false) })
+                }
+              >
+                {trialRevoke.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                Sim, encerrar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {canGrant && (

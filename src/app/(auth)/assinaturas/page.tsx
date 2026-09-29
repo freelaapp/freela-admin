@@ -92,6 +92,17 @@ const fmtCnpj = (cnpj: string | null) => {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 };
 
+/** Coluna "Teste vaga fixa": valendo em destaque; acabado discreto, mas visível. */
+function FixedJobTrialCell({ trial }: { trial: SubscriptionRow["fixedJobTrial"] }) {
+  const badge = trialListBadge(trial);
+  if (!badge) return <span className="text-neutral-400">—</span>;
+  return (
+    <Badge variant={badge.active ? "warning" : "muted"} className="tabular-nums">
+      {badge.label}
+    </Badge>
+  );
+}
+
 function PlanBadge({ code }: { code: PlanCode }) {
   const variant =
     code === "ENTERPRISE" ? "secondary" : code === "VIP" ? "default" : code === "BASIC" ? "outline" : "outline";
@@ -233,13 +244,7 @@ export default function AssinaturasPage() {
                   )}
                 </TableCell>
                 <TableCell>
-                  {trialListBadge(row.fixedJobTrial) ? (
-                    <Badge variant="warning" className="tabular-nums">
-                      {trialListBadge(row.fixedJobTrial)}
-                    </Badge>
-                  ) : (
-                    <span className="text-neutral-400">—</span>
-                  )}
+                  <FixedJobTrialCell trial={row.fixedJobTrial} />
                 </TableCell>
                 <TableCell className="text-right">
                   <Button size="sm" variant="outline" onClick={() => setSelected(row)}>
