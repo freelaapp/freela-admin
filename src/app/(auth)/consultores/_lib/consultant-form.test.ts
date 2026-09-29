@@ -7,6 +7,7 @@ import {
   consultantToFormValues,
   type ConsultantFormValues,
 } from "./consultant-form";
+import { BR_PHONE_MESSAGES } from "@/modules/consultant/application/phone-mask";
 
 const filled: ConsultantFormValues = {
   name: "  André Consultor ",
@@ -28,7 +29,7 @@ describe("buildCreateConsultantPayload", () => {
         code: "ANDRE2K",
         city: "Fortaleza",
         uf: "CE",
-        phone: "(85) 99999-9999",
+        phone: "+5585999999999",
         email: "Andre@X.com",
         commissionRate: 12.5,
         notes: "parceiro",
@@ -123,5 +124,44 @@ describe("consultantToFormValues", () => {
       commissionRate: "10",
       notes: "",
     });
+  });
+});
+
+describe("telefone do consultor", () => {
+  const base = { ...EMPTY_CONSULTANT_FORM, name: "A", email: "a@x.com" };
+
+  it("create: telefone mascarado vai em E.164 (fixo aceito)", () => {
+    const r = buildCreateConsultantPayload({ ...base, phone: "(85) 3333-4444" });
+    expect(r.ok && r.payload.phone).toBe("+558533334444");
+  });
+
+  it("create/update: telefone inválido barra com a mensagem da régua", () => {
+    const v = { ...base, phone: "(85) 3333-444" };
+    expect(buildCreateConsultantPayload(v)).toEqual({ ok: false, error: BR_PHONE_MESSAGES.INVALID_ANY });
+    expect(buildUpdateConsultantPayload(v)).toEqual({ ok: false, error: BR_PHONE_MESSAGES.INVALID_ANY });
+  });
+
+  it("update: telefone vazio vai como null", () => {
+    const r = buildUpdateConsultantPayload(base);
+    expect(r.ok && r.payload.phone).toBeNull();
+  });
+
+  it("edição: telefone salvo em E.164 aparece mascarado", () => {
+    const consultant = {
+      id: "c1",
+      name: "A",
+      code: "A1",
+      city: null,
+      uf: null,
+      phone: "+5585999998888",
+      email: "a@x.com",
+      commissionRate: null,
+      notes: null,
+      isActive: true,
+      referralsCount: 0,
+      createdAt: "2026-01-01",
+      updatedAt: "2026-01-01",
+    } as unknown as ConsultantItem;
+    expect(consultantToFormValues(consultant).phone).toBe("(85) 99999-8888");
   });
 });

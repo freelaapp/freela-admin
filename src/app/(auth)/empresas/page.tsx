@@ -36,6 +36,8 @@ import {
 } from "@/modules/admin/application/use-admin-contractor-employee";
 import { AbrirVagaDialog } from "@/components/admin/vacancy/abrir-vaga-dialog";
 import { cn, formatPhoneBr } from "@/lib/utils";
+import { formatPhoneMask } from "@/modules/consultant/application/phone-mask";
+import { resolveContactPhoneForSave } from "./_lib/contact-phone";
 import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
 import {
   adminBlockProvider,
@@ -99,6 +101,7 @@ export default function EmpresasPage() {
     city: "",
     uf: "",
   });
+  const [contactPhoneError, setContactPhoneError] = useState<string | null>(null);
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -126,11 +129,12 @@ export default function EmpresasPage() {
       setDeleteConfirm("");
     }
     if (type === "edit") {
+      setContactPhoneError(null);
       setEditForm({
         companyName: item.raw.companyName ?? "",
         segment: item.raw.segment ?? "",
         contactName: item.raw.contactName ?? "",
-        contactPhone: item.raw.contactPhone ?? "",
+        contactPhone: formatPhoneMask(item.raw.contactPhone ?? ""),
         contactEmail: item.raw.contactEmail ?? "",
         // CNPJ e CPF são o MESMO campo no banco (`document`) — o back devolve
         // separado só para exibir. Mandar de volta num campo só evita gravar um
@@ -245,6 +249,13 @@ export default function EmpresasPage() {
 
   const handleSaveEdit = async () => {
     if (!selectedItem) return;
+    // Contato só vai quando mudou — e aí precisa passar na régua BR (fixo aceito).
+    const contactPhone = resolveContactPhoneForSave(editForm.contactPhone, selectedItem.raw.contactPhone);
+    if (!contactPhone.ok) {
+      setContactPhoneError(contactPhone.error);
+      toast.error(contactPhone.error);
+      return;
+    }
     try {
       await updateContractor.mutateAsync({
         id: selectedItem.id,
@@ -252,7 +263,7 @@ export default function EmpresasPage() {
           companyName: editForm.companyName.trim() || undefined,
           segment: editForm.segment.trim() || undefined,
           contactName: editForm.contactName.trim() || undefined,
-          contactPhone: editForm.contactPhone.trim() || undefined,
+          contactPhone: contactPhone.value,
           // String vazia é intencional aqui: apagar o e-mail de contato é um
           // estado válido. Nos outros, vazio significa "não mexer".
           contactEmail: editForm.contactEmail.trim(),
@@ -502,7 +513,19 @@ export default function EmpresasPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="telefone-emp">Telefone</Label>
-                  <Input id="telefone-emp" value={editForm.contactPhone} onChange={(e) => setEditForm((f) => ({ ...f, contactPhone: e.target.value }))} />
+                  <Input
+                    id="telefone-emp"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="(11) 98765-4321"
+                    value={editForm.contactPhone}
+                    aria-invalid={!!contactPhoneError}
+                    onChange={(e) => {
+                      setContactPhoneError(null);
+                      setEditForm((f) => ({ ...f, contactPhone: formatPhoneMask(e.target.value) }));
+                    }}
+                  />
+                  {contactPhoneError && <p className="text-xs text-red-600">{contactPhoneError}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="email-contato">E-mail de contato</Label>

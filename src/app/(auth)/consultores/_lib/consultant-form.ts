@@ -8,6 +8,7 @@ import type {
   CreateConsultantPayload,
   UpdateConsultantPayload,
 } from "@/modules/admin/infrastructure/consultants-api";
+import { formatPhoneMask, parseBrPhone } from "@/modules/consultant/application/phone-mask";
 
 export interface ConsultantFormValues {
   name: string;
@@ -39,7 +40,7 @@ export function consultantToFormValues(c: ConsultantItem): ConsultantFormValues 
     code: c.code,
     city: c.city ?? "",
     uf: c.uf ?? "",
-    phone: c.phone ?? "",
+    phone: formatPhoneMask(c.phone ?? ""),
     email: c.email ?? "",
     commissionRate: c.commissionRate != null ? String(c.commissionRate) : "",
     notes: c.notes ?? "",
@@ -74,6 +75,15 @@ function validateCommon(v: ConsultantFormValues): BuildResult<CommonFields> {
     return { ok: false, error: "UF inválida (use 2 letras, ex.: SP)." };
   }
 
+  // Telefone do consultor (WhatsApp de avisos): opcional; celular ou fixo com DDD;
+  // vai em E.164, mesma régua da API.
+  let phone = "";
+  if (v.phone.trim()) {
+    const parsed = parseBrPhone(v.phone, { allowLandline: true });
+    if (parsed.ok === false) return { ok: false, error: parsed.message };
+    phone = parsed.e164;
+  }
+
   const rawRate = v.commissionRate.trim();
   const commissionRate = rawRate ? Number(rawRate.replace(",", ".")) : undefined;
   if (
@@ -90,7 +100,7 @@ function validateCommon(v: ConsultantFormValues): BuildResult<CommonFields> {
       email,
       city: v.city.trim(),
       uf,
-      phone: v.phone.trim(),
+      phone,
       commissionRate,
       notes: v.notes.trim(),
     },

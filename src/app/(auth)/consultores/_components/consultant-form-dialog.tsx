@@ -28,6 +28,7 @@ import {
   consultantToFormValues,
   type ConsultantFormValues,
 } from "../_lib/consultant-form";
+import { formatPhoneMask } from "@/modules/consultant/application/phone-mask";
 
 interface ConsultantFormDialogProps {
   open: boolean;
@@ -188,8 +189,10 @@ function ConsultantFormBody({
         <Label htmlFor="phone">Telefone</Label>
         <Input
           id="phone"
+          type="tel"
+          inputMode="tel"
           value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          onChange={(e) => setForm({ ...form, phone: formatPhoneMask(e.target.value) })}
           placeholder="(85) 99999-9999"
         />
       </div>
