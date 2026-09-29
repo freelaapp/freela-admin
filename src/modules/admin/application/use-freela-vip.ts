@@ -192,7 +192,7 @@ export function useVipApplicationMutations(id: string, cycleId?: string) {
   });
   const decide = useMutation({
     mutationFn: (v: { action: "approve" | "reject"; rejectionReason?: string }) => decideVipApplication(id, v.action, v.rejectionReason),
-    onSuccess: (r) => { refresh(); toast.success(r.promotedToVip ? "Promovido a VIP!" : "Candidatura atualizada."); },
+    onSuccess: (r) => { refresh(); toast.success(r.promotedToVip ? "Aprovado como VIP! Entrou nos favoritos e na lista VIP da loja." : "Etapa avançada."); },
     onError: fail("Erro ao decidir a candidatura."),
   });
   const rescore = useMutation({

@@ -13,14 +13,15 @@ export function TodoStrip({ board, cycleHasBackground, onGo }: {
   onGo: (tab: CycleTab) => void;
 }) {
   const c = vipTodoCounts(board, { cycleHasBackground });
-  const items: { n: number; label: string; tab: CycleTab; mine: boolean }[] = [
+  const all: { n: number; label: string; tab: CycleTab; mine: boolean }[] = [
     { n: c.interview, label: "para entrevistar", tab: "funil", mine: true },
     { n: c.requestBackground, label: "para pedir antecedentes", tab: "funil", mine: true },
     { n: c.toApprove, label: "prontos para aprovar como VIP", tab: "funil", mine: true },
     { n: c.waitlist, label: "na lista de espera", tab: "funil", mine: true },
     { n: c.backgroundPending, label: "esperando certidões", tab: "funil", mine: false },
     { n: c.invitesWaiting, label: "convites sem resposta", tab: "convites", mine: false },
-  ].filter((i) => i.n > 0);
+  ];
+  const items = all.filter((i) => i.n > 0);
 
   return (
     <section aria-label="O que fazer agora" className="rounded-xl border border-[#E2E8F0] bg-white p-4">

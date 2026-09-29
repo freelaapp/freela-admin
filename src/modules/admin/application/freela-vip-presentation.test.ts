@@ -13,7 +13,6 @@ import {
   validateQuestionDraft,
   validateScoringConfig,
   vipHistoryLabel,
-  VIP_APPROVABLE_STATUSES,
   VIP_REJECTABLE_STATUSES,
   VIP_RESCORABLE_STATUSES,
   VIP_STATUS_LABELS,
@@ -164,11 +163,6 @@ describe("misc", () => {
 });
 
 describe("status legais da ficha (espelham o api)", () => {
-  // vip-manual-funnel.service.ts APPROVAL_NEXT: WAITLIST→INTERVIEW_SCHEDULED,
-  // INTERVIEW_SCHEDULED→REFERENCES_OK e BACKGROUND_OK→VIP_ACTIVE — cópia exata.
-  it("VIP_APPROVABLE_STATUSES: lista de espera, entrevista agendada e antecedentes ok", () => {
-    expect([...VIP_APPROVABLE_STATUSES]).toEqual(["WAITLIST", "INTERVIEW_SCHEDULED", "BACKGROUND_OK"]);
-  });
   // vip-scoring.service.ts RESCORABLE_STATUSES — FORM_SUBMITTED NÃO está na lista real do api.
   it("VIP_RESCORABLE_STATUSES: nota calculada, lista de espera, entrevista e referências ok (sem FORM_SUBMITTED)", () => {
     expect([...VIP_RESCORABLE_STATUSES]).toEqual(["SCORED", "WAITLIST", "INTERVIEW_SCHEDULED", "REFERENCES_OK"]);

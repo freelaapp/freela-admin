@@ -2,38 +2,91 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useVipApplicationMutations } from "@/modules/admin/application/use-freela-vip";
-import { VIP_APPROVABLE_STATUSES, VIP_REJECTABLE_STATUSES, VIP_RESCORABLE_STATUSES } from "@/modules/admin/application/freela-vip-presentation";
-import type { VipApplicationDetail } from "@/modules/admin/infrastructure/freela-vip-api";
+import { useResendVipInvites, useVipApplicationMutations } from "@/modules/admin/application/use-freela-vip";
+import { VIP_REJECTABLE_STATUSES, VIP_RESCORABLE_STATUSES } from "@/modules/admin/application/freela-vip-presentation";
+import { VIP_ACTOR_LABELS, vipNextStep } from "@/modules/admin/application/freela-vip-flow";
+import type { VipApplicationDetail, VipResendResult } from "@/modules/admin/infrastructure/freela-vip-api";
 
-export function ApplicationActions({ detail, cycleHasJustification }: { detail: VipApplicationDetail; cycleHasJustification: boolean }) {
+function resendToast(r: VipResendResult) {
+  const sent = r.resent[0];
+  if (sent?.whatsapp === "SENT") return toast.success("Convite reenviado pelo WhatsApp (link vale mais 7 dias).");
+  if (sent?.whatsapp === "NO_PHONE") return toast.error("Convite renovado, mas o cadastro não tem telefone para o WhatsApp.");
+  if (sent?.whatsapp === "FAILED") return toast.error("Convite renovado, mas o WhatsApp recusou o envio. Tente mais tarde.");
+  const reason = r.skipped[0]?.reason;
+  if (reason === "RECENTLY_SENT") return toast.error("Convite enviado há menos de 12 h — espere um pouco para reenviar.");
+  return toast.error("Este candidato não tem convite para reenviar.");
+}
+
+/**
+ * Caixa "Próximo passo" da ficha: o que falta, com quem está e o botão da ação
+ * certa (nome do que ela faz). Reprovar e recalcular ficam como ações secundárias.
+ */
+export function ApplicationActions({ detail, cycleHasJustification, canAdmin = true }: {
+  detail: VipApplicationDetail;
+  cycleHasJustification: boolean;
+  canAdmin?: boolean;
+}) {
   const m = useVipApplicationMutations(detail.id, detail.cycleId);
+  const resend = useResendVipInvites(detail.cycleId);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [approveVipOpen, setApproveVipOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const busy = m.decide.isPending || m.rescore.isPending || m.openBackground.isPending;
-  const canApprove = VIP_APPROVABLE_STATUSES.includes(detail.status);
-  const canReject = VIP_REJECTABLE_STATUSES.includes(detail.status);
-  const canRescore = VIP_RESCORABLE_STATUSES.includes(detail.status);
-  const canOpenBackground = detail.status === "REFERENCES_OK";
+  const step = vipNextStep({ status: detail.status, source: detail.source }, { cycleHasBackground: cycleHasJustification, canAdmin });
+  const busy = m.decide.isPending || m.rescore.isPending || m.openBackground.isPending || resend.isPending;
+  const canReject = canAdmin && VIP_REJECTABLE_STATUSES.includes(detail.status);
+  const canRescore = canAdmin && VIP_RESCORABLE_STATUSES.includes(detail.status);
+  const approvesVip = step.action === "approve" && step.actionLabel === "Aprovar como VIP";
+
+  const runPrimary = () => {
+    if (step.action === "resend") resend.mutate([detail.id], { onSuccess: resendToast });
+    else if (step.action === "open_background") m.openBackground.mutate();
+    else if (approvesVip) setApproveVipOpen(true);
+    else if (step.action === "approve") m.decide.mutate({ action: "approve" });
+  };
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <span title={!canApprove ? "Só é possível aprovar a partir de Lista de espera, Entrevista agendada ou Antecedentes OK." : undefined}>
-        <Button size="sm" disabled={busy || !canApprove} onClick={() => m.decide.mutate({ action: "approve" })}>
-          {m.decide.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : detail.status === "BACKGROUND_OK" ? "Aprovar como VIP" : "Aprovar etapa"}
-        </Button>
-      </span>
-      <span title={!canReject ? "Só é possível reprovar entre Pontuado e Antecedentes pendentes" : undefined}>
-        <Button size="sm" variant="outline" disabled={busy || !canReject} onClick={() => setRejectOpen(true)}>Reprovar</Button>
-      </span>
-      <span title={!canRescore ? "Recalcular só é possível com a candidatura em Nota calculada, Lista de espera, Entrevista ou Referências ok." : undefined}>
-        <Button size="sm" variant="outline" disabled={busy || !canRescore} onClick={() => m.rescore.mutate()}>Recalcular nota</Button>
-      </span>
-      <span title={!cycleHasJustification ? "O ciclo não tem justificativa de antecedentes" : undefined}>
-        <Button size="sm" variant="outline" disabled={busy || !canOpenBackground || !cycleHasJustification} onClick={() => m.openBackground.mutate()}>Abrir antecedentes</Button>
-      </span>
+    <section className="rounded-xl border border-[#F59E0B]/40 bg-[#FFFBEB] p-4">
+      <p className="text-[11.5px] font-semibold uppercase tracking-wide text-[#92400E]">Próximo passo · {VIP_ACTOR_LABELS[step.actor]}</p>
+      <p className="mt-1 text-[13px] text-[#0F172A]">{step.text}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {step.action && step.actionLabel && (
+          <Button size="sm" disabled={busy} onClick={runPrimary}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : step.actionLabel}
+          </Button>
+        )}
+        {canReject && (
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => setRejectOpen(true)}>Reprovar</Button>
+        )}
+        {canRescore && (
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => m.rescore.mutate()} title="Recalcula a nota com as experiências e referências já conferidas.">
+            Recalcular nota
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={approveVipOpen} onOpenChange={setApproveVipOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Aprovar como VIP?</DialogTitle>
+            <DialogDescription>
+              O freela recebe a mensagem de VIP ativo, entra nos favoritos da loja e na lista VIP dela (e no grupo de WhatsApp, se a
+              loja tiver grupo).
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApproveVipOpen(false)}>Cancelar</Button>
+            <Button
+              disabled={m.decide.isPending}
+              onClick={() => m.decide.mutate({ action: "approve" }, { onSuccess: () => setApproveVipOpen(false) })}
+            >
+              Aprovar como VIP
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rejectOpen} onOpenChange={(o) => { if (!o) { setRejectOpen(false); setReason(""); } }}>
         <DialogContent>
@@ -63,6 +116,6 @@ export function ApplicationActions({ detail, cycleHasJustification }: { detail: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   );
 }
