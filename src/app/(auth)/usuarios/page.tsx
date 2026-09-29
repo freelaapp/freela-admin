@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Pencil, Loader2, UserX, Clock, AlertTriangle, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -19,8 +21,19 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminUsers } from "@/modules/admin/application/use-admin-users";
 import { useAdminDeletionStats } from "@/modules/admin/application/use-admin-deletion-stats";
-import type { UserItem } from "@/modules/admin/infrastructure/admin-api";
-import { changeUserEmail } from "@/modules/admin/infrastructure/admin-api";
+import type {
+  UpdateUserBasicDataPayload,
+  UserItem,
+} from "@/modules/admin/infrastructure/admin-api";
+import { updateUserBasicData } from "@/modules/admin/infrastructure/admin-api";
+import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
+import { formatPhoneMask } from "@/modules/consultant/application/phone-mask";
+import { ExcluirUsuarioDialog } from "@/components/admin/excluir-usuario-dialog";
+import {
+  buildUserUpdatePayload,
+  userToEditForm,
+  type UserEditFormValues,
+} from "./_lib/user-edit-form";
 import { SignupOriginBadges } from "@/components/admin/signup-origin-badges";
 import { formatInstantDate } from "@/lib/date.utils";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
@@ -52,6 +65,8 @@ function mapUserToRow(u: UserItem) {
   return {
     id: u.id,
     email: u.email,
+    nome: u.name ?? null,
+    telefone: u.phone ?? null,
     status: blocked ? ("blocked" as const) : mapUserStatus(u.status),
     statusLabel: blocked ? "Bloqueado" : formatStatusLabel(u.status),
     emailConfirmado: u.emailConfirmed,
@@ -98,7 +113,9 @@ export default function UsuariosPage() {
   });
   const { data: deletionStats } = useAdminDeletionStats();
   const [modalEditar, setModalEditar] = useState<Row | null>(null);
-  const [emailDraft, setEmailDraft] = useState<string | null>(null);
+  /** Formulário "Editar dados" aberto (null = só visualização). */
+  const [editForm, setEditForm] = useState<UserEditFormValues | null>(null);
+  const [excluir, setExcluir] = useState<{ userId: string; nome: string } | null>(null);
   const queryClient = useQueryClient();
 
   const selectTab = (t: Tab) => {
@@ -106,27 +123,47 @@ export default function UsuariosPage() {
     setPage(1);
   };
 
-  const changeEmail = useMutation({
-    mutationFn: (vars: { userId: string; email: string }) =>
-      changeUserEmail(vars.userId, vars.email),
-    onSuccess: (data) => {
-      toast.success(`E-mail alterado para ${data.email}`);
+  const updateUser = useMutation({
+    mutationFn: (vars: { userId: string; payload: UpdateUserBasicDataPayload }) =>
+      updateUserBasicData(vars.userId, vars.payload),
+    onSuccess: (data, vars) => {
+      toast.success("Dados atualizados.");
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       setModalEditar((prev) =>
-        prev ? { ...prev, email: data.email, emailConfirmado: true } : prev,
+        prev
+          ? {
+              ...prev,
+              email: data.email ?? prev.email,
+              nome: data.name,
+              telefone: data.phone,
+              emailConfirmado: vars.payload.email ? true : prev.emailConfirmado,
+            }
+          : prev,
       );
-      setEmailDraft(null);
+      setEditForm(null);
     },
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-        ?.response?.data?.error?.message;
-      toast.error(msg ?? "Não foi possível alterar o e-mail.");
+      toast.error(getAxiosErrorMessage(err, "Não foi possível salvar os dados."));
     },
   });
 
   const closeModal = () => {
     setModalEditar(null);
-    setEmailDraft(null);
+    setEditForm(null);
+  };
+
+  const saveEdit = () => {
+    if (!modalEditar || !editForm) return;
+    const built = buildUserUpdatePayload(editForm, {
+      name: modalEditar.nome,
+      email: modalEditar.email,
+      phone: modalEditar.telefone,
+    });
+    if (built.ok === false) {
+      toast.error(built.error);
+      return;
+    }
+    updateUser.mutate({ userId: modalEditar.raw.id, payload: built.payload });
   };
 
   const rows: Row[] = data?.data.map(mapUserToRow) ?? [];
@@ -150,7 +187,25 @@ export default function UsuariosPage() {
   }
 
   const columns = [
-    { header: "Email", accessor: "email" as const },
+    {
+      header: "Nome",
+      accessor: (row: Row) => (
+        <div className="min-w-0">
+          <p className="font-medium text-[#1d1d1b] truncate">{row.nome ?? "—"}</p>
+          <p className="text-xs text-[#737373] break-all md:hidden">{row.email}</p>
+        </div>
+      ),
+    },
+    { header: "Email", accessor: "email" as const, className: "hidden md:table-cell" },
+    {
+      header: "Telefone",
+      accessor: (row: Row) => (
+        <span className="text-xs text-[#525252]">
+          {row.telefone ? formatPhoneMask(row.telefone) : "—"}
+        </span>
+      ),
+      className: "hidden lg:table-cell",
+    },
     {
       header: "Origem",
       accessor: (row: Row) => <SignupOriginBadges source={row.raw} />,
@@ -310,7 +365,7 @@ export default function UsuariosPage() {
       <DataTable
         columns={columns}
         data={rows}
-        searchPlaceholder="Buscar por email..."
+        searchPlaceholder="Buscar por nome, e-mail ou telefone..."
         controlledSearch={{ value: searchInput, onChange: setSearchInput }}
         isFetching={isFetching}
         footer={
@@ -342,7 +397,7 @@ export default function UsuariosPage() {
       />
 
       <Dialog open={!!modalEditar} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent>
+        <DialogContent className="max-h-[88vh] overflow-y-auto">
           <DialogClose onClick={closeModal} />
           <DialogHeader>
             <DialogTitle>Detalhes do Usuário</DialogTitle>
@@ -350,62 +405,104 @@ export default function UsuariosPage() {
           </DialogHeader>
           {modalEditar && (
             <div className="space-y-3 text-sm">
-              <div className="bg-[#f7f7f7] rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[#737373]">E-mail de login</p>
-                  {emailDraft === null && (
-                    <button
-                      onClick={() => setEmailDraft(modalEditar.email)}
-                      className="text-xs font-medium text-[#eca826] hover:underline cursor-pointer"
-                    >
-                      Alterar
-                    </button>
-                  )}
-                </div>
-                {emailDraft === null ? (
-                  <p className="font-semibold text-[#1d1d1b] break-all">{modalEditar.email}</p>
-                ) : (
-                  <div className="mt-2 space-y-2">
-                    <input
-                      type="email"
-                      value={emailDraft}
-                      onChange={(e) => setEmailDraft(e.target.value)}
-                      placeholder="novo@email.com"
-                      autoFocus
-                      className="w-full h-9 px-3 rounded-lg bg-white border border-[#e5e5e5] text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
-                    />
-                    <div className="flex gap-2">
-                      <Button
+              {editForm === null ? (
+                <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[#737373]">Dados da conta</p>
+                    {modalEditar.raw.status !== "DELETED" && (
+                      <button
                         onClick={() =>
-                          changeEmail.mutate({ userId: modalEditar.raw.id, email: emailDraft.trim() })
+                          setEditForm(
+                            userToEditForm({
+                              name: modalEditar.nome,
+                              email: modalEditar.email,
+                              phone: modalEditar.telefone,
+                            }),
+                          )
                         }
-                        disabled={
-                          changeEmail.isPending ||
-                          !emailDraft.trim() ||
-                          emailDraft.trim().toLowerCase() === modalEditar.email.toLowerCase()
-                        }
-                        className="bg-[#eca826] text-white hover:bg-[#d4951e] h-8 text-xs"
+                        className="text-xs font-medium text-[#eca826] hover:underline cursor-pointer"
                       >
-                        {changeEmail.isPending ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          "Salvar e-mail"
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setEmailDraft(null)}
-                        className="border-[#e5e5e5] text-[#737373] h-8 text-xs hover:bg-[#eee]"
-                      >
-                        Cancelar
-                      </Button>
-                    </div>
-                    <p className="text-[11px] text-[#737373]">
-                      O titular passa a entrar com o novo e-mail e a senha atual.
+                        Editar dados
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-[#737373]">Nome</p>
+                    <p className="font-semibold text-[#1d1d1b]">{modalEditar.nome ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-[#737373]">E-mail de login</p>
+                    <p className="font-semibold text-[#1d1d1b] break-all">{modalEditar.email || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-[#737373]">Telefone</p>
+                    <p className="font-semibold text-[#1d1d1b]">
+                      {modalEditar.telefone ? formatPhoneMask(modalEditar.telefone) : "—"}
                     </p>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-3">
+                  <p className="text-[#737373]">Editar dados da conta</p>
+                  <div className="space-y-1">
+                    <Label htmlFor="usr-nome">Nome</Label>
+                    <Input
+                      id="usr-nome"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      className="bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="usr-email">E-mail de login</Label>
+                    <Input
+                      id="usr-email"
+                      type="email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                      placeholder="novo@email.com"
+                      className="bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="usr-telefone">Celular (login e WhatsApp)</Label>
+                    <Input
+                      id="usr-telefone"
+                      inputMode="tel"
+                      value={editForm.phone}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, phone: formatPhoneMask(e.target.value) })
+                      }
+                      placeholder="(11) 98765-4321"
+                      className="bg-white"
+                    />
+                  </div>
+                  <p className="text-[11px] text-[#737373]">
+                    O titular passa a entrar com o novo e-mail ou celular e a senha atual.
+                  </p>
+                  <div className="flex flex-col-reverse sm:flex-row gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setEditForm(null)}
+                      disabled={updateUser.isPending}
+                      className="border-[#e5e5e5] text-[#737373] h-9 text-xs hover:bg-[#eee]"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={saveEdit}
+                      disabled={updateUser.isPending}
+                      className="bg-[#eca826] text-white hover:bg-[#d4951e] h-9 text-xs"
+                    >
+                      {updateUser.isPending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        "Salvar alterações"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="bg-[#f7f7f7] rounded-lg p-3">
                 <p className="text-[#737373]">Email Confirmado</p>
                 <p className={`font-semibold ${modalEditar.emailConfirmado ? "text-green-600" : "text-red-500"}`}>
@@ -459,13 +556,35 @@ export default function UsuariosPage() {
               )}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-col-reverse sm:flex-row">
             <Button variant="outline" onClick={closeModal} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">
               Fechar
             </Button>
+            {modalEditar && modalEditar.raw.status !== "DELETED" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setExcluir({
+                    userId: modalEditar.raw.id,
+                    nome: modalEditar.nome ?? modalEditar.email ?? "esta conta",
+                  });
+                  closeModal();
+                }}
+                className="border-red-200 text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir conta
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExcluirUsuarioDialog
+        userId={excluir?.userId ?? null}
+        displayName={excluir?.nome ?? ""}
+        onClose={() => setExcluir(null)}
+      />
     </div>
   );
 }
