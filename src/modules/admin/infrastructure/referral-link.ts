@@ -49,3 +49,14 @@ export function buildFixedJobLink(postId: string, env: ReferralLinkEnv): string 
   const path = `/freelancer/vagas-fixas/${encodeURIComponent(postId)}`;
   return base ? `${base}${path}` : path;
 }
+
+/**
+ * "Link público" do ciclo Freela VIP (`/vip/ciclo/:id` no site), para o admin
+ * divulgar. Mesma base dos demais links públicos — antes a página lia
+ * `NEXT_PUBLIC_WEB_URL`, que não existe na Vercel, e copiava um caminho relativo.
+ */
+export function buildVipCycleLink(cycleId: string, env: ReferralLinkEnv): string {
+  const base = deriveWebAppBaseUrl(env);
+  const path = `/vip/ciclo/${encodeURIComponent(cycleId)}`;
+  return base ? `${base}${path}` : path;
+}

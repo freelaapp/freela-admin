@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildReferralLink, deriveWebAppBaseUrl, buildFixedJobLink } from "./referral-link";
+import {
+  buildReferralLink,
+  deriveWebAppBaseUrl,
+  buildFixedJobLink,
+  buildVipCycleLink,
+} from "./referral-link";
 
 describe("deriveWebAppBaseUrl", () => {
   it("prefers the explicit web app URL and trims trailing slashes", () => {
@@ -59,5 +64,33 @@ describe("buildFixedJobLink", () => {
         apiUrl: "https://api.outro.dev",
       }),
     ).toBe("https://freelaservicos.com.br/freelancer/vagas-fixas/abc-123");
+  });
+});
+
+describe("buildVipCycleLink", () => {
+  /**
+   * "Link público" do ciclo Freela VIP. Antes lia `NEXT_PUBLIC_WEB_URL` (não
+   * existe na Vercel) e copiava um caminho RELATIVO. Agora usa a mesma base dos
+   * outros links públicos do admin.
+   */
+  it("aponta para a página pública do ciclo no site, derivando da API", () => {
+    expect(buildVipCycleLink("cyc-1", { apiUrl: "https://api.freelaservicosapp.com.br" })).toBe(
+      "https://freelaservicosapp.com.br/vip/ciclo/cyc-1",
+    );
+  });
+
+  it("prefere a base explícita do site", () => {
+    expect(
+      buildVipCycleLink("cyc-1", {
+        webAppUrl: "https://freelaservicos.com.br/",
+        apiUrl: "https://api.outro.dev",
+      }),
+    ).toBe("https://freelaservicos.com.br/vip/ciclo/cyc-1");
+  });
+
+  it("escapa o id", () => {
+    expect(buildVipCycleLink("a/b", { webAppUrl: "https://x.dev" })).toBe(
+      "https://x.dev/vip/ciclo/a%2Fb",
+    );
   });
 });

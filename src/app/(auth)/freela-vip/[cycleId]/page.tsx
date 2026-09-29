@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useVipContractors, useVipCycle, useVipRole } from "@/modules/admin/application/use-freela-vip";
 import { cycleInviteBudget, formatDate } from "@/modules/admin/application/freela-vip-presentation";
+import { buildVipCycleLink } from "@/modules/admin/infrastructure/referral-link";
 import { VipGuard } from "../_components/vip-guard";
 import { redeLabel } from "../_components/rede-select";
 import { PreselectedTab } from "../_components/preselected-tab";
@@ -44,7 +45,20 @@ function CycleScreen() {
     );
   }
 
-  const publicUrl = `${process.env.NEXT_PUBLIC_WEB_URL ?? ""}/vip/ciclo/${cycle.id}`;
+  const publicUrl = buildVipCycleLink(cycle.id, {
+    webAppUrl: process.env.NEXT_PUBLIC_WEB_APP_URL,
+    apiUrl: process.env.NEXT_PUBLIC_API_URL,
+  });
+
+  async function copyPublicUrl() {
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("Link copiado");
+    } catch {
+      // Clipboard bloqueado: mostra o link para copiar na mão (igual vagas fixas).
+      toast.error(`Não foi possível copiar. Link: ${publicUrl}`);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-8 sm:px-6">
@@ -56,7 +70,7 @@ function CycleScreen() {
             <Button variant="outline" onClick={() => router.push("/freela-vip")}><ArrowLeft className="mr-1 h-4 w-4" aria-hidden />Ciclos</Button>
             <Button
               variant="outline"
-              onClick={() => { navigator.clipboard.writeText(publicUrl); toast.info("Link copiado. A página do candidato entra com o sub-projeto A2."); }}
+              onClick={copyPublicUrl}
             >
               <Copy className="mr-1 h-4 w-4" aria-hidden />Link público
             </Button>
