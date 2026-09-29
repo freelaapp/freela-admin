@@ -7,7 +7,8 @@ import {
   type NotificationEventView,
 } from "../infrastructure/notification-events-api";
 
-const KEY = ["admin", "notification-events"] as const;
+export const NOTIFICATION_EVENTS_KEY = ["admin", "notification-events"] as const;
+const KEY = NOTIFICATION_EVENTS_KEY;
 
 export function useNotificationEvents() {
   return useQuery({ queryKey: KEY, queryFn: listNotificationEvents, staleTime: 30_000 });

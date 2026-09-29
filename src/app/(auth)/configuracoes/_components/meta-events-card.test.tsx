@@ -74,6 +74,17 @@ describe("MetaEventsCard", () => {
     await waitFor(() => expect(api.submitNotificationTemplate).toHaveBeenCalledWith("W01_VAGA_APROVADA"));
   });
 
+  it("recarrega a lista depois de enviar para aprovação", async () => {
+    api.listNotificationEvents
+      .mockResolvedValueOnce([row({ template: { name: "x", status: "MISSING", category: null, rejectedReason: null } })])
+      .mockResolvedValue([row({ template: { name: "x", status: "PENDING", category: null, rejectedReason: null } })]);
+    api.submitNotificationTemplate.mockResolvedValue(undefined);
+    renderCard();
+    fireEvent.click(await screen.findByRole("button", { name: "Enviar para aprovação" }));
+    await waitFor(() => expect(api.listNotificationEvents).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Em análise na Meta")).toBeInTheDocument();
+  });
+
   it("mostra na notificação a mensagem de erro da API ao enviar para aprovação", async () => {
     api.listNotificationEvents.mockResolvedValue([row({ template: { name: "x", status: "MISSING", category: null, rejectedReason: null } })]);
     api.submitNotificationTemplate.mockRejectedValue(apiError("A Meta recusou: nome inválido"));

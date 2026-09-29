@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, MessageSquare, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
-import { useNotificationEvents, useSetNotificationEvent } from "@/modules/admin/application/use-notification-events";
+import { NOTIFICATION_EVENTS_KEY, useNotificationEvents, useSetNotificationEvent } from "@/modules/admin/application/use-notification-events";
 import {
   sendNotificationTest,
   submitNotificationTemplate,
@@ -35,15 +36,18 @@ const STATUS_CLASS: Record<TemplateStatus, string> = {
 
 function EventRow({ row, testPhone }: { row: NotificationEventView; testPhone: string }) {
   const setEvent = useSetNotificationEvent();
+  const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const approved = row.template.status === "APPROVED";
   const canSubmit = row.template.status === "MISSING" || row.template.status === "REJECTED";
 
-  async function run(action: () => Promise<void>, ok: string, fail: string) {
+  async function run(action: () => Promise<void>, ok: string, fail: string, refresh = false) {
     setBusy(true);
     try {
       await action();
       toast.success(ok);
+      // A situação do modelo mudou na Meta: recarrega a lista para mostrar "Em análise".
+      if (refresh) await qc.invalidateQueries({ queryKey: NOTIFICATION_EVENTS_KEY });
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, fail));
     } finally {
@@ -70,7 +74,7 @@ function EventRow({ row, testPhone }: { row: NotificationEventView; testPhone: s
             size="sm"
             variant="outline"
             disabled={busy}
-            onClick={() => run(() => submitNotificationTemplate(row.eventKey), "Modelo enviado para aprovação.", "Não foi possível enviar o modelo.")}
+            onClick={() => run(() => submitNotificationTemplate(row.eventKey), "Modelo enviado para aprovação.", "Não foi possível enviar o modelo.", true)}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
             Enviar para aprovação
