@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { SupportContactCard } from "./_components/support-contact-card";
+import { MetaEventsCard } from "./_components/meta-events-card";
 
 const sections = [
   { title: "Notificações", description: "Configure alertas e notificações do sistema", icon: Bell },
@@ -42,6 +43,8 @@ export default function ConfiguracoesPage() {
       <PageHeader title="Configurações" description="Configurações gerais e integrações" />
 
       <SupportContactCard />
+
+      <MetaEventsCard />
 
       <Dialog open={showAlert} onOpenChange={setShowAlert}>
         <DialogContent className="max-w-md">
