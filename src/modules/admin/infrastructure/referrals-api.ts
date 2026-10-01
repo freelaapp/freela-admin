@@ -1,4 +1,5 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { MarketingTemplateStatus } from "./marketing-templates-api";
 
 // Indicações e campanhas vivem sob /v1/admins (shared kernel), como parcerias.
 const adminsRootApi = createAuthedClient("/v1/admins");
@@ -163,7 +164,23 @@ export async function cancelReward(id: string, reason: string): Promise<RewardIt
 
 // ── Campanhas de ativação ────────────────────────────────────────────────────
 
-export type CampaignStatus = "DRAFT" | "RUNNING" | "PAUSED" | "COMPLETED" | "CANCELLED";
+/** SCHEDULED: avulsa agendada (spec 2026-10-01 campanhas parte 1 §6). */
+export type CampaignStatus =
+  | "DRAFT"
+  | "SCHEDULED"
+  | "RUNNING"
+  | "PAUSED"
+  | "COMPLETED"
+  | "CANCELLED";
+
+/** Modelo de marketing ligado à campanha (lista e detalhe). */
+export interface CampaignTemplateRef {
+  id: string;
+  name: string;
+  status: MarketingTemplateStatus;
+  metaName: string;
+}
+
 export type RecipientStatus = "PENDING" | "SENT" | "FAILED" | "SKIPPED";
 
 /** Admin que criou/disparou/marcou — vem da API desde a campanha por planilha. */
@@ -201,6 +218,19 @@ export interface Campaign {
    * quantos de fato saíram.
    */
   stats?: Record<RecipientStatus, number>;
+  // ── Campanhas pela Meta (API desde a parte 1, 2026-10) ──
+  marketingTemplateId?: string | null;
+  marketingTemplate?: CampaignTemplateRef | null;
+  /** Instante ISO do disparo agendado (só SCHEDULED). */
+  scheduledStartAt?: string | null;
+  /** Resposta automática a quem responder a campanha. */
+  replyText?: string | null;
+  /** Quem recebe o e-mail "Resposta à campanha …". */
+  replyAlertEmail?: string | null;
+  /** Planilha: "essas pessoas aceitaram receber". */
+  optInConfirmed?: boolean;
+  /** Ex.: "A Meta pausou o modelo: …", "Qualidade do número caiu na Meta". */
+  pausedReason?: string | null;
 }
 
 /** Contagens do detalhe. `contacted`/`registered` só existem desde a lista externa. */
@@ -277,6 +307,16 @@ export interface CampaignRecipient {
   contactNote?: string | null;
   /** A pessoa criou conta depois do disparo. */
   registered?: RecipientRegistration | null;
+  // ── Campanhas pela Meta ──
+  /** `wamid` do envio. */
+  providerMessageId?: string | null;
+  /** Tocou em "Não quero receber" nesta campanha. */
+  optedOutAt?: string | null;
+  /** Última resposta de texto livre (até 1000). */
+  replyText?: string | null;
+  repliedAt?: string | null;
+  /** Quando a resposta automática foi mandada (uma vez por campanha). */
+  autoRepliedAt?: string | null;
 }
 
 export interface RecipientListParams {
@@ -315,6 +355,8 @@ export interface ExternalListPreview {
   /** Quais já têm conta — API desde 26/08/2026. */
   alreadyRegisteredRows?: AlreadyRegisteredRow[];
   byChannel: { whatsapp: number; email: number };
+  /** Telefones que já saíram (marketing ou SAIR) — ficam de fora. */
+  excludedByOptOut?: number;
 }
 
 /**
@@ -349,6 +391,12 @@ export type CampaignAudience =
   | "PROVIDERS_NEVER_APPLIED"
   | "PROVIDERS_DORMANT_90D";
 
+/**
+ * Recortes da base que a campanha avulsa cria. "Todos os contratantes" e "Contratantes
+ * ativos" entraram com a Meta (spec 2026-10-01 parte 1 §6); antes eram só da automática.
+ */
+export type BaseAudience = CampaignAudience | "CONTRACTORS_ALL" | "CONTRACTORS_ACTIVE";
+
 export interface AudienceOption {
   city: string;
   uf: string | null;
@@ -357,18 +405,28 @@ export interface AudienceOption {
 
 export interface CreateCampaignPayload {
   name: string;
-  audience: CampaignAudience | typeof EXTERNAL_LIST_AUDIENCE;
+  audience: BaseAudience | typeof EXTERNAL_LIST_AUDIENCE;
   audienceFilters?: AudienceFilters;
   audienceNote?: string;
   /** Só com `audience: EXTERNAL_LIST`. */
   contacts?: ExternalContact[];
   listFileName?: string;
-  /**
-   * Link do funil da DevZapp. A DevZapp enrola cada contato nesse funil e
-   * cuida do ritmo de envio, das variantes de mensagem e do disparo em si —
-   * o backend só grava o link e deixa de rodar o disparo próprio.
-   */
-  devzappFunnelUrl: string;
+  /** @deprecated Some com a tela nova; a API recusa com `DEVZAPP_REMOVED`. */
+  devzappFunnelUrl?: string;
+  /** Modelo de marketing da biblioteca (obrigatório no WhatsApp; spec §5.1). */
+  marketingTemplateId?: string;
+  /** Resposta automática a quem responder (até 500); `null` = não responder. */
+  replyText?: string | null;
+  /** E-mail que recebe o aviso de resposta (a tela manda o do admin logado por padrão). */
+  replyAlertEmail?: string | null;
+  /** Planilha: obrigatório `true` (400 `OPT_IN_REQUIRED`). */
+  optInConfirmed?: boolean;
+  /** Ritmo (spec §5.3): base 60/h·200/dia; planilha 20/h·100/dia; 9–18; dias úteis. */
+  messagesPerHour?: number;
+  dailyCap?: number;
+  windowStartHour?: number;
+  windowEndHour?: number;
+  weekdaysOnly?: boolean;
   /**
    * Lista externa: descarta na criação quem já tem conta (telefone E.164 ou
    * e-mail em `users`). Se sobrar ninguém, a API responde `EMPTY_AUDIENCE`.
@@ -458,7 +516,7 @@ export async function previewCampaignMessages(payload: {
 
 /** Cidades que existem nesta audiência, com o tamanho de cada uma. */
 export async function getAudienceOptions(
-  audience: CampaignAudience,
+  audience: BaseAudience,
 ): Promise<{ total: number; cities: AudienceOption[] }> {
   const res = await adminsRootApi.get("/activation-campaigns/audience-options", {
     params: { audience },
@@ -466,16 +524,20 @@ export async function getAudienceOptions(
   return res.data.data;
 }
 
-/** Conta a audiência com os filtros escolhidos, sem criar nada. */
-export async function previewCampaignAudience(payload: {
-  audience: CampaignAudience;
-  filters?: AudienceFilters;
-}): Promise<{
+export interface AudienceCountPreview {
   total: number;
   byChannel: { WHATSAPP: number; EMAIL: number };
   /** Só com raio: quantos ficaram de fora por não ter coordenada. */
   semCoordenada?: number;
-}> {
+  /** Já pediram para não receber (marketing ou SAIR) — ficam de fora. */
+  excludedByOptOut?: number;
+}
+
+/** Conta a audiência com os filtros escolhidos, sem criar nada. */
+export async function previewCampaignAudience(payload: {
+  audience: BaseAudience;
+  filters?: AudienceFilters;
+}): Promise<AudienceCountPreview> {
   const res = await adminsRootApi.post("/activation-campaigns/audience-preview", payload);
   return res.data.data;
 }
@@ -490,5 +552,58 @@ export async function setCampaignState(
   action: "start" | "pause" | "cancel",
 ): Promise<CampaignDetail> {
   const res = await adminsRootApi.patch(`/activation-campaigns/${id}/${action}`);
+  return res.data.data;
+}
+
+/** Rascunho: troca modelo, resposta e ritmo (o público já foi congelado na criação). */
+export interface UpdateCampaignPayload {
+  name?: string;
+  marketingTemplateId?: string;
+  /** `null` limpa. */
+  replyText?: string | null;
+  replyAlertEmail?: string | null;
+  messagesPerHour?: number;
+  dailyCap?: number;
+  windowStartHour?: number;
+  windowEndHour?: number;
+  weekdaysOnly?: boolean;
+}
+
+/** Resumo do passo 4 (só destinatários pendentes). */
+export interface CampaignEstimate {
+  recipients: { whatsapp: number; email: number; total: number };
+  excludedByOptOut: number;
+  whatsappToSend: number;
+  pricePerMessageBrl: number;
+  estimatedCostBrl: number;
+  estimate: { perDay: number; days: number };
+}
+
+/** Só DRAFT (409 `CAMPAIGN_NOT_EDITABLE`). */
+export async function updateCampaign(
+  id: string,
+  payload: UpdateCampaignPayload,
+): Promise<CampaignDetail> {
+  const res = await adminsRootApi.patch(`/activation-campaigns/${id}`, payload);
+  return res.data.data;
+}
+
+/**
+ * DRAFT → SCHEDULED. `startAt` é ISO 8601 COM fuso (ex.: `2026-10-02T10:00:00-03:00`),
+ * no futuro e até 60 dias. Exige modelo aprovado (409 `MARKETING_TEMPLATE_NOT_APPROVED`).
+ */
+export async function scheduleCampaign(id: string, startAt: string): Promise<CampaignDetail> {
+  const res = await adminsRootApi.patch(`/activation-campaigns/${id}/schedule`, { startAt });
+  return res.data.data;
+}
+
+/** SCHEDULED → DRAFT. */
+export async function unscheduleCampaign(id: string): Promise<CampaignDetail> {
+  const res = await adminsRootApi.patch(`/activation-campaigns/${id}/unschedule`);
+  return res.data.data;
+}
+
+export async function getCampaignEstimate(id: string): Promise<CampaignEstimate> {
+  const res = await adminsRootApi.get(`/activation-campaigns/${id}/estimate`);
   return res.data.data;
 }

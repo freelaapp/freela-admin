@@ -1,5 +1,5 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
-import type { AudienceFilters, CampaignAudience } from "./referrals-api";
+import type { AudienceFilters, CampaignAudience, CampaignTemplateRef } from "./referrals-api";
 
 // Templates de campanha automática (recorrente) vivem sob /v1/admins, como
 // indicações e campanhas por planilha.
@@ -44,6 +44,12 @@ export interface UpsertCampaignTemplatePayload {
    * `CreateCampaignPayload.devzappFunnelUrl` em `referrals-api.ts`).
    */
   devzappFunnelUrl?: string;
+  /** Modelo de marketing do canal WhatsApp (spec 2026-10-01 campanhas §7). */
+  marketingTemplateId?: string | null;
+  /** Resposta automática a quem responder (até 500). */
+  replyText?: string | null;
+  /** E-mail que recebe o aviso de resposta. */
+  replyAlertEmail?: string | null;
   pushTitle?: string;
   pushBody?: string;
   imageKey?: string;
@@ -57,6 +63,11 @@ export interface CampaignTemplate extends UpsertCampaignTemplatePayload {
   lastRunFor: string | null;
   lastRunAt: string | null;
   createdAt: string;
+  marketingTemplate?: CampaignTemplateRef | null;
+  /** WhatsApp ligado sem modelo aprovado: a execução manda só o push. */
+  whatsappNeedsTemplate?: boolean;
+  /** "Escolha um modelo aprovado para voltar a mandar WhatsApp" ou `null`. */
+  whatsappNotice?: string | null;
 }
 
 export interface CampaignTemplateImageUpload {
