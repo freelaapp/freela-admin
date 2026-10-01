@@ -25,6 +25,9 @@ export const MARKETING_BODY_MAX = 1024;
 export const MARKETING_BUTTON_TEXT_MAX = 25;
 export const MARKETING_URL_MAX = 2000;
 export const MARKETING_MAX_BUTTONS = 2;
+/** Nome interno do modelo (a API usa o nome para o slug `mkt_<slug>_v<n>`). */
+export const MARKETING_NAME_MIN = 3;
+export const MARKETING_NAME_MAX = 120;
 /** Botão de saída: a API acrescenta sempre como o último. */
 export const OPT_OUT_BUTTON_TEXT = "Não quero receber";
 /** A Meta não aceita webp no topo do modelo. */
