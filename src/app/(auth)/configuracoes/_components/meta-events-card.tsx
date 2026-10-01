@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { NOTIFICATION_EVENTS_KEY, useNotificationEvents, useSetNotificationEvent } from "@/modules/admin/application/use-notification-events";
+import { LegacyCutSection } from "./legacy-cut-section";
 import {
   sendNotificationTest,
   submitNotificationTemplate,
@@ -61,6 +62,9 @@ function EventRow({ row, testPhone }: { row: NotificationEventView; testPhone: s
         <p className="text-sm font-medium text-[#1d1d1b]">{row.label}</p>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#737373]">
           <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_CLASS[row.template.status]}`}>{STATUS_LABEL[row.template.status]}</span>
+          {row.templateCategory === "AUTHENTICATION" && (
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700">Autenticação</span>
+          )}
           {row.template.rejectedReason && <span>Motivo: {row.template.rejectedReason}</span>}
           {row.categoryWarning && <span className="text-red-700">A Meta mudou a categoria para {row.template.category} (custo maior)</span>}
           <span>
@@ -141,6 +145,7 @@ export function MetaEventsCard() {
               ))}
             </ul>
           )}
+          <LegacyCutSection />
         </div>
       </div>
     </div>
