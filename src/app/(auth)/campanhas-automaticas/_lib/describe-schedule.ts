@@ -6,7 +6,7 @@
  */
 import type { CampaignScheduleKind } from "@/modules/admin/infrastructure/campaign-templates-api";
 
-/** 0=domingo..6=sábado — mesma convenção da API e do `TemplateDialog`. */
+/** 0=domingo..6=sábado — mesma convenção da API e do passo "Quando" da nova campanha. */
 const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 /** Só os campos de agenda importam aqui — `CampaignTemplate` satisfaz isso estruturalmente. */
@@ -45,7 +45,7 @@ function describeDated(template: ScheduleDescribable): string {
 
   const leadDays = template.leadDays ?? 0;
   const leadLabel = leadDays > 0 ? ` − ${leadDays} dia${leadDays === 1 ? "" : "s"} antes` : "";
-  // Sem ano gravado = repete todo ano (mesma convenção do `TemplateDialog`:
+  // Sem ano gravado = repete todo ano (mesma convenção do passo "Quando":
   // "repetir todo ano" desmarcado é o único jeito de gravar targetYear).
   const annualLabel = template.targetYear ? "" : " · todo ano";
 

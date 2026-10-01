@@ -1,14 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { AlertTriangle, Loader2, Pause, Pencil, Play, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
-import { Loader2, Pause, Pencil, Play, Plus } from "lucide-react";
-import { toast } from "sonner";
-import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
-import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatInstantDateTime } from "@/lib/date.utils";
+import { CampaignWizard } from "@/app/(auth)/campanhas/_components/campaign-wizard";
+import { MarketingStatusBadge } from "@/app/(auth)/campanhas/_components/marketing-status-badge";
+import { MarketingTemplatesTab } from "@/app/(auth)/campanhas/_components/marketing-templates-tab";
+import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
+import { useAuth } from "@/modules/auth/application/use-auth";
+import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
   useCampaignTemplates,
   useSetCampaignTemplateEnabled,
@@ -18,26 +23,35 @@ import type {
   CampaignTemplate,
 } from "@/modules/admin/infrastructure/campaign-templates-api";
 import { describeSchedule } from "./_lib/describe-schedule";
-import { TemplateDialog } from "./_components/template-dialog";
 
 const CHANNEL_LABELS: Record<CampaignChannel, string> = {
   PUSH: "Push",
   WHATSAPP: "WhatsApp",
 };
 
+/** Literal da API (spec 2026-10-01 campanhas §5.1); ela manda em `whatsappNotice`. */
+const NEEDS_TEMPLATE_NOTICE = "Escolha um modelo aprovado para voltar a mandar WhatsApp";
+
+type PageTab = "automaticas" | "modelos";
+
+interface WizardRequest {
+  open: boolean;
+  edit?: CampaignTemplate | null;
+  templateId?: string | null;
+}
+
 /**
- * Lista de campanhas automáticas (recorrentes): agenda legível, canais,
- * ligado/pausado e ligar/pausar. Criar/editar delega inteiramente ao
- * `TemplateDialog` (item #2) — esta página só decide COM QUAL template ele
- * abre (nenhum = criar; uma linha = editar).
+ * Campanhas automáticas (recorrentes): agenda, canais, modelo do WhatsApp, ligado/pausado.
+ * Criar/editar é a "Nova campanha em 4 passos" (a mesma da avulsa, com o passo 3 da
+ * automática); a aba "Modelos" é a biblioteca compartilhada com a avulsa.
  */
 export default function CampanhasAutomaticasPage() {
   const { allowed, isChecking } = useAreaGuard("REFERRALS");
+  const { user } = useAuth();
   const templates = useCampaignTemplates();
   const setEnabled = useSetCampaignTemplateEnabled();
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<CampaignTemplate | null>(null);
+  const [tab, setTab] = useState<PageTab>("automaticas");
+  const [wizard, setWizard] = useState<WizardRequest>({ open: false });
 
   if (isChecking || !allowed) {
     return (
@@ -47,29 +61,34 @@ export default function CampanhasAutomaticasPage() {
     );
   }
 
-  function openCreate() {
-    setEditingTemplate(null);
-    setDialogOpen(true);
-  }
-
-  function openEdit(template: CampaignTemplate) {
-    setEditingTemplate(template);
-    setDialogOpen(true);
-  }
+  const meta = templates.data?.meta;
+  // A automática cria a execução (agendador da automática), mas quem manda é o despachante:
+  // com qualquer um desligado, nada sai.
+  const schedulerOff = Boolean(meta) && !(meta?.schedulerEnabled && meta?.templatesSchedulerEnabled);
 
   async function handleToggleEnabled(template: CampaignTemplate) {
     try {
       await setEnabled.mutateAsync({ id: template.id, enabled: !template.enabled });
       toast.success(template.enabled ? "Campanha pausada." : "Campanha ligada.");
     } catch (error) {
-      toast.error(getAxiosErrorMessage(error));
+      toast.error(getAxiosErrorMessage(error, "Não foi possível mudar a campanha automática."));
     }
   }
 
   const columns = [
     {
       header: "Nome",
-      accessor: (row: CampaignTemplate) => <span className="font-medium">{row.name}</span>,
+      accessor: (row: CampaignTemplate) => (
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="font-medium">{row.name}</span>
+          {row.whatsappNeedsTemplate && (
+            <span className="flex items-start gap-1 text-[11px] text-amber-800">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+              {row.whatsappNotice ?? NEEDS_TEMPLATE_NOTICE}
+            </span>
+          )}
+        </div>
+      ),
       sortable: true,
       sortAccessor: (row: CampaignTemplate) => row.name,
     },
@@ -95,6 +114,20 @@ export default function CampanhasAutomaticasPage() {
       ),
     },
     {
+      header: "Modelo do WhatsApp",
+      accessor: (row: CampaignTemplate) =>
+        !row.channels.includes("WHATSAPP") ? (
+          <span className="text-neutral-400">—</span>
+        ) : row.marketingTemplate ? (
+          <span className="flex flex-wrap items-center gap-1 text-xs">
+            {row.marketingTemplate.name}
+            <MarketingStatusBadge status={row.marketingTemplate.status} />
+          </span>
+        ) : (
+          <span className="text-xs text-amber-800">Sem modelo</span>
+        ),
+    },
+    {
       header: "Status",
       accessor: (row: CampaignTemplate) => (
         <span
@@ -108,8 +141,7 @@ export default function CampanhasAutomaticasPage() {
     },
     {
       header: "Último run",
-      accessor: (row: CampaignTemplate) =>
-        row.lastRunAt ? formatInstantDateTime(row.lastRunAt) : "—",
+      accessor: (row: CampaignTemplate) => (row.lastRunAt ? formatInstantDateTime(row.lastRunAt) : "—"),
       sortable: true,
       sortAccessor: (row: CampaignTemplate) => row.lastRunAt,
     },
@@ -118,13 +150,19 @@ export default function CampanhasAutomaticasPage() {
       accessor: (row: CampaignTemplate) => {
         const togglingThisRow = setEnabled.isPending && setEnabled.variables?.id === row.id;
         return (
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-11"
+              onClick={() => setWizard({ open: true, edit: row })}
+            >
               <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
             </Button>
             <Button
               size="sm"
               variant="outline"
+              className="min-h-11"
               disabled={togglingThisRow}
               onClick={() => handleToggleEnabled(row)}
             >
@@ -146,31 +184,67 @@ export default function CampanhasAutomaticasPage() {
   return (
     <div>
       <PageHeader
+        className="flex-col sm:flex-row"
         title="Campanhas automáticas"
-        description="Templates que o agendador dispara sozinho: semanal (todo dia X às Y) ou por data (aniversário, feriado, com aviso de N dias antes)."
+        description="O agendador dispara sozinho: semanal (todo dia X às Y) ou por data. O WhatsApp sai pela API oficial da Meta, com um modelo aprovado."
         action={
-          <Button onClick={openCreate}>
+          <Button className="min-h-11" onClick={() => setWizard({ open: true })}>
             <Plus className="mr-1 h-4 w-4" /> Nova campanha automática
           </Button>
         }
       />
 
-      <DataTable
-        columns={columns}
-        data={templates.data ?? []}
-        isFetching={templates.isFetching}
-        searchPlaceholder="Buscar campanha automática…"
-        searchKey="name"
-      />
+      {schedulerOff && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            O agendador está <strong>desligado</strong> (<code>CAMPAIGN_TEMPLATES_ENABLED</code> ou{" "}
+            <code>ACTIVATION_CAMPAIGNS_ENABLED</code> não está como <code>true</code> em produção). Você pode
+            criar e ligar campanhas automáticas, mas nenhuma mensagem vai sair.
+          </span>
+        </div>
+      )}
 
-      {/* Fica montado o tempo todo: abrir "criar" ou "editar" só troca a prop
-          `template` (ausente = criar), sem desmontar/remontar o diálogo. */}
-      <TemplateDialog
-        open={dialogOpen}
-        template={editingTemplate}
-        onOpenChange={setDialogOpen}
-        onSaved={() => setEditingTemplate(null)}
-      />
+      <Tabs value={tab} onValueChange={(value) => setTab(value as PageTab)}>
+        <TabsList className="mb-3 h-auto">
+          <TabsTrigger value="automaticas" className="min-h-11">
+            Campanhas automáticas
+          </TabsTrigger>
+          <TabsTrigger value="modelos" className="min-h-11">
+            Modelos
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="automaticas">
+          <DataTable
+            columns={columns}
+            data={templates.data?.data ?? []}
+            isFetching={templates.isFetching}
+            searchPlaceholder="Buscar campanha automática…"
+            searchKey="name"
+          />
+        </TabsContent>
+        <TabsContent value="modelos">
+          <MarketingTemplatesTab
+            onUse={(template) => {
+              setTab("automaticas");
+              setWizard({ open: true, templateId: template.id });
+            }}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Montado só aberto: não busca a biblioteca nem guarda estado de outra automática. */}
+      {wizard.open && (
+        <CampaignWizard
+          open
+          kind="automatica"
+          adminEmail={user?.email ?? ""}
+          initialTemplateId={wizard.templateId ?? null}
+          editAutomatic={wizard.edit ?? null}
+          onOpenChange={(open) => setWizard((current) => ({ ...current, open }))}
+          onDone={() => setTab("automaticas")}
+        />
+      )}
     </div>
   );
 }
