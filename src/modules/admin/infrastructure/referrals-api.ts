@@ -411,10 +411,8 @@ export interface CreateCampaignPayload {
   /** Só com `audience: EXTERNAL_LIST`. */
   contacts?: ExternalContact[];
   listFileName?: string;
-  /** @deprecated Some com a tela nova; a API recusa com `DEVZAPP_REMOVED`. */
-  devzappFunnelUrl?: string;
-  /** Modelo de marketing da biblioteca (obrigatório no WhatsApp; spec §5.1). */
-  marketingTemplateId?: string;
+  /** Modelo de marketing da biblioteca (obrigatório; spec 2026-10-01 campanhas §5.1). */
+  marketingTemplateId: string;
   /** Resposta automática a quem responder (até 500); `null` = não responder. */
   replyText?: string | null;
   /** E-mail que recebe o aviso de resposta (a tela manda o do admin logado por padrão). */

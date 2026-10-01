@@ -39,11 +39,11 @@ beforeEach(() => {
 });
 
 describe("createCampaign", () => {
-  it("faz POST /activation-campaigns com devzappFunnelUrl e sem ritmo/variantes", async () => {
+  it("faz POST /activation-campaigns com o modelo da biblioteca; sem funil externo nem texto livre", async () => {
     const payload: CreateCampaignPayload = {
       name: "Reativação contratantes",
       audience: "CONTRACTORS_NEVER_PUBLISHED",
-      devzappFunnelUrl: "https://api.devzapp.com.br/funil/start/v2/execute/abc",
+      marketingTemplateId: "tpl-1",
     };
     const created = { campaign: { id: "camp-1" } } as unknown as CampaignDetail;
     post.mockResolvedValue({ data: { data: created } });
@@ -51,14 +51,8 @@ describe("createCampaign", () => {
     const result = await createCampaign(payload);
 
     expect(post).toHaveBeenCalledWith("/activation-campaigns", payload);
-    // A DevZapp é dona do ritmo/variantes agora — o payload não carrega mais
-    // esses campos (o backend ignoraria/defaultaria de qualquer forma).
+    expect(payload).not.toHaveProperty("devzappFunnelUrl");
     expect(payload).not.toHaveProperty("whatsappTemplate");
-    expect(payload).not.toHaveProperty("messagesPerHour");
-    expect(payload).not.toHaveProperty("dailyCap");
-    expect(payload).not.toHaveProperty("windowStartHour");
-    expect(payload).not.toHaveProperty("windowEndHour");
-    expect(payload).not.toHaveProperty("weekdaysOnly");
     expect(result).toEqual(created);
   });
 });
