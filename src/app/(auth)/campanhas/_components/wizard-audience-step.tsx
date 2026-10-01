@@ -160,7 +160,14 @@ export function WizardAudienceStep({
             <>
               <ExternalListPicker
                 value={state.picker}
-                onChange={(picker) => onChange({ picker })}
+                onChange={(picker) =>
+                  // Planilha nova: o aceite vale para a lista antiga, então volta a pedir.
+                  onChange(
+                    picker.sheet !== state.picker.sheet
+                      ? { picker, optInConfirmed: false }
+                      : { picker },
+                  )
+                }
                 onFileName={(name) => {
                   if (!state.name.trim()) onChange({ name });
                 }}

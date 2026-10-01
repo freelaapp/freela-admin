@@ -200,6 +200,7 @@ export function WizardMessageStep({
             <textarea
               id="wz-reply"
               rows={3}
+              maxLength={REPLY_TEXT_MAX}
               value={state.replyText}
               onChange={(event) => onChange({ replyText: event.target.value })}
               placeholder="Obrigado! A Rebeca vai falar com você pelo (11) 95090-3219."
