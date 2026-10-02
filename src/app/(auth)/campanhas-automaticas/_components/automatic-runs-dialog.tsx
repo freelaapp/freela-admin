@@ -34,7 +34,7 @@ interface Props {
 }
 
 const dash = (value: number | null | undefined) =>
-  value === null || value === undefined ? "—" : String(value);
+  value == null ? "—" : String(value);
 
 const plural = (n: number, one: string, many: string) =>
   `${n} ${n === 1 ? one : many}`;
@@ -49,6 +49,12 @@ export function AutomaticRunsDialog({ template, onClose, onOpenRun }: Props) {
   const runs = useCampaignTemplateRuns(template?.id ?? null, page);
   const total = runs.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / RUNS_PAGE_SIZE));
+  // Se a página atual esvaziou (execuções diminuíram), volta para a primeira.
+  const emptyBeyondFirst =
+    Boolean(runs.data) && runs.data!.items.length === 0 && page > 1;
+  useEffect(() => {
+    if (emptyBeyondFirst) setPage(1);
+  }, [emptyBeyondFirst]);
 
   const columns = [
     {
@@ -78,7 +84,7 @@ export function AutomaticRunsDialog({ template, onClose, onOpenRun }: Props) {
       header: "Entregues",
       accessor: (run: CampaignRun) => (
         <span className="tabular-nums">
-          {run.delivered === null
+          {run.delivered == null
             ? "—"
             : `${run.delivered} (${formatPercent(run.rates?.deliveredRate)})`}
         </span>
@@ -100,7 +106,7 @@ export function AutomaticRunsDialog({ template, onClose, onOpenRun }: Props) {
       header: "Custo",
       accessor: (run: CampaignRun) => (
         <span className="tabular-nums" title="Custo estimado">
-          {run.costBrl === null ? "—" : formatCost(run.costBrl)}
+          {run.costBrl == null ? "—" : formatCost(run.costBrl)}
         </span>
       ),
     },
@@ -189,6 +195,16 @@ export function AutomaticRunsDialog({ template, onClose, onOpenRun }: Props) {
             }
           />
         )}
+        <div className="mt-4 flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            onClick={onClose}
+          >
+            Fechar
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

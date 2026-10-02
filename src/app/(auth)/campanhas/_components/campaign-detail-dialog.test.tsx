@@ -104,12 +104,14 @@ const recipients = {
 };
 
 function renderDetail() {
+  const onClose = vi.fn();
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <CampaignDetailDialog campaignId="camp-1" onClose={vi.fn()} />
+      <CampaignDetailDialog campaignId="camp-1" onClose={onClose} />
     </QueryClientProvider>,
   );
+  return { onClose };
 }
 
 describe("CampaignDetailDialog (campanhas pela Meta)", () => {
@@ -253,5 +255,13 @@ describe("CampaignDetailDialog — Resultados e colunas novas (spec 2026-10-01 p
     expect(cells[names.indexOf("Entregue em")]).toHaveTextContent("02/10/2026, 10:20");
     expect(cells[names.indexOf("Lido em")]).toHaveTextContent("02/10/2026, 10:35");
     expect(cells[names.indexOf("Clicou (vezes)")]).toHaveTextContent("7");
+  });
+
+  it("tem botão Fechar de 44 px que fecha o detalhe", async () => {
+    const { onClose } = renderDetail();
+    const close = await screen.findByRole("button", { name: "Fechar" });
+    expect(close).toHaveClass("min-h-11");
+    fireEvent.click(close);
+    expect(onClose).toHaveBeenCalled();
   });
 });

@@ -63,6 +63,8 @@ export function useCampaignTemplateRuns(id: string | null, page: number) {
     queryKey: [...CAMPAIGN_TEMPLATES_KEY, id, "runs", page],
     queryFn: () => listCampaignTemplateRuns(id as string, { page, pageSize: RUNS_PAGE_SIZE }),
     enabled: Boolean(id),
-    placeholderData: (previous) => previous,
+    // Mantém a página anterior só ao paginar a MESMA automática; outra automática carrega do zero.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[CAMPAIGN_TEMPLATES_KEY.length] === id ? previous : undefined,
   });
 }

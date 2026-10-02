@@ -623,6 +623,11 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
         )}
           </TabsContent>
         </Tabs>
+        <div className="mt-4 flex justify-end">
+          <Button type="button" variant="outline" className="min-h-11" onClick={onClose}>
+            Fechar
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
