@@ -18,7 +18,8 @@ export type MarketingTemplateStatus =
  * receber" NÃO vem aqui — a API acrescenta sozinha como último botão.
  */
 export type MarketingButton =
-  | { type: "URL"; text: string; url: string }
+  /** `track: true` = "Contar cliques" (parte 2); ausente = link fixo. */
+  | { type: "URL"; text: string; url: string; track?: boolean }
   | { type: "PHONE"; text: string; phone: string };
 
 export interface MarketingRuleError {
@@ -62,7 +63,8 @@ export interface MarketingTemplateInput {
   body: string;
   imageKey?: string | null;
   buttons?: Array<
-    { type: "URL"; text: string; url: string } | { type: "PHONE"; text: string; phone: string }
+    | { type: "URL"; text: string; url: string; track?: boolean }
+    | { type: "PHONE"; text: string; phone: string }
   >;
 }
 

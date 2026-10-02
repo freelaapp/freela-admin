@@ -231,6 +231,11 @@ export interface Campaign {
   optInConfirmed?: boolean;
   /** Ex.: "A Meta pausou o modelo: …", "Qualidade do número caiu na Meta". */
   pausedReason?: string | null;
+  // ── Resultados (API da parte 2, 2026-10) ──
+  delivered?: number;
+  read?: number;
+  clicked?: number;
+  costBrl?: number;
 }
 
 /** Contagens do detalhe. `contacted`/`registered` só existem desde a lista externa. */
@@ -317,6 +322,11 @@ export interface CampaignRecipient {
   repliedAt?: string | null;
   /** Quando a resposta automática foi mandada (uma vez por campanha). */
   autoRepliedAt?: string | null;
+  // ── Entrega, leitura e clique (API da parte 2) ──
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  firstClickedAt?: string | null;
+  clickCount?: number;
 }
 
 export interface RecipientListParams {
@@ -357,6 +367,10 @@ export interface ExternalListPreview {
   byChannel: { whatsapp: number; email: number };
   /** Telefones que já saíram (marketing ou SAIR) — ficam de fora. */
   excludedByOptOut?: number;
+  /** Excluídos por motivo, na ordem da spec (API da parte 2). */
+  excluded?: AudienceExclusions;
+  /** Contatos repetidos que a deduplicação de telefone tirou (API da parte 2). */
+  duplicates?: number;
 }
 
 /**
@@ -383,6 +397,12 @@ export interface AudienceFilters {
   modules?: Array<"bars-restaurants" | "home-services">;
   /** "Jundiaí e 100 km em volta". Centro calculado pela própria base. */
   radius?: { city: string; km: number };
+  /** Só contratante: não publicou vaga nos últimos N dias (1..365), inclusive quem nunca publicou. */
+  noVacancyForDays?: number;
+  /** Só contratante: tira quem já contratou (pagamento concluído). */
+  excludeHired?: boolean;
+  /** Tira quem recebeu campanha por WhatsApp nos últimos N dias (1..90). */
+  excludeContactedWithinDays?: number;
 }
 
 export type CampaignAudience =
@@ -522,6 +542,15 @@ export async function getAudienceOptions(
   return res.data.data;
 }
 
+/** O que cada refinamento tirou da contagem (spec 2026-10-01 parte 2 §3). */
+export interface AudienceExclusions {
+  noVacancy: number;
+  hired: number;
+  recentlyContacted: number;
+  /** Mesmo número de `excludedByOptOut`. */
+  optedOut: number;
+}
+
 export interface AudienceCountPreview {
   total: number;
   byChannel: { WHATSAPP: number; EMAIL: number };
@@ -603,5 +632,51 @@ export async function unscheduleCampaign(id: string): Promise<CampaignDetail> {
 
 export async function getCampaignEstimate(id: string): Promise<CampaignEstimate> {
   const res = await adminsRootApi.get(`/activation-campaigns/${id}/estimate`);
+  return res.data.data;
+}
+
+/** Taxas da campanha (frações 0..1; 0 quando a base é 0). */
+export interface CampaignRates {
+  /** entregues / enviados */
+  deliveredRate: number;
+  /** lidos / entregues */
+  readRate: number;
+  /** clicaram / entregues */
+  clickRate: number;
+}
+
+export interface NotReceivedReason {
+  reason: string;
+  count: number;
+}
+
+/** `GET /activation-campaigns/:id/results` (spec 2026-10-01 parte 2 §6). */
+export interface CampaignResults {
+  recipients: number;
+  sent: number;
+  delivered: number;
+  read: number;
+  /** Pessoas que clicaram. */
+  clicked: number;
+  /** Total de cliques. */
+  clicks: number;
+  optedOut: number;
+  replied: number;
+  billable: number;
+  costBrl: number;
+  signups: number;
+  /** Publicaram vaga em até 14 dias depois do envio. */
+  publishedVacancy: number;
+  /** Contrataram (pagamento concluído) em até 30 dias depois do envio. */
+  hired: number;
+  rates: CampaignRates;
+  notReceived: NotReceivedReason[];
+  /** O modelo conta cliques; `false` = "clicaram" não se aplica. */
+  clickTracking: boolean;
+  pricePerMessageBrl: number;
+}
+
+export async function getCampaignResults(id: string): Promise<CampaignResults> {
+  const res = await adminsRootApi.get(`/activation-campaigns/${id}/results`);
   return res.data.data;
 }

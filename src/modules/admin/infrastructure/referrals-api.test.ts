@@ -15,6 +15,7 @@ vi.mock("@/modules/shared/infrastructure/authed-client", () => ({
 import {
   createCampaign,
   getCampaignCounts,
+  getCampaignResults,
   getCampaignEstimate,
   previewCampaignAudience,
   readAlreadyRegistered,
@@ -171,5 +172,49 @@ describe("campanha avulsa pela Meta (spec 2026-10-01 parte 1 §6)", () => {
     await createCampaign(payload);
 
     expect(post).toHaveBeenCalledWith("/activation-campaigns", payload);
+  });
+});
+
+describe("campanhas pela Meta, parte 2 (spec 2026-10-01 parte 2)", () => {
+  it("resultados: GET /activation-campaigns/:id/results", async () => {
+    const results = {
+      recipients: 200,
+      sent: 190,
+      delivered: 180,
+      read: 120,
+      clicked: 30,
+      clicks: 41,
+      optedOut: 2,
+      replied: 5,
+      billable: 180,
+      costBrl: 63,
+      signups: 3,
+      publishedVacancy: 4,
+      hired: 1,
+      rates: { deliveredRate: 0.9474, readRate: 0.6667, clickRate: 0.1667 },
+      notReceived: [{ reason: "Pediu para não receber campanhas.", count: 10 }],
+      clickTracking: true,
+      pricePerMessageBrl: 0.35,
+    };
+    get.mockResolvedValue({ data: { data: results } });
+    expect(await getCampaignResults("camp-1")).toEqual(results);
+    expect(get).toHaveBeenCalledWith("/activation-campaigns/camp-1/results");
+  });
+
+  it("prévia com os filtros novos devolve os excluídos por motivo", async () => {
+    const counted = {
+      total: 380,
+      byChannel: { WHATSAPP: 373, EMAIL: 7 },
+      semCoordenada: 0,
+      excludedByOptOut: 12,
+      excluded: { noVacancy: 30, hired: 5, recentlyContacted: 10, optedOut: 12 },
+    };
+    post.mockResolvedValue({ data: { data: counted } });
+    const filters = { noVacancyForDays: 30, excludeHired: true, excludeContactedWithinDays: 7 };
+    expect(await previewCampaignAudience({ audience: "CONTRACTORS_ALL", filters })).toEqual(counted);
+    expect(post).toHaveBeenCalledWith("/activation-campaigns/audience-preview", {
+      audience: "CONTRACTORS_ALL",
+      filters,
+    });
   });
 });

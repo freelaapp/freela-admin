@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createCampaignTemplate,
   getCampaignTemplate,
+  listCampaignTemplateRuns,
   listCampaignTemplates,
   setCampaignTemplateEnabled,
   updateCampaignTemplate,
@@ -50,5 +51,18 @@ export function useSetCampaignTemplateEnabled() {
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       setCampaignTemplateEnabled(id, enabled),
     onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGN_TEMPLATES_KEY }),
+  });
+}
+
+/** Execuções por página no histórico da automática (a API aceita até 50). */
+export const RUNS_PAGE_SIZE = 20;
+
+/** Histórico das execuções de uma automática (spec 2026-10-01 parte 2 §7). */
+export function useCampaignTemplateRuns(id: string | null, page: number) {
+  return useQuery({
+    queryKey: [...CAMPAIGN_TEMPLATES_KEY, id, "runs", page],
+    queryFn: () => listCampaignTemplateRuns(id as string, { page, pageSize: RUNS_PAGE_SIZE }),
+    enabled: Boolean(id),
+    placeholderData: (previous) => previous,
   });
 }
