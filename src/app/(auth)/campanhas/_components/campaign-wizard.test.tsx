@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -135,6 +141,17 @@ function renderWizard(props: Partial<CampaignWizardProps> = {}) {
 }
 
 const continuar = () => screen.getByRole("button", { name: "Continuar" });
+
+/**
+ * Toque duplo rápido: os dois cliques chegam antes de o React desenhar o botão travado
+ * (o `busy` da mutação só aparece no próximo render).
+ */
+async function doubleTap(button: HTMLElement) {
+  await act(async () => {
+    button.click();
+    button.click();
+  });
+}
 
 describe("CampaignWizard", () => {
   beforeEach(() => {
@@ -467,6 +484,127 @@ describe("CampaignWizard", () => {
     expect(
       screen.getByRole("button", { name: "Salvar alterações" }),
     ).toBeEnabled();
+  });
+
+  it("toque duplo em 'Criar e revisar' cria UM rascunho", async () => {
+    let resolveCreate: (value: unknown) => void = () => undefined;
+    ref.createCampaign.mockImplementation(
+      () => new Promise((resolve) => (resolveCreate = resolve)),
+    );
+    renderWizard({ initialTemplateId: "tpl-rebeca" });
+    fireEvent.change(screen.getByLabelText("Nome da campanha"), {
+      target: { value: "Apresentação" },
+    });
+    fireEvent.click(continuar());
+    await screen.findByRole("radio", { name: /Apresentação Freela — Rebeca/ });
+    fireEvent.click(continuar());
+
+    await doubleTap(screen.getByRole("button", { name: "Criar e revisar" }));
+    await act(async () => resolveCreate({ campaign: campaign() }));
+
+    expect(await screen.findByTestId("review-summary")).toBeInTheDocument();
+    expect(ref.createCampaign).toHaveBeenCalledTimes(1);
+  });
+
+  it("toque duplo em 'Disparar agora' dispara UMA vez", async () => {
+    let resolveStart: (value: unknown) => void = () => undefined;
+    ref.setCampaignState.mockImplementation(
+      () => new Promise((resolve) => (resolveStart = resolve)),
+    );
+    renderWizard({ resumeCampaign: campaign() });
+    const disparar = await screen.findByRole("button", {
+      name: "Disparar agora",
+    });
+    await waitFor(() => expect(disparar).toBeEnabled());
+
+    await doubleTap(disparar);
+    await act(async () =>
+      resolveStart({ campaign: campaign({ status: "RUNNING" }) }),
+    );
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(ref.setCampaignState).toHaveBeenCalledTimes(1);
+  });
+
+  it("toque duplo em 'Salvar e ligar' cria UMA automática", async () => {
+    let resolveCreate: (value: unknown) => void = () => undefined;
+    auto.createCampaignTemplate.mockImplementation(
+      () => new Promise((resolve) => (resolveCreate = resolve)),
+    );
+    renderWizard({ kind: "automatica" });
+    fireEvent.change(screen.getByLabelText("Nome da campanha"), {
+      target: { value: "Sextou" },
+    });
+    fireEvent.click(continuar());
+    fireEvent.click(screen.getByRole("button", { name: "WhatsApp" }));
+    fireEvent.click(
+      await screen.findByRole("radio", {
+        name: /Apresentação Freela — Rebeca/,
+      }),
+    );
+    fireEvent.click(continuar());
+    fireEvent.click(screen.getByRole("button", { name: "Sex" }));
+    fireEvent.click(continuar());
+    const ligar = await screen.findByRole("button", { name: "Salvar e ligar" });
+    await waitFor(() => expect(ligar).toBeEnabled());
+
+    await doubleTap(ligar);
+    await act(async () => resolveCreate({ id: "auto-1" }));
+
+    await waitFor(() =>
+      expect(auto.setCampaignTemplateEnabled).toHaveBeenCalledTimes(1),
+    );
+    expect(auto.createCampaignTemplate).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumo falhou: 'Disparar' fica travado com aviso até calcular de novo", async () => {
+    ref.getCampaignEstimate.mockRejectedValueOnce(apiError("fora do ar"));
+    renderWizard({ resumeCampaign: campaign() });
+
+    expect(
+      await screen.findByText(
+        "Sem o resumo (pessoas e custo) não dá para disparar. Calcule de novo.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Disparar agora" }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Calcular de novo" }));
+    const summary = screen.getByTestId("review-summary");
+    await waitFor(() => expect(summary).toHaveTextContent("418 mensagens"));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Disparar agora" }),
+      ).toBeEnabled(),
+    );
+  });
+
+  it("resumo falhou com agendamento: 'Agendar' também fica travado", async () => {
+    ref.getCampaignEstimate.mockRejectedValue(apiError("fora do ar"));
+    renderWizard({ resumeCampaign: campaign() });
+    await screen.findByText(
+      "Sem o resumo (pessoas e custo) não dá para disparar. Calcule de novo.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "3. Quando" }));
+    fireEvent.click(screen.getByRole("button", { name: "Agendar" }));
+    fireEvent.change(
+      screen.getByLabelText("Data e hora (horário de Brasília)"),
+      { target: { value: "2026-10-02T10:00" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Salvar e revisar" }));
+    await waitFor(() => expect(ref.updateCampaign).toHaveBeenCalled());
+    expect(
+      await screen.findByText(
+        "Sem o resumo (pessoas e custo) não dá para disparar. Calcule de novo.",
+      ),
+    ).toBeInTheDocument();
+    const agendar = screen.getByRole("button", {
+      name: "Agendar para sex 02/10 às 10h",
+    });
+    expect(agendar).toBeDisabled();
+    fireEvent.click(agendar);
+    expect(ref.scheduleCampaign).not.toHaveBeenCalled();
   });
 
   it("celular: passos em 2 colunas e alvos de 44 px", () => {

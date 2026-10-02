@@ -106,6 +106,11 @@ export function WizardReviewStep({
   const blocker = templateLoading
     ? null
     : dispatchBlocker(kind, state.channels, template?.status ?? null);
+  // Avulsa sem o resumo da API (calculando ou falhou): não dispara nem agenda às cegas
+  // (spec §16, custo antes). Falhou: aviso e "Calcular de novo".
+  const estimateMissing = kind === "avulsa" && !estimate.data;
+  const estimateFailed =
+    estimateMissing && Boolean(campaignId) && !estimate.isLoading;
   const actionLocked = templateLoading || Boolean(blocker) || busy;
   const canTest =
     whatsapp && template?.status === "APPROVED" && !sendTest.isPending;
@@ -249,9 +254,34 @@ export function WizardReviewStep({
               )}
             </div>
           ) : (
-            <p className="text-sm text-neutral-600">
-              Não deu para calcular o resumo agora.
-            </p>
+            <div className="space-y-2 text-sm">
+              <p className="text-neutral-600">
+                Não deu para calcular o resumo agora.
+              </p>
+              {estimateFailed && (
+                <>
+                  <p
+                    role="status"
+                    className="rounded-md bg-amber-50 p-2 text-amber-900"
+                  >
+                    Sem o resumo (pessoas e custo) não dá para disparar. Calcule
+                    de novo.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    disabled={estimate.isFetching}
+                    onClick={() => estimate.refetch()}
+                  >
+                    {estimate.isFetching && (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    )}
+                    Calcular de novo
+                  </Button>
+                </>
+              )}
+            </div>
           )
         ) : (
           <div className="space-y-1 text-sm">
@@ -367,7 +397,7 @@ export function WizardReviewStep({
             <Button
               type="button"
               className="min-h-11"
-              disabled={actionLocked || !campaignId}
+              disabled={actionLocked || !campaignId || estimateMissing}
               onClick={onDispatch}
             >
               {state.when === "now"

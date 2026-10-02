@@ -109,6 +109,19 @@ export function CampaignWizard({
   const [extraTemplate, setExtraTemplate] =
     useState<MarketingTemplateView | null>(null);
   const wasOpen = useRef(false);
+  // Trava SÍNCRONA contra toque duplo: o `busy` vem do estado das mutações, que o React só
+  // mostra no próximo render — dois toques rápidos criariam dois rascunhos/automáticas ou
+  // disparariam duas vezes.
+  const inFlight = useRef(false);
+  async function once(action: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      await action();
+    } finally {
+      inFlight.current = false;
+    }
+  }
 
   // Reinicia só quando ABRE: a página recarrega a lista a cada minuto e entregaria um
   // objeto novo de campanha/automática no meio do preenchimento.
@@ -203,6 +216,10 @@ export function CampaignWizard({
       setStep((step + 1) as WizardStep);
       return;
     }
+    await once(saveAndReview);
+  }
+
+  async function saveAndReview() {
     if (kind === "avulsa") {
       try {
         if (campaignId) {
@@ -253,7 +270,11 @@ export function CampaignWizard({
     setStep(4);
   }
 
-  async function handleDispatch() {
+  function handleDispatch() {
+    return once(dispatch);
+  }
+
+  async function dispatch() {
     if (!campaignId) return;
     try {
       if (state.when === "schedule") {
@@ -277,7 +298,11 @@ export function CampaignWizard({
     }
   }
 
-  async function handleSaveAutomatic(enable: boolean) {
+  function handleSaveAutomatic(enable: boolean) {
+    return once(() => saveAutomatic(enable));
+  }
+
+  async function saveAutomatic(enable: boolean) {
     const payload = buildAutomaticPayload(state);
     try {
       // Depois do 1º salvamento, o resto edita a mesma automática (não cria outra).
