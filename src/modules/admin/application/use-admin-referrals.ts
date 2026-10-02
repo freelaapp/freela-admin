@@ -22,9 +22,14 @@ import {
   type RecipientListParams,
   type ReferralListFilter,
   getAudienceOptions,
+  getCampaignEstimate,
   previewCampaignAudience,
+  scheduleCampaign,
+  unscheduleCampaign,
+  updateCampaign,
   type AudienceFilters,
-  type CampaignAudience,
+  type BaseAudience,
+  type UpdateCampaignPayload,
 } from "../infrastructure/referrals-api";
 
 const REFERRALS_KEY = ["admin", "referrals"] as const;
@@ -176,10 +181,10 @@ export function useCampaignPreview(name: string, city: string) {
  * a chamada monta a audiência inteira no backend, então não vale disparar em
  * toda visita à página.
  */
-export function useAudienceOptions(audience: CampaignAudience | null) {
+export function useAudienceOptions(audience: BaseAudience | null) {
   return useQuery({
     queryKey: [...CAMPAIGNS_KEY, "audience-options", audience],
-    queryFn: () => getAudienceOptions(audience as CampaignAudience),
+    queryFn: () => getAudienceOptions(audience as BaseAudience),
     enabled: !!audience,
     staleTime: 5 * 60 * 1000,
   });
@@ -188,7 +193,7 @@ export function useAudienceOptions(audience: CampaignAudience | null) {
 /** Conta a audiência com o recorte, antes de criar. */
 export function usePreviewAudience() {
   return useMutation({
-    mutationFn: (payload: { audience: CampaignAudience; filters?: AudienceFilters }) =>
+    mutationFn: (payload: { audience: BaseAudience; filters?: AudienceFilters }) =>
       previewCampaignAudience(payload),
   });
 }
@@ -206,6 +211,40 @@ export function useSetCampaignState() {
   return useMutation({
     mutationFn: ({ id, action }: { id: string; action: "start" | "pause" | "cancel" }) =>
       setCampaignState(id, action),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
+  });
+}
+
+/** Resumo do passo 4: pessoas, excluídos por saída, custo e prazo. */
+export function useCampaignEstimate(id: string | null) {
+  return useQuery({
+    queryKey: [...CAMPAIGNS_KEY, id, "estimate"],
+    queryFn: () => getCampaignEstimate(id as string),
+    enabled: Boolean(id),
+  });
+}
+
+export function useUpdateCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateCampaignPayload }) =>
+      updateCampaign(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
+  });
+}
+
+export function useScheduleCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, startAt }: { id: string; startAt: string }) => scheduleCampaign(id, startAt),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
+  });
+}
+
+export function useUnscheduleCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => unscheduleCampaign(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
   });
 }

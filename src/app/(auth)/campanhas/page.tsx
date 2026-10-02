@@ -1,175 +1,116 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  AlertTriangle,
+  CalendarX,
+  ClipboardCheck,
+  FileSpreadsheet,
+  Loader2,
+  Pause,
+  Play,
+  Plus,
+  Square,
+} from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { AlertTriangle, FileSpreadsheet, Loader2, Pause, Play, Plus, Square } from "lucide-react";
-import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatInstantDate, formatInstantDateTime } from "@/lib/date.utils";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
+import { useAuth } from "@/modules/auth/application/use-auth";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
-import { formatInstantDate } from "@/lib/date.utils";
 import {
   useCampaigns,
-  useAudienceOptions,
-  useCreateCampaign,
-  usePreviewAudience,
   useSetCampaignState,
+  useUnscheduleCampaign,
 } from "@/modules/admin/application/use-admin-referrals";
-import type {
-  AudienceFilters,
-  Campaign,
-  CampaignAudience,
-} from "@/modules/admin/infrastructure/referrals-api";
-import { CampaignStatusBadge } from "./_components/campaign-status-badge";
-import { ExternalListDialog } from "./_components/external-list-dialog";
+import type { Campaign } from "@/modules/admin/infrastructure/referrals-api";
+import { audienceLabel, type WizardAudience } from "./_lib/campaign-wizard";
 import { CampaignDetailDialog } from "./_components/campaign-detail-dialog";
+import { CampaignStatusBadge } from "./_components/campaign-status-badge";
+import { CampaignWizard } from "./_components/campaign-wizard";
+import { MarketingStatusBadge } from "./_components/marketing-status-badge";
+import { MarketingTemplatesTab } from "./_components/marketing-templates-tab";
 
-/** Os quatro recortes que a API monta. Freelancer estava só no backend. */
-const AUDIENCE_LABELS: Record<CampaignAudience, string> = {
-  CONTRACTORS_NEVER_PUBLISHED: "Contratantes que nunca publicaram vaga",
-  CONTRACTORS_DORMANT_90D: "Contratantes sem publicar há mais de 90 dias",
-  PROVIDERS_NEVER_APPLIED: "Freelancers que nunca se candidataram",
-  PROVIDERS_DORMANT_90D: "Freelancers sem se candidatar há mais de 90 dias",
-};
+type PageTab = "campanhas" | "modelos";
+
+interface WizardRequest {
+  open: boolean;
+  audience?: WizardAudience;
+  templateId?: string | null;
+  resume?: Campaign | null;
+}
+
+function Spinner() {
+  return (
+    <div className="flex h-64 items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
+    </div>
+  );
+}
 
 /** Rótulo curto da origem para a lista (planilha ou recorte da base). */
 function audienceShortLabel(row: Campaign): string {
   if (row.audience === "EXTERNAL_LIST") return `Planilha${row.listFileName ? ` · ${row.listFileName}` : ""}`;
-  return AUDIENCE_LABELS[row.audience as CampaignAudience] ?? row.audience;
-}
-
-const MODULE_LABELS: Record<"bars-restaurants" | "home-services", string> = {
-  "bars-restaurants": "Empresa (bares e restaurantes)",
-  "home-services": "Em casa (serviços domésticos)",
-};
-
-/**
- * Monta o recorte a partir do formulário. Devolve `undefined` quando não há
- * nenhum — objeto de listas vazias gravaria "filtrado por nada", que é
- * diferente de "sem filtro" e some da auditoria depois.
- *
- * Raio e lista de cidades são alternativas: com raio, a lista é ignorada (a
- * tela esconde uma quando a outra está em uso).
- */
-function montarFiltros(f: {
-  cities: string[];
-  modules: Array<"bars-restaurants" | "home-services">;
-  raioCidade: string;
-  raioKm: number;
-}): AudienceFilters | undefined {
-  const raio = f.raioCidade.trim() && f.raioKm > 0
-    ? { city: f.raioCidade.trim(), km: f.raioKm }
-    : undefined;
-  const cities = raio ? [] : f.cities;
-  if (!cities.length && !f.modules.length && !raio) return undefined;
-  return {
-    ...(cities.length ? { cities } : {}),
-    ...(f.modules.length ? { modules: f.modules } : {}),
-    ...(raio ? { radius: raio } : {}),
-  };
-}
-
-const DEFAULT_FORM = {
-  name: "",
-  audience: "CONTRACTORS_NEVER_PUBLISHED" as CampaignAudience,
-  cities: [] as string[],
-  modules: [] as Array<"bars-restaurants" | "home-services">,
-  raioCidade: "",
-  raioKm: 50,
-  devzappFunnelUrl: "",
-};
-
-/**
- * A DevZapp agora é dona do ritmo/variantes/disparo em si — o admin só
- * precisa apontar para o funil certo. Aceita só link https:// não vazio: um
- * link http ou vazio travaria o disparo mais tarde, sem aviso na hora de
- * criar.
- */
-function isValidDevzappFunnelUrl(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  try {
-    return new URL(trimmed).protocol === "https:";
-  } catch {
-    return false;
-  }
+  return audienceLabel(row.audience);
 }
 
 export default function CampanhasPage() {
   const { allowed, isChecking } = useAreaGuard("REFERRALS");
+  if (isChecking || !allowed) return <Spinner />;
+  // `?campanha=<id>` (link do e-mail "Resposta à campanha …") usa useSearchParams: pede Suspense.
+  return (
+    <Suspense fallback={<Spinner />}>
+      <CampanhasScreen />
+    </Suspense>
+  );
+}
+
+function CampanhasScreen() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { user } = useAuth();
   const campaigns = useCampaigns();
-  const createCampaign = useCreateCampaign();
   const setState = useSetCampaignState();
+  const unschedule = useUnscheduleCampaign();
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tab, setTab] = useState<PageTab>("campanhas");
+  const campaignParam = searchParams.get("campanha");
+  const [selectedId, setSelectedId] = useState<string | null>(campaignParam);
 
-  const [creating, setCreating] = useState(false);
-  const [creatingFromSheet, setCreatingFromSheet] = useState(false);
-  const [form, setForm] = useState(DEFAULT_FORM);
-  // Só busca as cidades com o formulário aberto: a chamada monta a audiência
-  // inteira no backend.
-  const audienceOptions = useAudienceOptions(creating ? form.audience : null);
-  const previewAudience = usePreviewAudience();
-  const [contagem, setContagem] = useState<{
-    total: number;
-    whatsapp: number;
-    semCoordenada: number;
-  } | null>(null);
-  /** Freelancer existe nos dois módulos por padrão — filtrar por tipo de conta
-   *  ali não separa ninguém e só confunde. Vale para contratante. */
-  const mostraTipoDeConta = form.audience.startsWith("CONTRACTORS_");
-  const funnelUrlValida = isValidDevzappFunnelUrl(form.devzappFunnelUrl);
+  // Reativo: o link do e-mail pode chegar com a página já aberta (navegação na mesma rota).
+  useEffect(() => {
+    if (campaignParam) setSelectedId(campaignParam);
+  }, [campaignParam]);
+  const [wizard, setWizard] = useState<WizardRequest>({ open: false });
 
-  if (isChecking || !allowed) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
-      </div>
-    );
-  }
+  const openWizard = (request: Omit<WizardRequest, "open">) => setWizard({ open: true, ...request });
 
-  const handleCreate = async () => {
-    try {
-      const { cities, modules, raioCidade, raioKm, devzappFunnelUrl, ...rest } = form;
-      const filtros = montarFiltros({ cities, modules, raioCidade, raioKm });
-      const created = await createCampaign.mutateAsync({
-        ...rest,
-        // Só manda o recorte se houver algum: objeto de listas vazias gravaria
-        // "filtrado por nada", que é diferente de "sem filtro".
-        ...(filtros ? { audienceFilters: filtros } : {}),
-        devzappFunnelUrl: devzappFunnelUrl.trim(),
-      });
-      toast.success(
-        `Campanha criada com ${created.stats.PENDING} destinatários — ${created.estimate.days} dia(s) úteis no ritmo escolhido.`,
-      );
-      setCreating(false);
-      setForm(DEFAULT_FORM);
-      setContagem(null);
-      setSelectedId(created.campaign.id);
-    } catch (error) {
-      toast.error(getAxiosErrorMessage(error));
-    }
+  const closeDetail = () => {
+    setSelectedId(null);
+    // Tira o ?campanha= da URL: o F5 não reabre o detalhe.
+    if (campaignParam) router.replace(pathname, { scroll: false });
   };
 
   const handleState = async (id: string, action: "start" | "pause" | "cancel") => {
     try {
       await setState.mutateAsync({ id, action });
-      toast.success(
-        action === "start" ? "Disparo iniciado." : action === "pause" ? "Pausada." : "Cancelada.",
-      );
+      toast.success(action === "start" ? "Disparo retomado." : action === "pause" ? "Pausada." : "Cancelada.");
     } catch (error) {
-      toast.error(getAxiosErrorMessage(error));
+      toast.error(getAxiosErrorMessage(error, "Não foi possível mudar a campanha."));
+    }
+  };
+
+  const handleUnschedule = async (id: string) => {
+    try {
+      await unschedule.mutateAsync(id);
+      toast.success("Agendamento cancelado. A campanha voltou para rascunho.");
+    } catch (error) {
+      toast.error(getAxiosErrorMessage(error, "Não foi possível desagendar."));
     }
   };
 
@@ -177,7 +118,7 @@ export default function CampanhasPage() {
     {
       header: "Campanha",
       accessor: (row: Campaign) => (
-        <div className="flex flex-col gap-0.5">
+        <div className="flex min-w-0 flex-col gap-0.5">
           <button
             className="text-left font-medium underline"
             onClick={() => setSelectedId(row.id)}
@@ -189,12 +130,30 @@ export default function CampanhasPage() {
             {audienceShortLabel(row)}
             {row.createdBy?.name && ` · por ${row.createdBy.name}`}
           </span>
+          {row.marketingTemplate && (
+            <span className="flex flex-wrap items-center gap-1 text-[11px] text-[#737373]">
+              Modelo: {row.marketingTemplate.name}
+              <MarketingStatusBadge status={row.marketingTemplate.status} />
+            </span>
+          )}
         </div>
       ),
     },
     {
       header: "Status",
-      accessor: (row: Campaign) => <CampaignStatusBadge status={row.status} />,
+      accessor: (row: Campaign) => (
+        <div className="flex flex-col items-start gap-1">
+          <CampaignStatusBadge status={row.status} />
+          {row.status === "SCHEDULED" && row.scheduledStartAt && (
+            <span className="text-[11px] text-violet-800">
+              Agendada para {formatInstantDateTime(row.scheduledStartAt)}
+            </span>
+          )}
+          {row.status === "PAUSED" && row.pausedReason && (
+            <span className="max-w-56 text-[11px] text-amber-800">{row.pausedReason}</span>
+          )}
+        </div>
+      ),
     },
     { header: "Destinatários", accessor: (row: Campaign) => row._count?.recipients ?? 0 },
     {
@@ -202,9 +161,7 @@ export default function CampanhasPage() {
       accessor: (row: Campaign) => {
         const stats = row.stats;
         if (!stats) return "—";
-        // "Processados" = tudo que a fila já tentou. É o denominador honesto da
-        // taxa: dividir o sucesso pelo total de destinatários faria uma campanha
-        // no meio do caminho parecer fracassada.
+        // "Processados" = tudo que a fila já tentou: é o denominador honesto da taxa.
         const processados = stats.SENT + stats.FAILED;
         const taxa = processados > 0 ? Math.round((stats.SENT / processados) * 100) : null;
         return (
@@ -214,14 +171,8 @@ export default function CampanhasPage() {
               {taxa !== null && <span className="text-[#737373]"> ({taxa}%)</span>}
             </span>
             <span className="text-[#737373]">
-              {stats.FAILED > 0 ? (
-                <span className="text-red-600">{stats.FAILED} falharam</span>
-              ) : (
-                "0 falharam"
-              )}
-              {/* Pulado ≠ falhado: é quem a campanha nem tentou (sem telefone,
-                  sem e-mail, opt-out). Somar os dois esconderia uma audiência
-                  que nunca teve como ser alcançada. */}
+              {stats.FAILED > 0 ? <span className="text-red-600">{stats.FAILED} falharam</span> : "0 falharam"}
+              {/* Pulado ≠ falhado: é quem a campanha nem tentou (saída, SAIR, preferência…). */}
               {stats.SKIPPED > 0 && ` · ${stats.SKIPPED} pulados`}
               {stats.PENDING > 0 && ` · ${stats.PENDING} na fila`}
             </span>
@@ -233,8 +184,8 @@ export default function CampanhasPage() {
       header: "Ritmo",
       accessor: (row: Campaign) => (
         <span className="text-xs">
-          {row.messagesPerHour}/h · teto {row.dailyCap}/dia · {row.windowStartHour}h–
-          {row.windowEndHour}h{row.weekdaysOnly ? " · dias úteis" : ""}
+          {row.messagesPerHour}/h · teto {row.dailyCap}/dia · {row.windowStartHour}h–{row.windowEndHour}h
+          {row.weekdaysOnly ? " · dias úteis" : ""}
         </span>
       ),
     },
@@ -245,19 +196,35 @@ export default function CampanhasPage() {
     {
       header: "Ações",
       accessor: (row: Campaign) => (
-        <div className="flex gap-2">
-          {(row.status === "DRAFT" || row.status === "PAUSED") && (
-            <Button size="sm" onClick={() => handleState(row.id, "start")}>
-              <Play className="mr-1 h-3.5 w-3.5" /> Disparar
+        <div className="flex flex-wrap gap-2">
+          {row.status === "DRAFT" && (
+            <Button size="sm" className="min-h-11" onClick={() => openWizard({ resume: row })}>
+              <ClipboardCheck className="mr-1 h-3.5 w-3.5" /> Revisar e disparar
+            </Button>
+          )}
+          {row.status === "SCHEDULED" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-11"
+              disabled={unschedule.isPending}
+              onClick={() => handleUnschedule(row.id)}
+            >
+              <CalendarX className="mr-1 h-3.5 w-3.5" /> Desagendar
+            </Button>
+          )}
+          {row.status === "PAUSED" && (
+            <Button size="sm" className="min-h-11" onClick={() => handleState(row.id, "start")}>
+              <Play className="mr-1 h-3.5 w-3.5" /> Retomar
             </Button>
           )}
           {row.status === "RUNNING" && (
-            <Button size="sm" variant="outline" onClick={() => handleState(row.id, "pause")}>
+            <Button size="sm" variant="outline" className="min-h-11" onClick={() => handleState(row.id, "pause")}>
               <Pause className="mr-1 h-3.5 w-3.5" /> Pausar
             </Button>
           )}
           {row.status !== "COMPLETED" && row.status !== "CANCELLED" && (
-            <Button size="sm" variant="outline" onClick={() => handleState(row.id, "cancel")}>
+            <Button size="sm" variant="outline" className="min-h-11" onClick={() => handleState(row.id, "cancel")}>
               <Square className="mr-1 h-3.5 w-3.5" /> Encerrar
             </Button>
           )}
@@ -269,332 +236,82 @@ export default function CampanhasPage() {
   return (
     <div>
       <PageHeader
+        className="flex-col sm:flex-row"
         title="Campanhas de ativação"
-        description="Disparo para contratantes parados — WhatsApp com ritmo controlado, e-mail para quem não tem telefone."
+        description="WhatsApp pela API oficial da Meta, com modelo aprovado e ritmo controlado; e-mail para quem não tem telefone."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
-              onClick={() => setCreatingFromSheet(true)}
+              className="min-h-11"
+              onClick={() => openWizard({ audience: "EXTERNAL_LIST" })}
               data-testid="new-sheet-campaign"
             >
               <FileSpreadsheet className="mr-1 h-4 w-4" /> Nova campanha por planilha
             </Button>
-            <Button onClick={() => setCreating(true)}>
+            <Button className="min-h-11" onClick={() => openWizard({})}>
               <Plus className="mr-1 h-4 w-4" /> Nova campanha
             </Button>
           </div>
         }
       />
 
-      {/* Sem esse aviso, uma campanha "Disparando" sem nada saindo vira uma hora
-          de investigação até alguém lembrar da env. */}
+      {/* Sem esse aviso, uma campanha "Disparando" sem nada saindo vira uma hora de investigação. */}
       {campaigns.data && !campaigns.data.schedulerEnabled && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            O agendador está <strong>desligado</strong> (<code>ACTIVATION_CAMPAIGNS_ENABLED</code>{" "}
-            não está como <code>true</code> em produção). Você pode criar e iniciar campanhas, mas
-            nenhuma mensagem vai sair.
+            O agendador está <strong>desligado</strong> (<code>ACTIVATION_CAMPAIGNS_ENABLED</code> não está
+            como <code>true</code> em produção). Você pode criar e iniciar campanhas, mas nenhuma mensagem vai
+            sair.
           </span>
         </div>
       )}
 
-      <DataTable
-        columns={columns}
-        data={campaigns.data?.data ?? []}
-        isFetching={campaigns.isFetching}
-        searchPlaceholder="Buscar campanha…"
-      />
+      <Tabs value={tab} onValueChange={(value) => setTab(value as PageTab)}>
+        <TabsList className="mb-3 h-auto">
+          <TabsTrigger value="campanhas" className="min-h-11">
+            Campanhas
+          </TabsTrigger>
+          <TabsTrigger value="modelos" className="min-h-11">
+            Modelos
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="campanhas">
+          <DataTable
+            columns={columns}
+            data={campaigns.data?.data ?? []}
+            isFetching={campaigns.isFetching}
+            searchPlaceholder="Buscar campanha…"
+          />
+        </TabsContent>
+        <TabsContent value="modelos">
+          <MarketingTemplatesTab
+            onUse={(template) => {
+              setTab("campanhas");
+              openWizard({ templateId: template.id });
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
-      <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Nova campanha</DialogTitle>
-            <DialogDescription>
-              A audiência é congelada agora. A campanha nasce parada — nada dispara até você mandar.
-            </DialogDescription>
-          </DialogHeader>
+      {/* Montado só aberto: não busca a biblioteca nem guarda estado de uma campanha antiga. */}
+      {wizard.open && (
+        <CampaignWizard
+          open
+          kind="avulsa"
+          adminEmail={user?.email ?? ""}
+          initialAudience={wizard.audience}
+          initialTemplateId={wizard.templateId ?? null}
+          resumeCampaign={wizard.resume ?? null}
+          onOpenChange={(open) => setWizard((current) => ({ ...current, open }))}
+          onDone={({ campaignId }) => {
+            if (campaignId) setSelectedId(campaignId);
+          }}
+        />
+      )}
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
-                placeholder="Reativação contratantes — ago/2026"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="audience">Quem recebe</Label>
-              <select
-                id="audience"
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                value={form.audience}
-                onChange={(event) => {
-                  const audience = event.target.value as CampaignAudience;
-                  // Trocar a audiência invalida cidade, raio e contagem: as
-                  // cidades da lista antiga podem nem existir na nova. E o tipo
-                  // de conta some da tela para freelancer — sem limpar, ficaria
-                  // um filtro invisível recortando a audiência.
-                  setForm({
-                    ...form,
-                    audience,
-                    cities: [],
-                    raioCidade: "",
-                    modules: audience.startsWith("CONTRACTORS_") ? form.modules : [],
-                  });
-                  setContagem(null);
-                }}
-              >
-                {(Object.keys(AUDIENCE_LABELS) as CampaignAudience[]).map((key) => (
-                  <option key={key} value={key}>
-                    {AUDIENCE_LABELS[key]}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {mostraTipoDeConta && (
-              <div className="space-y-2">
-                <Label>Tipo de conta</Label>
-                <div className="flex flex-wrap gap-2">
-                  {(Object.keys(MODULE_LABELS) as Array<keyof typeof MODULE_LABELS>).map((mod) => {
-                    const on = form.modules.includes(mod);
-                    return (
-                      <button
-                        key={mod}
-                        type="button"
-                        onClick={() => {
-                          setForm({
-                            ...form,
-                            modules: on
-                              ? form.modules.filter((m) => m !== mod)
-                              : [...form.modules, mod],
-                          });
-                          setContagem(null);
-                        }}
-                        className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                          on
-                            ? "bg-[#eca826] text-white"
-                            : "bg-neutral-100 text-neutral-600 hover:bg-[#eca826]/10"
-                        }`}
-                      >
-                        {MODULE_LABELS[mod]}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-neutral-500">Nenhum marcado = os dois.</p>
-              </div>
-            )}
-
-            {/* Raio a partir de uma cidade. Alternativa à lista: quem mora na
-                cidade vizinha é a mesma praça para efeito de deslocamento. */}
-            <div className="space-y-2">
-              <Label>Raio a partir de uma cidade</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  className="min-w-52 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                  value={form.raioCidade}
-                  onChange={(event) => {
-                    setForm({ ...form, raioCidade: event.target.value, cities: [] });
-                    setContagem(null);
-                  }}
-                >
-                  <option value="">Sem raio (usar a lista de cidades)</option>
-                  {(audienceOptions.data?.cities ?? []).map((opt) => (
-                    <option key={`${opt.city}-${opt.uf ?? ""}`} value={opt.city}>
-                      {opt.city}
-                      {opt.uf ? ` · ${opt.uf}` : ""}
-                    </option>
-                  ))}
-                </select>
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={2000}
-                    className="w-24"
-                    value={form.raioKm}
-                    disabled={!form.raioCidade}
-                    onChange={(event) => {
-                      setForm({ ...form, raioKm: Number(event.target.value) });
-                      setContagem(null);
-                    }}
-                  />
-                  <span className="text-sm text-neutral-600">km</span>
-                </div>
-              </div>
-              {form.raioCidade && (
-                <p className="text-xs text-neutral-500">
-                  O centro é calculado pelos cadastros da própria cidade. Quem não tem
-                  endereço com coordenada fica de fora — o botão Contar mostra quantos são.
-                </p>
-              )}
-            </div>
-
-            {!form.raioCidade && (
-            <div className="space-y-2">
-              <Label>
-                Cidades{" "}
-                <span className="font-normal text-neutral-500">
-                  {form.cities.length ? `(${form.cities.length} escolhida${form.cities.length === 1 ? "" : "s"})` : "(nenhuma = todas)"}
-                </span>
-              </Label>
-              {audienceOptions.isLoading ? (
-                <div className="flex items-center gap-2 text-xs text-neutral-500">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Levantando as cidades desta
-                  audiência…
-                </div>
-              ) : (
-                <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-md border border-neutral-200 p-2">
-                  {(audienceOptions.data?.cities ?? []).length === 0 ? (
-                    <p className="text-sm text-neutral-500">Nenhuma cidade nesta audiência.</p>
-                  ) : (
-                    audienceOptions.data!.cities.map((opt) => {
-                      const on = form.cities.includes(opt.city);
-                      return (
-                        <button
-                          key={`${opt.city}-${opt.uf ?? ""}`}
-                          type="button"
-                          onClick={() => {
-                            setForm({
-                              ...form,
-                              cities: on
-                                ? form.cities.filter((c) => c !== opt.city)
-                                : [...form.cities, opt.city],
-                            });
-                            setContagem(null);
-                          }}
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                            on
-                              ? "bg-[#eca826] text-white"
-                              : "bg-neutral-100 text-neutral-600 hover:bg-[#eca826]/10"
-                          }`}
-                        >
-                          {opt.city}
-                          {opt.uf ? ` · ${opt.uf}` : ""}{" "}
-                          <span className={on ? "text-white/80" : "text-neutral-400"}>
-                            {opt.total}
-                          </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-            )}
-
-            {/* Contar ANTES de criar: a audiência é congelada na criação, então
-                errar o recorte significa apagar a campanha e refazer. */}
-            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm">
-                  {contagem ? (
-                    <>
-                      <span className="font-semibold text-neutral-900">
-                        {contagem.total} pessoa{contagem.total === 1 ? "" : "s"}
-                      </span>
-                      <span className="block text-xs text-neutral-500">
-                        {contagem.whatsapp} por WhatsApp · {contagem.total - contagem.whatsapp} por
-                        e-mail
-                      </span>
-                      {contagem.semCoordenada > 0 && (
-                        <span className="mt-1 block text-xs text-amber-700">
-                          {contagem.semCoordenada} ficaram de fora do raio por não ter endereço
-                          com coordenada.
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-neutral-600">
-                      Confira quantos entram antes de criar.
-                    </span>
-                  )}
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={previewAudience.isPending}
-                  onClick={async () => {
-                    try {
-                      const res = await previewAudience.mutateAsync({
-                        audience: form.audience,
-                        filters: montarFiltros(form),
-                      });
-                      setContagem({
-                        total: res.total,
-                        whatsapp: res.byChannel.WHATSAPP,
-                        semCoordenada: res.semCoordenada ?? 0,
-                      });
-                    } catch (error) {
-                      toast.error(getAxiosErrorMessage(error));
-                    }
-                  }}
-                >
-                  {previewAudience.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Contar"
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="devzapp-funnel-url">Link do funil DevZapp</Label>
-              <p className="text-xs text-neutral-500">
-                Cole aqui o link do funil da DevZapp — ex.:{" "}
-                <code>https://api.devzapp.com.br/funil/start/v2/execute/…</code>. A DevZapp cuida
-                do ritmo de envio, das variantes de mensagem e do disparo.
-              </p>
-              <Input
-                id="devzapp-funnel-url"
-                data-testid="devzapp-funnel-url"
-                value={form.devzappFunnelUrl}
-                onChange={(event) => setForm({ ...form, devzappFunnelUrl: event.target.value })}
-                placeholder="https://api.devzapp.com.br/funil/start/v2/execute/…"
-              />
-              {form.devzappFunnelUrl.trim() && !funnelUrlValida && (
-                <p className="text-xs text-red-600">
-                  Cole um link válido, começando com https://.
-                </p>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreating(false)}>
-              Voltar
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={!form.name.trim() || !funnelUrlValida || createCampaign.isPending}
-            >
-              {createCampaign.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Criar (sem disparar)
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <ExternalListDialog
-        open={creatingFromSheet}
-        onOpenChange={setCreatingFromSheet}
-        onCreated={(created) => {
-          toast.success(
-            `Campanha criada com ${created.stats.PENDING} destinatários — ${created.estimate.days} dia(s) úteis no ritmo escolhido.`,
-          );
-          setCreatingFromSheet(false);
-          setSelectedId(created.campaign.id);
-        }}
-      />
-
-      <CampaignDetailDialog campaignId={selectedId} onClose={() => setSelectedId(null)} />
+      <CampaignDetailDialog campaignId={selectedId} onClose={closeDetail} />
     </div>
   );
 }

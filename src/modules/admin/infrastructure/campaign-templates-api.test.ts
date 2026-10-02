@@ -52,13 +52,18 @@ beforeEach(() => {
 });
 
 describe("listCampaignTemplates", () => {
-  it("faz GET /campaign-templates e devolve res.data.data", async () => {
-    get.mockResolvedValue({ data: { data: [template] } });
+  it("faz GET /campaign-templates e devolve a lista com o aviso do agendador", async () => {
+    get.mockResolvedValue({
+      data: { data: [template], meta: { schedulerEnabled: true, templatesSchedulerEnabled: false } },
+    });
 
     const result = await listCampaignTemplates();
 
     expect(get).toHaveBeenCalledWith("/campaign-templates");
-    expect(result).toEqual([template]);
+    expect(result).toEqual({
+      data: [template],
+      meta: { schedulerEnabled: true, templatesSchedulerEnabled: false },
+    });
   });
 });
 

@@ -26,6 +26,7 @@ import {
   useCampaign,
   useCampaignRecipients,
   useSetRecipientContact,
+  useUnscheduleCampaign,
 } from "@/modules/admin/application/use-admin-referrals";
 import {
   exportCampaignRecipientsCsv,
@@ -34,6 +35,7 @@ import {
   type RecipientStatus,
 } from "@/modules/admin/infrastructure/referrals-api";
 import { CampaignStatusBadge } from "./campaign-status-badge";
+import { MarketingStatusBadge } from "./marketing-status-badge";
 
 const PAGE_SIZE = 50;
 
@@ -110,7 +112,13 @@ function StatusCell({ row }: { row: CampaignRecipient }) {
     );
   }
   if (row.status === "SKIPPED") {
-    return <span className="text-neutral-500">Pulado</span>;
+    // O motivo é o que explica o "pulado" (saída, SAIR, preferência, limite da Meta…).
+    return (
+      <span className="inline-flex flex-col text-neutral-500">
+        <span>Pulado</span>
+        {row.failureReason && <span className="max-w-48 text-[11px]">{row.failureReason}</span>}
+      </span>
+    );
   }
   return (
     <span className="inline-flex items-center gap-1 text-neutral-600">
@@ -214,6 +222,30 @@ function RegisteredCell({ row }: { row: CampaignRecipient }) {
   );
 }
 
+/** Última resposta de texto livre da pessoa (a mais recente sobrescreve). */
+function ReplyCell({ row }: { row: CampaignRecipient }) {
+  if (!row.replyText) return <span className="text-neutral-400">—</span>;
+  return (
+    <span className="flex max-w-56 flex-col gap-0.5 text-xs">
+      <span className="line-clamp-3 break-words text-neutral-800" title={row.replyText}>
+        “{row.replyText}”
+      </span>
+      {row.repliedAt && (
+        <span className="text-[11px] text-neutral-500">
+          {formatInstantDateTime(row.repliedAt)}
+          {row.autoRepliedAt ? " · respondida automaticamente" : ""}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Tocou em "Não quero receber" nesta campanha. */
+function OptOutCell({ row }: { row: CampaignRecipient }) {
+  if (!row.optedOutAt) return <span className="text-neutral-400">—</span>;
+  return <span className="text-xs text-red-700">Saiu em {formatInstantDateTime(row.optedOutAt)}</span>;
+}
+
 interface Props {
   campaignId: string | null;
   onClose: () => void;
@@ -221,6 +253,7 @@ interface Props {
 
 export function CampaignDetailDialog({ campaignId, onClose }: Props) {
   const detail = useCampaign(campaignId);
+  const unschedule = useUnscheduleCampaign();
   const [status, setStatus] = useState<"" | RecipientStatus>("");
   const [contacted, setContacted] = useState<TriState>("");
   const [registered, setRegistered] = useState<TriState>("");
@@ -296,6 +329,16 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
     }
   };
 
+  const handleUnschedule = async () => {
+    if (!campaignId) return;
+    try {
+      await unschedule.mutateAsync(campaignId);
+      toast.success("Agendamento cancelado. A campanha voltou para rascunho.");
+    } catch (error) {
+      toast.error(getAxiosErrorMessage(error, "Não foi possível desagendar."));
+    }
+  };
+
   const columns = [
     { header: "Nome", accessor: (row: CampaignRecipient) => rowName(row) ?? "—" },
     {
@@ -310,6 +353,8 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
       accessor: (row: CampaignRecipient) => (row.channel === "WHATSAPP" ? "WhatsApp" : "E-mail"),
     },
     { header: "Status", accessor: (row: CampaignRecipient) => <StatusCell row={row} /> },
+    { header: "Resposta", accessor: (row: CampaignRecipient) => <ReplyCell row={row} /> },
+    { header: "Saiu", accessor: (row: CampaignRecipient) => <OptOutCell row={row} /> },
     {
       header: "Enviado em",
       accessor: (row: CampaignRecipient) => (
@@ -347,6 +392,40 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
                       {campaign.audience === "EXTERNAL_LIST" ? "Lista externa (planilha)" : "Recorte da base"}
                     </span>
                   </p>
+                  {campaign.marketingTemplate && (
+                    <p className="flex flex-wrap items-center gap-2" data-testid="detail-template">
+                      Modelo: <strong>{campaign.marketingTemplate.name}</strong>
+                      <MarketingStatusBadge status={campaign.marketingTemplate.status} />
+                    </p>
+                  )}
+                  {campaign.status === "SCHEDULED" && campaign.scheduledStartAt && (
+                    <p className="flex flex-wrap items-center gap-2" data-testid="detail-scheduled">
+                      Agendada para <strong>{formatInstantDateTime(campaign.scheduledStartAt)}</strong>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11"
+                        disabled={unschedule.isPending}
+                        onClick={handleUnschedule}
+                      >
+                        Desagendar
+                      </Button>
+                    </p>
+                  )}
+                  {campaign.status === "PAUSED" && campaign.pausedReason && (
+                    <p role="alert" className="rounded-md bg-amber-50 px-2 py-1 text-amber-900">
+                      Pausada: {campaign.pausedReason}
+                    </p>
+                  )}
+                  {(campaign.replyText || campaign.replyAlertEmail) && (
+                    <p>
+                      {campaign.replyText
+                        ? `Resposta automática: “${campaign.replyText}”`
+                        : "Sem resposta automática"}
+                      {campaign.replyAlertEmail ? ` · respostas avisadas em ${campaign.replyAlertEmail}` : ""}
+                    </p>
+                  )}
                   <p>
                     Criada por <strong>{createdBy?.name ?? "—"}</strong> em{" "}
                     {formatInstantDateTime(campaign.createdAt)}
