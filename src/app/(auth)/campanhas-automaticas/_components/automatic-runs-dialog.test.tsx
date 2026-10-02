@@ -85,7 +85,7 @@ function renderDialog(tpl: CampaignTemplate = template) {
   render(
     <QueryClientProvider client={qc}>
       <AutomaticRunsDialog
-        template={template}
+        template={tpl}
         onClose={onClose}
         onOpenRun={onOpenRun}
       />
