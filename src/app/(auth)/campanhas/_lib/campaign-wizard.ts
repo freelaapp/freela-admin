@@ -824,6 +824,10 @@ export function dispatchBlocker(
 
 // ── Resumo ───────────────────────────────────────────────────────────────────
 
+/** "no último dia" / "nos últimos 7 dias". */
+const windowLabel = (days: number) =>
+  days === 1 ? "no último dia" : `nos últimos ${days} dias`;
+
 /** "Todos os contratantes · Empresas + Casa · todas as cidades" (mockup do passo 4). */
 export function audienceSummary(state: WizardState): string {
   if (state.audience === EXTERNAL_LIST_AUDIENCE) {
@@ -847,7 +851,41 @@ export function audienceSummary(state: WizardState): string {
       state.cities.length ? state.cities.join(", ") : "todas as cidades",
     );
   }
+  const filters = buildAudienceFilters(state);
+  if (filters?.noVacancyForDays) {
+    parts.push(
+      `sem quem publicou vaga ${windowLabel(filters.noVacancyForDays)}`,
+    );
+  }
+  if (filters?.excludeHired) parts.push("sem quem já contratou");
+  if (filters?.excludeContactedWithinDays) {
+    parts.push(
+      `sem quem recebeu campanha ${windowLabel(filters.excludeContactedWithinDays)}`,
+    );
+  }
   return parts.join(" · ");
+}
+
+/** Erros de faixa dos dias do Refinar (só dos campos ligados); vazio = tudo certo. */
+export function refineDayErrors(state: WizardState): {
+  noVacancy?: string;
+  contacted?: string;
+} {
+  const out: { noVacancy?: string; contacted?: string } = {};
+  if (
+    isContractorAudience(state.audience) &&
+    state.refineNoVacancy &&
+    !inRange(state.noVacancyDays, 1, NO_VACANCY_DAYS_MAX)
+  ) {
+    out.noVacancy = `Os dias sem publicar vaga vão de 1 a ${NO_VACANCY_DAYS_MAX}.`;
+  }
+  if (
+    state.excludeContacted &&
+    !inRange(state.contactedDays, 1, CONTACTED_DAYS_MAX)
+  ) {
+    out.contacted = `Os dias desde a última campanha vão de 1 a ${CONTACTED_DAYS_MAX}.`;
+  }
+  return out;
 }
 
 /** Dias úteis para mandar `people` mensagens no ritmo (mesma conta do resumo da API). */

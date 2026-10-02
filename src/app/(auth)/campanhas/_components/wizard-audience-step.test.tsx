@@ -496,4 +496,60 @@ describe("WizardAudienceStep — Refinar (spec 2026-10-01 parte 2 §8.1)", () =>
       "min-h-11",
     );
   });
+
+  it("dia fora da faixa: erro embaixo do campo, aria-invalid e Contar desabilitado", () => {
+    renderStep("avulsa", { excludeContacted: true, contactedDays: 120 });
+    const input = screen.getByLabelText("Dias desde a última campanha");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    const error = document.getElementById(
+      input.getAttribute("aria-describedby") ?? "",
+    );
+    expect(error).toHaveTextContent(
+      "Os dias desde a última campanha vão de 1 a 90.",
+    );
+    expect(screen.getByRole("button", { name: "Contar" })).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: "30" } });
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByRole("button", { name: "Contar" })).toBeEnabled();
+  });
+
+  it("dias sem vaga inválidos também travam o Contar", () => {
+    renderStep("avulsa", { refineNoVacancy: true, noVacancyDays: 0 });
+    const input = screen.getByLabelText("Dias sem publicar vaga");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(
+      document.getElementById(input.getAttribute("aria-describedby") ?? ""),
+    ).toHaveTextContent("Os dias sem publicar vaga vão de 1 a 365.");
+    expect(screen.getByRole("button", { name: "Contar" })).toBeDisabled();
+  });
+
+  it("automática: a contagem aparece como aproximada, por execução", async () => {
+    api.previewCampaignAudience.mockResolvedValue({
+      total: 412,
+      byChannel: { WHATSAPP: 400, EMAIL: 12 },
+      semCoordenada: 0,
+      excludedByOptOut: 0,
+    });
+    renderStep("automatica");
+    fireEvent.click(screen.getByRole("button", { name: "Contar" }));
+    const count = await screen.findByTestId("audience-count");
+    await waitFor(() =>
+      expect(count).toHaveTextContent("≈ 412 pessoas por execução (aprox.)"),
+    );
+  });
+
+  it("avulsa: a contagem não é aproximada", async () => {
+    api.previewCampaignAudience.mockResolvedValue({
+      total: 425,
+      byChannel: { WHATSAPP: 418, EMAIL: 7 },
+      semCoordenada: 0,
+      excludedByOptOut: 12,
+    });
+    renderStep("avulsa");
+    fireEvent.click(screen.getByRole("button", { name: "Contar" }));
+    const count = await screen.findByTestId("audience-count");
+    await waitFor(() => expect(count).toHaveTextContent("425 pessoas"));
+    expect(count).not.toHaveTextContent("aprox.");
+  });
 });

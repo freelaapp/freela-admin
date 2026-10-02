@@ -5,6 +5,7 @@ import {
   AUDIENCE_LABELS,
   audienceOptionsFor,
   audienceSummary,
+  refineDayErrors,
   automaticSummary,
   buildScheduleBody,
   isValidEmail,
@@ -153,7 +154,7 @@ describe("estado inicial e público", () => {
 
   it("resumo do público em uma linha", () => {
     expect(audienceSummary(avulsa())).toBe(
-      "Todos os contratantes · Empresas + Casa · todas as cidades",
+      "Todos os contratantes · Empresas + Casa · todas as cidades · sem quem recebeu campanha nos últimos 7 dias",
     );
     expect(
       audienceSummary({
@@ -163,7 +164,7 @@ describe("estado inicial e público", () => {
         cities: ["Campinas"],
       }),
     ).toBe(
-      "Todos os contratantes · Em casa (serviços domésticos) · SP · Campinas",
+      "Todos os contratantes · Em casa (serviços domésticos) · SP · Campinas · sem quem recebeu campanha nos últimos 7 dias",
     );
     expect(
       audienceSummary({
@@ -172,13 +173,65 @@ describe("estado inicial e público", () => {
         radiusCity: "Jundiaí",
         radiusKm: 100,
       }),
-    ).toBe("Freelancers que nunca se candidataram · Jundiaí e 100 km em volta");
+    ).toBe(
+      "Freelancers que nunca se candidataram · Jundiaí e 100 km em volta · sem quem recebeu campanha nos últimos 7 dias",
+    );
+    // Refinar completo (contratante) e desligado.
+    expect(
+      audienceSummary({
+        ...avulsa(),
+        refineNoVacancy: true,
+        noVacancyDays: 45,
+        excludeHired: true,
+        excludeContacted: true,
+        contactedDays: 1,
+      }),
+    ).toBe(
+      "Todos os contratantes · Empresas + Casa · todas as cidades · sem quem publicou vaga nos últimos 45 dias · sem quem já contratou · sem quem recebeu campanha no último dia",
+    );
+    expect(audienceSummary({ ...avulsa(), excludeContacted: false })).toBe(
+      "Todos os contratantes · Empresas + Casa · todas as cidades",
+    );
+    // Freelancer: "vaga" e "contratou" não se aplicam, mesmo com o estado ligado.
+    expect(
+      audienceSummary({
+        ...avulsa(),
+        audience: "PROVIDERS_NEVER_APPLIED",
+        refineNoVacancy: true,
+        excludeHired: true,
+        excludeContacted: false,
+      }),
+    ).toBe("Freelancers que nunca se candidataram · todas as cidades");
     expect(
       audienceSummary({
         ...changeAudience(avulsa(), "EXTERNAL_LIST"),
         picker: PICKER,
       }),
     ).toBe("Planilha · lista.xlsx");
+  });
+});
+
+describe("refineDayErrors", () => {
+  it("só acusa campo ligado e fora da faixa", () => {
+    expect(refineDayErrors(avulsa())).toEqual({});
+    expect(
+      refineDayErrors({
+        ...avulsa(),
+        excludeContacted: true,
+        contactedDays: 91,
+      }).contacted,
+    ).toBe("Os dias desde a última campanha vão de 1 a 90.");
+    expect(
+      refineDayErrors({
+        ...avulsa(),
+        excludeContacted: false,
+        contactedDays: 0,
+      }),
+    ).toEqual({});
+    expect(
+      refineDayErrors({ ...avulsa(), refineNoVacancy: true, noVacancyDays: 0 })
+        .noVacancy,
+    ).toBe("Os dias sem publicar vaga vão de 1 a 365.");
   });
 });
 

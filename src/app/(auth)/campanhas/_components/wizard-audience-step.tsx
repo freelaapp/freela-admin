@@ -27,6 +27,7 @@ import {
   CONTACTED_DAYS_MAX,
   NO_VACANCY_DAYS_MAX,
   isContractorAudience,
+  refineDayErrors,
   stepBlockers,
   NAME_MAX,
   type AccountModule,
@@ -78,6 +79,10 @@ export function WizardAudienceStep({
         message.startsWith("O nome precisa"),
       )
     : undefined;
+  const refineErrors = refineDayErrors(state);
+  const refineInvalid = Boolean(
+    refineErrors.noVacancy || refineErrors.contacted,
+  );
   const visibleCities = state.ufs.length
     ? cities.filter((c) => c.uf && state.ufs.includes(c.uf))
     : cities;
@@ -371,6 +376,12 @@ export function WizardAudienceStep({
                       </label>
                       <Input
                         aria-label="Dias sem publicar vaga"
+                        aria-invalid={refineErrors.noVacancy ? true : undefined}
+                        aria-describedby={
+                          refineErrors.noVacancy
+                            ? "wz-no-vacancy-error"
+                            : undefined
+                        }
                         type="number"
                         min={1}
                         max={NO_VACANCY_DAYS_MAX}
@@ -385,6 +396,15 @@ export function WizardAudienceStep({
                         }
                       />
                       <span>dias</span>
+                      {refineErrors.noVacancy && (
+                        <p
+                          id="wz-no-vacancy-error"
+                          role="alert"
+                          className="basis-full text-xs text-red-700"
+                        >
+                          {refineErrors.noVacancy}
+                        </p>
+                      )}
                     </div>
                     <div
                       data-refine-row
@@ -427,6 +447,10 @@ export function WizardAudienceStep({
                   </label>
                   <Input
                     aria-label="Dias desde a última campanha"
+                    aria-invalid={refineErrors.contacted ? true : undefined}
+                    aria-describedby={
+                      refineErrors.contacted ? "wz-contacted-error" : undefined
+                    }
                     type="number"
                     min={1}
                     max={CONTACTED_DAYS_MAX}
@@ -441,11 +465,19 @@ export function WizardAudienceStep({
                     }
                   />
                   <span>dias</span>
+                  {refineErrors.contacted && (
+                    <p
+                      id="wz-contacted-error"
+                      role="alert"
+                      className="basis-full text-xs text-red-700"
+                    >
+                      {refineErrors.contacted}
+                    </p>
+                  )}
                 </div>
                 <p className="text-xs text-neutral-500">
                   Conta dias corridos (horário de Brasília) e também quem já tem
-                  envio pendente em outra campanha em andamento, agendada ou
-                  pausada.
+                  envio pendente em outra campanha em andamento ou agendada.
                 </p>
               </fieldset>
 
@@ -456,10 +488,14 @@ export function WizardAudienceStep({
                     {state.count ? (
                       <>
                         <span className="font-semibold text-neutral-900">
+                          {kind === "automatica" && "≈ "}
                           {state.count.total} pessoa
                           {state.count.total === 1 ? "" : "s"}
+                          {kind === "automatica" && " por execução (aprox.)"}
                         </span>
                         <span className="block text-xs text-neutral-600">
+                          {kind === "automatica" &&
+                            "Cada execução recalcula o público e respeita o limite por execução. "}
                           {state.count.whatsapp} com WhatsApp ·{" "}
                           {state.count.email} só e-mail ·{" "}
                           {state.count.excludedByOptOut} já pediram para não
@@ -500,7 +536,7 @@ export function WizardAudienceStep({
                     type="button"
                     variant="outline"
                     className="min-h-11"
-                    disabled={previewAudience.isPending}
+                    disabled={previewAudience.isPending || refineInvalid}
                     onClick={handleCount}
                   >
                     {previewAudience.isPending ? (
