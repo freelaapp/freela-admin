@@ -367,10 +367,6 @@ export interface ExternalListPreview {
   byChannel: { whatsapp: number; email: number };
   /** Telefones que já saíram (marketing ou SAIR) — ficam de fora. */
   excludedByOptOut?: number;
-  /** Excluídos por motivo, na ordem da spec (API da parte 2). */
-  excluded?: AudienceExclusions;
-  /** Contatos repetidos que a deduplicação de telefone tirou (API da parte 2). */
-  duplicates?: number;
 }
 
 /**
@@ -558,6 +554,12 @@ export interface AudienceCountPreview {
   semCoordenada?: number;
   /** Já pediram para não receber (marketing ou SAIR) — ficam de fora. */
   excludedByOptOut?: number;
+  /** Excluídos por motivo, na ordem da spec (API da parte 2). */
+  excluded?: AudienceExclusions;
+  /** Contatos repetidos que a deduplicação de telefone tirou (API da parte 2). */
+  duplicates?: number;
+  /** Filtros normalizados que a API aplicou. */
+  filters?: AudienceFilters | null;
 }
 
 /** Conta a audiência com os filtros escolhidos, sem criar nada. */
