@@ -249,6 +249,7 @@ describe("CampaignWizard", () => {
         windowStartHour: 9,
         windowEndHour: 18,
         weekdaysOnly: true,
+        audienceFilters: { excludeContactedWithinDays: 7 },
       }),
     );
     const summary = await screen.findByTestId("review-summary");

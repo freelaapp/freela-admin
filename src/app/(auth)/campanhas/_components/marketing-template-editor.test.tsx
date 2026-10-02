@@ -434,3 +434,102 @@ describe("MarketingTemplateEditor", () => {
     );
   });
 });
+
+describe('MarketingTemplateEditor — "Contar cliques" (spec 2026-10-01 parte 2 §8.2)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const caixa = () => screen.getByRole("checkbox", { name: /Contar cliques/ });
+
+  function addLink() {
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    fireEvent.change(screen.getByLabelText("Texto do botão 1"), {
+      target: { value: "Cadastrar" },
+    });
+    fireEvent.change(screen.getByLabelText("Link do botão 1"), {
+      target: { value: "https://www.freelaservicos.com.br" },
+    });
+  }
+
+  it("botão de link novo já vem com a caixa ligada e a explicação; salva com track", async () => {
+    api.createMarketingTemplate.mockResolvedValue(view({ id: "novo" }));
+    renderEditor();
+    fillValid();
+    addLink();
+    expect(caixa()).toBeChecked();
+    expect(
+      screen.getByText(
+        "o link passa por um endereço da Freela para contar quem clicou",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar rascunho" }));
+    await waitFor(() =>
+      expect(api.createMarketingTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          buttons: [
+            {
+              type: "URL",
+              text: "Cadastrar",
+              url: "https://www.freelaservicos.com.br",
+              track: true,
+            },
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("desligar manda o link direto (track false)", async () => {
+    api.createMarketingTemplate.mockResolvedValue(view({ id: "novo" }));
+    renderEditor();
+    fillValid();
+    addLink();
+    fireEvent.click(caixa());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar rascunho" }));
+    await waitFor(() =>
+      expect(api.createMarketingTemplate.mock.calls[0][0].buttons).toEqual([
+        {
+          type: "URL",
+          text: "Cadastrar",
+          url: "https://www.freelaservicos.com.br",
+          track: false,
+        },
+      ]),
+    );
+  });
+
+  it("modelo da parte 1 em rascunho abre com a caixa desligada e editável", () => {
+    renderEditor({ template: view() });
+    expect(caixa()).not.toBeChecked();
+    expect(caixa()).toBeEnabled();
+  });
+
+  it("modelo da parte 1 aprovado, sem rastreio: caixa desligada e travada", () => {
+    renderEditor({ template: view({ status: "APPROVED" }) });
+    expect(caixa()).not.toBeChecked();
+    expect(caixa()).toBeDisabled();
+  });
+
+  it("aprovado e com rastreio: caixa marcada e travada", () => {
+    renderEditor({
+      template: view({
+        status: "APPROVED",
+        buttons: [
+          { type: "URL", text: "Cadastrar", url: "https://a.com", track: true },
+        ],
+      }),
+    });
+    expect(caixa()).toBeChecked();
+    expect(caixa()).toBeDisabled();
+  });
+
+  it("só o botão de link tem a caixa; a linha tem 44 px", () => {
+    renderEditor();
+    fireEvent.click(screen.getByRole("button", { name: "Ligar" }));
+    expect(
+      screen.queryByRole("checkbox", { name: /Contar cliques/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    expect(caixa().closest("label")).toHaveClass("min-h-11");
+  });
+});

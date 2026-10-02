@@ -1,5 +1,11 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
-import type { AudienceFilters, CampaignAudience, CampaignTemplateRef } from "./referrals-api";
+import type {
+  AudienceFilters,
+  CampaignAudience,
+  CampaignRates,
+  CampaignStatus,
+  CampaignTemplateRef,
+} from "./referrals-api";
 
 // Templates de campanha automática (recorrente) vivem sob /v1/admins, como
 // indicações e campanhas por planilha.
@@ -50,6 +56,53 @@ export interface UpsertCampaignTemplatePayload {
   maxPerRun?: number;
 }
 
+/** Última execução na lista das automáticas (spec 2026-10-01 parte 2 §7). Push: só `sent`. */
+export interface CampaignLastRun {
+  id: string;
+  /** Dia da execução, `YYYY-MM-DD`. */
+  occurrence: string | null;
+  channel: CampaignChannel | null;
+  status: CampaignStatus;
+  startedAt: string | null;
+  sent: number;
+  delivered: number | null;
+  read: number | null;
+  clicked: number | null;
+}
+
+/** Uma execução no histórico, com os números da §6 (push: só `recipients`/`sent`). */
+export interface CampaignRun {
+  id: string;
+  name: string;
+  occurrence: string | null;
+  channel: CampaignChannel | null;
+  status: CampaignStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  recipients: number;
+  sent: number;
+  delivered: number | null;
+  read: number | null;
+  clicked: number | null;
+  clicks: number | null;
+  optedOut: number | null;
+  replied: number | null;
+  billable: number | null;
+  costBrl: number | null;
+  signups: number | null;
+  publishedVacancy: number | null;
+  hired: number | null;
+  rates: CampaignRates | null;
+}
+
+export interface CampaignRunsPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: CampaignRun[];
+}
+
 export interface CampaignTemplate extends UpsertCampaignTemplatePayload {
   id: string;
   enabled: boolean;
@@ -61,6 +114,8 @@ export interface CampaignTemplate extends UpsertCampaignTemplatePayload {
   whatsappNeedsTemplate?: boolean;
   /** "Escolha um modelo aprovado para voltar a mandar WhatsApp" ou `null`. */
   whatsappNotice?: string | null;
+  /** Última execução (a de WhatsApp; sem ela, a de push). */
+  lastRun?: CampaignLastRun | null;
 }
 
 export interface CampaignTemplateImageUpload {
@@ -131,5 +186,14 @@ export async function uploadCampaignTemplateImage(
   const res = await adminsRootApi.post("/campaign-templates/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+  return res.data.data;
+}
+
+/** Histórico das execuções de uma automática, mais nova primeiro (até 50 por página). */
+export async function listCampaignTemplateRuns(
+  id: string,
+  params: { page?: number; pageSize?: number } = {},
+): Promise<CampaignRunsPage> {
+  const res = await adminsRootApi.get(`/campaign-templates/${id}/runs`, { params });
   return res.data.data;
 }

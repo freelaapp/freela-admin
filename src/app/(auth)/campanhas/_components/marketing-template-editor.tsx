@@ -147,7 +147,11 @@ export function MarketingTemplateEditor({
   }
 
   function addButton(type: DraftButton["type"]) {
-    setButtons((current) => [...current, { type, text: "", value: "" }]);
+    // Link novo já conta cliques (spec 2026-10-01 parte 2 §5): é o padrão de modelo novo.
+    setButtons((current) => [
+      ...current,
+      { type, text: "", value: "", ...(type === "URL" ? { track: true } : {}) },
+    ]);
   }
 
   function changeButton(index: number, patch: Partial<DraftButton>) {
@@ -412,6 +416,28 @@ export function MarketingTemplateEditor({
                       }
                     />
                   </div>
+                  {button.type === "URL" && (
+                    <label className="flex min-h-11 items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-5 w-5 shrink-0"
+                        checked={button.track === true}
+                        disabled={!editable}
+                        onChange={(event) =>
+                          changeButton(index, { track: event.target.checked })
+                        }
+                      />
+                      <span>
+                        <span className="font-medium text-[#1d1d1b]">
+                          Contar cliques
+                        </span>
+                        <span className="block text-xs text-neutral-500">
+                          o link passa por um endereço da Freela para contar
+                          quem clicou
+                        </span>
+                      </span>
+                    </label>
+                  )}
                 </div>
               ))}
               {canAddButton && (

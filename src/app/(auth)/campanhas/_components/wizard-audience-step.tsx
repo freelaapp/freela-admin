@@ -22,8 +22,12 @@ import {
   audienceLabel,
   audienceOptionsFor,
   buildAudienceFilters,
+  countFromPreview,
   changeAudience,
+  CONTACTED_DAYS_MAX,
+  NO_VACANCY_DAYS_MAX,
   isContractorAudience,
+  refineDayErrors,
   stepBlockers,
   NAME_MAX,
   type AccountModule,
@@ -31,6 +35,7 @@ import {
   type WizardKind,
   type WizardState,
 } from "../_lib/campaign-wizard";
+import { excludedLines } from "../_lib/campaign-results";
 import { ExternalListPicker } from "./external-list-picker";
 import { OptionPill } from "./option-pill";
 
@@ -74,6 +79,10 @@ export function WizardAudienceStep({
         message.startsWith("O nome precisa"),
       )
     : undefined;
+  const refineErrors = refineDayErrors(state);
+  const refineInvalid = Boolean(
+    refineErrors.noVacancy || refineErrors.contacted,
+  );
   const visibleCities = state.ufs.length
     ? cities.filter((c) => c.uf && state.ufs.includes(c.uf))
     : cities;
@@ -82,17 +91,9 @@ export function WizardAudienceStep({
     try {
       const res = await previewAudience.mutateAsync({
         audience: state.audience as BaseAudience,
-        filters: buildAudienceFilters(state, kind),
+        filters: buildAudienceFilters(state),
       });
-      onChange({
-        count: {
-          total: res.total,
-          whatsapp: res.byChannel.WHATSAPP,
-          email: res.byChannel.EMAIL,
-          excludedByOptOut: res.excludedByOptOut ?? 0,
-          semCoordenada: res.semCoordenada ?? 0,
-        },
-      });
+      onChange({ count: countFromPreview(res) });
     } catch (error) {
       toast.error(
         getAxiosErrorMessage(error, "Não foi possível contar o público."),
@@ -250,59 +251,56 @@ export function WizardAudienceStep({
                 </div>
               )}
 
-              {kind === "avulsa" && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="wz-radius-city">
-                    Raio a partir de uma cidade
-                  </Label>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <NativeSelect
-                      id="wz-radius-city"
-                      className="min-h-11 sm:flex-1"
-                      value={state.radiusCity}
+              {/* Raio vale nas duas, avulsa e automática (spec 2026-10-01 parte 2 §2.6). */}
+              <div className="space-y-1.5">
+                <Label htmlFor="wz-radius-city">
+                  Raio a partir de uma cidade
+                </Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <NativeSelect
+                    id="wz-radius-city"
+                    className="min-h-11 sm:flex-1"
+                    value={state.radiusCity}
+                    onChange={(event) =>
+                      onChange({
+                        radiusCity: event.target.value,
+                        cities: [],
+                        ufs: [],
+                        count: null,
+                      })
+                    }
+                  >
+                    <option value="">Sem raio (usar estados e cidades)</option>
+                    {cities.map((opt) => (
+                      <option
+                        key={`${opt.city}-${opt.uf ?? ""}`}
+                        value={opt.city}
+                      >
+                        {opt.city}
+                        {opt.uf ? ` · ${opt.uf}` : ""}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      aria-label="Raio em km"
+                      type="number"
+                      min={1}
+                      max={RADIUS_KM_MAX}
+                      className="min-h-11 w-28"
+                      value={state.radiusKm}
+                      disabled={!state.radiusCity}
                       onChange={(event) =>
                         onChange({
-                          radiusCity: event.target.value,
-                          cities: [],
-                          ufs: [],
+                          radiusKm: Number(event.target.value),
                           count: null,
                         })
                       }
-                    >
-                      <option value="">
-                        Sem raio (usar estados e cidades)
-                      </option>
-                      {cities.map((opt) => (
-                        <option
-                          key={`${opt.city}-${opt.uf ?? ""}`}
-                          value={opt.city}
-                        >
-                          {opt.city}
-                          {opt.uf ? ` · ${opt.uf}` : ""}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                    <div className="flex items-center gap-1.5">
-                      <Input
-                        aria-label="Raio em km"
-                        type="number"
-                        min={1}
-                        max={RADIUS_KM_MAX}
-                        className="min-h-11 w-28"
-                        value={state.radiusKm}
-                        disabled={!state.radiusCity}
-                        onChange={(event) =>
-                          onChange({
-                            radiusKm: Number(event.target.value),
-                            count: null,
-                          })
-                        }
-                      />
-                      <span className="text-sm text-neutral-600">km</span>
-                    </div>
+                    />
+                    <span className="text-sm text-neutral-600">km</span>
                   </div>
                 </div>
-              )}
+              </div>
 
               {!state.radiusCity && (
                 <div className="space-y-1.5">
@@ -348,6 +346,141 @@ export function WizardAudienceStep({
                 </div>
               )}
 
+              <fieldset
+                className="space-y-1 rounded-md border border-neutral-200 p-3"
+                data-testid="audience-refine"
+              >
+                <legend className="px-1 text-sm font-medium text-[#1d1d1b]">
+                  Refinar
+                </legend>
+                {isContractorAudience(state.audience) && (
+                  <>
+                    <div
+                      data-refine-row
+                      className="flex min-h-11 flex-wrap items-center gap-2 text-sm"
+                    >
+                      <input
+                        id="wz-no-vacancy"
+                        type="checkbox"
+                        className="h-5 w-5 shrink-0"
+                        checked={state.refineNoVacancy}
+                        onChange={(event) =>
+                          onChange({
+                            refineNoVacancy: event.target.checked,
+                            count: null,
+                          })
+                        }
+                      />
+                      <label htmlFor="wz-no-vacancy">
+                        Não publicou vaga nos últimos
+                      </label>
+                      <Input
+                        aria-label="Dias sem publicar vaga"
+                        aria-invalid={refineErrors.noVacancy ? true : undefined}
+                        aria-describedby={
+                          refineErrors.noVacancy
+                            ? "wz-no-vacancy-error"
+                            : undefined
+                        }
+                        type="number"
+                        min={1}
+                        max={NO_VACANCY_DAYS_MAX}
+                        className="min-h-11 w-20"
+                        value={state.noVacancyDays}
+                        disabled={!state.refineNoVacancy}
+                        onChange={(event) =>
+                          onChange({
+                            noVacancyDays: Number(event.target.value),
+                            count: null,
+                          })
+                        }
+                      />
+                      <span>dias</span>
+                      {refineErrors.noVacancy && (
+                        <p
+                          id="wz-no-vacancy-error"
+                          role="alert"
+                          className="basis-full text-xs text-red-700"
+                        >
+                          {refineErrors.noVacancy}
+                        </p>
+                      )}
+                    </div>
+                    <div
+                      data-refine-row
+                      className="flex min-h-11 flex-wrap items-center gap-2 text-sm"
+                    >
+                      <input
+                        id="wz-hired"
+                        type="checkbox"
+                        className="h-5 w-5 shrink-0"
+                        checked={state.excludeHired}
+                        onChange={(event) =>
+                          onChange({
+                            excludeHired: event.target.checked,
+                            count: null,
+                          })
+                        }
+                      />
+                      <label htmlFor="wz-hired">Tirar quem já contratou</label>
+                    </div>
+                  </>
+                )}
+                <div
+                  data-refine-row
+                  className="flex min-h-11 flex-wrap items-center gap-2 text-sm"
+                >
+                  <input
+                    id="wz-contacted"
+                    type="checkbox"
+                    className="h-5 w-5 shrink-0"
+                    checked={state.excludeContacted}
+                    onChange={(event) =>
+                      onChange({
+                        excludeContacted: event.target.checked,
+                        count: null,
+                      })
+                    }
+                  />
+                  <label htmlFor="wz-contacted">
+                    Não mandar para quem recebeu campanha nos últimos
+                  </label>
+                  <Input
+                    aria-label="Dias desde a última campanha"
+                    aria-invalid={refineErrors.contacted ? true : undefined}
+                    aria-describedby={
+                      refineErrors.contacted ? "wz-contacted-error" : undefined
+                    }
+                    type="number"
+                    min={1}
+                    max={CONTACTED_DAYS_MAX}
+                    className="min-h-11 w-20"
+                    value={state.contactedDays}
+                    disabled={!state.excludeContacted}
+                    onChange={(event) =>
+                      onChange({
+                        contactedDays: Number(event.target.value),
+                        count: null,
+                      })
+                    }
+                  />
+                  <span>dias</span>
+                  {refineErrors.contacted && (
+                    <p
+                      id="wz-contacted-error"
+                      role="alert"
+                      className="basis-full text-xs text-red-700"
+                    >
+                      {refineErrors.contacted}
+                    </p>
+                  )}
+                </div>
+                <p className="text-xs text-neutral-500">
+                  Conta dias corridos (horário de Brasília) e também quem já tem
+                  envio pendente em outra campanha em andamento ou agendada.
+                </p>
+              </fieldset>
+
               {/* Contar ANTES de criar: o público é congelado na criação. */}
               <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -355,10 +488,14 @@ export function WizardAudienceStep({
                     {state.count ? (
                       <>
                         <span className="font-semibold text-neutral-900">
+                          {kind === "automatica" && "≈ "}
                           {state.count.total} pessoa
                           {state.count.total === 1 ? "" : "s"}
+                          {kind === "automatica" && " por execução (aprox.)"}
                         </span>
                         <span className="block text-xs text-neutral-600">
+                          {kind === "automatica" &&
+                            "Cada execução recalcula o público e respeita o limite por execução. "}
                           {state.count.whatsapp} com WhatsApp ·{" "}
                           {state.count.email} só e-mail ·{" "}
                           {state.count.excludedByOptOut} já pediram para não
@@ -369,6 +506,22 @@ export function WizardAudienceStep({
                             {state.count.semCoordenada} ficaram de fora do raio
                             por não ter endereço com coordenada.
                           </span>
+                        )}
+                        {excludedLines(
+                          state.count.excluded,
+                          buildAudienceFilters(state),
+                        ).length > 0 && (
+                          <ul
+                            className="mt-1 space-y-0.5 text-xs text-neutral-600"
+                            data-testid="audience-excluded"
+                          >
+                            {excludedLines(
+                              state.count.excluded,
+                              buildAudienceFilters(state),
+                            ).map((line) => (
+                              <li key={line}>{line}</li>
+                            ))}
+                          </ul>
                         )}
                       </>
                     ) : (
@@ -383,7 +536,7 @@ export function WizardAudienceStep({
                     type="button"
                     variant="outline"
                     className="min-h-11"
-                    disabled={previewAudience.isPending}
+                    disabled={previewAudience.isPending || refineInvalid}
                     onClick={handleCount}
                   >
                     {previewAudience.isPending ? (

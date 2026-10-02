@@ -299,3 +299,40 @@ describe("espelho das regras do editor (mesmas da API)", () => {
     expect(imageFileNameForMime("image/webp", 1)).toBeNull();
   });
 });
+
+describe('"Contar cliques" (spec 2026-10-01 parte 2 §5)', () => {
+  it("vai para a API quando o rascunho tem; sem o campo, o botão sai como na parte 1", () => {
+    expect(
+      toApiButtons([
+        { type: "URL", text: "Cadastrar", value: "https://a.com", track: true },
+        { type: "PHONE", text: "Ligar", value: "(11) 95090-3219" },
+      ]),
+    ).toEqual([
+      { type: "URL", text: "Cadastrar", url: "https://a.com", track: true },
+      { type: "PHONE", text: "Ligar", phone: "(11) 95090-3219" },
+    ]);
+    expect(
+      toApiButtons([
+        { type: "URL", text: "A", value: "https://a.com", track: false },
+      ]),
+    ).toEqual([{ type: "URL", text: "A", url: "https://a.com", track: false }]);
+    expect(
+      toApiButtons([{ type: "URL", text: "A", value: "https://a.com" }]),
+    ).toEqual([{ type: "URL", text: "A", url: "https://a.com" }]);
+  });
+
+  it("da API para a tela: só link que conta vem com track", () => {
+    expect(
+      fromApiButtons([
+        { type: "URL", text: "Cadastrar", url: "https://a.com", track: true },
+        { type: "PHONE", text: "Ligar", phone: "+5511950903219" },
+      ]),
+    ).toEqual([
+      { type: "URL", text: "Cadastrar", value: "https://a.com", track: true },
+      { type: "PHONE", text: "Ligar", value: "+5511950903219" },
+    ]);
+    expect(
+      fromApiButtons([{ type: "URL", text: "A", url: "https://a.com" }]),
+    ).toEqual([{ type: "URL", text: "A", value: "https://a.com" }]);
+  });
+});

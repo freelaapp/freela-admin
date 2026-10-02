@@ -34,6 +34,7 @@ import { CampaignStatusBadge } from "./_components/campaign-status-badge";
 import { CampaignWizard } from "./_components/campaign-wizard";
 import { MarketingStatusBadge } from "./_components/marketing-status-badge";
 import { MarketingTemplatesTab } from "./_components/marketing-templates-tab";
+import { formatCost } from "./_lib/campaign-results";
 
 type PageTab = "campanhas" | "modelos";
 
@@ -179,6 +180,35 @@ function CampanhasScreen() {
           </div>
         );
       },
+    },
+    // Resultados (spec 2026-10-01 parte 2 §8.4); API antiga sem os números → "—".
+    {
+      header: "Entregues",
+      accessor: (row: Campaign) => (
+        <span className="tabular-nums" data-testid={`campaign-delivered-${row.id}`}>
+          {row.delivered ?? "—"}
+        </span>
+      ),
+    },
+    {
+      header: "Lidos",
+      accessor: (row: Campaign) => <span className="tabular-nums">{row.read ?? "—"}</span>,
+    },
+    {
+      header: "Cliques",
+      accessor: (row: Campaign) => <span className="tabular-nums">{row.clicked ?? "—"}</span>,
+    },
+    {
+      header: "Custo",
+      accessor: (row: Campaign) => (
+        <span
+          className="tabular-nums"
+          title="Custo estimado"
+          data-testid={`campaign-cost-${row.id}`}
+        >
+          {row.costBrl == null ? "—" : formatCost(row.costBrl)}
+        </span>
+      ),
     },
     {
       header: "Ritmo",

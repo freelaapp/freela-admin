@@ -7,6 +7,7 @@ import {
   createCampaign,
   getCampaign,
   getCampaignRecipients,
+  getCampaignResults,
   getCampaigns,
   getReferralMetrics,
   getReferralRewards,
@@ -246,5 +247,18 @@ export function useUnscheduleCampaign() {
   return useMutation({
     mutationFn: (id: string) => unscheduleCampaign(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
+  });
+}
+
+/**
+ * Resultados da campanha (spec 2026-10-01 parte 2 §6). Sem cache na API: enquanto a campanha
+ * dispara, a tela pede de novo a cada minuto.
+ */
+export function useCampaignResults(id: string | null, opts: { autoRefresh?: boolean } = {}) {
+  return useQuery({
+    queryKey: [...CAMPAIGNS_KEY, id, "results"],
+    queryFn: () => getCampaignResults(id as string),
+    enabled: Boolean(id),
+    refetchInterval: opts.autoRefresh ? 60_000 : false,
   });
 }

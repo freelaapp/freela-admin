@@ -11,6 +11,8 @@ import {
 import {
   EXTERNAL_LIST_AUDIENCE,
   readAlreadyRegistered,
+  type AudienceCountPreview,
+  type AudienceExclusions,
   type AudienceFilters,
   type BaseAudience,
   type Campaign,
@@ -103,6 +105,12 @@ export const REPLY_TEXT_MAX = 500;
 export const NAME_MIN = 3;
 export const NAME_MAX = 120;
 export const RADIUS_KM_MAX = 2000;
+/** Refinar (spec 2026-10-01 parte 2 §3/§8). */
+export const NO_VACANCY_DAYS_DEFAULT = 30;
+export const NO_VACANCY_DAYS_MAX = 365;
+/** "Não mandar para quem recebeu campanha nos últimos [N] dias": marcado, 7 dias. */
+export const CONTACTED_DAYS_DEFAULT = 7;
+export const CONTACTED_DAYS_MAX = 90;
 /** Teto da API por campanha de planilha. */
 export const MAX_EXTERNAL_CONTACTS = 5000;
 
@@ -120,6 +128,8 @@ export interface AudienceCount {
   email: number;
   excludedByOptOut: number;
   semCoordenada: number;
+  /** O que cada refinamento tirou (API da parte 2). */
+  excluded?: AudienceExclusions;
 }
 
 export interface ParsedSheet {
@@ -167,6 +177,15 @@ export interface WizardState {
   count: AudienceCount | null;
   picker: ExternalPickerState;
   optInConfirmed: boolean;
+  // Passo 1 — Refinar (spec 2026-10-01 parte 2 §3)
+  /** Só contratante: "Não publicou vaga nos últimos [N] dias". */
+  refineNoVacancy: boolean;
+  noVacancyDays: number;
+  /** Só contratante: "Tirar quem já contratou". */
+  excludeHired: boolean;
+  /** Todos: "Não mandar para quem recebeu campanha nos últimos [N] dias" (marcado, 7). */
+  excludeContacted: boolean;
+  contactedDays: number;
   // Passo 2 — mensagem
   channels: CampaignChannel[];
   marketingTemplateId: string | null;
@@ -328,6 +347,11 @@ export function initialWizardState(
     count: null,
     picker: EMPTY_PICKER,
     optInConfirmed: false,
+    refineNoVacancy: false,
+    noVacancyDays: NO_VACANCY_DAYS_DEFAULT,
+    excludeHired: false,
+    excludeContacted: true,
+    contactedDays: CONTACTED_DAYS_DEFAULT,
     // Avulsa é sempre WhatsApp (+ e-mail para quem não tem telefone); a automática escolhe.
     channels: kind === "avulsa" || marketingTemplateId ? ["WHATSAPP"] : [],
     marketingTemplateId,
@@ -445,6 +469,15 @@ export function stateFromAutomatic(
     modules: filters?.modules ?? [],
     ufs: filters?.ufs ?? [],
     cities: filters?.cities ?? [],
+    radiusCity: filters?.radius?.city ?? "",
+    radiusKm: filters?.radius?.km ?? 50,
+    refineNoVacancy: Boolean(filters?.noVacancyForDays),
+    noVacancyDays: filters?.noVacancyForDays ?? NO_VACANCY_DAYS_DEFAULT,
+    excludeHired: filters?.excludeHired === true,
+    // Guardada sem o refinamento = não excluía: volta desmarcada (não muda a automática calada).
+    excludeContacted: Boolean(filters?.excludeContactedWithinDays),
+    contactedDays:
+      filters?.excludeContactedWithinDays ?? CONTACTED_DAYS_DEFAULT,
     channels: template.channels,
     replyText: template.replyText ?? "",
     replyAlertEmail: template.replyAlertEmail ?? adminEmail,
@@ -494,27 +527,58 @@ export function selectionFromPicker(
 // ── Corpos da API ────────────────────────────────────────────────────────────
 
 /**
- * Recorte do público. `undefined` quando não há nenhum (lista vazia gravaria "filtrado
- * por nada"). Raio só existe na avulsa e substitui UF e cidades.
+ * Recorte do público. `undefined` quando não há nenhum. Raio vale nas duas (avulsa e
+ * automática, parte 2 §2.6) e substitui UF e cidades. "Sem vaga" e "já contratou" só para
+ * contratante; "recebeu campanha" para todos.
  */
 export function buildAudienceFilters(
   state: WizardState,
-  kind: WizardKind,
 ): AudienceFilters | undefined {
   const radius =
-    kind === "avulsa" && state.radiusCity.trim() && state.radiusKm > 0
+    state.radiusCity.trim() && state.radiusKm > 0
       ? { city: state.radiusCity.trim(), km: state.radiusKm }
       : undefined;
   const cities = radius ? [] : state.cities;
   const ufs = radius ? [] : state.ufs;
-  const modules = isContractorAudience(state.audience) ? state.modules : [];
-  if (!cities.length && !ufs.length && !modules.length && !radius)
+  const contractor = isContractorAudience(state.audience);
+  const modules = contractor ? state.modules : [];
+  const noVacancyForDays =
+    contractor && state.refineNoVacancy ? state.noVacancyDays : undefined;
+  const excludeHired = contractor && state.excludeHired ? true : undefined;
+  const excludeContactedWithinDays = state.excludeContacted
+    ? state.contactedDays
+    : undefined;
+  if (
+    !cities.length &&
+    !ufs.length &&
+    !modules.length &&
+    !radius &&
+    !noVacancyForDays &&
+    !excludeHired &&
+    !excludeContactedWithinDays
+  ) {
     return undefined;
+  }
   return {
     ...(cities.length ? { cities } : {}),
     ...(ufs.length ? { ufs } : {}),
     ...(modules.length ? { modules } : {}),
     ...(radius ? { radius } : {}),
+    ...(noVacancyForDays ? { noVacancyForDays } : {}),
+    ...(excludeHired ? { excludeHired } : {}),
+    ...(excludeContactedWithinDays ? { excludeContactedWithinDays } : {}),
+  };
+}
+
+/** Resposta do `audience-preview` → contagem do passo 1 (com os excluídos, se vierem). */
+export function countFromPreview(res: AudienceCountPreview): AudienceCount {
+  return {
+    total: res.total,
+    whatsapp: res.byChannel.WHATSAPP,
+    email: res.byChannel.EMAIL,
+    excludedByOptOut: res.excludedByOptOut ?? 0,
+    semCoordenada: res.semCoordenada ?? 0,
+    ...(res.excluded ? { excluded: res.excluded } : {}),
   };
 }
 
@@ -552,7 +616,7 @@ export function buildCreatePayload(state: WizardState): CreateCampaignPayload {
       optInConfirmed: state.optInConfirmed,
     };
   }
-  const audienceFilters = buildAudienceFilters(state, "avulsa");
+  const audienceFilters = buildAudienceFilters(state);
   return {
     ...common,
     audience: state.audience,
@@ -575,7 +639,7 @@ export function buildUpdatePayload(state: WizardState): UpdateCampaignPayload {
 export function buildAutomaticPayload(
   state: WizardState,
 ): UpsertCampaignTemplatePayload {
-  const audienceFilters = buildAudienceFilters(state, "automatica");
+  const audienceFilters = buildAudienceFilters(state);
   const schedule: Partial<UpsertCampaignTemplatePayload> =
     state.scheduleKind === "WEEKLY"
       ? { weekdays: state.weekdays, sendHour: state.sendHour }
@@ -665,12 +729,27 @@ export function stepBlockers(
           "Confirme que essas pessoas aceitaram receber mensagens da Freela.",
         );
       }
-    } else if (
-      kind === "avulsa" &&
-      state.radiusCity.trim() &&
-      !inRange(state.radiusKm, 1, RADIUS_KM_MAX)
-    ) {
-      out.push("O raio vai de 1 a 2000 km.");
+    } else {
+      // Raio vale nas duas (parte 2 §2.6).
+      if (
+        state.radiusCity.trim() &&
+        !inRange(state.radiusKm, 1, RADIUS_KM_MAX)
+      ) {
+        out.push("O raio vai de 1 a 2000 km.");
+      }
+      if (
+        isContractorAudience(state.audience) &&
+        state.refineNoVacancy &&
+        !inRange(state.noVacancyDays, 1, NO_VACANCY_DAYS_MAX)
+      ) {
+        out.push("Os dias sem publicar vaga vão de 1 a 365.");
+      }
+      if (
+        state.excludeContacted &&
+        !inRange(state.contactedDays, 1, CONTACTED_DAYS_MAX)
+      ) {
+        out.push("Os dias desde a última campanha vão de 1 a 90.");
+      }
     }
   }
   if (step === 2) {
@@ -745,6 +824,10 @@ export function dispatchBlocker(
 
 // ── Resumo ───────────────────────────────────────────────────────────────────
 
+/** "no último dia" / "nos últimos 7 dias". */
+const windowLabel = (days: number) =>
+  days === 1 ? "no último dia" : `nos últimos ${days} dias`;
+
 /** "Todos os contratantes · Empresas + Casa · todas as cidades" (mockup do passo 4). */
 export function audienceSummary(state: WizardState): string {
   if (state.audience === EXTERNAL_LIST_AUDIENCE) {
@@ -768,7 +851,41 @@ export function audienceSummary(state: WizardState): string {
       state.cities.length ? state.cities.join(", ") : "todas as cidades",
     );
   }
+  const filters = buildAudienceFilters(state);
+  if (filters?.noVacancyForDays) {
+    parts.push(
+      `sem quem publicou vaga ${windowLabel(filters.noVacancyForDays)}`,
+    );
+  }
+  if (filters?.excludeHired) parts.push("sem quem já contratou");
+  if (filters?.excludeContactedWithinDays) {
+    parts.push(
+      `sem quem recebeu campanha ${windowLabel(filters.excludeContactedWithinDays)}`,
+    );
+  }
   return parts.join(" · ");
+}
+
+/** Erros de faixa dos dias do Refinar (só dos campos ligados); vazio = tudo certo. */
+export function refineDayErrors(state: WizardState): {
+  noVacancy?: string;
+  contacted?: string;
+} {
+  const out: { noVacancy?: string; contacted?: string } = {};
+  if (
+    isContractorAudience(state.audience) &&
+    state.refineNoVacancy &&
+    !inRange(state.noVacancyDays, 1, NO_VACANCY_DAYS_MAX)
+  ) {
+    out.noVacancy = `Os dias sem publicar vaga vão de 1 a ${NO_VACANCY_DAYS_MAX}.`;
+  }
+  if (
+    state.excludeContacted &&
+    !inRange(state.contactedDays, 1, CONTACTED_DAYS_MAX)
+  ) {
+    out.contacted = `Os dias desde a última campanha vão de 1 a ${CONTACTED_DAYS_MAX}.`;
+  }
+  return out;
 }
 
 /** Dias úteis para mandar `people` mensagens no ritmo (mesma conta do resumo da API). */

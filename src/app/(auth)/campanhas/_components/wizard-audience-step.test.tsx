@@ -104,6 +104,7 @@ describe("WizardAudienceStep", () => {
     );
     expect(api.previewCampaignAudience).toHaveBeenCalledWith({
       audience: "CONTRACTORS_ALL",
+      filters: { excludeContactedWithinDays: 7 },
     });
   });
 
@@ -131,6 +132,7 @@ describe("WizardAudienceStep", () => {
           cities: ["Campinas"],
           ufs: ["SP"],
           modules: ["bars-restaurants"],
+          excludeContactedWithinDays: 7,
         },
       }),
     );
@@ -153,15 +155,15 @@ describe("WizardAudienceStep", () => {
     expect(last().optInConfirmed).toBe(true);
   });
 
-  it("automática: sem planilha e sem raio; freelancer sem tipo de conta", async () => {
+  it("automática: sem planilha e com raio (parte 2); freelancer sem tipo de conta", async () => {
     renderStep("automatica");
     const options = Array.from(
       (screen.getByLabelText("Quem recebe") as HTMLSelectElement).options,
     ).map((o) => o.textContent);
     expect(options).not.toContain("Planilha (pessoas que aceitaram receber)");
     expect(
-      screen.queryByLabelText("Raio a partir de uma cidade"),
-    ).not.toBeInTheDocument();
+      screen.getByLabelText("Raio a partir de uma cidade"),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Quem recebe"), {
       target: { value: "PROVIDERS_NEVER_APPLIED" },
@@ -286,5 +288,268 @@ describe("ExternalListPicker", () => {
     expect(
       screen.getByText("1 já pediu para não receber (fica de fora)."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("WizardAudienceStep — Refinar (spec 2026-10-01 parte 2 §8.1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.getAudienceOptions.mockResolvedValue({
+      total: 425,
+      cities: [{ city: "Campinas", uf: "SP", total: 300 }],
+    });
+    api.previewCampaignAudience.mockResolvedValue({
+      total: 380,
+      byChannel: { WHATSAPP: 373, EMAIL: 7 },
+      semCoordenada: 0,
+      excludedByOptOut: 12,
+      excluded: {
+        noVacancy: 30,
+        hired: 5,
+        recentlyContacted: 10,
+        optedOut: 12,
+      },
+    });
+  });
+
+  it("contratante: os três; 'recebeu campanha' marcado com 7; a contagem mostra os excluídos por motivo", async () => {
+    renderStep();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Não mandar para quem recebeu campanha nos últimos",
+      }),
+    ).toBeChecked();
+    expect(screen.getByLabelText("Dias desde a última campanha")).toHaveValue(
+      7,
+    );
+    expect(screen.getByLabelText("Dias sem publicar vaga")).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Não publicou vaga nos últimos" }),
+    );
+    fireEvent.change(screen.getByLabelText("Dias sem publicar vaga"), {
+      target: { value: "45" },
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Tirar quem já contratou" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Contar" }));
+
+    await waitFor(() =>
+      expect(api.previewCampaignAudience).toHaveBeenLastCalledWith({
+        audience: "CONTRACTORS_ALL",
+        filters: {
+          noVacancyForDays: 45,
+          excludeHired: true,
+          excludeContactedWithinDays: 7,
+        },
+      }),
+    );
+    const excluded = await screen.findByTestId("audience-excluded");
+    expect(excluded).toHaveTextContent(
+      "−30 por ter publicado vaga nos últimos 45 dias",
+    );
+    expect(excluded).toHaveTextContent("−5 por já ter contratado");
+    expect(excluded).toHaveTextContent(
+      "−10 por ter recebido campanha nos últimos 7 dias",
+    );
+    expect(screen.getByTestId("audience-count")).toHaveTextContent(
+      "12 já pediram para não receber (ficam de fora)",
+    );
+  });
+
+  it("mexer no Refinar zera a contagem", async () => {
+    const { last } = renderStep();
+    fireEvent.click(screen.getByRole("button", { name: "Contar" }));
+    await screen.findByText("380 pessoas");
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Tirar quem já contratou" }),
+    );
+    expect(last().count).toBeNull();
+  });
+
+  it("cada campo do Refinar e o raio zeram a contagem mostrada", async () => {
+    const { last } = renderStep();
+    await screen.findByRole("option", { name: /Campinas/ });
+    const actions: Array<() => void> = [
+      () =>
+        fireEvent.click(
+          screen.getByRole("checkbox", {
+            name: "Não publicou vaga nos últimos",
+          }),
+        ),
+      () =>
+        fireEvent.change(screen.getByLabelText("Dias sem publicar vaga"), {
+          target: { value: "40" },
+        }),
+      () =>
+        fireEvent.click(
+          screen.getByRole("checkbox", { name: "Tirar quem já contratou" }),
+        ),
+      () =>
+        fireEvent.change(
+          screen.getByLabelText("Dias desde a última campanha"),
+          { target: { value: "10" } },
+        ),
+      () =>
+        fireEvent.click(
+          screen.getByRole("checkbox", {
+            name: "Não mandar para quem recebeu campanha nos últimos",
+          }),
+        ),
+      () =>
+        fireEvent.change(screen.getByLabelText("Raio a partir de uma cidade"), {
+          target: { value: "Campinas" },
+        }),
+      () =>
+        fireEvent.change(screen.getByLabelText("Raio em km"), {
+          target: { value: "80" },
+        }),
+    ];
+    for (const act of actions) {
+      fireEvent.click(screen.getByRole("button", { name: "Contar" }));
+      await waitFor(() => expect(last().count).not.toBeNull());
+      act();
+      expect(last().count).toBeNull();
+    }
+  });
+
+  it("desmarcar 'recebeu campanha' conta sem filtro", async () => {
+    renderStep();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Não mandar para quem recebeu campanha nos últimos",
+      }),
+    );
+    expect(
+      screen.getByLabelText("Dias desde a última campanha"),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Contar" }));
+    await waitFor(() =>
+      expect(api.previewCampaignAudience).toHaveBeenLastCalledWith({
+        audience: "CONTRACTORS_ALL",
+        filters: undefined,
+      }),
+    );
+  });
+
+  it("freelancer: só 'Não mandar para quem recebeu campanha…'", () => {
+    renderStep();
+    fireEvent.change(screen.getByLabelText("Quem recebe"), {
+      target: { value: "PROVIDERS_NEVER_APPLIED" },
+    });
+    expect(
+      screen.queryByRole("checkbox", { name: "Tirar quem já contratou" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "Não publicou vaga nos últimos" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Não mandar para quem recebeu campanha nos últimos",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("raio também na automática", async () => {
+    renderStep("automatica");
+    const radius = await screen.findByLabelText("Raio a partir de uma cidade");
+    await screen.findByRole("option", { name: /Campinas/ });
+    fireEvent.change(radius, { target: { value: "Campinas" } });
+    fireEvent.click(screen.getByRole("button", { name: "Contar" }));
+    await waitFor(() =>
+      expect(api.previewCampaignAudience).toHaveBeenLastCalledWith({
+        audience: "CONTRACTORS_ALL",
+        filters: {
+          radius: { city: "Campinas", km: 50 },
+          excludeContactedWithinDays: 7,
+        },
+      }),
+    );
+  });
+
+  it("planilha e rascunho travado não têm Refinar", () => {
+    renderStep();
+    fireEvent.change(screen.getByLabelText("Quem recebe"), {
+      target: { value: "EXTERNAL_LIST" },
+    });
+    expect(screen.queryByTestId("audience-refine")).not.toBeInTheDocument();
+  });
+
+  it("rascunho travado (público congelado) não tem Refinar", () => {
+    renderStep("avulsa", {}, true);
+    expect(screen.queryByTestId("audience-refine")).not.toBeInTheDocument();
+  });
+
+  it("celular: linhas do Refinar com 44 px e quebra de linha", () => {
+    renderStep();
+    const refine = screen.getByTestId("audience-refine");
+    for (const row of Array.from(
+      refine.querySelectorAll("[data-refine-row]"),
+    )) {
+      expect(row).toHaveClass("min-h-11", "flex-wrap");
+    }
+    expect(screen.getByLabelText("Dias desde a última campanha")).toHaveClass(
+      "min-h-11",
+    );
+    expect(screen.getByLabelText("Dias sem publicar vaga")).toHaveClass(
+      "min-h-11",
+    );
+  });
+
+  it("dia fora da faixa: erro embaixo do campo, aria-invalid e Contar desabilitado", () => {
+    renderStep("avulsa", { excludeContacted: true, contactedDays: 120 });
+    const input = screen.getByLabelText("Dias desde a última campanha");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    const error = document.getElementById(
+      input.getAttribute("aria-describedby") ?? "",
+    );
+    expect(error).toHaveTextContent(
+      "Os dias desde a última campanha vão de 1 a 90.",
+    );
+    expect(screen.getByRole("button", { name: "Contar" })).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: "30" } });
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByRole("button", { name: "Contar" })).toBeEnabled();
+  });
+
+  it("dias sem vaga inválidos também travam o Contar", () => {
+    renderStep("avulsa", { refineNoVacancy: true, noVacancyDays: 0 });
+    const input = screen.getByLabelText("Dias sem publicar vaga");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(
+      document.getElementById(input.getAttribute("aria-describedby") ?? ""),
+    ).toHaveTextContent("Os dias sem publicar vaga vão de 1 a 365.");
+    expect(screen.getByRole("button", { name: "Contar" })).toBeDisabled();
+  });
+
+  it("automática: a contagem aparece como aproximada, por execução", async () => {
+    api.previewCampaignAudience.mockResolvedValue({
+      total: 412,
+      byChannel: { WHATSAPP: 400, EMAIL: 12 },
+      semCoordenada: 0,
+      excludedByOptOut: 0,
+    });
+    renderStep("automatica");
+    fireEvent.click(screen.getByRole("button", { name: "Contar" }));
+    const count = await screen.findByTestId("audience-count");
+    await waitFor(() =>
+      expect(count).toHaveTextContent("≈ 412 pessoas por execução (aprox.)"),
+    );
+  });
+
+  it("avulsa: a contagem não é aproximada", async () => {
+    api.previewCampaignAudience.mockResolvedValue({
+      total: 425,
+      byChannel: { WHATSAPP: 418, EMAIL: 7 },
+      semCoordenada: 0,
+      excludedByOptOut: 12,
+    });
+    renderStep("avulsa");
+    fireEvent.click(screen.getByRole("button", { name: "Contar" }));
+    const count = await screen.findByTestId("audience-count");
+    await waitFor(() => expect(count).toHaveTextContent("425 pessoas"));
+    expect(count).not.toHaveTextContent("aprox.");
   });
 });

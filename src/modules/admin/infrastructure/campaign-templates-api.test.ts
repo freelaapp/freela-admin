@@ -16,6 +16,7 @@ vi.mock("@/modules/shared/infrastructure/authed-client", () => ({
 import {
   createCampaignTemplate,
   getCampaignTemplate,
+  listCampaignTemplateRuns,
   listCampaignTemplates,
   setCampaignTemplateEnabled,
   updateCampaignTemplate,
@@ -135,5 +136,16 @@ describe("uploadCampaignTemplateImage", () => {
     expect(body.get("file")).toBe(file);
     expect(config).toEqual({ headers: { "Content-Type": "multipart/form-data" } });
     expect(result).toEqual(upload);
+  });
+});
+
+describe("listCampaignTemplateRuns (spec 2026-10-01 parte 2 §7)", () => {
+  it("GET /campaign-templates/:id/runs com page e pageSize", async () => {
+    const page = { total: 23, page: 2, pageSize: 20, items: [] };
+    get.mockResolvedValue({ data: { data: page } });
+    expect(await listCampaignTemplateRuns("auto-1", { page: 2, pageSize: 20 })).toEqual(page);
+    expect(get).toHaveBeenCalledWith("/campaign-templates/auto-1/runs", {
+      params: { page: 2, pageSize: 20 },
+    });
   });
 });

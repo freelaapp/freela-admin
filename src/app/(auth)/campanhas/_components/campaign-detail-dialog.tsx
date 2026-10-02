@@ -19,6 +19,7 @@ import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatInstantDateTime } from "@/lib/date.utils";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
@@ -35,6 +36,7 @@ import {
   type RecipientStatus,
 } from "@/modules/admin/infrastructure/referrals-api";
 import { CampaignStatusBadge } from "./campaign-status-badge";
+import { CampaignResultsPanel } from "./campaign-results-panel";
 import { MarketingStatusBadge } from "./marketing-status-badge";
 
 const PAGE_SIZE = 50;
@@ -55,6 +57,9 @@ const ROLE_LABEL: Record<string, string> = {
   BOTH: "freelancer e contratante",
   UNKNOWN: "conta",
 };
+
+/** Abas do detalhe (spec 2026-10-01 parte 2 §8.3): Resultados no topo. */
+type DetailTab = "resultados" | "destinatarios";
 
 type TriState = "" | "yes" | "no";
 
@@ -261,6 +266,8 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  // `null` = automático: Resultados quando a campanha já começou; senão, Destinatários.
+  const [tab, setTab] = useState<DetailTab | null>(null);
 
   // Busca com atraso: cada tecla seria uma chamada à API.
   useEffect(() => {
@@ -281,6 +288,7 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
     setSearch("");
     setQ("");
     setPage(1);
+    setTab(null);
   }, [campaignId]);
 
   const running = detail.data?.campaign.status === "RUNNING";
@@ -308,6 +316,7 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
   const startedBy = detail.data?.startedBy ?? campaign?.startedBy;
   const isExternal = campaign?.audience === "EXTERNAL_LIST";
   const finished = campaign?.status === "CANCELLED";
+  const activeTab: DetailTab = tab ?? (campaign?.startedAt ? "resultados" : "destinatarios");
 
   const handleExport = async () => {
     if (!campaignId) return;
@@ -360,6 +369,30 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
       accessor: (row: CampaignRecipient) => (
         <span className="text-xs tabular-nums">
           {row.sentAt ? formatInstantDateTime(row.sentAt) : "—"}
+        </span>
+      ),
+    },
+    {
+      header: "Entregue em",
+      accessor: (row: CampaignRecipient) => (
+        <span className="text-xs tabular-nums">
+          {row.deliveredAt ? formatInstantDateTime(row.deliveredAt) : "—"}
+        </span>
+      ),
+    },
+    {
+      header: "Lido em",
+      accessor: (row: CampaignRecipient) => (
+        <span className="text-xs tabular-nums">
+          {row.readAt ? formatInstantDateTime(row.readAt) : "—"}
+        </span>
+      ),
+    },
+    {
+      header: "Clicou (vezes)",
+      accessor: (row: CampaignRecipient) => (
+        <span className="text-xs tabular-nums">
+          {row.clickCount && row.clickCount > 0 ? String(row.clickCount) : "—"}
         </span>
       ),
     },
@@ -458,6 +491,19 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
           </div>
         </DialogHeader>
 
+        <Tabs value={activeTab} onValueChange={(value) => setTab(value as DetailTab)}>
+          <TabsList className="mb-1 flex h-auto w-full sm:inline-flex sm:w-auto">
+            <TabsTrigger value="resultados" className="min-h-11 flex-1 sm:flex-none">
+              Resultados
+            </TabsTrigger>
+            <TabsTrigger value="destinatarios" className="min-h-11 flex-1 sm:flex-none">
+              Destinatários
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="resultados">
+            {campaignId && <CampaignResultsPanel campaignId={campaignId} running={running} />}
+          </TabsContent>
+          <TabsContent value="destinatarios" className="space-y-3">
         {counts && (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" data-testid="detail-counts">
             <CountCard icon={Users} label="Total" value={counts.total} />
@@ -575,6 +621,13 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
             esta audiência.
           </p>
         )}
+          </TabsContent>
+        </Tabs>
+        <div className="mt-4 flex justify-end">
+          <Button type="button" variant="outline" className="min-h-11" onClick={onClose}>
+            Fechar
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Loader2, Pause, Pencil, Play, Plus } from "lucide-react";
+import { AlertTriangle, History, Loader2, Pause, Pencil, Play, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatInstantDateTime } from "@/lib/date.utils";
+import { CampaignDetailDialog } from "@/app/(auth)/campanhas/_components/campaign-detail-dialog";
+import { lastRunSummary } from "@/app/(auth)/campanhas/_lib/campaign-results";
 import { CampaignWizard } from "@/app/(auth)/campanhas/_components/campaign-wizard";
 import { MarketingStatusBadge } from "@/app/(auth)/campanhas/_components/marketing-status-badge";
 import { MarketingTemplatesTab } from "@/app/(auth)/campanhas/_components/marketing-templates-tab";
@@ -22,6 +23,7 @@ import type {
   CampaignChannel,
   CampaignTemplate,
 } from "@/modules/admin/infrastructure/campaign-templates-api";
+import { AutomaticRunsDialog } from "./_components/automatic-runs-dialog";
 import { describeSchedule } from "./_lib/describe-schedule";
 
 const CHANNEL_LABELS: Record<CampaignChannel, string> = {
@@ -52,6 +54,10 @@ export default function CampanhasAutomaticasPage() {
   const setEnabled = useSetCampaignTemplateEnabled();
   const [tab, setTab] = useState<PageTab>("automaticas");
   const [wizard, setWizard] = useState<WizardRequest>({ open: false });
+  // Parte 2 (spec 2026-10-01 parte 2 §8.5): histórico e o detalhe de uma execução.
+  const [history, setHistory] = useState<CampaignTemplate | null>(null);
+  const [runDetailId, setRunDetailId] = useState<string | null>(null);
+
 
   if (isChecking || !allowed) {
     return (
@@ -140,8 +146,17 @@ export default function CampanhasAutomaticasPage() {
       ),
     },
     {
-      header: "Último run",
-      accessor: (row: CampaignTemplate) => (row.lastRunAt ? formatInstantDateTime(row.lastRunAt) : "—"),
+      header: "Última execução",
+      accessor: (row: CampaignTemplate) => (
+        <div className="flex flex-col items-start gap-1 text-xs">
+          <span className="text-[#737373]" data-testid={`last-run-${row.id}`}>
+            {lastRunSummary(row.lastRun)}
+          </span>
+          <Button size="sm" variant="outline" className="min-h-11" onClick={() => setHistory(row)}>
+            <History className="mr-1 h-3.5 w-3.5" aria-hidden /> Ver histórico
+          </Button>
+        </div>
+      ),
       sortable: true,
       sortAccessor: (row: CampaignTemplate) => row.lastRunAt,
     },
@@ -245,6 +260,15 @@ export default function CampanhasAutomaticasPage() {
           onDone={() => setTab("automaticas")}
         />
       )}
+      <AutomaticRunsDialog
+        template={history}
+        onClose={() => setHistory(null)}
+        onOpenRun={(id) => {
+          setHistory(null);
+          setRunDetailId(id);
+        }}
+      />
+      <CampaignDetailDialog campaignId={runDetailId} onClose={() => setRunDetailId(null)} />
     </div>
   );
 }

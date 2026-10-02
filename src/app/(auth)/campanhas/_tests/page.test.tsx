@@ -250,3 +250,46 @@ describe("CampanhasPage", () => {
     expect(screen.getByRole("button", { name: "Modelos" })).toHaveClass("min-h-11");
   });
 });
+
+describe("CampanhasPage — números na lista (spec 2026-10-01 parte 2 §8.4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    nav.search = "";
+    api.getAudienceOptions.mockResolvedValue({ total: 0, cities: [] });
+    mkt.listMarketingTemplates.mockResolvedValue([template()]);
+  });
+
+  it("colunas Entregues, Lidos, Cliques e Custo", async () => {
+    api.getCampaigns.mockResolvedValue({
+      data: [row({ status: "RUNNING", delivered: 180, read: 120, clicked: 30, costBrl: 63 })],
+      schedulerEnabled: true,
+    });
+    renderPage();
+    for (const header of ["Entregues", "Lidos", "Cliques", "Custo"]) {
+      expect((await screen.findAllByText(header)).length).toBeGreaterThan(0);
+    }
+    expect(screen.getAllByTestId("campaign-delivered-camp-1")[0]).toHaveTextContent("180");
+    expect(screen.getAllByText("120").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("R$ 63,00").length).toBeGreaterThan(0);
+  });
+
+  it("API antiga, sem os números: '—'", async () => {
+    api.getCampaigns.mockResolvedValue({ data: [row()], schedulerEnabled: true });
+    renderPage();
+    await screen.findAllByText("Campanha Rebeca");
+    expect(screen.getAllByTestId("campaign-delivered-camp-1")[0]).toHaveTextContent("—");
+    expect(screen.getAllByTestId("campaign-cost-camp-1")[0]).toHaveTextContent("—");
+  });
+
+  it("campanha sem rastreio (números null): '—' em vez de 0 e R$ 0,00", async () => {
+    api.getCampaigns.mockResolvedValue({
+      data: [row({ delivered: null, read: null, clicked: null, costBrl: null })],
+      schedulerEnabled: true,
+    });
+    renderPage();
+    await screen.findAllByText("Campanha Rebeca");
+    expect(screen.getAllByTestId("campaign-delivered-camp-1")[0]).toHaveTextContent("—");
+    expect(screen.getAllByTestId("campaign-cost-camp-1")[0]).toHaveTextContent("—");
+    expect(screen.queryByText("R$ 0,00")).not.toBeInTheDocument();
+  });
+});

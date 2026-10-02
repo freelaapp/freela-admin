@@ -36,6 +36,7 @@ import {
   STEP_LABELS,
   WIZARD_STEPS,
   buildAudienceFilters,
+  countFromPreview,
   buildAutomaticPayload,
   buildCreatePayload,
   buildUpdatePayload,
@@ -247,17 +248,9 @@ export function CampaignWizard({
       try {
         const res = await previewAudience.mutateAsync({
           audience: state.audience as BaseAudience,
-          filters: buildAudienceFilters(state, "automatica"),
+          filters: buildAudienceFilters(state),
         });
-        patch({
-          count: {
-            total: res.total,
-            whatsapp: res.byChannel.WHATSAPP,
-            email: res.byChannel.EMAIL,
-            excludedByOptOut: res.excludedByOptOut ?? 0,
-            semCoordenada: res.semCoordenada ?? 0,
-          },
-        });
+        patch({ count: countFromPreview(res) });
       } catch (err) {
         toast.error(
           getAxiosErrorMessage(
