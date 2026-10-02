@@ -22,6 +22,7 @@ import {
   audienceLabel,
   audienceOptionsFor,
   buildAudienceFilters,
+  countFromPreview,
   changeAudience,
   isContractorAudience,
   stepBlockers,
@@ -82,17 +83,9 @@ export function WizardAudienceStep({
     try {
       const res = await previewAudience.mutateAsync({
         audience: state.audience as BaseAudience,
-        filters: buildAudienceFilters(state, kind),
+        filters: buildAudienceFilters(state),
       });
-      onChange({
-        count: {
-          total: res.total,
-          whatsapp: res.byChannel.WHATSAPP,
-          email: res.byChannel.EMAIL,
-          excludedByOptOut: res.excludedByOptOut ?? 0,
-          semCoordenada: res.semCoordenada ?? 0,
-        },
-      });
+      onChange({ count: countFromPreview(res) });
     } catch (error) {
       toast.error(
         getAxiosErrorMessage(error, "Não foi possível contar o público."),

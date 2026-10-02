@@ -104,6 +104,7 @@ describe("WizardAudienceStep", () => {
     );
     expect(api.previewCampaignAudience).toHaveBeenCalledWith({
       audience: "CONTRACTORS_ALL",
+      filters: { excludeContactedWithinDays: 7 },
     });
   });
 
@@ -131,6 +132,7 @@ describe("WizardAudienceStep", () => {
           cities: ["Campinas"],
           ufs: ["SP"],
           modules: ["bars-restaurants"],
+          excludeContactedWithinDays: 7,
         },
       }),
     );

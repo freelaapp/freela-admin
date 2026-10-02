@@ -13,6 +13,7 @@ import {
   buildAutomaticPayload,
   buildCreatePayload,
   buildUpdatePayload,
+  countFromPreview,
   changeAudience,
   daysLabel,
   defaultScheduleAt,
@@ -199,6 +200,7 @@ describe("corpos da API", () => {
         cities: ["Campinas"],
         ufs: ["SP"],
         modules: ["bars-restaurants"],
+        excludeContactedWithinDays: 7,
       },
       marketingTemplateId: "tpl-1",
       replyText: "Obrigado!",
@@ -225,6 +227,7 @@ describe("corpos da API", () => {
     const payload = buildCreatePayload(s);
     expect(payload.audienceFilters).toEqual({
       radius: { city: "Jundiaí", km: 100 },
+      excludeContactedWithinDays: 7,
     });
     expect(payload.replyText).toBeNull();
     expect(payload.replyAlertEmail).toBeNull();
@@ -299,7 +302,7 @@ describe("corpos da API", () => {
       weekdays: [5],
       sendHour: 10,
       audience: "CONTRACTORS_ALL",
-      audienceFilters: { cities: ["Jundiaí"] },
+      audienceFilters: { cities: ["Jundiaí"], excludeContactedWithinDays: 7 },
       channels: ["WHATSAPP"],
       marketingTemplateId: "mkt-1",
       replyText: null,
@@ -334,7 +337,7 @@ describe("corpos da API", () => {
     expect(pushOnly).not.toHaveProperty("replyText");
   });
 
-  it("automática por data: ano só sem 'repetir todo ano'; raio nunca vai (a API não aceita)", () => {
+  it("automática por data: ano só sem 'repetir todo ano'; raio vai também na automática (parte 2)", () => {
     const s: WizardState = {
       ...automatica(),
       name: "Dia das mães",
@@ -359,7 +362,10 @@ describe("corpos da API", () => {
     });
     expect(payload.targetYear).toBeUndefined();
     expect(payload).not.toHaveProperty("weekdays");
-    expect(payload.audienceFilters).toBeUndefined();
+    expect(payload.audienceFilters).toEqual({
+      radius: { city: "Campinas", km: 30 },
+      excludeContactedWithinDays: 7,
+    });
     expect(
       buildAutomaticPayload({ ...s, repeatsAnnually: false }).targetYear,
     ).toBe(2027);
@@ -806,5 +812,215 @@ describe("decisões da revisão", () => {
     expect(defaultScheduleAt(new Date("2026-10-02T02:30:00.000Z"))).toBe(
       "2026-10-02T10:00",
     );
+  });
+});
+
+describe("Refinar (spec 2026-10-01 parte 2 §3/§8)", () => {
+  it("padrão: só 'não mandar para quem recebeu campanha nos últimos 7 dias' vem marcado", () => {
+    const s = initialWizardState("avulsa", { adminEmail: ADMIN, now: NOW });
+    expect(s).toMatchObject({
+      refineNoVacancy: false,
+      noVacancyDays: 30,
+      excludeHired: false,
+      excludeContacted: true,
+      contactedDays: 7,
+    });
+    expect(
+      buildCreatePayload({ ...s, name: "x", marketingTemplateId: "tpl-1" })
+        .audienceFilters,
+    ).toEqual({ excludeContactedWithinDays: 7 });
+  });
+
+  it("contratante: sem vaga há N dias, tirar quem contratou e recebeu campanha", () => {
+    const s: WizardState = {
+      ...initialWizardState("avulsa", { adminEmail: ADMIN, now: NOW }),
+      name: "x",
+      marketingTemplateId: "tpl-1",
+      refineNoVacancy: true,
+      noVacancyDays: 45,
+      excludeHired: true,
+      contactedDays: 14,
+    };
+    expect(buildCreatePayload(s).audienceFilters).toEqual({
+      noVacancyForDays: 45,
+      excludeHired: true,
+      excludeContactedWithinDays: 14,
+    });
+  });
+
+  it("freelancer: 'sem vaga' e 'já contratou' não vão nem marcados", () => {
+    const s: WizardState = {
+      ...changeAudience(
+        initialWizardState("avulsa", { adminEmail: ADMIN, now: NOW }),
+        "PROVIDERS_NEVER_APPLIED",
+      ),
+      name: "x",
+      marketingTemplateId: "tpl-1",
+      refineNoVacancy: true,
+      excludeHired: true,
+    };
+    expect(buildCreatePayload(s).audienceFilters).toEqual({
+      excludeContactedWithinDays: 7,
+    });
+  });
+
+  it("desmarcar tudo: sem filtro nenhum", () => {
+    const s: WizardState = {
+      ...initialWizardState("avulsa", { adminEmail: ADMIN, now: NOW }),
+      name: "x",
+      marketingTemplateId: "tpl-1",
+      excludeContacted: false,
+    };
+    expect(buildCreatePayload(s).audienceFilters).toBeUndefined();
+  });
+
+  it("automática: raio e refinamentos vão no corpo e voltam ao editar", () => {
+    const s: WizardState = {
+      ...initialWizardState("automatica", {
+        adminEmail: ADMIN,
+        marketingTemplateId: "mkt-1",
+        now: NOW,
+      }),
+      name: "Sextou",
+      weekdays: [5],
+      radiusCity: "Jundiaí",
+      radiusKm: 30,
+      refineNoVacancy: true,
+      noVacancyDays: 30,
+    };
+    const payload = buildAutomaticPayload(s);
+    expect(payload.audienceFilters).toEqual({
+      radius: { city: "Jundiaí", km: 30 },
+      noVacancyForDays: 30,
+      excludeContactedWithinDays: 7,
+    });
+    const back = stateFromAutomatic(
+      {
+        id: "auto-1",
+        name: "Sextou",
+        scheduleKind: "WEEKLY",
+        weekdays: [5],
+        sendHour: 9,
+        audience: "CONTRACTORS_ALL",
+        audienceFilters: payload.audienceFilters,
+        channels: ["WHATSAPP"],
+        marketingTemplateId: "mkt-1",
+        enabled: false,
+        lastRunFor: null,
+        lastRunAt: null,
+        createdAt: "2026-09-01T00:00:00.000Z",
+      },
+      ADMIN,
+      NOW,
+    );
+    expect(back).toMatchObject({
+      radiusCity: "Jundiaí",
+      radiusKm: 30,
+      refineNoVacancy: true,
+      noVacancyDays: 30,
+      excludeHired: false,
+      excludeContacted: true,
+      contactedDays: 7,
+    });
+  });
+
+  it("automática salva antes da parte 2 (sem refinamento) volta com 'recebeu campanha' desmarcado", () => {
+    const back = stateFromAutomatic(
+      {
+        id: "auto-1",
+        name: "Antiga",
+        scheduleKind: "WEEKLY",
+        weekdays: [1],
+        sendHour: 9,
+        audience: "CONTRACTORS_ALL",
+        audienceFilters: { cities: ["Campinas"] },
+        channels: ["PUSH"],
+        pushTitle: "a",
+        pushBody: "b",
+        enabled: true,
+        lastRunFor: null,
+        lastRunAt: null,
+        createdAt: "2026-09-01T00:00:00.000Z",
+      },
+      ADMIN,
+      NOW,
+    );
+    expect(back.excludeContacted).toBe(false);
+    expect(buildAutomaticPayload(back).audienceFilters).toEqual({
+      cities: ["Campinas"],
+    });
+  });
+
+  it("travas do passo 1: dias fora da faixa e raio também na automática", () => {
+    const base = {
+      ...initialWizardState("automatica", { adminEmail: ADMIN, now: NOW }),
+      name: "Sextou",
+    };
+    expect(
+      stepBlockers(
+        { ...base, radiusCity: "Jundiaí", radiusKm: 0 },
+        1,
+        "automatica",
+        NOW,
+      ),
+    ).toEqual(["O raio vai de 1 a 2000 km."]);
+    expect(
+      stepBlockers(
+        { ...base, refineNoVacancy: true, noVacancyDays: 366 },
+        1,
+        "automatica",
+        NOW,
+      ),
+    ).toEqual(["Os dias sem publicar vaga vão de 1 a 365."]);
+    expect(
+      stepBlockers({ ...base, contactedDays: 0 }, 1, "automatica", NOW),
+    ).toEqual(["Os dias desde a última campanha vão de 1 a 90."]);
+    // Desmarcado, o número não trava.
+    expect(
+      stepBlockers(
+        { ...base, excludeContacted: false, contactedDays: 0 },
+        1,
+        "automatica",
+        NOW,
+      ),
+    ).toEqual([]);
+  });
+
+  it("contagem da API vira AudienceCount com os excluídos", () => {
+    expect(
+      countFromPreview({
+        total: 380,
+        byChannel: { WHATSAPP: 373, EMAIL: 7 },
+        semCoordenada: 2,
+        excludedByOptOut: 12,
+        excluded: {
+          noVacancy: 30,
+          hired: 5,
+          recentlyContacted: 10,
+          optedOut: 12,
+        },
+      }),
+    ).toEqual({
+      total: 380,
+      whatsapp: 373,
+      email: 7,
+      excludedByOptOut: 12,
+      semCoordenada: 2,
+      excluded: {
+        noVacancy: 30,
+        hired: 5,
+        recentlyContacted: 10,
+        optedOut: 12,
+      },
+    });
+    expect(
+      countFromPreview({ total: 1, byChannel: { WHATSAPP: 1, EMAIL: 0 } }),
+    ).toEqual({
+      total: 1,
+      whatsapp: 1,
+      email: 0,
+      excludedByOptOut: 0,
+      semCoordenada: 0,
+    });
   });
 });
