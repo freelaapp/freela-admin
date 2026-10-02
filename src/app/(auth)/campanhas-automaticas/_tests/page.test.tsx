@@ -18,6 +18,7 @@ const api = vi.hoisted(() => ({
   listCampaignTemplates: vi.fn(),
   setCampaignTemplateEnabled: vi.fn(),
   updateCampaignTemplate: vi.fn(),
+  listCampaignTemplateRuns: vi.fn(),
 }));
 vi.mock("@/modules/admin/infrastructure/campaign-templates-api", async (orig) => ({
   ...(await orig<object>()),
@@ -28,7 +29,13 @@ vi.mock("@/modules/admin/infrastructure/marketing-templates-api", async (orig) =
   ...(await orig<object>()),
   ...mkt,
 }));
-const ref = vi.hoisted(() => ({ getAudienceOptions: vi.fn(), previewCampaignAudience: vi.fn() }));
+const ref = vi.hoisted(() => ({
+  getAudienceOptions: vi.fn(),
+  previewCampaignAudience: vi.fn(),
+  getCampaign: vi.fn(),
+  getCampaignRecipients: vi.fn(),
+  getCampaignResults: vi.fn(),
+}));
 vi.mock("@/modules/admin/infrastructure/referrals-api", async (orig) => ({
   ...(await orig<object>()),
   ...ref,
@@ -265,5 +272,126 @@ describe("CampanhasAutomaticasPage", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Continuar" }));
       expect(await screen.findByRole("button", { name: "Salvar alterações" })).toBeInTheDocument();
     });
+  });
+});
+
+describe("CampanhasAutomaticasPage — última execução e histórico (spec 2026-10-01 parte 2 §8.5)", () => {
+  const lastRun = {
+    id: "w-2",
+    occurrence: "2026-10-02",
+    channel: "WHATSAPP" as const,
+    status: "COMPLETED" as const,
+    startedAt: "2026-10-02T12:00:00.000Z",
+    sent: 190,
+    delivered: 180,
+    read: 120,
+    clicked: 30,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.listCampaignTemplates.mockResolvedValue({
+      data: [{ ...reativacao, lastRun }],
+      meta: { schedulerEnabled: true, templatesSchedulerEnabled: true },
+    });
+    mkt.listMarketingTemplates.mockResolvedValue([approved()]);
+    ref.getAudienceOptions.mockResolvedValue({ total: 0, cities: [] });
+    api.listCampaignTemplateRuns.mockResolvedValue({
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      items: [
+        {
+          id: "w-2",
+          name: "Reativação — 2026-10-02",
+          occurrence: "2026-10-02",
+          channel: "WHATSAPP",
+          status: "COMPLETED",
+          startedAt: "2026-10-02T12:00:00.000Z",
+          completedAt: "2026-10-02T20:00:00.000Z",
+          createdAt: "2026-10-02T12:00:00.000Z",
+          recipients: 200,
+          sent: 190,
+          delivered: 180,
+          read: 120,
+          clicked: 30,
+          clicks: 41,
+          optedOut: 2,
+          replied: 5,
+          billable: 180,
+          costBrl: 63,
+          signups: 3,
+          publishedVacancy: 4,
+          hired: 1,
+          rates: { deliveredRate: 0.9474, readRate: 0.6667, clickRate: 0.1667 },
+        },
+      ],
+    });
+    ref.getCampaign.mockResolvedValue({
+      campaign: {
+        id: "w-2",
+        name: "Reativação — 2026-10-02",
+        status: "COMPLETED",
+        audience: "CONTRACTORS_ALL",
+        audienceNote: null,
+        messagesPerHour: 60,
+        dailyCap: 200,
+        windowStartHour: 9,
+        windowEndHour: 18,
+        weekdaysOnly: true,
+        nextSendAt: null,
+        createdAt: "2026-10-02T12:00:00.000Z",
+        startedAt: "2026-10-02T12:00:00.000Z",
+        completedAt: "2026-10-02T20:00:00.000Z",
+      },
+      stats: { PENDING: 0, SENT: 190, FAILED: 0, SKIPPED: 10 },
+      byChannel: { WHATSAPP: 200, EMAIL: 0 },
+      total: 200,
+      estimate: { perDay: 200, days: 0 },
+    });
+    ref.getCampaignRecipients.mockResolvedValue({ total: 0, page: 1, pageSize: 50, items: [] });
+    ref.getCampaignResults.mockResolvedValue({
+      recipients: 200,
+      sent: 190,
+      delivered: 180,
+      read: 120,
+      clicked: 30,
+      clicks: 41,
+      optedOut: 2,
+      replied: 5,
+      billable: 180,
+      costBrl: 63,
+      signups: 3,
+      publishedVacancy: 4,
+      hired: 1,
+      rates: { deliveredRate: 0.9474, readRate: 0.6667, clickRate: 0.1667 },
+      notReceived: [],
+      clickTracking: true,
+      pricePerMessageBrl: 0.35,
+    });
+  });
+
+  it("a lista mostra a última execução com entregues, lidos e cliques", async () => {
+    renderPage();
+    expect((await screen.findAllByTestId("last-run-t-reativacao"))[0]).toHaveTextContent(
+      "02/10/2026 · 180 entregues · 120 lidos · 30 cliques",
+    );
+    expect(screen.getAllByText("Última execução").length).toBeGreaterThan(0);
+  });
+
+  it("Ver histórico abre as execuções; Ver detalhe abre o detalhe da execução", async () => {
+    renderPage();
+    fireEvent.click((await screen.findAllByRole("button", { name: "Ver histórico" }))[0]);
+    expect(await screen.findByRole("heading", { name: "Histórico — Reativação" })).toBeInTheDocument();
+    fireEvent.click((await screen.findAllByRole("button", { name: "Ver detalhe" }))[0]);
+    await waitFor(() => expect(ref.getCampaign).toHaveBeenCalledWith("w-2"));
+    expect(screen.queryByRole("heading", { name: "Histórico — Reativação" })).not.toBeInTheDocument();
+  });
+
+  it("celular: Ver histórico com 44 px", async () => {
+    renderPage();
+    for (const button of await screen.findAllByRole("button", { name: "Ver histórico" })) {
+      expect(button).toHaveClass("min-h-11");
+    }
   });
 });
