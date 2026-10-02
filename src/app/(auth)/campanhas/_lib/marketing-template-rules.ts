@@ -61,6 +61,8 @@ export interface DraftButton {
   type: "URL" | "PHONE";
   text: string;
   value: string;
+  /** Só no link: "Contar cliques" (parte 2). Botão de link novo nasce com `true`. */
+  track?: boolean;
 }
 
 export type PreviewButton = {
@@ -238,12 +240,18 @@ export function validateMarketingButtons(
 export function toApiButtons(
   buttons: DraftButton[],
 ): Array<
-  | { type: "URL"; text: string; url: string }
+  | { type: "URL"; text: string; url: string; track?: boolean }
   | { type: "PHONE"; text: string; phone: string }
 > {
   return buttons.map((b) =>
     b.type === "URL"
-      ? { type: "URL" as const, text: b.text.trim(), url: b.value.trim() }
+      ? {
+          type: "URL" as const,
+          text: b.text.trim(),
+          url: b.value.trim(),
+          // Sem o campo, a API mantém o link fixo da parte 1.
+          ...(b.track === undefined ? {} : { track: b.track }),
+        }
       : { type: "PHONE" as const, text: b.text.trim(), phone: b.value.trim() },
   );
 }
@@ -251,7 +259,12 @@ export function toApiButtons(
 export function fromApiButtons(buttons: MarketingButton[]): DraftButton[] {
   return buttons.map((b) =>
     b.type === "URL"
-      ? { type: "URL" as const, text: b.text, value: b.url }
+      ? {
+          type: "URL" as const,
+          text: b.text,
+          value: b.url,
+          ...(b.track ? { track: true } : {}),
+        }
       : { type: "PHONE" as const, text: b.text, value: b.phone },
   );
 }
