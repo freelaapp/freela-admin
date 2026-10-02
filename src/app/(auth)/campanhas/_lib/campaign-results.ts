@@ -18,7 +18,7 @@ export const MINUS = "−";
 export function formatPercent(rate: number | null | undefined): string {
   const value = Number(rate);
   if (!Number.isFinite(value) || value <= 0) return "0%";
-  return `${Math.round(value * 100)}%`;
+  return `${Math.min(100, Math.round(value * 100))}%`;
 }
 
 /** "R$ 63,00" (custo com centavos). */

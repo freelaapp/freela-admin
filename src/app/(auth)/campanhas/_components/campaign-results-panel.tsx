@@ -65,44 +65,60 @@ export function CampaignResultsPanel({ campaignId, running = false }: Props) {
   }
 
   const data = results.data;
+  const tracked = data.deliveryTracked !== false;
   return (
     <div className="space-y-5" data-testid="results-panel">
-      <div
-        className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
-        data-testid="results-funnel"
-      >
-        {funnelSteps(data).map((step) => (
-          <Card
-            key={step.key}
-            className="flex min-w-0 flex-col gap-1 p-3"
-            data-testid={`funnel-${step.key}`}
+      {!tracked ? (
+        <p
+          className="rounded-md bg-neutral-50 px-3 py-2 text-sm text-[#737373]"
+          data-testid="results-untracked"
+        >
+          Esta campanha não foi enviada pela API oficial do WhatsApp; entrega,
+          leitura e cliques não são medidos.
+        </p>
+      ) : (
+        <>
+          <div
+            className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4"
+            data-testid="results-funnel"
           >
-            <span className="text-xs font-medium text-[#737373]">
-              {step.label}
-            </span>
-            <span className="text-2xl font-bold tabular-nums text-[#1d1d1b]">
-              {step.value ?? "—"}
-            </span>
-            <span className="text-xs text-[#737373]">
-              {step.percent ? `${step.percent} ${step.hint}` : step.hint}
-            </span>
-            <div className="h-1.5 w-full rounded bg-neutral-100" aria-hidden>
-              <div
-                className="h-1.5 rounded bg-[#eca826]"
-                style={{
-                  width: `${
-                    step.key === "sent"
-                      ? data.sent > 0
-                        ? 100
-                        : 0
-                      : barWidth(step.value, data.sent)
-                  }%`,
-                }}
-              />
-            </div>
-          </Card>
-        ))}
-      </div>
+            {funnelSteps(data).map((step) => (
+              <Card
+                key={step.key}
+                className="flex min-w-0 flex-col gap-1 p-3"
+                data-testid={`funnel-${step.key}`}
+              >
+                <span className="text-xs font-medium text-[#737373]">
+                  {step.label}
+                </span>
+                <span className="text-2xl font-bold tabular-nums text-[#1d1d1b]">
+                  {step.value ?? "—"}
+                </span>
+                <span className="text-xs text-[#737373]">
+                  {step.percent ? `${step.percent} ${step.hint}` : step.hint}
+                </span>
+                <div
+                  className="h-1.5 w-full rounded bg-neutral-100"
+                  aria-hidden
+                >
+                  <div
+                    className="h-1.5 rounded bg-[#eca826]"
+                    style={{
+                      width: `${
+                        step.key === "sent"
+                          ? data.sent > 0
+                            ? 100
+                            : 0
+                          : barWidth(step.value, data.sent)
+                      }%`,
+                    }}
+                  />
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
 
       <div
         className="grid grid-cols-1 gap-2 sm:grid-cols-3"
@@ -118,11 +134,13 @@ export function CampaignResultsPanel({ campaignId, running = false }: Props) {
           value={data.replied}
           hint="escreveram de volta"
         />
-        <Stat
-          label="Custo estimado"
-          value={formatCost(data.costBrl)}
-          hint={`${data.billable} cobradas × ${formatCost(data.pricePerMessageBrl)}`}
-        />
+        {tracked && (
+          <Stat
+            label="Custo estimado"
+            value={formatCost(data.costBrl)}
+            hint={`${data.billable} cobradas × ${formatCost(data.pricePerMessageBrl)}`}
+          />
+        )}
       </div>
 
       <section className="space-y-2" data-testid="results-after">
@@ -137,7 +155,7 @@ export function CampaignResultsPanel({ campaignId, running = false }: Props) {
           <Stat
             label="Cadastros"
             value={data.signups}
-            hint="de quem veio pela campanha"
+            hint="atribuídos à campanha (até 30 dias depois do envio)"
           />
           <Stat
             label="Vagas publicadas"

@@ -23,6 +23,8 @@ describe("números dos resultados (spec 2026-10-01 parte 2 §6/§8)", () => {
   it("porcentagem inteira; zero, NaN e negativo viram 0%", () => {
     expect(formatPercent(0.9474)).toBe("95%");
     expect(formatPercent(0.1667)).toBe("17%");
+    expect(formatPercent(1.05)).toBe("100%");
+    expect(formatPercent(7)).toBe("100%");
     expect(formatPercent(0)).toBe("0%");
     expect(formatPercent(Number.NaN)).toBe("0%");
     expect(formatPercent(undefined)).toBe("0%");

@@ -87,6 +87,9 @@ describe("CampaignResultsPanel (spec 2026-10-01 parte 2 §8.3)", () => {
       within(after).getByRole("heading", { name: "Depois da campanha" }),
     ).toBeInTheDocument();
     expect(after).toHaveTextContent("Cadastros3");
+    expect(after).toHaveTextContent(
+      "atribuídos à campanha (até 30 dias depois do envio)",
+    );
     expect(after).toHaveTextContent("Vagas publicadas4");
     expect(after).toHaveTextContent("em até 14 dias");
     expect(after).toHaveTextContent("Contratações1");
@@ -168,5 +171,29 @@ describe("CampaignResultsPanel (spec 2026-10-01 parte 2 §8.3)", () => {
       "sm:grid-cols-2",
     );
     expect(screen.getByTestId("results-other")).toHaveClass("grid-cols-1");
+  });
+
+  it("campanha não rastreada: esconde funil e custo, mostra a nota; mantém 'Não receberam' e 'Depois da campanha'", async () => {
+    api.getCampaignResults.mockResolvedValue(
+      results({ deliveryTracked: false }),
+    );
+    renderPanel();
+    const note = await screen.findByTestId("results-untracked");
+    expect(note).toHaveTextContent(
+      "Esta campanha não foi enviada pela API oficial do WhatsApp; entrega, leitura e cliques não são medidos.",
+    );
+    expect(screen.queryByTestId("results-funnel")).not.toBeInTheDocument();
+    expect(screen.queryByText("Custo estimado")).not.toBeInTheDocument();
+    expect(screen.getByTestId("results-not-received")).toBeInTheDocument();
+    expect(screen.getByTestId("results-after")).toHaveTextContent(
+      "Depois da campanha",
+    );
+  });
+
+  it("deliveryTracked true ou ausente: funil e custo normais", async () => {
+    renderPanel();
+    await screen.findByTestId("results-funnel");
+    expect(screen.queryByTestId("results-untracked")).not.toBeInTheDocument();
+    expect(screen.getByText("Custo estimado")).toBeInTheDocument();
   });
 });

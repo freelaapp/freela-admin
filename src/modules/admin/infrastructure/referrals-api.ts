@@ -232,10 +232,11 @@ export interface Campaign {
   /** Ex.: "A Meta pausou o modelo: …", "Qualidade do número caiu na Meta". */
   pausedReason?: string | null;
   // ── Resultados (API da parte 2, 2026-10) ──
-  delivered?: number;
-  read?: number;
-  clicked?: number;
-  costBrl?: number;
+  /** `null` = campanha sem rastreio (push, e-mail, Z-API antigo): a tela mostra "—". */
+  delivered?: number | null;
+  read?: number | null;
+  clicked?: number | null;
+  costBrl?: number | null;
 }
 
 /** Contagens do detalhe. `contacted`/`registered` só existem desde a lista externa. */
@@ -675,6 +676,8 @@ export interface CampaignResults {
   notReceived: NotReceivedReason[];
   /** O modelo conta cliques; `false` = "clicaram" não se aplica. */
   clickTracking: boolean;
+  /** `false` = não foi enviada pela API oficial: entrega, leitura, cliques e custo não existem. */
+  deliveryTracked?: boolean;
   pricePerMessageBrl: number;
 }
 
