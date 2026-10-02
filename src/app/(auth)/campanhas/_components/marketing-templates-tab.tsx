@@ -169,7 +169,7 @@ export function MarketingTemplatesTab({ onUse }: Props) {
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <MarketingStatusBadge status={template.status} />
                 {template.status === "REJECTED" && template.rejectedReason && (
-                  <span className="text-red-700">
+                  <span className="min-w-0 max-w-full break-words text-red-700">
                     Motivo: {template.rejectedReason}
                   </span>
                 )}

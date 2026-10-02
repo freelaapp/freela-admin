@@ -102,9 +102,10 @@ describe("MarketingTemplatesTab", () => {
     expect(screen.getByText("Aprovado")).toHaveClass("bg-green-200");
     expect(screen.getByText("Recusado")).toHaveClass("bg-red-200");
     expect(screen.getByText("Rascunho")).toHaveClass("bg-gray-200");
-    expect(
-      screen.getByText("Motivo: variável no fim do texto"),
-    ).toBeInTheDocument();
+    // Motivo longo quebra linha a 375 px em vez de estourar a tela.
+    expect(screen.getByText("Motivo: variável no fim do texto")).toHaveClass(
+      "break-words",
+    );
     expect(row("b").getByText("Usado em: 2 campanhas")).toBeInTheDocument();
     expect(row("a").getByText("Usado em: —")).toBeInTheDocument();
   });
