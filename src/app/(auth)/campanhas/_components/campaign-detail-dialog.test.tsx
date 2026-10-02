@@ -9,6 +9,7 @@ import { CampaignDetailDialog } from "./campaign-detail-dialog";
 const api = vi.hoisted(() => ({
   getCampaign: vi.fn(),
   getCampaignRecipients: vi.fn(),
+  getCampaignResults: vi.fn(),
   unscheduleCampaign: vi.fn(),
 }));
 vi.mock("@/modules/admin/infrastructure/referrals-api", async (orig) => ({
@@ -158,5 +159,99 @@ describe("CampaignDetailDialog (campanhas pela Meta)", () => {
     expect(screen.getAllByText("Pediu para não receber campanhas.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Resposta").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Saiu").length).toBeGreaterThan(0);
+  });
+});
+
+describe("CampaignDetailDialog — Resultados e colunas novas (spec 2026-10-01 parte 2 §8.3)", () => {
+  const resultsData = {
+    recipients: 1,
+    sent: 1,
+    delivered: 1,
+    read: 1,
+    clicked: 1,
+    clicks: 3,
+    optedOut: 0,
+    replied: 0,
+    billable: 1,
+    costBrl: 0.35,
+    signups: 0,
+    publishedVacancy: 0,
+    hired: 0,
+    rates: { deliveredRate: 1, readRate: 1, clickRate: 1 },
+    notReceived: [],
+    clickTracking: true,
+    pricePerMessageBrl: 0.35,
+  };
+  // Datas diferentes do agendamento (10:00) para o teste falhar sem as colunas novas.
+  const recipient = {
+    id: "r9",
+    channel: "WHATSAPP",
+    destination: "+5511999990009",
+    displayName: "Ana",
+    city: "Campinas",
+    status: "SENT",
+    attempts: 1,
+    sentAt: "2026-10-02T13:15:00.000Z",
+    failureReason: null,
+    deliveredAt: "2026-10-02T13:20:00.000Z",
+    readAt: "2026-10-02T13:35:00.000Z",
+    firstClickedAt: "2026-10-02T13:36:00.000Z",
+    clickCount: 7,
+    optedOutAt: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.getCampaignRecipients.mockResolvedValue({
+      total: 1,
+      page: 1,
+      pageSize: 50,
+      items: [recipient],
+    });
+    api.getCampaignResults.mockResolvedValue(resultsData);
+  });
+
+  it("campanha que já começou abre em Resultados, no topo; Destinatários mostra a tabela", async () => {
+    api.getCampaign.mockResolvedValue(
+      detail({ status: "RUNNING", startedAt: "2026-10-02T12:50:00.000Z", scheduledStartAt: null }),
+    );
+    renderDetail();
+    expect(await screen.findByTestId("results-panel")).toBeInTheDocument();
+    expect(api.getCampaignResults).toHaveBeenCalledWith("camp-1");
+    const tabs = screen.getAllByRole("button", { name: /^(Resultados|Destinatários)$/ });
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Resultados", "Destinatários"]);
+    expect(tabs[0]).toHaveClass("min-h-11");
+
+    fireEvent.click(screen.getByRole("button", { name: "Destinatários" }));
+    expect((await screen.findAllByText("Entregue em")).length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("results-panel")).not.toBeInTheDocument();
+  });
+
+  it("agendada (nada saiu ainda) abre em Destinatários e não busca resultados", async () => {
+    api.getCampaign.mockResolvedValue(detail());
+    renderDetail();
+    expect((await screen.findAllByText("Lido em")).length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("results-panel")).not.toBeInTheDocument();
+    expect(api.getCampaignResults).not.toHaveBeenCalled();
+  });
+
+  it("destinatários: Entregue em, Lido em e Clicou (vezes), na linha da tabela", async () => {
+    api.getCampaign.mockResolvedValue(detail());
+    renderDetail();
+    const table = await screen.findByTestId("data-table-desktop");
+    const headers = await within(table).findAllByRole("columnheader");
+    const names = headers.map((h) => h.textContent);
+    for (const header of ["Entregue em", "Lido em", "Clicou (vezes)", "Saiu"]) {
+      expect(names).toContain(header);
+    }
+    const row = await waitFor(() => {
+      const rows = within(table).getAllByRole("row");
+      expect(rows.length).toBeGreaterThan(1);
+      return rows[1];
+    });
+    const cells = within(row).getAllByRole("cell");
+    expect(cells[names.indexOf("Entregue em")]).toHaveTextContent("02/10/2026, 10:20");
+    expect(cells[names.indexOf("Lido em")]).toHaveTextContent("02/10/2026, 10:35");
+    expect(cells[names.indexOf("Clicou (vezes)")]).toHaveTextContent("7");
   });
 });
