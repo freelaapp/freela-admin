@@ -16,6 +16,8 @@ import {
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { formatInstantDate } from "@/lib/date.utils";
+import { formatCents } from "@/lib/money";
+import { useCommissionsSummary } from "@/modules/admin/application/use-admin-consultant-commissions";
 import type { ConsultantItem } from "@/modules/admin/infrastructure/consultants-api";
 import { buildReferralLink } from "@/modules/admin/infrastructure/referral-link";
 import { ConsultantFormDialog } from "./_components/consultant-form-dialog";
@@ -35,6 +37,7 @@ export default function ConsultoresPage() {
   });
   const updateMutation = useUpdateAdminConsultant();
   const restoreMutation = useRestoreAdminConsultant();
+  const commissionsSummary = useCommissionsSummary();
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -146,9 +149,23 @@ export default function ConsultoresPage() {
     },
     {
       header: "Comissão",
-      accessor: (row: ConsultantItem) =>
-        row.commissionRate != null ? `${row.commissionRate}%` : "—",
+      accessor: (row: ConsultantItem) => (
+        <span className="text-xs text-[#1d1d1b]">{row.commissionRuleSummary ?? "—"}</span>
+      ),
       className: "hidden lg:table-cell",
+    },
+    {
+      header: "A pagar",
+      accessor: (row: ConsultantItem) =>
+        row.openBalanceInCents != null ? (
+          <span className={row.openBalanceInCents > 0 ? "font-semibold text-[#1d1d1b]" : "text-[#737373]"}>
+            {formatCents(row.openBalanceInCents)}
+          </span>
+        ) : (
+          "—"
+        ),
+      sortAccessor: (row: ConsultantItem) => row.openBalanceInCents ?? 0,
+      sortable: true,
     },
     {
       header: "Status",
@@ -290,6 +307,23 @@ export default function ConsultoresPage() {
           </Button>
         }
       />
+
+      {commissionsSummary.data && (
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-[#e5e5e5] bg-white p-4">
+            <p className="text-xs text-[#737373]">Comissão a pagar (todos)</p>
+            <p className="mt-1 text-2xl font-bold text-[#1d1d1b]">
+              {formatCents(commissionsSummary.data.openInCents)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-[#e5e5e5] bg-white p-4">
+            <p className="text-xs text-[#737373]">Pago no mês</p>
+            <p className="mt-1 text-2xl font-bold text-[#1d1d1b]">
+              {formatCents(commissionsSummary.data.paidThisMonthInCents)}
+            </p>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center h-[40vh]">

@@ -16,12 +16,11 @@ const filled: ConsultantFormValues = {
   uf: "ce",
   phone: " (85) 99999-9999 ",
   email: " Andre@X.com ",
-  commissionRate: "12,5",
   notes: " parceiro ",
 };
 
 describe("buildCreateConsultantPayload", () => {
-  it("apara os campos e converte a comissão com vírgula", () => {
+  it("apara os campos", () => {
     expect(buildCreateConsultantPayload(filled)).toEqual({
       ok: true,
       payload: {
@@ -31,7 +30,6 @@ describe("buildCreateConsultantPayload", () => {
         uf: "CE",
         phone: "+5585999999999",
         email: "Andre@X.com",
-        commissionRate: 12.5,
         notes: "parceiro",
       },
     });
@@ -46,15 +44,6 @@ describe("buildCreateConsultantPayload", () => {
   it("exige nome e e-mail", () => {
     expect(buildCreateConsultantPayload({ ...filled, name: "  " })).toMatchObject({ ok: false });
     expect(buildCreateConsultantPayload({ ...filled, email: "" })).toMatchObject({ ok: false });
-  });
-
-  it("recusa comissão fora de 0–100 ou não numérica", () => {
-    expect(buildCreateConsultantPayload({ ...filled, commissionRate: "101" })).toMatchObject({
-      ok: false,
-    });
-    expect(buildCreateConsultantPayload({ ...filled, commissionRate: "abc" })).toMatchObject({
-      ok: false,
-    });
   });
 
   it("recusa UF que não tem 2 letras", () => {
@@ -86,7 +75,6 @@ describe("buildUpdateConsultantPayload", () => {
         city: null,
         uf: null,
         phone: null,
-        commissionRate: null,
         notes: null,
       },
     });
@@ -121,7 +109,6 @@ describe("consultantToFormValues", () => {
       uf: "CE",
       phone: "",
       email: "andre@x.com",
-      commissionRate: "10",
       notes: "",
     });
   });

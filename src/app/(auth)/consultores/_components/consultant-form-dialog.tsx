@@ -129,7 +129,7 @@ function ConsultantFormBody({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="code">{consultant ? "Código" : "Código (opcional)"}</Label>
           {consultant ? (
@@ -150,16 +150,6 @@ function ConsultantFormBody({
               className="font-mono"
             />
           )}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="commissionRate">Comissão (%)</Label>
-          <Input
-            id="commissionRate"
-            inputMode="decimal"
-            value={form.commissionRate}
-            onChange={(e) => setForm({ ...form, commissionRate: e.target.value })}
-            placeholder="Ex.: 10"
-          />
         </div>
       </div>
 

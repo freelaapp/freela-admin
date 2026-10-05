@@ -3,6 +3,8 @@
  * montar o payload da API, e o caminho inverso (consultor → valores do
  * formulário) para o modo edição. Nada aqui toca DOM, rede ou estado.
  */
+// A comissão deixou de ser um % solto no cadastro (05/10/2026): virou regra
+// versionada na aba "Comissão" da página do consultor.
 import type {
   ConsultantItem,
   CreateConsultantPayload,
@@ -21,7 +23,6 @@ export interface ConsultantFormValues {
   uf: string;
   phone: string;
   email: string;
-  commissionRate: string;
   notes: string;
 }
 
@@ -32,7 +33,6 @@ export const EMPTY_CONSULTANT_FORM: ConsultantFormValues = {
   uf: "",
   phone: "",
   email: "",
-  commissionRate: "",
   notes: "",
 };
 
@@ -46,7 +46,6 @@ export function consultantToFormValues(c: ConsultantItem): ConsultantFormValues 
     uf: c.uf ?? "",
     phone: formatPhoneMask(c.phone ?? ""),
     email: c.email ?? "",
-    commissionRate: c.commissionRate != null ? String(c.commissionRate) : "",
     notes: c.notes ?? "",
   };
 }
@@ -57,7 +56,6 @@ interface CommonFields {
   city: string;
   uf: string;
   phone: string;
-  commissionRate: number | undefined;
   notes: string;
 }
 
@@ -91,15 +89,6 @@ function validateCommon(
     phone = parsed.e164;
   }
 
-  const rawRate = v.commissionRate.trim();
-  const commissionRate = rawRate ? Number(rawRate.replace(",", ".")) : undefined;
-  if (
-    commissionRate !== undefined &&
-    (Number.isNaN(commissionRate) || commissionRate < 0 || commissionRate > 100)
-  ) {
-    return { ok: false, error: "Comissão deve ser um número entre 0 e 100." };
-  }
-
   return {
     ok: true,
     payload: {
@@ -108,7 +97,6 @@ function validateCommon(
       city: v.city.trim(),
       uf,
       phone,
-      commissionRate,
       notes: v.notes.trim(),
     },
   };
@@ -132,7 +120,6 @@ export function buildCreateConsultantPayload(
       ...(f.uf ? { uf: f.uf } : {}),
       ...(f.phone ? { phone: f.phone } : {}),
       email: f.email,
-      ...(f.commissionRate !== undefined ? { commissionRate: f.commissionRate } : {}),
       ...(f.notes ? { notes: f.notes } : {}),
     },
   };
@@ -166,7 +153,6 @@ export function buildUpdateConsultantPayload(
       city: f.city || null,
       uf: f.uf || null,
       ...(phoneUnchanged ? {} : { phone: f.phone || null }),
-      commissionRate: f.commissionRate ?? null,
       notes: f.notes || null,
     },
   };
