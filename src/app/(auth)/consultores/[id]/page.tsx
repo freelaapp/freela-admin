@@ -48,6 +48,10 @@ import { formatInstantDate } from "@/lib/date.utils";
 import { ConsultantFormDialog } from "../_components/consultant-form-dialog";
 import { DeleteConsultantDialog } from "../_components/delete-consultant-dialog";
 import { isConsultantDeleted } from "../_lib/consultant-delete";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CommissionRuleTab } from "./_components/commission-rule-tab";
+import { CommissionDashboardTab } from "./_components/commission-dashboard-tab";
+import { CommissionStatementTab } from "./_components/commission-statement-tab";
 
 export default function ConsultorProfilePage() {
   const router = useRouter();
@@ -86,6 +90,7 @@ export default function ConsultorProfilePage() {
   const [copied, setCopied] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [tab, setTab] = useState("perfil");
 
   const openReset = () => {
     setResetResult(null);
@@ -277,79 +282,98 @@ export default function ConsultorProfilePage() {
           <p className="text-red-500">Erro ao carregar o consultor.</p>
         </div>
       ) : (
-        <div className="bg-white border border-[#e5e5e5] rounded-xl p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field icon={<Hash className="w-4 h-4" />} label="Código">
-              <span className="font-mono font-semibold text-[#1d1d1b]">{consultant.code}</span>
-            </Field>
-            <Field
-              icon={<span className="text-xs font-semibold uppercase">{consultant.isActive ? "on" : "off"}</span>}
-              label="Status"
-            >
-              {deleted ? (
-                <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                  Excluído{consultant.deletedAt ? ` em ${formatInstantDate(consultant.deletedAt)}` : ""}
-                </span>
-              ) : (
-                <span
-                  className={
-                    consultant.isActive
-                      ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
-                      : "inline-flex items-center rounded-full bg-[#f1f1f1] px-2 py-0.5 text-xs font-medium text-[#737373]"
-                  }
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="mb-4 flex w-full overflow-x-auto sm:w-auto">
+            <TabsTrigger value="perfil">Perfil</TabsTrigger>
+            <TabsTrigger value="comissao">Comissão</TabsTrigger>
+            <TabsTrigger value="painel">Painel</TabsTrigger>
+            <TabsTrigger value="extrato">Extrato e pagamentos</TabsTrigger>
+          </TabsList>
+          <TabsContent value="perfil">
+            <div className="bg-white border border-[#e5e5e5] rounded-xl p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field icon={<Hash className="w-4 h-4" />} label="Código">
+                  <span className="font-mono font-semibold text-[#1d1d1b]">{consultant.code}</span>
+                </Field>
+                <Field
+                  icon={<span className="text-xs font-semibold uppercase">{consultant.isActive ? "on" : "off"}</span>}
+                  label="Status"
                 >
-                  {consultant.isActive ? "Ativo" : "Inativo"}
-                </span>
+                  {deleted ? (
+                    <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                      Excluído{consultant.deletedAt ? ` em ${formatInstantDate(consultant.deletedAt)}` : ""}
+                    </span>
+                  ) : (
+                    <span
+                      className={
+                        consultant.isActive
+                          ? "inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+                          : "inline-flex items-center rounded-full bg-[#f1f1f1] px-2 py-0.5 text-xs font-medium text-[#737373]"
+                      }
+                    >
+                      {consultant.isActive ? "Ativo" : "Inativo"}
+                    </span>
+                  )}
+                </Field>
+                <Field icon={<MapPin className="w-4 h-4" />} label="Cidade / UF">
+                  {consultant.city
+                    ? `${consultant.city}${consultant.uf ? `/${consultant.uf}` : ""}`
+                    : "—"}
+                </Field>
+                <Field icon={<Phone className="w-4 h-4" />} label="Telefone">
+                  {consultant.phone ? (
+                    <a
+                      href={`tel:${consultant.phone}`}
+                      className="text-[#1d1d1b] hover:text-[#eca826] transition-colors"
+                    >
+                      {consultant.phone}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </Field>
+                <Field icon={<Mail className="w-4 h-4" />} label="E-mail">
+                  {consultant.email ? (
+                    <a
+                      href={`mailto:${consultant.email}`}
+                      className="text-[#1d1d1b] hover:text-[#eca826] transition-colors break-all"
+                    >
+                      {consultant.email}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </Field>
+                <Field icon={<Percent className="w-4 h-4" />} label="Comissão">
+                  {consultant.commissionRate != null ? `${consultant.commissionRate}%` : "—"}
+                </Field>
+                <Field icon={<Users className="w-4 h-4" />} label="Cadastros indicados">
+                  <span className="font-semibold text-[#1d1d1b]">{consultant.referralsCount}</span>
+                </Field>
+                <Field icon={<span className="text-xs">📅</span>} label="Cadastrado em">
+                  {formatInstantDate(consultant.createdAt)}
+                </Field>
+              </div>
+              {consultant.notes && (
+                <div className="mt-4 bg-[#f7f7f7] rounded-lg p-3">
+                  <p className="text-[#737373] text-xs font-medium uppercase tracking-wide mb-1">
+                    Observações
+                  </p>
+                  <p className="text-sm text-[#1d1d1b] whitespace-pre-wrap">{consultant.notes}</p>
+                </div>
               )}
-            </Field>
-            <Field icon={<MapPin className="w-4 h-4" />} label="Cidade / UF">
-              {consultant.city
-                ? `${consultant.city}${consultant.uf ? `/${consultant.uf}` : ""}`
-                : "—"}
-            </Field>
-            <Field icon={<Phone className="w-4 h-4" />} label="Telefone">
-              {consultant.phone ? (
-                <a
-                  href={`tel:${consultant.phone}`}
-                  className="text-[#1d1d1b] hover:text-[#eca826] transition-colors"
-                >
-                  {consultant.phone}
-                </a>
-              ) : (
-                "—"
-              )}
-            </Field>
-            <Field icon={<Mail className="w-4 h-4" />} label="E-mail">
-              {consultant.email ? (
-                <a
-                  href={`mailto:${consultant.email}`}
-                  className="text-[#1d1d1b] hover:text-[#eca826] transition-colors break-all"
-                >
-                  {consultant.email}
-                </a>
-              ) : (
-                "—"
-              )}
-            </Field>
-            <Field icon={<Percent className="w-4 h-4" />} label="Comissão">
-              {consultant.commissionRate != null ? `${consultant.commissionRate}%` : "—"}
-            </Field>
-            <Field icon={<Users className="w-4 h-4" />} label="Cadastros indicados">
-              <span className="font-semibold text-[#1d1d1b]">{consultant.referralsCount}</span>
-            </Field>
-            <Field icon={<span className="text-xs">📅</span>} label="Cadastrado em">
-              {formatInstantDate(consultant.createdAt)}
-            </Field>
-          </div>
-          {consultant.notes && (
-            <div className="mt-4 bg-[#f7f7f7] rounded-lg p-3">
-              <p className="text-[#737373] text-xs font-medium uppercase tracking-wide mb-1">
-                Observações
-              </p>
-              <p className="text-sm text-[#1d1d1b] whitespace-pre-wrap">{consultant.notes}</p>
             </div>
-          )}
-        </div>
+          </TabsContent>
+          <TabsContent value="comissao">
+            <CommissionRuleTab consultantId={consultantId} />
+          </TabsContent>
+          <TabsContent value="painel">
+            <CommissionDashboardTab consultantId={consultantId} />
+          </TabsContent>
+          <TabsContent value="extrato">
+            <CommissionStatementTab consultantId={consultantId} />
+          </TabsContent>
+        </Tabs>
       )}
 
       <ConsultantFormDialog open={editOpen} onOpenChange={setEditOpen} consultant={consultant} />
