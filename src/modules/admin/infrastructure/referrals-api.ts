@@ -17,6 +17,54 @@ interface UserRef {
   profile: { name: string | null } | null;
 }
 
+/** O que a conta indicada virou HOJE. `SEM_PERFIL` = parou no 1º passo do cadastro. */
+export type ReferredAccountKind = "EMPRESA" | "CASA" | "FREELANCER" | "SEM_PERFIL";
+
+/** Até onde o indicado chegou. Freelancer e Em Casa param no perfil: não contam. */
+export type ReferredStage =
+  | "CONTA_EXCLUIDA"
+  | "SO_LOGIN"
+  | "PERFIL_FREELANCER"
+  | "PERFIL_CASA"
+  | "PERFIL_EMPRESA"
+  | "PUBLICOU_VAGA"
+  | "CONTRATOU"
+  | "CONCLUIU";
+
+/** Por que uma indicação "Cadastrou" ainda não virou recompensa. */
+export type ReferralPendingReason =
+  | "CONTA_EXCLUIDA"
+  | "NAO_E_EMPRESA"
+  | "PRAZO_ENCERRADO"
+  | "SO_LOGIN"
+  | "SEM_VAGA"
+  | "SEM_CONTRATACAO"
+  | "SERVICO_NAO_CONCLUIDO"
+  | "VAGA_ABAIXO_DO_MINIMO"
+  | "CONCLUIU_FORA_DO_PRAZO"
+  | "AGUARDANDO_PROCESSAMENTO";
+
+/** Conta indicada, com o que fez no módulo empresa. Desde 05/10/2026. */
+export interface ReferredAccount {
+  kind: ReferredAccountKind;
+  stage: ReferredStage;
+  pendingReason: ReferralPendingReason | null;
+  /** Último dia para concluir o serviço que qualifica (cadastro + 30 dias). */
+  deadline: string;
+  profiles: { empresa: boolean; casa: boolean; freelancer: boolean };
+  company: { name: string | null; city: string | null } | null;
+  vacancies: number;
+  lastVacancyAt: string | null;
+  hires: number;
+  completedJobs: number;
+  firstCompletedJob: {
+    vacancyId: string;
+    title: string;
+    amountInCents: number | null;
+    endedAt: string | null;
+  } | null;
+}
+
 export interface ReferralItem {
   id: string;
   status: ReferralStatus;
@@ -25,14 +73,16 @@ export interface ReferralItem {
   qualifiedAt: string | null;
   qualifyingModule: string | null;
   code: { code: string } | null;
-  referrer: UserRef | null;
+  referrer: (UserRef & { status?: string }) | null;
   /**
    * Quem indicou: freelancer, contratante, os dois (a mesma pessoa pode ter
    * cadastro dos dois lados) ou sem cadastro conhecido. Opcional durante a
    * janela de deploy da API.
    */
   referrerKind?: "FREELANCER" | "CONTRATANTE" | "AMBOS" | "DESCONHECIDO";
-  referred: UserRef | null;
+  referred:
+    | (UserRef & { status?: string; emailConfirmed?: boolean; createdAt?: string })
+    | null;
   reward: {
     id: string;
     status: RewardStatus;
@@ -40,6 +90,10 @@ export interface ReferralItem {
     pixKey: string | null;
     paidAt: string | null;
   } | null;
+  /** Recusada pelo erro de persona (até 28/09/2026), não por regra de verdade. */
+  rejectedByPersonaBug?: boolean;
+  /** Opcional durante a janela de deploy da API. */
+  referredAccount?: ReferredAccount | null;
 }
 
 export interface RewardItem {
@@ -65,6 +119,12 @@ export interface RewardItem {
 
 export interface ReferralSummary {
   referrals: Record<ReferralStatus, number>;
+  /** Desde o início, pelo que a conta indicada virou. Opcional na janela de deploy. */
+  referredByKind?: Record<ReferredAccountKind, number>;
+  /** Recusas gravadas pelo erro de persona, corrigido em 28/09/2026. */
+  rejectedByPersonaBug?: number;
+  /** Indicações "Cadastrou" agrupadas pelo motivo de ainda não terem recompensa. */
+  pendingByReason?: Partial<Record<ReferralPendingReason, number>>;
   rewards: Record<RewardStatus, { count: number; amountInCents: number }>;
   /** Prometido e ainda não pago — o passivo do programa. */
   outstandingInCents: number;
@@ -80,6 +140,7 @@ export interface Paginated<T> {
 export interface ReferralListFilter {
   status?: ReferralStatus;
   rewardStatus?: RewardStatus;
+  accountKind?: ReferredAccountKind;
   search?: string;
   /** Instantes ISO com fuso (ver `toInstantRange`) — a API trata como `Date`. */
   from?: string;

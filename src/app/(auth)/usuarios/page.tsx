@@ -96,6 +96,14 @@ export default function UsuariosPage() {
   const statusParam =
     tab === "Excluídos" ? "DELETED" : tab === "Exclusão Pendente" ? "PENDING" : undefined;
 
+  // `?busca=` vem do "Abrir em Usuários" da tela de Indicações: quem parou no 1º
+  // passo do cadastro só existe nesta lista. Lido no cliente (sem
+  // useSearchParams, que exigiria Suspense no build estático).
+  useEffect(() => {
+    const busca = new URLSearchParams(window.location.search).get("busca");
+    if (busca) setSearchInput(busca);
+  }, []);
+
   // Debounce da busca por e-mail (server-side) — e volta pra página 1 a cada mudança.
   useEffect(() => {
     const id = setTimeout(() => {

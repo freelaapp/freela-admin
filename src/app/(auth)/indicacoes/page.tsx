@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, BadgeCheck, Ban, Gift, HandCoins } from "lucide-react";
+import { Loader2, BadgeCheck, Ban, Gift, HandCoins, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
@@ -30,6 +30,8 @@ import {
 import type {
   Paginated,
   ReferralItem,
+  ReferralStatus,
+  ReferredAccountKind,
   RewardItem,
   RewardStatus,
 } from "@/modules/admin/infrastructure/referrals-api";
@@ -40,6 +42,16 @@ import {
   type ReferralPeriodSelection,
 } from "@/modules/admin/application/referral-period";
 import { ReferralFunnelSection } from "./_components/referral-funnel-section";
+import { KindBadge, ReferralDetailDialog } from "./_components/referral-detail-dialog";
+import { ReferralPendingPanel } from "./_components/referral-pending-panel";
+import {
+  ACCOUNT_KIND_FILTER,
+  EMPRESA_STEPS,
+  STAGE_LABEL,
+  TONE_CLASS,
+  describeSituation,
+  empresaStepIndex,
+} from "./_lib/referral-labels";
 
 /** Linhas por página nas duas listas. */
 const PAGE_SIZE = 50;
@@ -47,11 +59,45 @@ const PAGE_SIZE = 50;
 const brl = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const REFERRAL_STATUS_LABEL: Record<string, string> = {
-  REGISTERED: "Cadastrou",
-  QUALIFIED: "Qualificou",
-  REJECTED: "Rejeitada",
-};
+const REFERRAL_STATUS_FILTER: Array<{ value: ReferralStatus | ""; label: string }> = [
+  { value: "", label: "Todas as situações" },
+  { value: "REGISTERED", label: "Abertas (ainda podem pagar)" },
+  { value: "QUALIFIED", label: "Qualificadas" },
+  { value: "REJECTED", label: "Rejeitadas" },
+];
+
+/**
+ * Até onde o indicado chegou no caminho da empresa (login → empresa → vaga →
+ * contratou → concluiu). Fora do caminho (freelancer, Em Casa) mostra só o
+ * texto: essas contas não chegam à recompensa.
+ */
+function StageCell({ row }: { row: ReferralItem }) {
+  const account = row.referredAccount;
+  if (!account) return <span className="text-neutral-400">—</span>;
+  const step = empresaStepIndex(account.stage);
+  return (
+    <div className="min-w-0">
+      {step != null && (
+        <div className="mb-1 flex items-center gap-1" aria-hidden>
+          {EMPRESA_STEPS.map((label, index) => (
+            <span
+              key={label}
+              title={label}
+              className={`h-1.5 w-5 rounded-full ${index <= step ? "bg-emerald-500" : "bg-neutral-200"}`}
+            />
+          ))}
+        </div>
+      )}
+      <p className="text-xs text-neutral-700">{STAGE_LABEL[account.stage]}</p>
+      {account.vacancies > 0 && (
+        <p className="text-[11px] text-neutral-500">
+          {account.vacancies} vaga(s) · {account.hires} contratação(ões) · {account.completedJobs}{" "}
+          concluída(s)
+        </p>
+      )}
+    </div>
+  );
+}
 
 const REWARD_STATUS_LABEL: Record<RewardStatus, string> = {
   PENDING: "A aprovar",
@@ -154,6 +200,9 @@ export default function IndicacoesPage() {
   const [rewardStatus, setRewardStatus] = useState<RewardStatus | "">("PENDING");
   const [rewardPage, setRewardPage] = useState(1);
   const [referralPage, setReferralPage] = useState(1);
+  const [referralStatus, setReferralStatus] = useState<ReferralStatus | "">("");
+  const [accountKind, setAccountKind] = useState<ReferredAccountKind | "">("");
+  const [detail, setDetail] = useState<ReferralItem | null>(null);
   const [period, setPeriod] = useState<ReferralPeriodSelection>({
     preset: "30d",
     customFrom: "",
@@ -172,6 +221,8 @@ export default function IndicacoesPage() {
   // pelo link" e a lista contam as mesmas linhas.
   const referrals = useReferrals({
     search: referralSearch || undefined,
+    status: referralStatus || undefined,
+    accountKind: accountKind || undefined,
     ...toInstantRange(range),
     page: referralPage,
     pageSize: PAGE_SIZE,
@@ -318,50 +369,81 @@ export default function IndicacoesPage() {
         <div>
           <p className="font-medium">{row.referrer?.profile?.name ?? "—"}</p>
           <QuemIndicou kind={row.referrerKind} />
+          <p className="text-xs text-neutral-500">
+            código <span className="font-mono">{row.code?.code ?? "—"}</span>
+          </p>
+        </div>
+      ),
+      sortAccessor: (row: ReferralItem) => row.referrer?.profile?.name ?? "",
+      sortable: true,
+    },
+    {
+      // Antes "Contratante indicado": a maioria dos indicados nem é contratante
+      // (em 05/10/2026, 21 de 25 tinham parado no 1º passo do cadastro).
+      header: "Indicado",
+      mobile: "title" as const,
+      accessor: (row: ReferralItem) => (
+        <div className="min-w-0">
+          <p className="font-medium">{row.referred?.profile?.name ?? "—"}</p>
+          {row.referredAccount && (
+            <span className="flex flex-wrap gap-1">
+              <KindBadge kind={row.referredAccount.kind} />
+              {row.referredAccount.kind === "EMPRESA" && row.referredAccount.profiles.freelancer && (
+                <KindBadge kind="FREELANCER" />
+              )}
+            </span>
+          )}
+          {row.referredAccount?.company?.name && (
+            <p className="text-xs text-neutral-700">
+              {row.referredAccount.company.name}
+              {row.referredAccount.company.city ? ` · ${row.referredAccount.company.city}` : ""}
+            </p>
+          )}
+          <p className="text-xs text-neutral-500 break-all">{row.referred?.email}</p>
+          {row.referred?.phone && <p className="text-xs text-neutral-500">{row.referred.phone}</p>}
         </div>
       ),
     },
-    { header: "Código", accessor: (row: ReferralItem) => row.code?.code ?? "—" },
     {
-      header: "Contratante indicado",
-      accessor: (row: ReferralItem) => (
-        <div>
-          <p>{row.referred?.profile?.name ?? "—"}</p>
-          <p className="text-xs text-neutral-500">{row.referred?.email ?? row.referred?.phone}</p>
-        </div>
-      ),
+      header: "Etapa",
+      accessor: (row: ReferralItem) => <StageCell row={row} />,
     },
     {
       header: "Situação",
-      accessor: (row: ReferralItem) => (
-        <div>
-          <StatusPill
-            label={REFERRAL_STATUS_LABEL[row.status] ?? row.status}
-            className={
-              row.status === "QUALIFIED"
-                ? "bg-emerald-100 text-emerald-800"
-                : row.status === "REJECTED"
-                  ? "bg-red-100 text-red-700"
-                  : "bg-neutral-200 text-neutral-700"
-            }
-          />
-          {/* O motivo é o que permite responder ao freelancer que reclamar. */}
-          {row.rejectionReason && (
-            <p className="mt-1 text-xs text-red-600">{row.rejectionReason}</p>
-          )}
-        </div>
-      ),
+      accessor: (row: ReferralItem) => {
+        const situation = describeSituation(row);
+        return (
+          <div className="max-w-64">
+            <StatusPill label={situation.label} className={TONE_CLASS[situation.tone]} />
+          </div>
+        );
+      },
     },
     {
       header: "Cadastrou em",
-      accessor: (row: ReferralItem) => formatInstantDate(row.createdAt),
+      accessor: (row: ReferralItem) => (
+        <div>
+          <p>{formatInstantDate(row.createdAt)}</p>
+          {row.status === "QUALIFIED" && row.qualifiedAt && (
+            <p className="text-xs text-emerald-700">qualificou {formatInstantDate(row.qualifiedAt)}</p>
+          )}
+          {row.status === "REGISTERED" && row.referredAccount && (
+            <p className="text-xs text-neutral-500">
+              prazo {formatInstantDate(row.referredAccount.deadline)}
+            </p>
+          )}
+        </div>
+      ),
       sortAccessor: (row: ReferralItem) => new Date(row.createdAt),
       sortable: true,
     },
     {
-      header: "Qualificou em",
-      accessor: (row: ReferralItem) =>
-        row.qualifiedAt ? formatInstantDate(row.qualifiedAt) : "—",
+      header: "Ações",
+      accessor: (row: ReferralItem) => (
+        <Button size="sm" variant="outline" onClick={() => setDetail(row)}>
+          Detalhes <ChevronRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      ),
     },
   ];
 
@@ -399,10 +481,17 @@ export default function IndicacoesPage() {
           hint={s ? `${s.referrals.REGISTERED ?? 0} ainda não contrataram` : undefined}
         />
         <Kpi
-          label="Rejeitadas pelo antifraude"
+          label="Rejeitadas"
           value={s ? String(s.referrals.REJECTED ?? 0) : "—"}
+          hint={
+            s?.rejectedByPersonaBug
+              ? `${s.rejectedByPersonaBug} pelo erro de cadastro corrigido em 28/09`
+              : undefined
+          }
         />
       </div>
+
+      <ReferralPendingPanel summary={s} />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button variant={tab === "rewards" ? "default" : "outline"} onClick={() => setTab("rewards")}>
@@ -429,6 +518,40 @@ export default function IndicacoesPage() {
             <option value="PAID">Pagas</option>
             <option value="CANCELLED">Canceladas</option>
           </select>
+        )}
+        {tab === "referrals" && (
+          <div className="ml-auto flex w-full flex-wrap gap-2 sm:w-auto">
+            <select
+              aria-label="Situação da indicação"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm sm:w-auto"
+              value={referralStatus}
+              onChange={(event) => {
+                setReferralStatus(event.target.value as ReferralStatus | "");
+                setReferralPage(1);
+              }}
+            >
+              {REFERRAL_STATUS_FILTER.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Tipo de conta criada"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm sm:w-auto"
+              value={accountKind}
+              onChange={(event) => {
+                setAccountKind(event.target.value as ReferredAccountKind | "");
+                setReferralPage(1);
+              }}
+            >
+              {ACCOUNT_KIND_FILTER.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
       </div>
 
@@ -458,7 +581,7 @@ export default function IndicacoesPage() {
             columns={referralColumns}
             data={referrals.data?.items ?? []}
             isFetching={referrals.isFetching}
-            searchPlaceholder="Buscar por nome, e-mail ou código…"
+            searchPlaceholder="Buscar por nome, e-mail, telefone ou código…"
             controlledSearch={{
               value: referralSearch,
               onChange: (value) => {
@@ -470,6 +593,8 @@ export default function IndicacoesPage() {
           <Pager data={referrals.data} page={referralPage} onPage={setReferralPage} />
         </>
       )}
+
+      <ReferralDetailDialog item={detail} onClose={() => setDetail(null)} />
 
       <Dialog open={Boolean(payTarget)} onOpenChange={(open) => !open && setPayTarget(null)}>
         <DialogContent>
