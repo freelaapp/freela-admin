@@ -16,6 +16,10 @@ export interface ConsultantItem {
   notes: string | null;
   isActive: boolean;
   referralsCount: number;
+  /** Regra de comissão vigente em texto (API ≥ 05/10/2026). */
+  commissionRuleSummary?: string;
+  /** Saldo de comissão a pagar, em centavos (API ≥ 05/10/2026). */
+  openBalanceInCents?: number;
   /** Exclusão lógica (consultor com indicações). Ausente/nulo = não excluído. */
   deletedAt?: string | null;
   createdAt: string;
