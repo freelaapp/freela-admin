@@ -49,6 +49,8 @@ describe("Layout do painel do consultor", () => {
 
     const menu = screen.getByRole("navigation");
     expect(screen.getByRole("link", { name: "Meu perfil" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Painel" })).toHaveAttribute("href", "/consultor/painel");
+    expect(screen.getByRole("link", { name: "Carteira" })).toHaveAttribute("href", "/consultor/carteira");
     // Linha própria abaixo do logo + Sair (quebra de linha no header, menu por último e com
     // largura total); só a partir de `sm` volta para a mesma linha do logo.
     expect(screen.getByRole("banner")).toHaveClass("flex-wrap", "sm:flex-nowrap");

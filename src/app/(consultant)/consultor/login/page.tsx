@@ -28,7 +28,7 @@ export default function ConsultorLoginPage() {
     setLoading(true);
     try {
       const data = await login(email, password);
-      router.replace(data.mustChangePassword ? "/consultor/trocar-senha" : "/consultor");
+      router.replace(data.mustChangePassword ? "/consultor/trocar-senha" : "/consultor/painel");
     } catch {
       toast.error("E-mail ou senha inválidos.");
     } finally {

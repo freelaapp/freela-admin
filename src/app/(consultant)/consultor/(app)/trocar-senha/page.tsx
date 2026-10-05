@@ -37,7 +37,7 @@ export default function ConsultorTrocarSenhaPage() {
       await changeConsultantPasswordApi(current, next);
       clearMustChangePassword();
       toast.success("Senha atualizada!");
-      router.replace("/consultor");
+      router.replace("/consultor/painel");
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Erro ao trocar a senha"));
     } finally {
