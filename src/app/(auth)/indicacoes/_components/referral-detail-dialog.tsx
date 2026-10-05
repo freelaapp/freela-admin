@@ -12,7 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatInstantDate } from "@/lib/date.utils";
-import type { ReferralItem } from "@/modules/admin/infrastructure/referrals-api";
+import type {
+  ReferralItem,
+  ReferralPendingReason,
+} from "@/modules/admin/infrastructure/referrals-api";
 import {
   ACCOUNT_KIND,
   STAGE_LABEL,
@@ -24,7 +27,10 @@ import {
 const brl = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-/** Piso antifraude da vaga que qualifica (API: MIN_QUALIFYING_VACANCY_CENTS). */
+/**
+ * Piso antifraude da vaga que qualifica — espelho de MIN_QUALIFYING_VACANCY_CENTS
+ * da API (`referral-fraud-rules.ts`). Só rotula a linha; quem decide é a API.
+ */
 const MIN_VACANCY_CENTS = 8_000;
 
 type CheckState = "ok" | "no" | "pending";
@@ -54,6 +60,23 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
       <dd className="text-sm text-[#1d1d1b] break-words">{value || "—"}</dd>
     </div>
   );
+}
+
+/**
+ * As regras saem do motivo calculado pela API, que olha TODOS os serviços
+ * concluídos — o "primeiro serviço" mostrado no caminho pode ter ficado abaixo
+ * do piso enquanto um segundo, dentro das regras, já qualifica.
+ */
+function valueRule(reason: ReferralPendingReason | null): CheckState {
+  if (reason === "VAGA_ABAIXO_DO_MINIMO") return "no";
+  if (reason === "AGUARDANDO_PROCESSAMENTO" || reason === "CONCLUIU_FORA_DO_PRAZO") return "ok";
+  return "pending";
+}
+
+function deadlineRule(reason: ReferralPendingReason | null): CheckState {
+  if (reason === "CONCLUIU_FORA_DO_PRAZO" || reason === "PRAZO_ENCERRADO") return "no";
+  if (reason === "AGUARDANDO_PROCESSAMENTO") return "ok";
+  return "pending";
 }
 
 /** Link para a lista de Usuários já filtrada — a única que mostra todo cadastro. */
@@ -191,25 +214,11 @@ export function ReferralDetailDialog({
                 title="Indicado é empresa (bar/restaurante)"
               />
               <Row
-                state={
-                  first == null
-                    ? "pending"
-                    : (first.amountInCents ?? 0) >= MIN_VACANCY_CENTS
-                      ? "ok"
-                      : "no"
-                }
+                state={valueRule(account.pendingReason)}
                 title={`Vaga concluída de ${brl(MIN_VACANCY_CENTS)} ou mais (pago ao freelancer)`}
               />
               <Row
-                state={
-                  first?.endedAt
-                    ? new Date(first.endedAt) <= new Date(account.deadline)
-                      ? "ok"
-                      : "no"
-                    : new Date() > new Date(account.deadline)
-                      ? "no"
-                      : "pending"
-                }
+                state={deadlineRule(account.pendingReason)}
                 title="Serviço concluído em até 30 dias do cadastro"
                 detail={`Prazo até ${formatInstantDate(account.deadline)}`}
               />

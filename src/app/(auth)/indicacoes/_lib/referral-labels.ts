@@ -126,7 +126,7 @@ export const PENDING_REASON: Record<
   AGUARDANDO_PROCESSAMENTO: {
     label: "Concluiu — recompensa em processamento",
     detail:
-      "O serviço passa em todas as regras. A conferência diária (06h20) cria a recompensa se a conclusão não tiver avisado o programa.",
+      "O serviço passa nas regras. A conferência diária (06h20) cria a recompensa se a conclusão não tiver avisado o programa — a menos que quem indicou já tenha batido o teto de 15 recompensas no mês.",
     tone: "ok",
   },
 };

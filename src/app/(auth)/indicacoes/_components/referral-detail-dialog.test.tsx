@@ -57,6 +57,29 @@ describe("ReferralDetailDialog", () => {
     );
   });
 
+  it("as regras seguem o motivo da API, não só o 1º serviço concluído", () => {
+    const { unmount } = render(<ReferralDetailDialog item={testDoDono} onClose={vi.fn()} />);
+    // Vaga de R$ 4,80: a regra do piso aparece reprovada.
+    expect(screen.getAllByLabelText("não")).toHaveLength(1);
+    unmount();
+
+    // 1º serviço abaixo do piso, mas um 2º dentro das regras já qualifica.
+    render(
+      <ReferralDetailDialog
+        item={{
+          ...testDoDono,
+          referredAccount: {
+            ...testDoDono.referredAccount!,
+            pendingReason: "AGUARDANDO_PROCESSAMENTO",
+            completedJobs: 2,
+          },
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryAllByLabelText("não")).toHaveLength(0);
+  });
+
   it("não renderiza sem indicação selecionada", () => {
     const { container } = render(<ReferralDetailDialog item={null} onClose={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
