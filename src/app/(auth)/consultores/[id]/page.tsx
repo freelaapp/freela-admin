@@ -12,7 +12,6 @@ import {
   Mail,
   MapPin,
   Hash,
-  Percent,
   Users,
   KeyRound,
   Copy,
@@ -283,7 +282,7 @@ export default function ConsultorProfilePage() {
         </div>
       ) : (
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="mb-4 flex w-full overflow-x-auto sm:w-auto">
+          <TabsList className="mb-4 flex w-full justify-start overflow-x-auto sm:w-auto">
             <TabsTrigger value="perfil">Perfil</TabsTrigger>
             <TabsTrigger value="comissao">Comissão</TabsTrigger>
             <TabsTrigger value="painel">Painel</TabsTrigger>
@@ -343,9 +342,6 @@ export default function ConsultorProfilePage() {
                   ) : (
                     "—"
                   )}
-                </Field>
-                <Field icon={<Percent className="w-4 h-4" />} label="Comissão">
-                  {consultant.commissionRate != null ? `${consultant.commissionRate}%` : "—"}
                 </Field>
                 <Field icon={<Users className="w-4 h-4" />} label="Cadastros indicados">
                   <span className="font-semibold text-[#1d1d1b]">{consultant.referralsCount}</span>

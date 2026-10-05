@@ -32,6 +32,15 @@ describe("buildRulePayload", () => {
     ).toMatchObject({ ok: true, payload: { amountInCents: 123450 } });
   });
 
+  it("ponto seguido de 3 dígitos sem vírgula é milhar (1.000 = mil reais)", () => {
+    expect(
+      buildRulePayload({ ...base, mode: "FIXED_PER_HIRE", percent: "", amount: "1.000" }),
+    ).toMatchObject({ ok: true, payload: { amountInCents: 100000 } });
+    expect(
+      buildRulePayload({ ...base, mode: "FIXED_PER_HIRE", percent: "", amount: "5.50" }),
+    ).toMatchObject({ ok: true, payload: { amountInCents: 550 } });
+  });
+
   it("valor fixo em reais vira centavos", () => {
     expect(buildRulePayload({ ...base, mode: "FIXED_PER_HIRE", percent: "", amount: "5,50" })).toMatchObject({
       ok: true,

@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PainelPage from "../painel/page";
@@ -34,6 +34,15 @@ describe("portal do consultor — comissão", () => {
   it("Painel mostra a regra em texto simples", async () => {
     wrap(<PainelPage />);
     expect(await screen.findByText(/Você ganha: 10% da taxa da Freela/)).toBeInTheDocument();
+  });
+
+  it("Carteira pagina o extrato (mais de 50 lançamentos não somem)", async () => {
+    api.getMyStatement.mockResolvedValue({ items: [], total: 120, page: 1, pageSize: 50 });
+    wrap(<CarteiraPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Próxima" }));
+    await waitFor(() =>
+      expect(api.getMyStatement).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 })),
+    );
   });
 
   it("Carteira mostra a receber e já recebido", async () => {

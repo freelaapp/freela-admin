@@ -11,6 +11,39 @@ export function moduleLabel(module: string | null): string {
   return "—";
 }
 
+/** Paginação do extrato (a API devolve no máximo 50 por página). */
+export function StatementPager({
+  page,
+  pageSize,
+  total,
+  onPage,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPage: (page: number) => void;
+}) {
+  const lastPage = Math.max(1, Math.ceil(total / pageSize));
+  if (lastPage <= 1) return null;
+  const first = (page - 1) * pageSize + 1;
+  const last = Math.min(page * pageSize, total);
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-[#737373]">
+      <span>
+        {first}–{last} de {total}
+      </span>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+          Anterior
+        </Button>
+        <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => onPage(page + 1)}>
+          Próxima
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function CommissionStatementView({
   items,
   onReversePayout,

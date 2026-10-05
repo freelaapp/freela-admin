@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PeriodFilter } from "@/components/commissions/period-filter";
-import { CommissionStatementView } from "@/components/commissions/statement-view";
+import { CommissionStatementView, StatementPager } from "@/components/commissions/statement-view";
 import { formatCents } from "@/lib/money";
 import { brasiliaToday, resolveCommissionPeriod, type CommissionPeriodSelection } from "@/lib/commissions/period";
 import type { StatementPayoutItem, StatementStatus } from "@/lib/commissions/types";
@@ -36,8 +36,9 @@ function parseReais(raw: string): number {
 export function CommissionStatementTab({ consultantId }: { consultantId: string }) {
   const [period, setPeriod] = useState<CommissionPeriodSelection>({ preset: "this_year", customFrom: "", customTo: "" });
   const [status, setStatus] = useState<StatementStatus | "">("");
+  const [page, setPage] = useState(1);
   const range = useMemo(() => resolveCommissionPeriod(period), [period]);
-  const statement = useCommissionStatement(consultantId, { ...range, status: status || undefined });
+  const statement = useCommissionStatement(consultantId, { ...range, status: status || undefined, page });
 
   const [payOpen, setPayOpen] = useState(false);
   const [periodEnd, setPeriodEnd] = useState("");
@@ -128,12 +129,21 @@ export function CommissionStatementTab({ consultantId }: { consultantId: string 
         </Button>
       </div>
 
-      <PeriodFilter value={period} onChange={setPeriod} />
+      <PeriodFilter
+        value={period}
+        onChange={(next) => {
+          setPeriod(next);
+          setPage(1);
+        }}
+      />
       <select
         aria-label="Situação"
         className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm sm:w-auto"
         value={status}
-        onChange={(e) => setStatus(e.target.value as StatementStatus | "")}
+        onChange={(e) => {
+          setStatus(e.target.value as StatementStatus | "");
+          setPage(1);
+        }}
       >
         <option value="">Tudo</option>
         <option value="OPEN">A pagar</option>
@@ -143,7 +153,17 @@ export function CommissionStatementTab({ consultantId }: { consultantId: string 
       {statement.isLoading ? (
         <Loader2 className="mx-auto my-10 h-6 w-6 animate-spin text-[#eca826]" />
       ) : (
-        <CommissionStatementView items={statement.data?.items ?? []} onReversePayout={setReverseTarget} />
+        <>
+          <CommissionStatementView items={statement.data?.items ?? []} onReversePayout={setReverseTarget} />
+          {statement.data && (
+            <StatementPager
+              page={statement.data.page}
+              pageSize={statement.data.pageSize}
+              total={statement.data.total}
+              onPage={setPage}
+            />
+          )}
+        </>
       )}
 
       <Dialog open={payOpen} onOpenChange={(open) => !open && setPayOpen(false)}>

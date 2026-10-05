@@ -71,13 +71,14 @@ describe("Meu perfil (consultor)", () => {
     );
   });
 
-  it("mostra e-mail de login, código, cidade/UF, comissão e o atalho para trocar a senha", async () => {
+  it("mostra e-mail de login, código, cidade/UF e o atalho para trocar a senha (o % antigo não aparece mais)", async () => {
     renderPage();
 
     expect(await screen.findByText("andre@x.com")).toBeInTheDocument();
     expect(screen.getByText("ANDRE2K")).toBeInTheDocument();
     expect(screen.getByText("Fortaleza/CE")).toBeInTheDocument();
-    expect(screen.getByText("10%")).toBeInTheDocument();
+    // A comissão virou regra no Painel (05/10/2026); o % solto do cadastro some.
+    expect(screen.queryByText("10%")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /trocar senha/i })).toHaveAttribute(
       "href",
       "/consultor/trocar-senha",

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CommissionDashboard, StatementItem } from "@/lib/commissions/types";
 import { CommissionDashboardView } from "./dashboard-view";
-import { CommissionStatementView } from "./statement-view";
+import { CommissionStatementView, StatementPager } from "./statement-view";
 import { PeriodFilter } from "./period-filter";
 
 const dash: CommissionDashboard = {
@@ -84,5 +84,22 @@ describe("PeriodFilter", () => {
     render(<PeriodFilter value={{ preset: "custom", customFrom: "", customTo: "" }} onChange={onChange} />);
     fireEvent.change(screen.getByLabelText("De"), { target: { value: "2026-10-01" } });
     expect(onChange).toHaveBeenCalledWith({ preset: "custom", customFrom: "2026-10-01", customTo: "" });
+  });
+});
+
+describe("StatementPager", () => {
+  it("mostra a faixa e navega entre páginas", () => {
+    const onPage = vi.fn();
+    render(<StatementPager page={2} pageSize={50} total={120} onPage={onPage} />);
+    expect(screen.getByText("51–100 de 120")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    expect(onPage).toHaveBeenCalledWith(3);
+    fireEvent.click(screen.getByRole("button", { name: "Anterior" }));
+    expect(onPage).toHaveBeenCalledWith(1);
+  });
+
+  it("uma página só não mostra nada", () => {
+    const { container } = render(<StatementPager page={1} pageSize={50} total={10} onPage={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

@@ -32,13 +32,16 @@ export function ruleToForm(rule: CommissionRule | null): RuleFormValues {
 
 /**
  * "10,5" e "10.5" valem 10,5. Com vírgula, ponto é milhar ("1.234,50");
- * sem vírgula, ponto é a casa decimal.
+ * sem vírgula, ponto é decimal — exceto no formato de milhar ("1.000").
  */
 export function parseDecimal(raw: string): number {
   const s = raw.trim();
   if (!s) return Number.NaN;
-  const clean = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s;
-  return Number(clean);
+  if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", "."));
+  // Sem vírgula, "1.000" e "12.345.678" são milhar (é assim que se digita
+  // dinheiro no Brasil); "10.5" e "5.50" seguem como casa decimal.
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) return Number(s.replace(/\./g, ""));
+  return Number(s);
 }
 
 export type BuildRuleResult = { ok: true; payload: CommissionRulePayload } | { ok: false; error: string };

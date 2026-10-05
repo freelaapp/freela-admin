@@ -93,10 +93,7 @@ function ProfileCard({ profile }: { profile: ConsultantProfile }) {
     ["E-mail de login", profile.email ?? "—"],
     ["Código", profile.code],
     ["Cidade", place],
-    [
-      "Comissão",
-      profile.commissionRate == null ? "—" : `${profile.commissionRate.toLocaleString("pt-BR")}%`,
-    ],
+    // A comissão virou regra no Painel (05/10/2026) — o % solto do cadastro saiu daqui.
   ];
 
   return (

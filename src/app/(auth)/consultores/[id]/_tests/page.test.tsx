@@ -24,7 +24,7 @@ vi.mock("@/modules/admin/application/use-admin-consultants", () => ({
       uf: null,
       phone: null,
       email: "r@x.com",
-      commissionRate: null,
+      commissionRate: 12,
       notes: null,
       isActive: true,
       referralsCount: 3,
@@ -53,5 +53,15 @@ describe("Página do consultor — abas", () => {
     expect(screen.queryByText("aba-comissao")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Comissão" }));
     expect(screen.getByText("aba-comissao")).toBeInTheDocument();
+  });
+
+  it("o % antigo do cadastro não aparece mais no perfil", () => {
+    render(<ConsultorProfilePage />);
+    expect(screen.queryByText("12%")).not.toBeInTheDocument();
+  });
+
+  it("no celular as abas começam à esquerda (a primeira nunca fica cortada)", () => {
+    render(<ConsultorProfilePage />);
+    expect(screen.getByRole("button", { name: "Perfil" }).parentElement).toHaveClass("justify-start");
   });
 });
