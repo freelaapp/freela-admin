@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Download, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { contractorListSheets, freelancerListSheets } from "@/modules/admin/application/engagement-export";
-import { fichaHref, type FilterEntry } from "@/modules/admin/application/engagement-filters";
+import {
+  DEFAULT_LIST_STATE,
+  fichaHref,
+  type FilterEntry,
+  type ListState,
+} from "@/modules/admin/application/engagement-filters";
 import {
   CONTRACTOR_SEGMENTS,
   FREELANCER_SEGMENTS,
@@ -44,6 +49,10 @@ interface PeopleTableProps {
   filters: EngagementFilters;
   /** Filtros já descritos, para a aba "Filtros" do Excel. */
   entries: FilterEntry[];
+  /** Estado vindo da URL (volta da ficha). */
+  initialState?: ListState;
+  /** Avisado a cada mudança, para a página guardar o estado na URL. */
+  onStateChange?: (state: ListState) => void;
 }
 
 function isFreelancerRow(row: PeopleRow): row is FreelancerListRow {
@@ -88,11 +97,21 @@ async function buildListExport(
   };
 }
 
-function NameCell({ row, side, filters }: { row: PeopleRow; side: EngagementSide; filters: EngagementFilters }) {
+function NameCell({
+  row,
+  side,
+  filters,
+  list,
+}: {
+  row: PeopleRow;
+  side: EngagementSide;
+  filters: EngagementFilters;
+  list: ListState;
+}) {
   return (
     <div className="min-w-0">
       <Link
-        href={fichaHref(side, row.userId, filters)}
+        href={fichaHref(side, row.userId, filters, list)}
         className="font-medium text-[#1d1d1b] hover:text-[#eca826] hover:underline"
       >
         {row.name}
@@ -107,18 +126,26 @@ function NameCell({ row, side, filters }: { row: PeopleRow; side: EngagementSide
   );
 }
 
-export function PeopleTable({ side, filters, entries }: PeopleTableProps) {
+export function PeopleTable({
+  side,
+  filters,
+  entries,
+  initialState = DEFAULT_LIST_STATE,
+  onStateChange,
+}: PeopleTableProps) {
   const segments = side === "freelancer" ? FREELANCER_SEGMENTS : CONTRACTOR_SEGMENTS;
-  const [segment, setSegment] = useState<string>("all");
-  const [search, setSearch] = useState("");
-  const [includeNoAccess, setIncludeNoAccess] = useState(false);
+  const [segment, setSegment] = useState<string>(() =>
+    segments.some((s) => s.id === initialState.segment) ? initialState.segment : "all",
+  );
+  const [search, setSearch] = useState(initialState.search);
+  const [includeNoAccess, setIncludeNoAccess] = useState(initialState.includeNoAccess);
   const [exporting, setExporting] = useState(false);
   const term = useDebounced(search.trim(), 400);
 
   // Trocar filtro, segmento ou busca volta à página 1 sem efeito colateral:
   // a página guardada só vale para a combinação em que foi escolhida.
   const listKey = JSON.stringify([filters, segment, term, includeNoAccess]);
-  const [pageState, setPageState] = useState({ key: listKey, page: 1 });
+  const [pageState, setPageState] = useState({ key: listKey, page: initialState.page });
   const page = pageState.key === listKey ? pageState.page : 1;
   const goTo = (p: number) => setPageState({ key: listKey, page: p });
 
@@ -129,6 +156,13 @@ export function PeopleTable({ side, filters, entries }: PeopleTableProps) {
     page,
     limit: PAGE_SIZE,
   };
+  const listState: ListState = { segment, search: term, page, includeNoAccess };
+  // Avisa a página a cada mudança real (a URL guarda o ponto da lista).
+  useEffect(() => {
+    onStateChange?.({ segment, search: term, page, includeNoAccess });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segment, term, page, includeNoAccess]);
+
   const query = useEngagementPeople(side, filters, params);
   const rows = query.data?.rows ?? [];
   const total = query.data?.total ?? 0;
@@ -250,7 +284,7 @@ export function PeopleTable({ side, filters, entries }: PeopleTableProps) {
                   return (
                     <tr key={r.userId} className="border-b border-[#f0f0f0] align-top last:border-0">
                       <td className="py-2 pr-3">
-                        <NameCell row={r} side={side} filters={filters} />
+                        <NameCell row={r} side={side} filters={filters} list={listState} />
                       </td>
                       <td className="py-2 pr-3 text-[#1d1d1b]">
                         {place(r)}
@@ -280,7 +314,7 @@ export function PeopleTable({ side, filters, entries }: PeopleTableProps) {
               return (
                 <li key={r.userId} className="rounded-lg border border-[#e5e5e5] p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <NameCell row={r} side={side} filters={filters} />
+                    <NameCell row={r} side={side} filters={filters} list={listState} />
                     <Badge variant={STATUS_BADGE[r.status]} className="shrink-0">
                       {statusLabel(r.status, side)}
                     </Badge>

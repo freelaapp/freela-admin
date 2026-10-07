@@ -18,6 +18,7 @@ import {
   formatValue,
   productsLabel,
   vacancySituation,
+  vacancyDayBR,
 } from "@/modules/admin/application/engagement-format";
 import { CONTRACTOR_DETAIL_NUMBERS } from "@/modules/admin/application/engagement-metrics";
 import { useContractorEngagement } from "@/modules/admin/application/use-engagement";
@@ -165,7 +166,7 @@ function ContractorBody({ d }: { d: ContractorDetail }) {
                 {d.vacancies.map((v) => (
                   <tr key={v.vacancyId} className="border-b border-[#f0f0f0] last:border-0">
                     <td className="py-2 pr-3">{dateBR(v.createdAt)}</td>
-                    <td className="py-2 pr-3">{dateBR(v.vacancyDate)}</td>
+                    <td className="py-2 pr-3">{vacancyDayBR(v.vacancyDate)}</td>
                     <td className="py-2 pr-3">{v.title ?? v.serviceType ?? "—"}</td>
                     <td className="py-2 pr-3">{v.city ?? "—"}</td>
                     <td className="py-2 pr-3">{PRODUCT_LABEL[v.module]}</td>
@@ -185,7 +186,7 @@ function ContractorBody({ d }: { d: ContractorDetail }) {
                   </p>
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                     <dt className="text-[#737373]">Data da vaga</dt>
-                    <dd className="text-right">{dateBR(v.vacancyDate)}</dd>
+                    <dd className="text-right">{vacancyDayBR(v.vacancyDate)}</dd>
                     <dt className="text-[#737373]">Candidatos</dt>
                     <dd className="text-right">{formatValue(v.candidates)}</dd>
                     <dt className="text-[#737373]">Situação</dt>

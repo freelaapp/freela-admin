@@ -16,6 +16,7 @@ import {
   dateBR,
   fileSlug,
   productsLabel,
+  vacancyDayBR,
 } from "@/modules/admin/application/engagement-format";
 import { FREELANCER_DETAIL_NUMBERS } from "@/modules/admin/application/engagement-metrics";
 import { useFreelancerEngagement } from "@/modules/admin/application/use-engagement";
@@ -134,7 +135,7 @@ function FreelancerBody({ d }: { d: FreelancerDetail }) {
                 {d.candidacies.map((c) => (
                   <tr key={c.candidacyId} className="border-b border-[#f0f0f0] last:border-0">
                     <td className="py-2 pr-3">{dateBR(c.createdAt)}</td>
-                    <td className="py-2 pr-3">{dateBR(c.vacancyDate)}</td>
+                    <td className="py-2 pr-3">{vacancyDayBR(c.vacancyDate)}</td>
                     <td className="py-2 pr-3">{c.companyName ?? "—"}</td>
                     <td className="py-2 pr-3">{c.title ?? c.serviceType ?? "—"}</td>
                     <td className="py-2 pr-3">{PRODUCT_LABEL[c.module]}</td>
@@ -155,7 +156,7 @@ function FreelancerBody({ d }: { d: FreelancerDetail }) {
                     <dt className="text-[#737373]">Candidatura em</dt>
                     <dd className="text-right">{dateBR(c.createdAt)}</dd>
                     <dt className="text-[#737373]">Data da vaga</dt>
-                    <dd className="text-right">{dateBR(c.vacancyDate)}</dd>
+                    <dd className="text-right">{vacancyDayBR(c.vacancyDate)}</dd>
                     <dt className="text-[#737373]">Situação</dt>
                     <dd className="text-right">{candidacyStatusLabel(c.status)}</dd>
                     <dt className="text-[#737373]">Concluiu</dt>

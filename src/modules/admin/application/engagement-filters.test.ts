@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { EngagementFilters } from "../infrastructure/engagement-api";
 import { SAMPLE_OVERVIEW } from "./engagement.test-fixtures";
 import {
+  backToListHref,
   customRangeError,
+  DEFAULT_LIST_STATE,
+  listStateExtras,
+  listStateFromSearchParams,
   defaultFilters,
   describeFilters,
   fichaHref,
@@ -127,5 +131,33 @@ describe("textos e links", () => {
     expect(parseEngagementTab("empresas")).toBe("empresas");
     expect(parseEngagementTab("nada")).toBe("visao-geral");
     expect(parseEngagementTab(null)).toBe("visao-geral");
+  });
+});
+
+describe("estado da lista na URL (ida e volta da ficha)", () => {
+  it("lê e escreve segmento, busca, página e contas sem acesso", () => {
+    const s = listStateFromSearchParams(sp("segmento=opened_no_apply&busca=ana&pagina=3&semAcesso=1"));
+    expect(s).toEqual({ segment: "opened_no_apply", search: "ana", page: 3, includeNoAccess: true });
+    expect(listStateExtras(s)).toEqual({ segmento: "opened_no_apply", busca: "ana", pagina: "3", semAcesso: "1" });
+  });
+
+  it("valor inválido cai no padrão, e o padrão não suja a URL", () => {
+    expect(listStateFromSearchParams(sp("pagina=-2"))).toEqual(DEFAULT_LIST_STATE);
+    expect(listStateFromSearchParams(sp("pagina=x"))).toEqual(DEFAULT_LIST_STATE);
+    expect(listStateExtras(DEFAULT_LIST_STATE)).toEqual({
+      segmento: undefined,
+      busca: undefined,
+      pagina: undefined,
+      semAcesso: undefined,
+    });
+  });
+
+  it("a ficha leva o estado da lista e o link de volta o devolve", () => {
+    const f = defaultFilters(NOW);
+    const list = { segment: "cooling", search: "", page: 2, includeNoAccess: false };
+    expect(fichaHref("freelancer", "u1", f, list)).toBe(
+      "/engajamento/freelancer/u1?aba=freelancers&segmento=cooling&pagina=2",
+    );
+    expect(backToListHref(f, "freelancers", list)).toBe("/engajamento?aba=freelancers&segmento=cooling&pagina=2");
   });
 });

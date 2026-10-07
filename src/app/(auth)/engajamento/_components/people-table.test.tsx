@@ -115,4 +115,33 @@ describe("PeopleTable", () => {
     expect(screen.getByText("Ninguém neste segmento com esses filtros.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Exportar lista/ })).toBeDisabled();
   });
+
+  it("começa no estado vindo da URL, avisa cada mudança e leva o estado para a ficha", () => {
+    useEngagementPeople.mockReturnValue(result([SAMPLE_FREELANCER_ROW]));
+    const onStateChange = vi.fn();
+    render(
+      <PeopleTable
+        side="freelancer"
+        filters={F}
+        entries={[]}
+        initialState={{ segment: "opened_no_apply", search: "ana", page: 2, includeNoAccess: true }}
+        onStateChange={onStateChange}
+      />,
+    );
+    expect(useEngagementPeople).toHaveBeenLastCalledWith(
+      "freelancer",
+      F,
+      expect.objectContaining({ segment: "opened_no_apply", search: "ana", page: 2, includeNoAccess: true }),
+    );
+    expect(screen.getAllByRole("link", { name: "Ana Souza" })[0].getAttribute("href")).toContain(
+      "&segmento=opened_no_apply&busca=ana&pagina=2&semAcesso=1",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Esfriando" }));
+    expect(onStateChange).toHaveBeenLastCalledWith({
+      segment: "cooling",
+      search: "ana",
+      page: 1,
+      includeNoAccess: true,
+    });
+  });
 });

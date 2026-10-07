@@ -144,10 +144,55 @@ export function isFilterReady(f: EngagementFilters): boolean {
 }
 
 /** Link da ficha levando os filtros e a aba de volta. */
-export function fichaHref(side: EngagementSide, userId: string, f: EngagementFilters): string {
+/**
+ * Estado da lista (segmento, busca, página, contas sem acesso) na URL: abrir
+ * uma ficha e voltar devolve a equipe ao mesmo ponto da lista.
+ */
+export interface ListState {
+  segment: string;
+  search: string;
+  page: number;
+  includeNoAccess: boolean;
+}
+
+export const DEFAULT_LIST_STATE: ListState = { segment: "all", search: "", page: 1, includeNoAccess: false };
+
+export function listStateFromSearchParams(sp: URLSearchParams): ListState {
+  const page = Number(sp.get("pagina"));
+  return {
+    segment: sp.get("segmento") || "all",
+    search: (sp.get("busca") ?? "").slice(0, 80),
+    page: Number.isInteger(page) && page > 1 ? page : 1,
+    includeNoAccess: sp.get("semAcesso") === "1",
+  };
+}
+
+export function listStateExtras(s: ListState): Record<string, string | undefined> {
+  return {
+    segmento: s.segment !== "all" ? s.segment : undefined,
+    busca: s.search.trim() || undefined,
+    pagina: s.page > 1 ? String(s.page) : undefined,
+    semAcesso: s.includeNoAccess ? "1" : undefined,
+  };
+}
+
+export function fichaHref(
+  side: EngagementSide,
+  userId: string,
+  f: EngagementFilters,
+  list: ListState = DEFAULT_LIST_STATE,
+): string {
   const seg = side === "freelancer" ? "freelancer" : "empresa";
   const aba = side === "freelancer" ? "freelancers" : "empresas";
-  return withQuery(`/engajamento/${seg}/${encodeURIComponent(userId)}`, filtersToSearchParams(f, { aba }));
+  return withQuery(
+    `/engajamento/${seg}/${encodeURIComponent(userId)}`,
+    filtersToSearchParams(f, { aba, ...listStateExtras(list) }),
+  );
+}
+
+/** Link de volta da ficha para a lista, no mesmo ponto em que estava. */
+export function backToListHref(f: EngagementFilters, tab: "freelancers" | "empresas", list: ListState): string {
+  return withQuery("/engajamento", filtersToSearchParams(f, { aba: tab, ...listStateExtras(list) }));
 }
 
 export interface FilterEntry {

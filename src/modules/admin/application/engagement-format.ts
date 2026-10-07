@@ -3,6 +3,7 @@ import type {
   EngagementStatus,
   FreelancerSegment,
   ModuleKey,
+  EngagementPeriod,
   SeriesUnit,
 } from "../infrastructure/engagement-api";
 
@@ -226,4 +227,29 @@ export function fileSlug(text: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
   return slug || "engajamento";
+}
+
+/**
+ * Data da VAGA ("dia do serviço"): a API grava à meia-noite UTC do dia, então
+ * converter para Brasília voltaria um dia. Lê só a parte "YYYY-MM-DD".
+ */
+export function vacancyDayBR(value: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : DASH;
+}
+
+/**
+ * Aviso de medição (spec §5.1) — regra única da tela, do PDF e do Excel. A
+ * janela anterior começa antes da atual, então basta olhar `previousStart`: se
+ * ela começa antes de `measuredSince`, algum número de "abriram" fica sem dado.
+ */
+export function measurementNotice(
+  measuredSince: string | null,
+  period: Pick<EngagementPeriod, "previousStart">,
+): string | null {
+  if (!measuredSince) {
+    return 'As aberturas do app e do site ainda não estão sendo medidas. Os números de "abriram" aparecem como — (não é zero).';
+  }
+  if (brasiliaDayOf(period.previousStart) >= measuredSince) return null;
+  return `Aberturas medidas desde ${dateBR(measuredSince)}. Antes disso não há medição: os números de "abriram" aparecem como — (não é zero), e a comparação com o período anterior pode ficar sem número.`;
 }

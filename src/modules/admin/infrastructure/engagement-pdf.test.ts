@@ -103,3 +103,21 @@ describe("relatório para o cliente", () => {
     expect(all).not.toMatch(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
   });
 });
+
+describe("revisão final", () => {
+  it("empresa sem nome cadastrado: o relatório do cliente não usa o e-mail como título", () => {
+    const d = {
+      ...SAMPLE_CONTRACTOR_DETAIL,
+      summary: { ...SAMPLE_CONTRACTOR_DETAIL.summary, name: "dono@bar.com" },
+    };
+    buildContractorReportPdf(d, NOW);
+    expect(textCalls.some((t) => t.includes("@"))).toBe(false);
+    expect(textCalls).toContain("Relatório da empresa");
+  });
+
+  it("PDF do painel avisa da medição quando a janela anterior começa antes dela", () => {
+    const o = { ...SAMPLE_OVERVIEW, measuredSince: "2026-08-15", openedAvailable: { current: true, previous: true } };
+    buildOverviewPdf(o, "filtros", null, NOW);
+    expect(textCalls.some((t) => t.includes("Aberturas medidas desde 15/08/2026"))).toBe(true);
+  });
+});

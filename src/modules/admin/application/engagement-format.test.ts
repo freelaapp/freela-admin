@@ -15,7 +15,10 @@ import {
   statusLabel,
   vacancySituation,
   waLink,
+  measurementNotice,
+  vacancyDayBR,
 } from "./engagement-format";
+import type { EngagementPeriod } from "../infrastructure/engagement-api";
 
 // O Intl separa "R$" do número com espaço inquebrável (U+00A0).
 const plain = (s: string) => s.replace(/ /g, " ");
@@ -136,5 +139,32 @@ describe("WhatsApp e nome de arquivo", () => {
     expect(fileSlug("Bar do Zé")).toBe("bar-do-ze");
     expect(fileSlug("01/09/2026 a 30/09/2026")).toBe("01-09-2026-a-30-09-2026");
     expect(fileSlug("!!!")).toBe("engajamento");
+  });
+});
+
+describe("data da vaga (gravada à meia-noite UTC)", () => {
+  it("mostra o próprio dia, sem voltar um dia no fuso de Brasília", () => {
+    expect(vacancyDayBR("2026-09-12T00:00:00.000Z")).toBe("12/09/2026");
+    expect(vacancyDayBR("2026-09-12")).toBe("12/09/2026");
+    expect(vacancyDayBR(null)).toBe("—");
+    expect(vacancyDayBR("lixo")).toBe("—");
+  });
+});
+
+describe("measurementNotice (regra única: tela, PDF e Excel)", () => {
+  const P: EngagementPeriod = {
+    preset: "this_month",
+    start: "2026-11-01T03:00:00.000Z",
+    end: "2026-12-01T03:00:00.000Z",
+    previousStart: "2026-10-01T03:00:00.000Z",
+    previousEnd: "2026-11-01T03:00:00.000Z",
+    label: "novembro/2026",
+    previousLabel: "outubro/2026",
+  };
+  it("avisa quando a janela anterior começa antes da medição", () => {
+    expect(measurementNotice("2026-10-07", P)).toContain("Aberturas medidas desde 07/10/2026");
+  });
+  it("sem aviso quando as duas janelas estão medidas", () => {
+    expect(measurementNotice("2026-09-01", P)).toBeNull();
   });
 });

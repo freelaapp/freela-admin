@@ -2,12 +2,11 @@ import { jsPDF } from "jspdf";
 import {
   cityTable,
   contractorReportTables,
-  measurementText,
   overviewFunnelLines,
   overviewSummaryTables,
   type PdfTable,
 } from "@/modules/admin/application/engagement-export";
-import { dateBR, dateTimeBR, lastDayBR } from "@/modules/admin/application/engagement-format";
+import { dateBR, dateTimeBR, lastDayBR, measurementNotice } from "@/modules/admin/application/engagement-format";
 import { SERIES_LINES } from "@/modules/admin/application/engagement-metrics";
 import type { ContractorDetail, EngagementOverview } from "./engagement-api";
 
@@ -217,13 +216,8 @@ export function buildOverviewPdf(
   const w = new PdfWriter();
   w.header("Engajamento na Freela", `${o.period.label} · comparado com ${o.period.previousLabel}`);
   w.paragraph(filtersText);
-  if (!o.openedAvailable.current || !o.openedAvailable.previous) {
-    w.paragraph(
-      `${measurementText(o)}. Sem medição, os números de "abriram" aparecem como — (não é zero).`,
-      8.5,
-      WARN,
-    );
-  }
+  const notice = measurementNotice(o.measuredSince, o.period);
+  if (notice) w.paragraph(notice, 8.5, WARN);
   for (const t of overviewSummaryTables(o)) w.table(t, [92, 30, 30, 30], [false, true, true, true]);
   for (const f of overviewFunnelLines(o)) {
     w.sectionTitle(f.title);
@@ -247,11 +241,14 @@ export function buildOverviewPdf(
 export function buildContractorReportPdf(d: ContractorDetail, generatedAt: Date): jsPDF {
   const w = new PdfWriter();
   const range = `${dateBR(d.period.start)} a ${lastDayBR(d.period.end)}`;
-  w.header(d.summary.name, `Relatório de vagas · ${range}`);
+  // Sem nome cadastrado a API devolve o e-mail no lugar: o relatório vai para o
+  // cliente, então nunca leva e-mail (spec §5.2).
+  const title = d.summary.name.includes("@") ? "Relatório da empresa" : d.summary.name;
+  w.header(title, `Relatório de vagas · ${range}`);
   w.paragraph(`Período: ${d.period.label}. Comparado com: ${d.period.previousLabel}.`);
   const { numbers, vacancies } = contractorReportTables(d);
   w.table(numbers, [102, 40, 40], [false, true, true]);
   w.table(vacancies, [22, 50, 34, 22, 30, 24], [false, false, false, true, false, false]);
-  w.footer(`Freela · ${d.summary.name} · ${range} · gerado em ${dateTimeBR(generatedAt)}`);
+  w.footer(`Freela · ${title} · ${range} · gerado em ${dateTimeBR(generatedAt)}`);
   return w.doc;
 }

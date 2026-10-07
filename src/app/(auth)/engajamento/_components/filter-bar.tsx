@@ -206,8 +206,10 @@ export function FilterBar({ filters, onChange, cities, periodOnly = false, actio
           </>
         )}
 
-        {actions && <div className="flex flex-wrap gap-2 md:ml-auto">{actions}</div>}
       </div>
+      {/* Fora do bloco recolhido: no celular a exportação (e o relatório do
+          cliente, na ficha) fica sempre à vista. */}
+      {actions && <div className="mt-3 flex flex-wrap gap-2 md:mt-2 md:justify-end">{actions}</div>}
     </div>
   );
 }

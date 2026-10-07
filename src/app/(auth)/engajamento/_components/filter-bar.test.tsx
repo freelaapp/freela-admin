@@ -58,4 +58,11 @@ describe("FilterBar", () => {
     );
     expect(screen.getByRole("button", { name: "Exportar PDF" })).toBeInTheDocument();
   });
+
+  it("no celular, os botões de exportar ficam fora do bloco recolhido de filtros", () => {
+    render(
+      <FilterBar filters={F} onChange={vi.fn()} cities={CITIES} actions={<button type="button">Exportar PDF</button>} />,
+    );
+    expect(screen.getByRole("button", { name: "Exportar PDF" }).closest(".hidden")).toBeNull();
+  });
 });

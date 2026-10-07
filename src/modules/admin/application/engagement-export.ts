@@ -22,6 +22,7 @@ import {
   vacancySituation,
   waLink,
   type ValueKind,
+  vacancyDayBR,
 } from "./engagement-format";
 import {
   ALL_METRIC_GROUPS,
@@ -287,7 +288,7 @@ export function freelancerDetailSheets(d: FreelancerDetail, entries: FilterEntry
     ["Candidatura em", "Data da vaga", "Empresa", "Cargo", "Produto", "Situação", "Concluiu"],
     ...d.candidacies.map((c): Cell[] => [
       dateBR(c.createdAt),
-      dateBR(c.vacancyDate),
+      vacancyDayBR(c.vacancyDate),
       c.companyName,
       c.title ?? c.serviceType,
       PRODUCT_LABEL[c.module],
@@ -328,7 +329,7 @@ export function contractorDetailSheets(d: ContractorDetail, entries: FilterEntry
     ["Publicada em", "Data da vaga", "Cargo", "Cidade", "Produto", "Candidatos", "Situação", "Quem trabalhou"],
     ...d.vacancies.map((v): Cell[] => [
       dateBR(v.createdAt),
-      dateBR(v.vacancyDate),
+      vacancyDayBR(v.vacancyDate),
       v.title ?? v.serviceType,
       v.city,
       PRODUCT_LABEL[v.module],
@@ -404,7 +405,7 @@ export function contractorReportTables(d: ContractorDetail): { numbers: PdfTable
       title: "Vagas do período",
       head: ["Data", "Cargo", "Cidade", "Candidatos", "Situação", "Quem trabalhou"],
       rows: d.vacancies.map((v) => [
-        dateBR(v.vacancyDate ?? v.createdAt),
+        v.vacancyDate ? vacancyDayBR(v.vacancyDate) : dateBR(v.createdAt),
         v.title ?? v.serviceType ?? DASH,
         v.city ?? DASH,
         formatValue(v.candidates),

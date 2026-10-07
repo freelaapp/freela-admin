@@ -19,6 +19,10 @@ import {
   parseEngagementTab,
   withQuery,
   type EngagementTab,
+  DEFAULT_LIST_STATE,
+  listStateExtras,
+  listStateFromSearchParams,
+  type ListState,
 } from "@/modules/admin/application/engagement-filters";
 import { fileSlug } from "@/modules/admin/application/engagement-format";
 import {
@@ -74,10 +78,17 @@ function EngajamentoScreen() {
   // de a URL sem `de` trazer de volta a data padrão.
   const [filters, setFilters] = useState<EngagementFilters>(() => filtersFromSearchParams(searchParams));
   const [tab, setTab] = useState<EngagementTab>(() => parseEngagementTab(searchParams.get("aba")));
-  const sync = (f: EngagementFilters, t: EngagementTab) =>
-    router.replace(withQuery(pathname, filtersToSearchParams(f, t === "visao-geral" ? {} : { aba: t })), {
-      scroll: false,
-    });
+  // Ponto da lista (segmento, busca, página) da aba aberta, para voltar da ficha.
+  const [initialList] = useState(() => listStateFromSearchParams(searchParams));
+  const listRef = useRef<ListState>(initialList);
+  const sync = (f: EngagementFilters, t: EngagementTab, list: ListState = listRef.current) => {
+    const extras = t === "visao-geral" ? {} : { aba: t, ...(t === tab ? listStateExtras(list) : {}) };
+    router.replace(withQuery(pathname, filtersToSearchParams(f, extras)), { scroll: false });
+  };
+  const changeList = (list: ListState) => {
+    listRef.current = list;
+    sync(filters, tab, list);
+  };
   const changeFilters = (f: EngagementFilters) => {
     setFilters(f);
     sync(f, tab);
@@ -85,7 +96,8 @@ function EngajamentoScreen() {
   const changeTab = (value: string) => {
     const t = parseEngagementTab(value);
     setTab(t);
-    sync(filters, t);
+    listRef.current = DEFAULT_LIST_STATE;
+    sync(filters, t, DEFAULT_LIST_STATE);
   };
 
   const overview = useEngagementOverview(filters);
@@ -194,7 +206,13 @@ function EngajamentoScreen() {
               <MetricGrid overview={o} metrics={FREELANCER_METRICS} product={filters.product} />
               <Funnel title="Funil de freelancers" steps={freelancerFunnel(o)} />
               {canFreelancers ? (
-                <PeopleTable side="freelancer" filters={filters} entries={entries} />
+                <PeopleTable
+                  side="freelancer"
+                  filters={filters}
+                  entries={entries}
+                  initialState={tab === "freelancers" ? listRef.current : undefined}
+                  onStateChange={changeList}
+                />
               ) : (
                 <NoAccessNote area="Freelancers" />
               )}
@@ -204,7 +222,13 @@ function EngajamentoScreen() {
               <MetricGrid overview={o} metrics={CONTRACTOR_METRICS} product={filters.product} />
               <Funnel title="Funil de empresas" steps={contractorFunnel(o)} />
               {canCompanies ? (
-                <PeopleTable side="contractor" filters={filters} entries={entries} />
+                <PeopleTable
+                  side="contractor"
+                  filters={filters}
+                  entries={entries}
+                  initialState={tab === "empresas" ? listRef.current : undefined}
+                  onStateChange={changeList}
+                />
               ) : (
                 <NoAccessNote area="Empresas" />
               )}
