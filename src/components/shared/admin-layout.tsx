@@ -62,6 +62,7 @@ import {
  */
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
+  { label: "Engajamento", icon: Activity, path: "/engajamento" },
   { label: "Freelancers", icon: Users, path: "/freelancers", permission: "FREELANCERS" },
   { label: "Empresas", icon: Building2, path: "/empresas", permission: "COMPANIES" },
   // Nasce só para SUPER_ADMIN: a chave SUBSCRIPTIONS não existe em nenhum admin
