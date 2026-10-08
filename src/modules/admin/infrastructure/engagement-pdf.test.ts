@@ -3,6 +3,7 @@ import {
   SAMPLE_CONTRACTOR_DETAIL,
   SAMPLE_OVERVIEW,
   SAMPLE_OVERVIEW_BEFORE_MEASUREMENT,
+  SAMPLE_OVERVIEW_WITHOUT_INDICATORS,
 } from "@/modules/admin/application/engagement.test-fixtures";
 
 // Mesmo jeito de contractor-report-pdf.test.ts: o fake grava o TEXTO escrito
@@ -51,22 +52,43 @@ beforeEach(() => {
 });
 
 describe("PDF do painel", () => {
-  it("cabeçalho, filtros, tabelas, cidades e rodapé", () => {
+  it("cabeçalho, filtros, as 2 tabelas de indicadores, cidades e rodapé", () => {
     buildOverviewPdf(SAMPLE_OVERVIEW, "Período: 01/09/2026 a 30/09/2026 · Cidade: Todas", null, NOW);
     expect(textCalls).toContain("Engajamento na Freela");
     expect(textCalls).toContain("Período: 01/09/2026 a 30/09/2026 · Cidade: Todas");
-    expect(textCalls).toContain("Vagas publicadas");
+    expect(textCalls).toContain("Contratante");
+    expect(textCalls).toContain("Freelancer");
+    for (const head of ["Indicador", "Período", "Anterior", "Parcelas", "Como calcular", "Fonte"]) {
+      expect(textCalls).toContain(head);
+    }
+    // Linha completa, na ordem das colunas (o fake não quebra linha: largura de texto 0).
+    const i = textCalls.indexOf("Abriu a 1ª vaga");
+    expect(textCalls.slice(i, i + 6)).toEqual([
+      "Abriu a 1ª vaga",
+      "40%",
+      "33,3% (+20%)",
+      "Período: 2 de 5 cadastrados · Anterior: 1 de 3 cadastrados",
+      "% dos cadastrados no período que já abriram ao menos 1 vaga (até hoje)",
+      "Cadastros do período × vagas abertas por eles (qualquer data)",
+    ]);
+    expect(textCalls).toContain("Candidatou e não trabalhou");
     expect(textCalls).toContain("Juiz de Fora - MG");
-    expect(textCalls).toContain("Se candidataram: 2 (50%)");
     expect(textCalls.some((t) => t.includes("gerado em 07/10/2026 12:00 · página 1 de 1"))).toBe(true);
     expect(imageCalls).toHaveLength(0);
   });
 
-  it("antes da medição: aviso e '—' (nunca 0) nas aberturas", () => {
+  it("sem o bloco indicators (API antiga): escreve o aviso e segue com o resto", () => {
+    buildOverviewPdf(SAMPLE_OVERVIEW_WITHOUT_INDICATORS, "x", null, NOW);
+    expect(textCalls).toContain("Indicadores atualizando — publique a API");
+    expect(textCalls).not.toContain("Abriu a 1ª vaga");
+    expect(textCalls).toContain("Juiz de Fora - MG");
+  });
+
+  it("antes da medição: aviso e '—' (nunca 0) nos acessos", () => {
     buildOverviewPdf(SAMPLE_OVERVIEW_BEFORE_MEASUREMENT, "x", null, NOW);
     expect(textCalls.some((t) => t.startsWith("Aberturas medidas desde 07/10/2026"))).toBe(true);
-    const i = textCalls.indexOf("Abriram o app ou site");
-    expect(textCalls.slice(i + 1, i + 4)).toEqual(["—", "—", "—"]);
+    const i = textCalls.indexOf("Acessou");
+    expect(textCalls.slice(i + 1, i + 3)).toEqual(["—", "—"]);
   });
 
   it("com o PNG do gráfico, desenha a imagem e a legenda", () => {

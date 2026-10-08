@@ -83,6 +83,59 @@ export interface CityOption {
   label: string;
 }
 
+/**
+ * Indicadores pedidos pela diretoria (API #574). Todo %/razão é EXATAMENTE
+ * numerador ÷ denominador de campos deste bloco, para a tela escrever "12 de 40":
+ * firstVacancyPct = firstVacancyCount ÷ signedUp · vacanciesPerActive = vacancies ÷ active ·
+ * filledPct = completedFromOpened ÷ vacancies · returnedPct = returned ÷ returnedBase ·
+ * candidaciesPerActive = candidacies ÷ active · servicesPerWorker = services ÷ worked ·
+ * appliedNotWorkedPct = appliedNotWorked ÷ active. Divisão por zero → null.
+ * Em "voltou", o `previous` compara o período anterior com o anterior a ele.
+ */
+export interface EngagementIndicators {
+  contractors: {
+    signedUp: Metric;
+    firstVacancyCount: Metric;
+    /** 0–100, 1 casa. */
+    firstVacancyPct: Metric;
+    /** Dias, 1 casa. */
+    medianDaysToFirstVacancy: Metric;
+    /** null = período sem medição de acessos. */
+    accessed: Metric;
+    active: Metric;
+    vacancies: Metric;
+    /** Razão, 2 casas. */
+    vacanciesPerActive: Metric;
+    completedFromOpened: Metric;
+    /** 0–100. */
+    filledPct: Metric;
+    returned: Metric;
+    returnedBase: Metric;
+    /** 0–100. */
+    returnedPct: Metric;
+    grossCents: Metric;
+    revenueCents: Metric;
+  };
+  freelancers: {
+    signedUp: Metric;
+    active: Metric;
+    candidacies: Metric;
+    /** Razão, 2 casas. */
+    candidaciesPerActive: Metric;
+    worked: Metric;
+    services: Metric;
+    /** Razão, 2 casas. */
+    servicesPerWorker: Metric;
+    appliedNotWorked: Metric;
+    /** 0–100. */
+    appliedNotWorkedPct: Metric;
+    returned: Metric;
+    returnedBase: Metric;
+    /** 0–100. */
+    returnedPct: Metric;
+  };
+}
+
 export interface EngagementOverview {
   period: EngagementPeriod;
   /** "YYYY-MM-DD" do 1º dia com aberturas registradas; null = ainda sem medição. */
@@ -124,6 +177,8 @@ export interface EngagementOverview {
   series: { unit: SeriesUnit; points: SeriesPoint[] };
   byCity: CityRow[];
   filterOptions: { cities: CityOption[] };
+  /** Opcional: a API anterior à #574 não manda. Sem ele, a tela avisa em vez de quebrar. */
+  indicators?: EngagementIndicators;
 }
 
 export interface FreelancerListRow {

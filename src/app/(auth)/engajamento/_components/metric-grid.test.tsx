@@ -1,29 +1,30 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { FREELANCER_METRICS, VACANCY_METRICS } from "@/modules/admin/application/engagement-metrics";
-import {
-  SAMPLE_OVERVIEW,
-  SAMPLE_OVERVIEW_BEFORE_MEASUREMENT,
-} from "@/modules/admin/application/engagement.test-fixtures";
+import { VACANCY_METRICS } from "@/modules/admin/application/engagement-metrics";
+import { SAMPLE_OVERVIEW } from "@/modules/admin/application/engagement.test-fixtures";
 import { MetricGrid } from "./metric-grid";
 
 // KpiCard: Card > (cabeçalho com o título) + valor + quebra + comparação.
 const card = (title: string) => screen.getByText(title).parentElement?.parentElement as HTMLElement;
 
 describe("MetricGrid", () => {
-  it("antes da medição: aberturas com '—' e 'sem comparação' (nunca 0)", () => {
-    render(<MetricGrid overview={SAMPLE_OVERVIEW_BEFORE_MEASUREMENT} metrics={FREELANCER_METRICS} product="all" />);
-    const c = card("Abriram o app ou site");
+  it("sem dado: '—' e 'sem comparação' (nunca 0)", () => {
+    const overview = {
+      ...SAMPLE_OVERVIEW,
+      vacancies: { ...SAMPLE_OVERVIEW.vacancies, medianHoursToFirstCandidacy: { current: null, previous: 4 } },
+    };
+    render(<MetricGrid overview={overview} metrics={VACANCY_METRICS} product="all" />);
+    const c = card("Tempo até a 1ª candidatura");
     expect(within(c).getByText("—")).toBeInTheDocument();
     expect(within(c).getByText("sem comparação")).toBeInTheDocument();
     expect(within(c).queryByText("0")).not.toBeInTheDocument();
   });
 
-  it("a ajuda das aberturas diz desde quando há medição", () => {
-    render(<MetricGrid overview={SAMPLE_OVERVIEW} metrics={FREELANCER_METRICS} product="all" />);
-    expect(screen.getByLabelText("Sobre: Abriram o app ou site")).toHaveAttribute(
+  it("a ajuda de cada cartão vem do registro", () => {
+    render(<MetricGrid overview={SAMPLE_OVERVIEW} metrics={VACANCY_METRICS} product="all" />);
+    expect(screen.getByLabelText("Sobre: Sem candidato")).toHaveAttribute(
       "title",
-      expect.stringContaining("Medido desde 20/07/2026"),
+      "Vagas publicadas no período que não receberam nenhuma candidatura.",
     );
   });
 

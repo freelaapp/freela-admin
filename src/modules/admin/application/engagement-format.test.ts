@@ -3,6 +3,7 @@ import {
   brasiliaDayOf,
   bucketLabel,
   candidacyStatusLabel,
+  changeInfo,
   dateBR,
   dateTimeBR,
   deltaInfo,
@@ -38,6 +39,17 @@ describe("formatValue", () => {
     expect(formatValue(15, "hours")).toBe("15 h");
     expect(formatValue(0.5, "hours")).toBe("30 min");
     expect(plain(formatValue(12345678, "brl"))).toBe("R$ 123.456,78");
+  });
+
+  it("razão com 2 casas fixas e dias com 1 casa", () => {
+    expect(formatValue(2.35, "ratio")).toBe("2,35");
+    expect(formatValue(1.5, "ratio")).toBe("1,50");
+    expect(formatValue(1, "ratio")).toBe("1,00");
+    expect(formatValue(1234.5, "ratio")).toBe("1.234,50");
+    expect(formatValue(4.5, "days")).toBe("4,5 dias");
+    expect(formatValue(1, "days")).toBe("1 dia");
+    expect(formatValue(0, "days")).toBe("0 dias");
+    expect(formatValue(null, "days")).toBe("—");
   });
 });
 
@@ -86,6 +98,39 @@ describe("variação", () => {
       text: "anterior: 2 · 0%",
       color: "text-[#737373]",
     });
+  });
+});
+
+describe("changeInfo (coluna Anterior das tabelas)", () => {
+  it("só a variação, com a direção da seta e a cor do sentido bom", () => {
+    expect(changeInfo({ current: 4, previous: 3 })).toEqual({
+      text: "+33%",
+      color: "text-green-500",
+      direction: "up",
+    });
+    // Menor é melhor (ex.: tempo até a 1ª vaga): subir fica vermelho, mas a seta sobe.
+    expect(changeInfo({ current: 6, previous: 4 }, false)).toEqual({
+      text: "+50%",
+      color: "text-red-500",
+      direction: "up",
+    });
+    expect(changeInfo({ current: 2, previous: 4 }, false)).toEqual({
+      text: "-50%",
+      color: "text-green-500",
+      direction: "down",
+    });
+    expect(changeInfo({ current: 2, previous: 2 })).toEqual({ text: "0%", color: "text-[#737373]", direction: "flat" });
+  });
+
+  it("sem um dos lados ou com anterior 0: sem % e sem seta", () => {
+    expect(changeInfo({ current: null, previous: 3 })).toEqual({
+      text: "sem comparação",
+      color: "text-[#737373]",
+      direction: null,
+    });
+    expect(changeInfo({ current: 4, previous: 0 }).text).toBe("sem base");
+    expect(changeInfo({ current: 0, previous: 0 }).text).toBe("sem movimento");
+    expect(changeInfo({ current: 4, previous: 0 }).direction).toBeNull();
   });
 });
 

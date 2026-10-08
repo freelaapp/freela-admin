@@ -11,7 +11,8 @@ import type {
  * Formatos e rótulos do engajamento. Funções puras: a tela, o Excel e o PDF
  * usam as mesmas, para o número nunca sair diferente em cada lugar.
  */
-export type ValueKind = "int" | "decimal" | "pct" | "hours" | "brl";
+/** `ratio` = razão com 2 casas fixas ("2,35"); `days` = dias com 1 casa ("4,5 dias"). */
+export type ValueKind = "int" | "decimal" | "ratio" | "pct" | "hours" | "days" | "brl";
 export type EngagementSide = "freelancer" | "contractor";
 
 /** Sem dado (ex.: aberturas antes da medição). Nunca mostrar 0 no lugar. */
@@ -22,6 +23,7 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const INT = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const DEC = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 const ONE = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+const RATIO = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const NEUTRAL = "text-[#737373]";
 const MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -34,10 +36,14 @@ export function formatValue(v: number | null | undefined, kind: ValueKind = "int
       return INT.format(v);
     case "decimal":
       return DEC.format(v);
+    case "ratio":
+      return RATIO.format(v);
     case "pct":
       return `${ONE.format(v)}%`;
     case "hours":
       return v < 1 ? `${INT.format(Math.round(v * 60))} min` : `${ONE.format(v)} h`;
+    case "days":
+      return `${ONE.format(v)} ${v === 1 ? "dia" : "dias"}`;
     case "brl":
       return BRL.format(v / 100);
   }
@@ -62,27 +68,42 @@ export interface DeltaInfo {
   color: string;
 }
 
+export interface ChangeInfo extends DeltaInfo {
+  /** Para onde o número andou (a seta); null quando não dá para comparar em %. */
+  direction: "up" | "down" | "flat" | null;
+}
+
 /**
- * Comparação do cartão, com as mesmas cores do dashboard. `higherIsBetter=false`
- * inverte (ex.: vaga sem candidato). Empate fica neutro.
+ * Só a variação ("+12%"), com as cores do dashboard. `higherIsBetter=false`
+ * inverte (ex.: vaga sem candidato). Empate fica neutro; anterior 0 não tem %.
  */
+export function changeInfo(
+  m: { current: number | null; previous: number | null },
+  higherIsBetter = true,
+): ChangeInfo {
+  const { current, previous } = m;
+  if (current === null || previous === null) return { text: "sem comparação", color: NEUTRAL, direction: null };
+  if (previous === 0) {
+    return { text: current === 0 ? "sem movimento" : "sem base", color: NEUTRAL, direction: null };
+  }
+  if (current === previous) return { text: "0%", color: NEUTRAL, direction: "flat" };
+  const up = current > previous;
+  return {
+    text: signedPct(pctChange(current, previous)),
+    color: up === higherIsBetter ? "text-green-500" : "text-red-500",
+    direction: up ? "up" : "down",
+  };
+}
+
+/** Comparação do cartão: "anterior: X · +12%". */
 export function deltaInfo(
   m: { current: number | null; previous: number | null },
   kind: ValueKind,
   higherIsBetter = true,
 ): DeltaInfo {
-  const { current, previous } = m;
-  if (current === null || previous === null) return { text: "sem comparação", color: NEUTRAL };
-  const prev = `anterior: ${formatValue(previous, kind)}`;
-  if (previous === 0) {
-    return { text: `${prev} · ${current === 0 ? "sem movimento" : "sem base"}`, color: NEUTRAL };
-  }
-  if (current === previous) return { text: `${prev} · 0%`, color: NEUTRAL };
-  const up = current > previous;
-  return {
-    text: `${prev} · ${signedPct(pctChange(current, previous))}`,
-    color: up === higherIsBetter ? "text-green-500" : "text-red-500",
-  };
+  const { text, color } = changeInfo(m, higherIsBetter);
+  if (m.current === null || m.previous === null) return { text, color };
+  return { text: `anterior: ${formatValue(m.previous, kind)} · ${text}`, color };
 }
 
 // ─── Rótulos ────────────────────────────────────────────────────────────────

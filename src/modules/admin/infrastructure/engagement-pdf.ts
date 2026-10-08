@@ -2,12 +2,11 @@ import { jsPDF } from "jspdf";
 import {
   cityTable,
   contractorReportTables,
-  overviewFunnelLines,
-  overviewSummaryTables,
+  indicatorPdfTables,
   type PdfTable,
 } from "@/modules/admin/application/engagement-export";
 import { dateBR, dateTimeBR, lastDayBR, measurementNotice } from "@/modules/admin/application/engagement-format";
-import { SERIES_LINES } from "@/modules/admin/application/engagement-metrics";
+import { INDICATORS_PENDING, SERIES_LINES } from "@/modules/admin/application/engagement-metrics";
 import type { ContractorDetail, EngagementOverview } from "./engagement-api";
 
 /**
@@ -21,6 +20,11 @@ const PH = 297;
 const L = 14;
 const W = PW - 2 * L;
 const ROW_H = 6.5;
+/** Tabelas de indicadores: letra menor e várias linhas por célula. */
+const WRAP_SIZE = 7.5;
+const WRAP_LINE_H = 3.3;
+/** Indicador, Período, Anterior, Parcelas, Como calcular, Fonte (soma = W). */
+const INDICATOR_WIDTHS = [27, 19, 26, 36, 40, 34];
 const BOTTOM = PH - 22;
 const TOP = 18;
 /** Tamanho do gráfico de exportação (series-chart.tsx), para manter a proporção. */
@@ -111,18 +115,6 @@ class PdfWriter {
     this.y += 6;
   }
 
-  lines(texts: string[]): void {
-    this.doc.setFont("helvetica", "normal");
-    for (const t of texts) {
-      this.ensure(5);
-      this.doc.setFontSize(9);
-      this.color(INK);
-      this.doc.text(this.fit(t, W, 9), L, this.y);
-      this.y += 5;
-    }
-    this.y += 3;
-  }
-
   table(t: PdfTable, widths: number[], right: boolean[]): void {
     const d = this.doc;
     const xs: number[] = [];
@@ -166,6 +158,49 @@ class PdfWriter {
         d.rect(L, this.y - 4.5, W, ROW_H, "F");
       }
       row(cells, false);
+    });
+    this.y += 4;
+  }
+
+  /** Tabela com texto longo: cada célula quebra em linhas e a linha cresce junto. */
+  wrapTable(t: PdfTable, widths: number[]): void {
+    const d = this.doc;
+    const xs: number[] = [];
+    widths.reduce((x, w) => {
+      xs.push(x);
+      return x + w;
+    }, L);
+    const linesOf = (cells: string[]) => cells.map((c, i) => this.wrap(c, widths[i] - 2, WRAP_SIZE));
+    const heightOf = (lines: string[][]) => Math.max(1, ...lines.map((l) => l.length)) * WRAP_LINE_H + 2.6;
+    const draw = (lines: string[][], h: number, fill: Rgb | null, bold: boolean) => {
+      const top = this.y - 3.4;
+      if (fill) {
+        d.setFillColor(...fill);
+        d.rect(L, top, W, h, "F");
+      }
+      d.setFont("helvetica", bold ? "bold" : "normal");
+      d.setFontSize(WRAP_SIZE);
+      this.color(INK);
+      lines.forEach((cell, i) =>
+        cell.forEach((line, k) => d.text(this.fit(line, widths[i] - 2, WRAP_SIZE), xs[i] + 1, this.y + k * WRAP_LINE_H)),
+      );
+      this.y += h;
+    };
+    const headLines = linesOf(t.head);
+    const headH = heightOf(headLines);
+    const head = () => draw(headLines, headH, [238, 168, 38], true);
+    const rows = t.rows.map((r) => linesOf(r));
+    this.ensure(12 + headH + (rows[0] ? heightOf(rows[0]) : ROW_H));
+    this.sectionTitle(t.title);
+    head();
+    rows.forEach((lines, i) => {
+      const h = heightOf(lines);
+      if (this.y + h > BOTTOM) {
+        d.addPage();
+        this.y = TOP;
+        head();
+      }
+      draw(lines, h, i % 2 === 1 ? [248, 248, 245] : null, false);
     });
     this.y += 4;
   }
@@ -218,11 +253,9 @@ export function buildOverviewPdf(
   w.paragraph(filtersText);
   const notice = measurementNotice(o.measuredSince, o.period);
   if (notice) w.paragraph(notice, 8.5, WARN);
-  for (const t of overviewSummaryTables(o)) w.table(t, [92, 30, 30, 30], [false, true, true, true]);
-  for (const f of overviewFunnelLines(o)) {
-    w.sectionTitle(f.title);
-    w.lines(f.lines);
-  }
+  const indicators = indicatorPdfTables(o);
+  if (indicators.length === 0) w.paragraph(INDICATORS_PENDING, 9, WARN);
+  for (const t of indicators) w.wrapTable(t, INDICATOR_WIDTHS);
   if (chartPng) {
     w.ensure(12 + (W * CHART_H_PX) / CHART_W_PX + 12);
     w.sectionTitle("Evolução no período");

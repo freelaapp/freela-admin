@@ -26,12 +26,9 @@ import {
 } from "@/modules/admin/application/engagement-filters";
 import { fileSlug } from "@/modules/admin/application/engagement-format";
 import {
-  CONTRACTOR_METRICS,
-  FREELANCER_METRICS,
-  OVERVIEW_HIGHLIGHTS,
+  CONTRACTOR_INDICATORS,
+  FREELANCER_INDICATORS,
   VACANCY_METRICS,
-  contractorFunnel,
-  freelancerFunnel,
 } from "@/modules/admin/application/engagement-metrics";
 import { useEngagementOverview } from "@/modules/admin/application/use-engagement";
 import type { EngagementFilters } from "@/modules/admin/infrastructure/engagement-api";
@@ -41,7 +38,7 @@ import { svgToPngDataUrl } from "@/modules/admin/infrastructure/svg-to-png";
 import { CityTable } from "./_components/city-table";
 import { EntitySearch } from "./_components/entity-search";
 import { FilterBar } from "./_components/filter-bar";
-import { Funnel } from "./_components/funnel";
+import { IndicatorTable } from "./_components/indicator-table";
 import { MeasurementNotice } from "./_components/measurement-notice";
 import { MetricGrid } from "./_components/metric-grid";
 import { PeopleTable } from "./_components/people-table";
@@ -193,18 +190,14 @@ function EngajamentoScreen() {
             </TabsList>
 
             <TabsContent value="visao-geral" className="space-y-6">
-              <MetricGrid overview={o} metrics={OVERVIEW_HIGHLIGHTS} product={filters.product} />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Funnel title="Funil de freelancers" steps={freelancerFunnel(o)} />
-                <Funnel title="Funil de empresas" steps={contractorFunnel(o)} />
-              </div>
+              <IndicatorTable title="Contratante" defs={CONTRACTOR_INDICATORS} overview={o} />
+              <IndicatorTable title="Freelancer" defs={FREELANCER_INDICATORS} overview={o} />
               <SeriesChart series={o.series} />
               <CityTable rows={o.byCity} />
             </TabsContent>
 
             <TabsContent value="freelancers" className="space-y-6">
-              <MetricGrid overview={o} metrics={FREELANCER_METRICS} product={filters.product} />
-              <Funnel title="Funil de freelancers" steps={freelancerFunnel(o)} />
+              <IndicatorTable title="Freelancer" defs={FREELANCER_INDICATORS} overview={o} />
               {canFreelancers ? (
                 <PeopleTable
                   side="freelancer"
@@ -219,8 +212,7 @@ function EngajamentoScreen() {
             </TabsContent>
 
             <TabsContent value="empresas" className="space-y-6">
-              <MetricGrid overview={o} metrics={CONTRACTOR_METRICS} product={filters.product} />
-              <Funnel title="Funil de empresas" steps={contractorFunnel(o)} />
+              <IndicatorTable title="Contratante" defs={CONTRACTOR_INDICATORS} overview={o} />
               {canCompanies ? (
                 <PeopleTable
                   side="contractor"

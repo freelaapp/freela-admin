@@ -1,5 +1,5 @@
 import { KpiCard } from "@/components/shared/kpi-card";
-import { dateBR, deltaInfo, formatValue } from "@/modules/admin/application/engagement-format";
+import { deltaInfo, formatValue } from "@/modules/admin/application/engagement-format";
 import type { MetricDef } from "@/modules/admin/application/engagement-metrics";
 import type { EngagementOverview, EngagementProduct } from "@/modules/admin/infrastructure/engagement-api";
 
@@ -13,7 +13,6 @@ export function MetricGrid({
   metrics: MetricDef[];
   product: EngagementProduct;
 }) {
-  const since = overview.measuredSince;
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {metrics.map((def) => {
@@ -27,9 +26,6 @@ export function MetricGrid({
                 { label: "Casa", value: formatValue(m.byModule.homeServices, def.kind) },
               ]
             : undefined;
-        const help = def.opened
-          ? `${def.help} ${since ? `Medido desde ${dateBR(since)}; antes disso aparece "—".` : `Ainda sem medição; aparece "—".`}`
-          : def.help;
         return (
           <KpiCard
             key={def.key}
@@ -38,7 +34,7 @@ export function MetricGrid({
             icon={def.icon}
             meta={delta.text}
             metaColor={delta.color}
-            help={help}
+            help={def.help}
             breakdown={breakdown}
           />
         );

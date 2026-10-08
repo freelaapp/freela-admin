@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { FilterEntry } from "./engagement-filters";
 import {
+  INDICATOR_HEAD,
   cityTable,
   contractorListSheets,
   contractorReportTables,
   freelancerDetailSheets,
   freelancerListSheets,
+  indicatorPdfTables,
   overviewSheets,
-  overviewSummaryTables,
 } from "./engagement-export";
 import {
   SAMPLE_CONTRACTOR_DETAIL,
@@ -16,6 +17,7 @@ import {
   SAMPLE_FREELANCER_ROW,
   SAMPLE_OVERVIEW,
   SAMPLE_OVERVIEW_BEFORE_MEASUREMENT,
+  SAMPLE_OVERVIEW_WITHOUT_INDICATORS,
 } from "./engagement.test-fixtures";
 
 const NOW = new Date("2026-10-07T15:00:00.000Z");
@@ -27,40 +29,73 @@ const plain = (s: unknown) => String(s).replace(/ /g, " ");
 const find = (rows: unknown[][], first: string, second?: string) =>
   rows.find((r) => r[0] === first && (second === undefined || r[1] === second));
 
+const ACCESS_SOURCE = 'Registro de acessos (medido desde 07/10/2026; antes disso aparece "—")';
+
 describe("Excel do painel", () => {
-  it("4 abas e filtros com a data de geração em Brasília", () => {
+  it("5 abas e filtros com a data de geração em Brasília", () => {
     const sheets = overviewSheets(SAMPLE_OVERVIEW, ENTRIES, NOW);
-    expect(sheets.map((s) => s.name)).toEqual(["Filtros", "Resumo", "Série", "Cidades"]);
+    expect(sheets.map((s) => s.name)).toEqual(["Filtros", "Contratante", "Freelancer", "Série", "Cidades"]);
     expect(sheets[0].rows).toContainEqual(["Período", "01/09/2026 a 30/09/2026"]);
     expect(sheets[0].rows).toContainEqual(["Comparado com", "02/08/2026 a 31/08/2026"]);
     expect(sheets[0].rows).toContainEqual(["Gerado em", "07/10/2026 12:00"]);
   });
 
-  it("Resumo: número fica número; variação em %", () => {
-    const resumo = overviewSheets(SAMPLE_OVERVIEW, ENTRIES, NOW)[1].rows;
-    expect(resumo[0]).toEqual(["Grupo", "Indicador", "Atual", "Anterior", "Variação (%)"]);
-    expect(find(resumo, "Vagas", "Vagas publicadas")).toEqual(["Vagas", "Vagas publicadas", 3, 1, 200]);
-    expect(find(resumo, "Vagas", "Vagas com candidato (%)")).toEqual([
-      "Vagas",
-      "Vagas com candidato (%)",
-      66.7,
-      100,
-      -33.3,
+  it("indicadores: as 6 colunas, número fica número, parcelas, conta e fonte", () => {
+    const [, contratante, freelancer] = overviewSheets(SAMPLE_OVERVIEW, ENTRIES, NOW);
+    expect(contratante.rows[0]).toEqual(["Indicador", "Período", "Anterior", "Parcelas", "Como calcular", "Fonte"]);
+    expect(contratante.rows).toHaveLength(11);
+    expect(find(contratante.rows, "Abriu a 1ª vaga (%)")).toEqual([
+      "Abriu a 1ª vaga (%)",
+      40,
+      33.3,
+      "Período: 2 de 5 cadastrados · Anterior: 1 de 3 cadastrados",
+      "% dos cadastrados no período que já abriram ao menos 1 vaga (até hoje)",
+      "Cadastros do período × vagas abertas por eles (qualquer data)",
+    ]);
+    expect(find(contratante.rows, "Tempo até a 1ª vaga (dias)")?.slice(1, 4)).toEqual([
+      4.5,
+      2,
+      "Período: entre 2 que abriram · Anterior: entre 1 que abriu",
+    ]);
+    // Dinheiro em reais; contagem sem conta deixa "Parcelas" vazia.
+    expect(find(contratante.rows, "Faturamento (R$)")?.slice(1, 4)).toEqual([360, 180, null]);
+    expect(find(contratante.rows, "Receita do Freela (R$)")?.slice(1, 3)).toEqual([72, 36]);
+    expect(find(contratante.rows, "Acessou")?.[5]).toBe(
+      'Registro de acessos (medido desde 20/07/2026; antes disso aparece "—")',
+    );
+    expect(freelancer.rows).toHaveLength(7);
+    expect(find(freelancer.rows, "Serviços por freela")?.slice(1, 4)).toEqual([
+      1.5,
+      1,
+      "Período: 3 serviços ÷ 2 freelas que trabalharam · Anterior: 1 serviço ÷ 1 freela que trabalhou",
+    ]);
+    expect(find(freelancer.rows, "Voltou")?.slice(1, 4)).toEqual([
+      1,
+      0,
+      "Período: 1 de 1 que trabalhou antes (100%) · Anterior: 0 de 0 que trabalharam no período antes do anterior",
     ]);
   });
 
-  it("antes da medição: aberturas ficam VAZIAS (null), nunca 0", () => {
+  it("sem o bloco indicators (API antiga): as abas trazem o aviso, sem quebrar", () => {
+    const sheets = overviewSheets(SAMPLE_OVERVIEW_WITHOUT_INDICATORS, ENTRIES, NOW);
+    expect(sheets.map((s) => s.name)).toEqual(["Filtros", "Contratante", "Freelancer", "Série", "Cidades"]);
+    expect(sheets[1].rows).toEqual([INDICATOR_HEAD, ["Indicadores atualizando — publique a API"]]);
+    expect(sheets[2].rows).toEqual([INDICATOR_HEAD, ["Indicadores atualizando — publique a API"]]);
+  });
+
+  it("antes da medição: acessos ficam VAZIOS (null), nunca 0", () => {
     const sheets = overviewSheets(SAMPLE_OVERVIEW_BEFORE_MEASUREMENT, ENTRIES, NOW);
-    expect(find(sheets[1].rows, "Freelancers", "Abriram o app ou site")).toEqual([
-      "Freelancers",
-      "Abriram o app ou site",
+    expect(find(sheets[1].rows, "Acessou")).toEqual([
+      "Acessou",
       null,
       null,
-      null,
+      "Período: sem medição neste período · Anterior: sem medição neste período",
+      "Quantos entraram no app ou no site no período",
+      ACCESS_SOURCE,
     ]);
-    expect(sheets[2].rows).toHaveLength(31);
-    expect(sheets[2].rows[1]).toEqual(["01/09/2026", 0, 0, 0, null, null]);
-    expect(sheets[3].rows[1]).toEqual(["Juiz de Fora", "MG", 3, 2, 0.67, null]);
+    expect(sheets[3].rows).toHaveLength(31);
+    expect(sheets[3].rows[1]).toEqual(["01/09/2026", 0, 0, 0, null, null]);
+    expect(sheets[4].rows[1]).toEqual(["Juiz de Fora", "MG", 3, 2, 0.67, null]);
   });
 });
 
@@ -106,13 +141,46 @@ describe("Excel da ficha", () => {
 });
 
 describe("tabelas do PDF", () => {
-  it("antes da medição: '—' nas aberturas (nunca '0')", () => {
-    const [freelas] = overviewSummaryTables(SAMPLE_OVERVIEW_BEFORE_MEASUREMENT);
-    expect(freelas.rows.find((r) => r[0] === "Abriram o app ou site")).toEqual([
-      "Abriram o app ou site",
+  it("indicadores: valor, anterior com a variação, parcelas, conta e fonte", () => {
+    const [contratante, freelancer] = indicatorPdfTables(SAMPLE_OVERVIEW);
+    expect(contratante.title).toBe("Contratante");
+    expect(contratante.head).toEqual(INDICATOR_HEAD);
+    const row = (label: string) => contratante.rows.find((r) => r[0] === label)?.map(plain);
+    expect(row("Abriu a 1ª vaga")?.slice(0, 4)).toEqual([
+      "Abriu a 1ª vaga",
+      "40%",
+      "33,3% (+20%)",
+      "Período: 2 de 5 cadastrados · Anterior: 1 de 3 cadastrados",
+    ]);
+    expect(row("Tempo até a 1ª vaga")?.slice(1, 3)).toEqual(["4,5 dias", "2 dias (+125%)"]);
+    expect(row("Vagas por contratante ativo")?.slice(1, 3)).toEqual(["1,50", "1,00 (+50%)"]);
+    expect(row("Faturamento")?.slice(1, 4)).toEqual(["R$ 360,00", "R$ 180,00 (+100%)", ""]);
+    // Anterior 0: sem % (não há base).
+    expect(row("Voltou")?.slice(1, 3)).toEqual(["1", "0"]);
+    expect(freelancer.rows.map((r) => r[0])).toEqual([
+      "Cadastrou",
+      "Ativo",
+      "Candidaturas por freela ativo",
+      "Serviços por freela",
+      "Candidatou e não trabalhou",
+      "Voltou",
+    ]);
+    expect(freelancer.rows[0].slice(1, 3)).toEqual(["1.250", "12 (+10.317%)"]);
+  });
+
+  it("sem o bloco indicators: nenhuma tabela (o PDF escreve o aviso)", () => {
+    expect(indicatorPdfTables(SAMPLE_OVERVIEW_WITHOUT_INDICATORS)).toEqual([]);
+  });
+
+  it("antes da medição: '—' nos acessos (nunca '0')", () => {
+    const [contratante] = indicatorPdfTables(SAMPLE_OVERVIEW_BEFORE_MEASUREMENT);
+    expect(contratante.rows.find((r) => r[0] === "Acessou")).toEqual([
+      "Acessou",
       "—",
       "—",
-      "—",
+      "Período: sem medição neste período · Anterior: sem medição neste período",
+      "Quantos entraram no app ou no site no período",
+      ACCESS_SOURCE,
     ]);
     expect(cityTable(SAMPLE_OVERVIEW_BEFORE_MEASUREMENT).rows[0]).toEqual([
       "Juiz de Fora - MG",

@@ -12,12 +12,12 @@ import {
   DASH,
   PRODUCT_LABEL,
   candidacyStatusLabel,
+  changeInfo,
   dateBR,
   dateTimeBR,
   formatValue,
   pctChange,
   productsLabel,
-  signedPct,
   statusLabel,
   vacancySituation,
   waLink,
@@ -25,16 +25,16 @@ import {
   vacancyDayBR,
 } from "./engagement-format";
 import {
-  ALL_METRIC_GROUPS,
   CLIENT_REPORT_NUMBERS,
   CONTRACTOR_DETAIL_NUMBERS,
   FREELANCER_DETAIL_NUMBERS,
+  INDICATORS_PENDING,
+  INDICATOR_TABLES,
   SERIES_LINES,
-  contractorFunnel,
-  freelancerFunnel,
-  funnelBars,
+  indicatorParts,
+  indicatorSource,
   type DetailNumberDef,
-  type FunnelStep,
+  type IndicatorDef,
 } from "./engagement-metrics";
 
 /**
@@ -56,7 +56,12 @@ export interface PdfTable {
   rows: string[][];
 }
 
-const UNIT_SUFFIX: Partial<Record<ValueKind, string>> = { pct: " (%)", hours: " (horas)", brl: " (R$)" };
+const UNIT_SUFFIX: Partial<Record<ValueKind, string>> = {
+  pct: " (%)",
+  hours: " (horas)",
+  days: " (dias)",
+  brl: " (R$)",
+};
 
 /** brl chega em centavos; a planilha leva reais. */
 function cellValue(v: number | null, kind: ValueKind): Cell {
@@ -81,22 +86,70 @@ export function measurementText(o: Pick<EngagementOverview, "measuredSince">): s
     : "Aberturas ainda sem medição";
 }
 
+// ─── Indicadores da diretoria (Excel e PDF) ─────────────────────────────────
+
+export const INDICATOR_HEAD = ["Indicador", "Período", "Anterior", "Parcelas", "Como calcular", "Fonte"];
+
+/** "Período: 2 de 5 cadastrados · Anterior: 1 de 3 cadastrados"; null quando a linha não tem conta. */
+export function indicatorPartsText(def: IndicatorDef, o: EngagementOverview): string | null {
+  if (!o.indicators) return null;
+  const current = indicatorParts(def, o.indicators, "current");
+  const previous = indicatorParts(def, o.indicators, "previous");
+  const pieces = [current && `Período: ${current}`, previous && `Anterior: ${previous}`].filter(Boolean);
+  return pieces.length ? pieces.join(" · ") : null;
+}
+
+/** Uma aba por tabela; número fica número. Sem `indicators`, a aba só traz o aviso. */
+function indicatorSheets(o: EngagementOverview): Sheet[] {
+  return INDICATOR_TABLES.map(({ title, defs }) => {
+    const i = o.indicators;
+    const rows: Cell[][] = i
+      ? defs.map((def): Cell[] => {
+          const m = def.pick(i);
+          return [
+            `${def.label}${UNIT_SUFFIX[def.kind] ?? ""}`,
+            cellValue(m.current, def.kind),
+            cellValue(m.previous, def.kind),
+            indicatorPartsText(def, o),
+            def.how,
+            indicatorSource(def, o.measuredSince),
+          ];
+        })
+      : [[INDICATORS_PENDING]];
+    return { name: title, rows: [INDICATOR_HEAD, ...rows] };
+  });
+}
+
+/**
+ * Tabelas do PDF, em texto pronto. O "Anterior" leva a variação entre
+ * parênteses quando ela existe (mesma regra dos números da tela). Sem
+ * `indicators`, devolve [] e o PDF escreve o aviso.
+ */
+export function indicatorPdfTables(o: EngagementOverview): PdfTable[] {
+  const i = o.indicators;
+  if (!i) return [];
+  return INDICATOR_TABLES.map(({ title, defs }) => ({
+    title,
+    head: INDICATOR_HEAD,
+    rows: defs.map((def) => {
+      const m = def.pick(i);
+      const change = changeInfo(m, def.higherIsBetter);
+      const previous = formatValue(m.previous, def.kind);
+      return [
+        def.label,
+        formatValue(m.current, def.kind),
+        change.direction === null ? previous : `${previous} (${change.text})`,
+        indicatorPartsText(def, o) ?? "",
+        def.how,
+        indicatorSource(def, o.measuredSince),
+      ];
+    }),
+  }));
+}
+
 // ─── Excel do painel ────────────────────────────────────────────────────────
 
 export function overviewSheets(o: EngagementOverview, entries: FilterEntry[], generatedAt: Date): Sheet[] {
-  const resumo: Cell[][] = [["Grupo", "Indicador", "Atual", "Anterior", "Variação (%)"]];
-  for (const g of ALL_METRIC_GROUPS) {
-    for (const def of g.metrics) {
-      const m = def.pick(o);
-      resumo.push([
-        g.title,
-        `${def.label}${UNIT_SUFFIX[def.kind] ?? ""}`,
-        cellValue(m.current, def.kind),
-        cellValue(m.previous, def.kind),
-        pctChange(m.current, m.previous),
-      ]);
-    }
-  }
   const first = o.series.unit === "day" ? "Dia" : o.series.unit === "week" ? "Semana (início)" : "Mês (início)";
   const serie: Cell[][] = [
     [first, ...SERIES_LINES.map((l) => l.label)],
@@ -121,7 +174,7 @@ export function overviewSheets(o: EngagementOverview, entries: FilterEntry[], ge
         ["Medição", measurementText(o)],
       ]),
     },
-    { name: "Resumo", rows: resumo },
+    ...indicatorSheets(o),
     { name: "Série", rows: serie },
     { name: "Cidades", rows: cidades },
   ];
@@ -346,31 +399,6 @@ export function contractorDetailSheets(d: ContractorDetail, entries: FilterEntry
 }
 
 // ─── Tabelas do PDF (texto pronto; "—" no lugar de sem dado) ────────────────
-
-export function overviewSummaryTables(o: EngagementOverview): PdfTable[] {
-  return ALL_METRIC_GROUPS.map((g) => ({
-    title: g.title,
-    head: ["Indicador", "Atual", "Anterior", "Variação"],
-    rows: g.metrics.map((def) => {
-      const m = def.pick(o);
-      return [
-        def.label,
-        formatValue(m.current, def.kind),
-        formatValue(m.previous, def.kind),
-        signedPct(pctChange(m.current, m.previous)),
-      ];
-    }),
-  }));
-}
-
-export function overviewFunnelLines(o: EngagementOverview): { title: string; lines: string[] }[] {
-  const toLines = (steps: FunnelStep[]) =>
-    funnelBars(steps).map((b) => `${b.label}: ${formatValue(b.value)}${b.share === null ? "" : ` (${b.share}%)`}`);
-  return [
-    { title: "Funil de freelancers", lines: toLines(freelancerFunnel(o)) },
-    { title: "Funil de empresas", lines: toLines(contractorFunnel(o)) },
-  ];
-}
 
 export function cityTable(o: EngagementOverview, limit = 15): PdfTable {
   return {

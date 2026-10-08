@@ -1,6 +1,7 @@
 import type {
   ContractorDetail,
   ContractorListRow,
+  EngagementIndicators,
   EngagementOverview,
   FreelancerDetail,
   FreelancerListRow,
@@ -32,6 +33,46 @@ const SEPT_POINTS: SeriesPoint[] = Array.from({ length: 30 }, (_, i) => {
     contractorsOpened: day === 5 ? 2 : day === 12 ? 1 : 0,
   };
 });
+
+/**
+ * Indicadores da diretoria no mesmo mês. Cada %/razão é a divisão das parcelas
+ * (como a API faz): 2 de 5 cadastrados = 40%; 3 vagas ÷ 2 ativos = 1,5;
+ * 2 de 3 vagas = 66,7%; 3 serviços ÷ 2 freelas = 1,5; 1 de 2 ativos = 50%.
+ * O anterior tem "voltou" com base 2 e nenhum retorno (0%), e "sem base" onde é 0.
+ */
+const SAMPLE_INDICATORS: EngagementIndicators = {
+  contractors: {
+    signedUp: m(5, 3),
+    firstVacancyCount: m(2, 1),
+    firstVacancyPct: m(40, 33.3),
+    medianDaysToFirstVacancy: m(4.5, 2),
+    accessed: m(3, 2),
+    active: m(2, 1),
+    vacancies: m(3, 1),
+    vacanciesPerActive: m(1.5, 1),
+    completedFromOpened: m(2, 1),
+    filledPct: m(66.7, 100),
+    returned: m(1, 0),
+    returnedBase: m(1, 2),
+    returnedPct: m(100, 0),
+    grossCents: m(36000, 18000),
+    revenueCents: m(7200, 3600),
+  },
+  freelancers: {
+    signedUp: m(1250, 12),
+    active: m(2, 1),
+    candidacies: m(2, 1),
+    candidaciesPerActive: m(1, 1),
+    worked: m(2, 1),
+    services: m(3, 1),
+    servicesPerWorker: m(1.5, 1),
+    appliedNotWorked: m(1, 0),
+    appliedNotWorkedPct: m(50, 0),
+    returned: m(1, 0),
+    returnedBase: m(1, 0),
+    returnedPct: m(100, null),
+  },
+};
 
 export const SAMPLE_OVERVIEW: EngagementOverview = {
   period: {
@@ -95,6 +136,13 @@ export const SAMPLE_OVERVIEW: EngagementOverview = {
       { city: "Gramado", uf: "RS", label: "Gramado - RS" },
     ],
   },
+  indicators: SAMPLE_INDICATORS,
+};
+
+/** API antiga no ar (sem o bloco `indicators`): a tela avisa em vez de quebrar. */
+export const SAMPLE_OVERVIEW_WITHOUT_INDICATORS: EngagementOverview = {
+  ...SAMPLE_OVERVIEW,
+  indicators: undefined,
 };
 
 /** O mesmo mês visto com a medição começando só em 07/10/2026: "abriram" = null. */
@@ -109,6 +157,10 @@ export const SAMPLE_OVERVIEW_BEFORE_MEASUREMENT: EngagementOverview = {
     points: SEPT_POINTS.map((p) => ({ ...p, freelancersOpened: null, contractorsOpened: null })),
   },
   byCity: SAMPLE_OVERVIEW.byCity.map((c) => ({ ...c, freelancersOpened: null })),
+  indicators: {
+    ...SAMPLE_INDICATORS,
+    contractors: { ...SAMPLE_INDICATORS.contractors, accessed: m(null, null) },
+  },
 };
 
 export const SAMPLE_FREELANCER_ROW: FreelancerListRow = {
