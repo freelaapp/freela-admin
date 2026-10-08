@@ -86,7 +86,7 @@ describe("PDF do painel", () => {
 
   it("antes da medição: aviso e '—' (nunca 0) nos acessos", () => {
     buildOverviewPdf(SAMPLE_OVERVIEW_BEFORE_MEASUREMENT, "x", null, NOW);
-    expect(textCalls.some((t) => t.startsWith("Aberturas medidas desde 07/10/2026"))).toBe(true);
+    expect(textCalls.some((t) => t.startsWith("Acessos medidos desde 07/10/2026"))).toBe(true);
     const i = textCalls.indexOf("Acessou");
     expect(textCalls.slice(i + 1, i + 3)).toEqual(["—", "—"]);
   });
@@ -96,7 +96,7 @@ describe("PDF do painel", () => {
     expect(imageCalls).toHaveLength(1);
     expect(imageCalls[0].slice(0, 2)).toEqual(["data:image/png;base64,AAA", "PNG"]);
     expect(textCalls).toContain("Evolução no período");
-    expect(textCalls).toContain("Freelancers que abriram");
+    expect(textCalls).toContain("Freelancers que acessaram");
   });
 
   it("só caracteres que a fonte do PDF tem (sem − ≤ ≥)", () => {
@@ -140,6 +140,6 @@ describe("revisão final", () => {
   it("PDF do painel avisa da medição quando a janela anterior começa antes dela", () => {
     const o = { ...SAMPLE_OVERVIEW, measuredSince: "2026-08-15", openedAvailable: { current: true, previous: true } };
     buildOverviewPdf(o, "filtros", null, NOW);
-    expect(textCalls.some((t) => t.includes("Aberturas medidas desde 15/08/2026"))).toBe(true);
+    expect(textCalls.some((t) => t.includes("Acessos medidos desde 15/08/2026"))).toBe(true);
   });
 });

@@ -66,7 +66,7 @@ describe("PeopleTable", () => {
       F,
       expect.objectContaining({ page: 2, limit: 25 }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Abriram e não se candidataram" }));
+    fireEvent.click(screen.getByRole("button", { name: "Acessaram e não se candidataram" }));
     expect(useEngagementPeople).toHaveBeenLastCalledWith(
       "freelancer",
       F,

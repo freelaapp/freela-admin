@@ -207,7 +207,7 @@ describe("measurementNotice (regra única: tela, PDF e Excel)", () => {
     previousLabel: "outubro/2026",
   };
   it("avisa quando a janela anterior começa antes da medição", () => {
-    expect(measurementNotice("2026-10-07", P)).toContain("Aberturas medidas desde 07/10/2026");
+    expect(measurementNotice("2026-10-07", P)).toContain("Acessos medidos desde 07/10/2026");
   });
   it("sem aviso quando as duas janelas estão medidas", () => {
     expect(measurementNotice("2026-09-01", P)).toBeNull();

@@ -145,7 +145,7 @@ export const SAMPLE_OVERVIEW_WITHOUT_INDICATORS: EngagementOverview = {
   indicators: undefined,
 };
 
-/** O mesmo mês visto com a medição começando só em 07/10/2026: "abriram" = null. */
+/** O mesmo mês visto com a medição começando só em 07/10/2026: acessos = null. */
 export const SAMPLE_OVERVIEW_BEFORE_MEASUREMENT: EngagementOverview = {
   ...SAMPLE_OVERVIEW,
   measuredSince: "2026-10-07",

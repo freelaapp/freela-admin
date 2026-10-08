@@ -102,8 +102,8 @@ describe("Excel do painel", () => {
 describe("Excel das listas", () => {
   it("lista de freelancers com contato e link do WhatsApp", () => {
     const page = { rows: [SAMPLE_FREELANCER_ROW], total: 1, page: 1, limit: 20000, truncated: false };
-    const [filtros, lista] = freelancerListSheets(page, ENTRIES, "Abriram e não se candidataram", NOW);
-    expect(filtros.rows).toContainEqual(["Segmento", "Abriram e não se candidataram"]);
+    const [filtros, lista] = freelancerListSheets(page, ENTRIES, "Acessaram e não se candidataram", NOW);
+    expect(filtros.rows).toContainEqual(["Segmento", "Acessaram e não se candidataram"]);
     expect(filtros.rows.some((r) => r[0] === "Atenção")).toBe(false);
     expect(lista.rows[0].slice(0, 4)).toEqual(["Nome", "Telefone", "WhatsApp", "E-mail"]);
     expect(lista.rows[1].slice(0, 4)).toEqual([

@@ -12,18 +12,18 @@ describe("aviso de medição", () => {
 
   it("começa antes da medição: diz desde quando e explica o '—'", () => {
     const t = measurementNotice("2026-10-07", P);
-    expect(t).toContain("Aberturas medidas desde 07/10/2026");
+    expect(t).toContain("Acessos medidos desde 07/10/2026");
     expect(t).toContain("não é zero");
   });
 
   it("sem medição nenhuma", () => {
-    expect(measurementNotice(null, P)).toContain("ainda não estão sendo medidas");
+    expect(measurementNotice(null, P)).toContain("ainda não estão sendo medidos");
   });
 
   it("o componente só aparece quando há aviso", () => {
     const { rerender } = render(<MeasurementNotice measuredSince="2026-07-20" period={P} />);
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
     rerender(<MeasurementNotice measuredSince="2026-10-07" period={P} />);
-    expect(screen.getByRole("note")).toHaveTextContent("Aberturas medidas desde 07/10/2026");
+    expect(screen.getByRole("note")).toHaveTextContent("Acessos medidos desde 07/10/2026");
   });
 });

@@ -131,7 +131,7 @@ export const STATUS_BADGE: Record<EngagementStatus, "success" | "warning" | "des
 
 export const FREELANCER_SEGMENTS: { id: FreelancerSegment | "all"; label: string }[] = [
   { id: "all", label: "Todos" },
-  { id: "opened_no_apply", label: "Abriram e não se candidataram" },
+  { id: "opened_no_apply", label: "Acessaram e não se candidataram" },
   { id: "applied", label: "Se candidataram" },
   { id: "active", label: "Ativos" },
   { id: "cooling", label: "Esfriando" },
@@ -141,7 +141,7 @@ export const FREELANCER_SEGMENTS: { id: FreelancerSegment | "all"; label: string
 
 export const CONTRACTOR_SEGMENTS: { id: ContractorSegment | "all"; label: string }[] = [
   { id: "all", label: "Todas" },
-  { id: "opened_no_publish", label: "Abriram e não publicaram" },
+  { id: "opened_no_publish", label: "Acessaram e não publicaram" },
   { id: "published", label: "Publicaram vaga" },
   { id: "active", label: "Ativas" },
   { id: "cooling", label: "Esfriando" },
@@ -262,15 +262,15 @@ export function vacancyDayBR(value: string | null | undefined): string {
 /**
  * Aviso de medição (spec §5.1) — regra única da tela, do PDF e do Excel. A
  * janela anterior começa antes da atual, então basta olhar `previousStart`: se
- * ela começa antes de `measuredSince`, algum número de "abriram" fica sem dado.
+ * ela começa antes de `measuredSince`, algum número de acesso fica sem dado.
  */
 export function measurementNotice(
   measuredSince: string | null,
   period: Pick<EngagementPeriod, "previousStart">,
 ): string | null {
   if (!measuredSince) {
-    return 'As aberturas do app e do site ainda não estão sendo medidas. Os números de "abriram" aparecem como — (não é zero).';
+    return 'Os acessos ao app e ao site ainda não estão sendo medidos. Os números de "Acessou" e "acessaram" aparecem como — (não é zero).';
   }
   if (brasiliaDayOf(period.previousStart) >= measuredSince) return null;
-  return `Aberturas medidas desde ${dateBR(measuredSince)}. Antes disso não há medição: os números de "abriram" aparecem como — (não é zero), e a comparação com o período anterior pode ficar sem número.`;
+  return `Acessos medidos desde ${dateBR(measuredSince)}. Antes disso não há medição: os números de "Acessou" e "acessaram" aparecem como — (não é zero), e a comparação com o período anterior pode ficar sem número.`;
 }

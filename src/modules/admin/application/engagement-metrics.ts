@@ -436,8 +436,8 @@ export const SERIES_LINES: { key: SeriesKey; label: string; color: string }[] = 
   { key: "vacanciesPublished", label: "Vagas publicadas", color: "#eca826" },
   { key: "vacanciesCompleted", label: "Vagas concluídas", color: "#16a34a" },
   { key: "candidacies", label: "Candidaturas", color: "#737373" },
-  { key: "freelancersOpened", label: "Freelancers que abriram", color: "#1d1d1b" },
-  { key: "contractorsOpened", label: "Empresas que abriram", color: "#dc2626" },
+  { key: "freelancersOpened", label: "Freelancers que acessaram", color: "#1d1d1b" },
+  { key: "contractorsOpened", label: "Empresas que acessaram", color: "#dc2626" },
 ];
 
 // ─── Números das fichas ─────────────────────────────────────────────────────

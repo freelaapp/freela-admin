@@ -98,7 +98,7 @@ export function ChannelDaysCard({ days }: { days: ChannelDays }) {
           <span className="font-semibold">{formatValue(days.other)}</span> <span className="text-[#737373]">outros</span>
         </span>
       </div>
-      <p className="mt-2 text-xs text-[#737373]">Conta só a partir do início da medição de aberturas.</p>
+      <p className="mt-2 text-xs text-[#737373]">Conta só a partir do início da medição de acessos (07/10/2026).</p>
     </Card>
   );
 }

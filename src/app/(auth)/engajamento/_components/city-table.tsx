@@ -25,7 +25,7 @@ export function CityTable({ rows, limit = 20 }: { rows: CityRow[]; limit?: numbe
                 <th className="py-2 text-right font-medium">Vagas publicadas</th>
                 <th className="py-2 text-right font-medium">Candidaturas</th>
                 <th className="py-2 text-right font-medium">Candidaturas por vaga</th>
-                <th className="py-2 text-right font-medium">Freelancers que abriram</th>
+                <th className="py-2 text-right font-medium">Freelancers que acessaram</th>
               </tr>
             </thead>
             <tbody>
@@ -51,7 +51,7 @@ export function CityTable({ rows, limit = 20 }: { rows: CityRow[]; limit?: numbe
                   <dd className="text-right font-semibold">{formatValue(c.candidacies)}</dd>
                   <dt className="text-[#737373]">Por vaga</dt>
                   <dd className="text-right font-semibold">{formatValue(c.avgCandidaciesPerVacancy, "decimal")}</dd>
-                  <dt className="text-[#737373]">Freelancers que abriram</dt>
+                  <dt className="text-[#737373]">Freelancers que acessaram</dt>
                   <dd className="text-right font-semibold">{formatValue(c.freelancersOpened)}</dd>
                 </dl>
               </li>

@@ -82,8 +82,8 @@ function filtersRows(entries: FilterEntry[], generatedAt: Date, extra: [string, 
 
 export function measurementText(o: Pick<EngagementOverview, "measuredSince">): string {
   return o.measuredSince
-    ? `Aberturas medidas desde ${dateBR(o.measuredSince)}`
-    : "Aberturas ainda sem medição";
+    ? `Acessos medidos desde ${dateBR(o.measuredSince)}`
+    : "Acessos ainda sem medição";
 }
 
 // ─── Indicadores da diretoria (Excel e PDF) ─────────────────────────────────
@@ -156,7 +156,7 @@ export function overviewSheets(o: EngagementOverview, entries: FilterEntry[], ge
     ...o.series.points.map((p): Cell[] => [dateBR(p.bucket), ...SERIES_LINES.map((l) => p[l.key])]),
   ];
   const cidades: Cell[][] = [
-    ["Cidade", "UF", "Vagas publicadas", "Candidaturas", "Candidaturas por vaga", "Freelancers que abriram"],
+    ["Cidade", "UF", "Vagas publicadas", "Candidaturas", "Candidaturas por vaga", "Freelancers que acessaram"],
     ...o.byCity.map((c): Cell[] => [
       c.city,
       c.uf,
@@ -403,7 +403,7 @@ export function contractorDetailSheets(d: ContractorDetail, entries: FilterEntry
 export function cityTable(o: EngagementOverview, limit = 15): PdfTable {
   return {
     title: "Cidades com mais vagas",
-    head: ["Cidade", "Vagas", "Candidaturas", "Cand. por vaga", "Freelas que abriram"],
+    head: ["Cidade", "Vagas", "Candidaturas", "Cand. por vaga", "Freelas que acessaram"],
     rows: o.byCity.slice(0, limit).map((c) => [
       c.uf ? `${c.city} - ${c.uf}` : c.city,
       formatValue(c.vacanciesPublished),
