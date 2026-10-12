@@ -577,7 +577,8 @@ export interface VacancyItem {
   groupBroadcastAt?: string | null;
 }
 
-export type VacancyDocumentState = "OK" | "PENDING" | "FAILED" | "MISSING" | "NA";
+/** `WAIVED` = dispensado pelo contratante nas burocracias (contrato ou RPA). */
+export type VacancyDocumentState = "OK" | "PENDING" | "FAILED" | "MISSING" | "NA" | "WAIVED";
 
 export interface VacancyDocuments {
   contract: VacancyDocumentState;

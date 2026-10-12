@@ -114,6 +114,9 @@ const DOCUMENT_BADGES: Record<string, DocumentBadge> = {
   // diferente, para o operador saber que aqui não há erro para ler.
   MISSING: { label: "Faltando", tone: "warn", symbol: "!" },
   NA: { label: "Não se aplica", tone: "idle", symbol: "–" },
+  // Contrato ou RPA que a empresa desligou nas burocracias (ADR-016): não é
+  // falha nem falta, por isso o mesmo tom neutro do "Não se aplica".
+  WAIVED: { label: "Dispensado", tone: "idle", symbol: "–" },
 };
 
 export function documentBadge(state: string | null | undefined): DocumentBadge {
