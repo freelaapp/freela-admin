@@ -205,3 +205,89 @@ describe("PreferencesDialog — aba Burocracias", () => {
     expect(saveButton()).toBeDisabled();
   });
 });
+
+/** Um save do admin grava uma linha por campo, com o mesmo instante e motivo. */
+const ADMIN_SAVE: SettingsHistoryEntry[] = [
+  {
+    id: "h3",
+    field: "signed_contract_enabled",
+    oldValue: "true",
+    newValue: "false",
+    actorKind: "ADMIN",
+    actorId: "a1",
+    actorName: "Maria Souza",
+    origin: "ADMIN",
+    channel: "ADMIN",
+    reason: "Contrato comercial assinado em 10/10",
+    createdAt: "2026-10-11T18:20:00.000Z",
+  },
+  {
+    id: "h2",
+    field: "rpa_enabled",
+    oldValue: "true",
+    newValue: "false",
+    actorKind: "ADMIN",
+    actorId: "a1",
+    actorName: "Maria Souza",
+    origin: "ADMIN",
+    channel: "ADMIN",
+    reason: "Contrato comercial assinado em 10/10",
+    createdAt: "2026-10-11T18:20:00.000Z",
+  },
+];
+
+const SIGNUP_CHOICE: SettingsHistoryEntry = {
+  id: "h0",
+  field: "signed_contract_enabled",
+  oldValue: null,
+  newValue: "true",
+  actorKind: "CONTRACTOR",
+  actorId: "u1",
+  actorName: "João Dono",
+  origin: "SIGNUP",
+  channel: "WEB",
+  reason: null,
+  createdAt: "2026-10-05T12:00:00.000Z",
+};
+
+describe("PreferencesDialog — aba Histórico", () => {
+  it("Histórico: data, ator com nome e papel, origem/canal, de → para, motivo", async () => {
+    vi.mocked(getContractorSettingsHistory).mockResolvedValue([
+      ...ADMIN_SAVE,
+      INSS_OFF_BY_OWNER,
+      SIGNUP_CHOICE,
+    ]);
+    renderDialog();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Histórico" }));
+
+    expect(await screen.findByText("11/10/2026 15:20 · Maria Souza (admin)")).toBeInTheDocument();
+    expect(screen.getByText("Contrato assinado: ligado → desligado")).toBeInTheDocument();
+    expect(screen.getByText("RPA: ligado → desligado")).toBeInTheDocument();
+    // As duas linhas do mesmo save ficam juntas, com o motivo uma vez só.
+    expect(screen.getAllByText('Motivo: "Contrato comercial assinado em 10/10"')).toHaveLength(1);
+
+    expect(
+      screen.getByText("10/10/2026 14:32 · João Dono (contratante, dono) · app"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Lembretes do INSS: ligado → desligado")).toBeInTheDocument();
+
+    expect(
+      screen.getByText("05/10/2026 09:00 · João Dono (contratante, dono) · cadastro, web"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Contrato assinado: ligado (escolha do cadastro)")).toBeInTheDocument();
+  });
+
+  it("vazio: 'Nenhuma mudança ainda. A empresa usa o padrão: tudo ligado e pré-pago.'", async () => {
+    vi.mocked(getContractorSettingsHistory).mockResolvedValue([]);
+    renderDialog();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Histórico" }));
+
+    expect(
+      await screen.findByText(
+        "Nenhuma mudança ainda. A empresa usa o padrão: tudo ligado e pré-pago.",
+      ),
+    ).toBeInTheDocument();
+  });
+});

@@ -25,6 +25,9 @@ import type {
 } from "@/modules/admin/infrastructure/contractor-settings-api";
 import {
   changeSummary,
+  groupHistory,
+  historyChangeLine,
+  historyHeadLine,
   isValidReason,
   lastChangeByKey,
   lastChangeLine,
@@ -32,9 +35,12 @@ import {
   REASON_ERROR,
 } from "../_lib/paperwork-presentation";
 
-type TabKey = "burocracias";
+type TabKey = "burocracias" | "historico";
 
-const TABS: { key: TabKey; label: string }[] = [{ key: "burocracias", label: "Burocracias" }];
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "burocracias", label: "Burocracias" },
+  { key: "historico", label: "Histórico" },
+];
 
 /** Corpo de erro da API: `{ error: { code, message } }` (filtro global). */
 function getAxiosErrorCode(err: unknown): string | undefined {
@@ -116,6 +122,16 @@ export function PreferencesDialog({
             history={history.data}
             onClose={onClose}
           />
+        </TabsContent>
+
+        <TabsContent
+          value="historico"
+          id={panelId("historico")}
+          role="tabpanel"
+          aria-labelledby={tabId("historico")}
+          className="mt-4"
+        >
+          <HistoryTab history={history} />
         </TabsContent>
       </Tabs>
     </>
@@ -297,6 +313,50 @@ function PaperworkForm({
         </Button>
       </DialogFooter>
     </div>
+  );
+}
+
+// ─── Aba Histórico ───────────────────────────────────────────────────────────
+
+function HistoryTab({ history }: { history: ReturnType<typeof useAdminContractorSettingsHistory> }) {
+  if (history.isLoading) {
+    return (
+      <div className="space-y-3" aria-busy="true" aria-label="Carregando">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-12 w-full" />
+        ))}
+      </div>
+    );
+  }
+  if (history.isError || !history.data) {
+    return (
+      <LoadError
+        message="Não conseguimos carregar o histórico desta empresa."
+        onRetry={() => history.refetch()}
+      />
+    );
+  }
+  if (history.data.length === 0) {
+    return (
+      <p className="text-sm text-[#737373]">
+        Nenhuma mudança ainda. A empresa usa o padrão: tudo ligado e pré-pago.
+      </p>
+    );
+  }
+  return (
+    <ol className="max-h-[55vh] divide-y divide-[#e5e5e5] overflow-y-auto pr-1">
+      {groupHistory(history.data).map(({ id, head, entries }) => (
+        <li key={id} className="space-y-0.5 py-3 text-sm">
+          <p className="font-semibold text-[#1d1d1b]">{historyHeadLine(head)}</p>
+          {entries.map((entry) => (
+            <p key={entry.id} className="text-[#1d1d1b]">
+              {historyChangeLine(entry)}
+            </p>
+          ))}
+          {head.reason && <p className="text-[#737373]">{`Motivo: "${head.reason}"`}</p>}
+        </li>
+      ))}
+    </ol>
   );
 }
 

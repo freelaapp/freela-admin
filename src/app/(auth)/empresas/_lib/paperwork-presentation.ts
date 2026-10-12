@@ -152,3 +152,73 @@ export function changeSummary(patch: Partial<Record<PaperworkKey, boolean>>): st
     .map((key) => `${PAPERWORK_SHORT_LABEL[key]}: ${patch[key] ? "ligado" : "desligado"}`)
     .join("; ");
 }
+
+// ─── Histórico ────────────────────────────────────────────────────────────────
+
+/** "11/10/2026 15:20" (Brasília). */
+export function formatBrtLong(iso: string): string {
+  const p = brtParts(iso);
+  return p ? `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}` : "—";
+}
+
+/** Uma mudança salva: as linhas (uma por campo) que entraram juntas. */
+export interface HistoryGroup {
+  id: string;
+  head: SettingsHistoryEntry;
+  entries: SettingsHistoryEntry[];
+}
+
+const sameSave = (a: SettingsHistoryEntry, b: SettingsHistoryEntry) =>
+  a.createdAt === b.createdAt &&
+  a.actorKind === b.actorKind &&
+  a.actorId === b.actorId &&
+  a.origin === b.origin &&
+  a.channel === b.channel &&
+  a.reason === b.reason;
+
+/**
+ * A API grava uma linha por campo, todas no mesmo INSERT (mesmo instante, ator
+ * e motivo). Junta as vizinhas iguais para o motivo aparecer uma vez por save.
+ */
+export function groupHistory(entries: SettingsHistoryEntry[]): HistoryGroup[] {
+  const groups: HistoryGroup[] = [];
+  for (const entry of entries) {
+    const last = groups[groups.length - 1];
+    if (last && sameSave(last.head, entry)) last.entries.push(entry);
+    else groups.push({ id: entry.id, head: entry, entries: [entry] });
+  }
+  return groups;
+}
+
+/** "Maria Souza (admin)", "João Dono (contratante, dono)", "Contratante (dono)". */
+export function historyActorLabel(entry: SettingsHistoryEntry): string {
+  if (entry.actorKind === "ADMIN") return `${entry.actorName ?? "Admin"} (admin)`;
+  if (entry.actorKind === "SYSTEM") return "Freela (automático)";
+  return entry.actorName ? `${entry.actorName} (contratante, dono)` : "Contratante (dono)";
+}
+
+/** "11/10/2026 15:20 · Maria Souza (admin)" ou "... · João Dono (contratante, dono) · app". */
+export function historyHeadLine(entry: SettingsHistoryEntry): string {
+  const parts = [formatBrtLong(entry.createdAt), historyActorLabel(entry)];
+  // Para o admin o papel já diz de onde veio.
+  const channel = entry.actorKind === "ADMIN" ? null : channelLabel(entry.origin, entry.channel);
+  if (channel) parts.push(channel);
+  return parts.join(" · ");
+}
+
+function historyValue(value: string | null): string {
+  if (value === "true") return "ligado";
+  if (value === "false") return "desligado";
+  return value ?? "(vazio)";
+}
+
+/** "Contrato assinado: ligado → desligado" ou "...: ligado (escolha do cadastro)". */
+export function historyChangeLine(entry: SettingsHistoryEntry): string {
+  const key = FIELD_TO_KEY[entry.field];
+  const label = key ? PAPERWORK_SHORT_LABEL[key] : entry.field;
+  if (entry.oldValue === null) {
+    const suffix = entry.origin === "SIGNUP" ? " (escolha do cadastro)" : "";
+    return `${label}: ${historyValue(entry.newValue)}${suffix}`;
+  }
+  return `${label}: ${historyValue(entry.oldValue)} → ${historyValue(entry.newValue)}`;
+}
