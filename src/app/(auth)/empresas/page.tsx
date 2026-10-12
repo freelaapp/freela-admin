@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays, CalendarPlus, ShieldOff, Search } from "lucide-react";
+import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays, CalendarPlus, ShieldOff, Search, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -47,8 +47,18 @@ import { formatInstantDate } from "@/lib/date.utils";
 import { downloadCsv } from "@/lib/csv";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { ExcluirUsuarioPanel } from "@/components/admin/excluir-usuario-dialog";
+import { PreferencesDialog } from "./_components/preferences-dialog";
 
-type ModalType = "view" | "edit" | "delete" | "employee" | "report" | "blocked" | "vaga" | null;
+type ModalType =
+  | "view"
+  | "edit"
+  | "delete"
+  | "employee"
+  | "report"
+  | "blocked"
+  | "vaga"
+  | "preferencias"
+  | null;
 
 function mapContractorToRow(c: ContractorItem) {
   return {
@@ -312,6 +322,7 @@ export default function EmpresasPage() {
         <div className="flex items-center gap-1">
           <button onClick={() => openModal("view", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
+          <button onClick={() => openModal("preferencias", row)} disabled={!row.raw.userId} aria-label="Documentos e cobrança" className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Documentos e cobrança" : "Usuário da empresa não encontrado"}><Receipt className="w-4 h-4" aria-hidden="true" /></button>
           <button onClick={() => openModal("vaga", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Abrir vaga em nome da empresa" : "Usuário da empresa não encontrado"}><CalendarPlus className="w-4 h-4" /></button>
           <button onClick={() => openModal("employee", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Gerenciar funcionário" : "Usuário da empresa não encontrado"}><UserCog className="w-4 h-4" /></button>
           <button onClick={() => openModal("blocked", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Freelancers bloqueados"><ShieldOff className="w-4 h-4" /></button>
@@ -611,6 +622,20 @@ export default function EmpresasPage() {
           />
         );
       }
+      case "preferencias": {
+        // Burocracias e cobrança são da conta do DONO (User.id), não do registro
+        // da empresa: mesma chave de carteira e funcionário.
+        const ownerUserId = selectedItem.raw.userId;
+        if (!ownerUserId) return null;
+        return (
+          <PreferencesDialog
+            key={ownerUserId}
+            contractorUserId={ownerUserId}
+            companyName={selectedItem.nome}
+            onClose={closeModal}
+          />
+        );
+      }
       case "employee": {
         const ownerUserId = selectedItem.raw.userId;
         if (!ownerUserId) {
@@ -696,11 +721,16 @@ export default function EmpresasPage() {
           </div>
         }
       />
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        className={modalType === "preferencias" ? "max-w-xl" : undefined}
+      >
         <DialogContent
           className={cn(
             "relative",
-            (modalType === "vaga" || modalType === "delete") && "max-h-[88vh] overflow-y-auto",
+            (modalType === "vaga" || modalType === "delete" || modalType === "preferencias") &&
+              "max-h-[88vh] overflow-y-auto",
           )}
         >
           <DialogClose onClick={closeModal} />
