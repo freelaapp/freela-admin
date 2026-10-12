@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -289,5 +289,62 @@ describe("PreferencesDialog — aba Histórico", () => {
         "Nenhuma mudança ainda. A empresa usa o padrão: tudo ligado e pré-pago.",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("PreferencesDialog — aba Cobrança e chave desligada", () => {
+  it("aba Cobrança só mostra 'Pré-pago (padrão)' e o aviso 'O modo de cobrança chega na próxima fase', sem controles", async () => {
+    renderDialog();
+    await contractSwitch();
+
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Burocracias",
+      "Cobrança",
+      "Histórico",
+    ]);
+    fireEvent.click(screen.getByRole("tab", { name: "Cobrança" }));
+
+    const panel = screen.getByRole("tabpanel");
+    expect(within(panel).getByText("Pré-pago (padrão)")).toBeInTheDocument();
+    expect(within(panel).getByText("O modo de cobrança chega na próxima fase.")).toBeInTheDocument();
+    expect(within(panel).queryAllByRole("radio")).toHaveLength(0);
+    expect(within(panel).queryAllByRole("switch")).toHaveLength(0);
+    expect(within(panel).queryAllByRole("button")).toHaveLength(0);
+    expect(within(panel).queryAllByRole("textbox")).toHaveLength(0);
+  });
+
+  it("readOnlyReason FEATURE_DISABLED: Burocracias mostra 'Disponível em breve', sem chaves; Histórico continua", async () => {
+    vi.mocked(getContractorSettings).mockResolvedValue({
+      ...VIEW,
+      inssRemindersEnabled: true,
+      editable: false,
+      readOnlyReason: "FEATURE_DISABLED",
+      updatedAt: null,
+      updatedBy: null,
+    });
+    renderDialog();
+
+    expect(await screen.findByText("Disponível em breve")).toBeInTheDocument();
+    expect(screen.queryAllByRole("switch")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Salvar burocracias" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Não conseguimos/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Histórico" }));
+    expect(await screen.findByText("Lembretes do INSS: ligado → desligado")).toBeInTheDocument();
+  });
+
+  it("PATCH 404 FEATURE_DISABLED vira 'Disponível em breve', sem erro", async () => {
+    vi.mocked(updateContractorSettings).mockRejectedValue(
+      axiosError(404, "FEATURE_DISABLED", "A escolha de documentos e burocracias ainda não está disponível."),
+    );
+    renderDialog();
+
+    fireEvent.click(await contractSwitch());
+    fireEvent.change(reasonInput(), { target: { value: "Cliente pediu" } });
+    fireEvent.click(saveButton());
+
+    expect(await screen.findByText("Disponível em breve")).toBeInTheDocument();
+    expect(screen.queryAllByRole("switch")).toHaveLength(0);
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

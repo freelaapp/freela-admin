@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import axios from "axios";
-import { Loader2 } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -35,10 +35,11 @@ import {
   REASON_ERROR,
 } from "../_lib/paperwork-presentation";
 
-type TabKey = "burocracias" | "historico";
+type TabKey = "burocracias" | "cobranca" | "historico";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "burocracias", label: "Burocracias" },
+  { key: "cobranca", label: "Cobrança" },
   { key: "historico", label: "Histórico" },
 ];
 
@@ -66,6 +67,12 @@ export function PreferencesDialog({
   const [tab, setTab] = useState<TabKey>("burocracias");
   const settings = useAdminContractorSettings(contractorUserId);
   const history = useAdminContractorSettingsHistory(contractorUserId);
+  // Chave da API desligada: o GET avisa por `readOnlyReason`; o PATCH, por 404.
+  const [disabledByPatch, setDisabledByPatch] = useState(false);
+  const featureDisabled =
+    disabledByPatch ||
+    settings.data?.readOnlyReason === "FEATURE_DISABLED" ||
+    getAxiosErrorCode(settings.error) === "FEATURE_DISABLED";
 
   const tabId = (key: TabKey) => `${baseId}-tab-${key}`;
   const panelId = (key: TabKey) => `${baseId}-panel-${key}`;
@@ -116,12 +123,27 @@ export function PreferencesDialog({
           aria-labelledby={tabId("burocracias")}
           className="mt-4"
         >
-          <PaperworkTab
-            contractorUserId={contractorUserId}
-            settings={settings}
-            history={history.data}
-            onClose={onClose}
-          />
+          {featureDisabled ? (
+            <ComingSoon />
+          ) : (
+            <PaperworkTab
+              contractorUserId={contractorUserId}
+              settings={settings}
+              history={history.data}
+              onClose={onClose}
+              onFeatureDisabled={() => setDisabledByPatch(true)}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent
+          value="cobranca"
+          id={panelId("cobranca")}
+          role="tabpanel"
+          aria-labelledby={tabId("cobranca")}
+          className="mt-4"
+        >
+          <BillingPlaceholder />
         </TabsContent>
 
         <TabsContent
@@ -145,11 +167,13 @@ function PaperworkTab({
   settings,
   history,
   onClose,
+  onFeatureDisabled,
 }: {
   contractorUserId: string;
   settings: ReturnType<typeof useAdminContractorSettings>;
   history: SettingsHistoryEntry[] | undefined;
   onClose: () => void;
+  onFeatureDisabled: () => void;
 }) {
   if (settings.isLoading) return <SwitchesSkeleton />;
   if (settings.isError || !settings.data) {
@@ -166,6 +190,7 @@ function PaperworkTab({
       view={settings.data}
       history={history}
       onClose={onClose}
+      onFeatureDisabled={onFeatureDisabled}
     />
   );
 }
@@ -175,11 +200,13 @@ function PaperworkForm({
   view,
   history,
   onClose,
+  onFeatureDisabled,
 }: {
   contractorUserId: string;
   view: ContractorSettingsView;
   history: SettingsHistoryEntry[] | undefined;
   onClose: () => void;
+  onFeatureDisabled: () => void;
 }) {
   const baseId = useId();
   const reasonId = `${baseId}-reason`;
@@ -213,8 +240,14 @@ function PaperworkForm({
       setReason("");
       setReasonError(null);
     } catch (err) {
-      if (getAxiosErrorCode(err) === "REASON_REQUIRED") {
+      const code = getAxiosErrorCode(err);
+      if (code === "REASON_REQUIRED") {
         setReasonError(REASON_ERROR);
+        return;
+      }
+      // A chave foi desligada entre abrir e salvar: estado calmo, não erro.
+      if (code === "FEATURE_DISABLED") {
+        onFeatureDisabled();
         return;
       }
       toast.error(getAxiosErrorMessage(err, "Não foi possível salvar as burocracias."));
@@ -312,6 +345,39 @@ function PaperworkForm({
           )}
         </Button>
       </DialogFooter>
+    </div>
+  );
+}
+
+/** Burocracias com a chave da API desligada: aviso calmo, sem controles. */
+function ComingSoon() {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-[#e5e5e5] bg-[#f7f7f7] p-4 text-sm">
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#737373]" aria-hidden="true" />
+      <div className="space-y-1">
+        <p className="font-semibold text-[#1d1d1b]">Disponível em breve</p>
+        <p className="text-[#525252]">
+          A escolha de documentos e burocracias ainda não está ligada. Por enquanto, toda empresa
+          segue o padrão: contrato assinado, RPA e lembretes do INSS ligados.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Aba Cobrança (espaço da Fase 3) ─────────────────────────────────────────
+
+function BillingPlaceholder() {
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-[#1d1d1b]">
+        Modo atual: <strong className="font-semibold">Pré-pago (padrão)</strong>
+      </p>
+      <p className="text-[#737373]">Pix a cada contratação.</p>
+      <div className="flex items-start gap-3 rounded-lg border border-[#e5e5e5] bg-[#f7f7f7] p-3">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#737373]" aria-hidden="true" />
+        <p className="text-[#525252]">O modo de cobrança chega na próxima fase.</p>
+      </div>
     </div>
   );
 }
