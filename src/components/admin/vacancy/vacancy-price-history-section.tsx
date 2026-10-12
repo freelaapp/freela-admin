@@ -39,6 +39,12 @@ const REASON_META: Record<
     Icon: HandCoins,
     negotiation: true,
   },
+  // Vaga sem candidato → o contratante aceitou o valor sugerido pelo Freela.
+  RAISE_SUGGESTION_ACCEPT: {
+    label: "Aumento sugerido aceito pelo contratante",
+    Icon: HandCoins,
+    negotiation: true,
+  },
 };
 
 function reasonMeta(reason: PricingChangeReason | null) {

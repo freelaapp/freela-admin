@@ -767,6 +767,7 @@ export type PricingChangeReason =
   | "UPDATE"
   | "PROPOSAL_ACCEPT"
   | "COUNTER_ACCEPT"
+  | "RAISE_SUGGESTION_ACCEPT"
   | (string & {});
 
 /**
@@ -776,7 +777,7 @@ export type PricingChangeReason =
 export interface VacancyPriceHistoryEntry {
   /** Quando o preço foi (re)calculado (ISO). */
   calculatedAt: string;
-  /** CREATE | UPDATE | PROPOSAL_ACCEPT | COUNTER_ACCEPT | null (logs antigos). */
+  /** CREATE | UPDATE | PROPOSAL_ACCEPT | COUNTER_ACCEPT | RAISE_SUGGESTION_ACCEPT | null (logs antigos). */
   changeReason: PricingChangeReason | null;
   /** Proposta que originou a mudança, quando veio da negociação. */
   proposalId: string | null;
