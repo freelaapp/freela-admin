@@ -48,6 +48,7 @@ import { downloadCsv } from "@/lib/csv";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { ExcluirUsuarioPanel } from "@/components/admin/excluir-usuario-dialog";
 import { PreferencesDialog } from "./_components/preferences-dialog";
+import { PaperworkSummary } from "./_components/paperwork-summary";
 
 type ModalType =
   | "view"
@@ -429,6 +430,12 @@ export default function EmpresasPage() {
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                 Status: <StatusBadge status={selectedItem.status} />
               </div>
+              {selectedItem.raw.userId && (
+                <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
+                  <Receipt className="w-4 h-4 text-[#737373]" aria-hidden="true" />
+                  <PaperworkSummary contractorUserId={selectedItem.raw.userId} />
+                </div>
+              )}
 
               {/* Cadastro completo. Tudo isto já vinha da API e só aparecia no
                   CSV — quem precisava do CNPJ ou do endereço exportava a base

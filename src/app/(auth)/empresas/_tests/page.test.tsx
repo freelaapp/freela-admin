@@ -53,6 +53,17 @@ vi.mock("@/modules/admin/application/use-admin-contractors", () => ({
   useAdminUpdateContractor: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+const settings = vi.hoisted(() => ({
+  current: { signedContractEnabled: true, rpaEnabled: true, inssRemindersEnabled: true },
+  calls: [] as string[],
+}));
+vi.mock("@/modules/admin/application/use-admin-contractor-settings", () => ({
+  useAdminContractorSettings: (contractorUserId: string) => {
+    settings.calls.push(contractorUserId);
+    return { data: settings.current, isLoading: false, isError: false };
+  },
+}));
+
 /** Linha da tabela (desktop) da empresa; a lista em cartões repete os botões. */
 const rowOf = (company: string) => screen.getAllByText(company)[0].closest("tr") as HTMLElement;
 const documentsButton = (company: string) =>
@@ -71,5 +82,23 @@ describe("Empresas — Documentos e cobrança", () => {
     render(<EmpresasPage />);
 
     expect(documentsButton("Sem Dono")).toBeDisabled();
+  });
+});
+
+describe("Empresas — Detalhes da Empresa", () => {
+  it("linha 'Documentos: tudo ligado' ou 'Documentos: contrato desligado' pelo GET de settings (UX 5.2)", () => {
+    settings.current = { signedContractEnabled: false, rpaEnabled: true, inssRemindersEnabled: true };
+    const { unmount } = render(<EmpresasPage />);
+    fireEvent.click(within(rowOf("Bar do Zé")).getByRole("button", { name: "Ver detalhes" }));
+
+    expect(screen.getByText("Documentos: contrato desligado")).toBeInTheDocument();
+    expect(settings.calls).toContain("owner-user-1");
+    unmount();
+
+    settings.current = { signedContractEnabled: true, rpaEnabled: true, inssRemindersEnabled: true };
+    render(<EmpresasPage />);
+    fireEvent.click(within(rowOf("Bar do Zé")).getByRole("button", { name: "Ver detalhes" }));
+
+    expect(screen.getByText("Documentos: tudo ligado")).toBeInTheDocument();
   });
 });

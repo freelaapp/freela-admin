@@ -222,3 +222,23 @@ export function historyChangeLine(entry: SettingsHistoryEntry): string {
   }
   return `${label}: ${historyValue(entry.oldValue)} → ${historyValue(entry.newValue)}`;
 }
+
+// ─── Resumo no "Detalhes da Empresa" ──────────────────────────────────────────
+
+const OFF_NAME: Record<PaperworkKey, string> = {
+  signedContractEnabled: "contrato",
+  rpaEnabled: "RPA",
+  inssRemindersEnabled: "lembretes do INSS",
+};
+
+/** "tudo ligado", "contrato desligado", "contrato e lembretes do INSS desligados". */
+export function paperworkSummary(prefs: Record<PaperworkKey, boolean>): string {
+  const off = PAPERWORK_KEYS.filter((key) => !prefs[key]);
+  if (off.length === 0) return "tudo ligado";
+  if (off.length === PAPERWORK_KEYS.length) return "tudo desligado";
+  const names = off.map((key) => OFF_NAME[key]);
+  const list =
+    names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
+  const plural = off.length > 1 || off[0] === "inssRemindersEnabled";
+  return `${list} ${plural ? "desligados" : "desligado"}`;
+}
