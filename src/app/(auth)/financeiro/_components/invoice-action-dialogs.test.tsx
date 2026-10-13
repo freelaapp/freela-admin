@@ -424,3 +424,16 @@ describe("actionErrorMessage — os códigos reais da API", () => {
     expect(actionErrorMessage(new Error("rede"))).toBe("Não foi possível concluir. Tente de novo.");
   });
 });
+
+describe("Diálogos das ações — acessibilidade", () => {
+  it("o papel dialog fica no próprio painel, sem wrapper aninhado", () => {
+    renderActions();
+    fireEvent.click(screen.getByRole("button", { name: "Reenviar cobrança" }));
+
+    const panel = screen.getByRole("dialog", {
+      name: "Reenviar a cobrança de FAT-2026-000123 para Bar do Zé?",
+    });
+    expect(panel).toHaveClass("rounded-xl");
+    expect(panel).toHaveAttribute("aria-modal", "true");
+  });
+});

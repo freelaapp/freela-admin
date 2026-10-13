@@ -239,3 +239,23 @@ describe("Detalhe da fatura", () => {
     expect(screen.getByRole("link", { name: "Faturas" })).toBeInTheDocument();
   });
 });
+
+describe("Detalhe da fatura — chaves das listas", () => {
+  it("dois passos iguais no mesmo instante não repetem a chave", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const same = DETAIL.history[1];
+    vi.mocked(getAdminInvoice).mockResolvedValue({
+      ...DETAIL,
+      history: [...DETAIL.history, same],
+      auditTrail: [...DETAIL.auditTrail, DETAIL.auditTrail[0]],
+    });
+    renderPage();
+
+    const messages = await screen.findByRole("region", { name: "Mensagens de cobrança" });
+    expect(within(within(messages).getByRole("table")).getAllByText("Reenvio")).toHaveLength(2);
+    expect(
+      errors.mock.calls.some((call) => String(call[0]).includes("same key")),
+    ).toBe(false);
+    errors.mockRestore();
+  });
+});

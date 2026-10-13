@@ -202,50 +202,53 @@ function ActionDialog({
       }}
       className="max-w-md"
     >
-      <DialogContent className="max-h-[88vh] overflow-y-auto">
-        <div role="dialog" aria-modal="true" aria-labelledby={titleId}>
-          <h2
-            id={titleId}
-            className="text-lg font-bold text-[#1d1d1b]"
-            style={{ fontFamily: "var(--font-display)" }}
+      <DialogContent
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="max-h-[88vh] overflow-y-auto"
+      >
+        <h2
+          id={titleId}
+          className="text-lg font-bold text-[#1d1d1b]"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {title}
+        </h2>
+        {description && <div className="mt-1 text-sm text-[#525252]">{description}</div>}
+        <div className="mt-4 space-y-4">{children}</div>
+        {error && (
+          <p
+            role="alert"
+            className="mt-4 rounded-lg border border-[#fecaca] bg-[#fef2f2] p-2.5 text-sm text-[#b91c1c]"
           >
-            {title}
-          </h2>
-          {description && <div className="mt-1 text-sm text-[#525252]">{description}</div>}
-          <div className="mt-4 space-y-4">{children}</div>
-          {error && (
-            <p
-              role="alert"
-              className="mt-4 rounded-lg border border-[#fecaca] bg-[#fef2f2] p-2.5 text-sm text-[#b91c1c]"
-            >
-              {error}
-            </p>
-          )}
-          <DialogFooter className="sticky bottom-0 bg-white py-3 sm:static sm:py-0">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              disabled={pending}
-              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={onSubmit}
-              disabled={!canSubmit || pending}
-              className="bg-[#eca826] text-white hover:bg-[#d4951e]"
-            >
-              {pending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  Salvando...
-                </>
-              ) : (
-                submitLabel
-              )}
-            </Button>
-          </DialogFooter>
-        </div>
+            {error}
+          </p>
+        )}
+        <DialogFooter className="sticky bottom-0 bg-white py-3 sm:static sm:py-0">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={pending}
+            className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={onSubmit}
+            disabled={!canSubmit || pending}
+            className="bg-[#eca826] text-white hover:bg-[#d4951e]"
+          >
+            {pending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                Salvando...
+              </>
+            ) : (
+              submitLabel
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

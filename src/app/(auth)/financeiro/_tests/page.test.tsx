@@ -56,6 +56,10 @@ const FINANCE_SUMMARY = {
   },
 };
 
+/** Botão de uma seção do Financeiro (as "abas"). */
+const section = (name: string) =>
+  within(screen.getByRole("group", { name: "Seções do Financeiro" })).findByRole("button", { name });
+
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -87,7 +91,8 @@ describe("Financeiro — aba Faturas", () => {
   it("aba Faturas (entre Repasses e Estornos) renderiza a InvoicesView", async () => {
     renderPage();
 
-    const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
+    const sections = screen.getByRole("group", { name: "Seções do Financeiro" });
+    const tabs = within(sections).getAllByRole("button").map((t) => t.textContent);
     expect(tabs).toEqual([
       "Visão Geral",
       "Transações",
@@ -96,9 +101,16 @@ describe("Financeiro — aba Faturas", () => {
       "Faturas",
       "Estornos & Cancelamentos",
     ]);
-    fireEvent.click(screen.getByRole("tab", { name: "Faturas" }));
+    fireEvent.click(within(sections).getByRole("button", { name: "Faturas" }));
 
-    expect(screen.getByRole("tab", { name: "Faturas" })).toHaveAttribute("aria-selected", "true");
+    expect(within(sections).getByRole("button", { name: "Faturas" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(sections).getByRole("button", { name: "Visão Geral" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     expect(await screen.findByText("A receber: faturas a vencer")).toBeInTheDocument();
     // Tabela (desktop) e cartões (celular) mostram a mesma fatura.
     expect(await screen.findAllByText("FAT-2026-000123")).toHaveLength(2);
@@ -110,10 +122,7 @@ describe("Financeiro — aba Faturas", () => {
     window.history.replaceState(null, "", "/financeiro?aba=faturas");
     renderPage();
 
-    expect(await screen.findByRole("tab", { name: "Faturas" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(await section("Faturas")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("alerta de pagamento em dobro com link", async () => {
@@ -130,7 +139,7 @@ describe("Financeiro — aba Faturas", () => {
       },
     });
     renderPage();
-    fireEvent.click(screen.getByRole("tab", { name: "Faturas" }));
+    fireEvent.click(await section("Faturas"));
 
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByRole("link", { name: "Ver FAT-2026-000123" })).toHaveAttribute(
@@ -170,7 +179,7 @@ describe("Financeiro — Visão Geral e Pagamentos", () => {
     expect(within(receivable).getByText("Indisponível")).toBeInTheDocument();
   });
 
-  it("Pagamentos: INVOICE com 'Faturado (não é entrada de caixa)'", () => {
+  it("Pagamentos: INVOICE com 'Faturado (não é entrada de caixa)'", async () => {
     finance.payments = [
       {
         id: "p1",
@@ -196,7 +205,7 @@ describe("Financeiro — Visão Geral e Pagamentos", () => {
       },
     ];
     renderPage();
-    fireEvent.click(screen.getByRole("tab", { name: "Pagamentos" }));
+    fireEvent.click(await section("Pagamentos"));
 
     const table = screen.getByRole("table");
     const invoiced = within(table).getByText("invoice-corr").closest("tr") as HTMLElement;

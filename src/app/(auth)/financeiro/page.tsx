@@ -906,13 +906,13 @@ export default function FinanceiroPage() {
       />
       <FinanceGuideDialog open={guideOpen} onClose={() => setGuideOpen(false)} />
 
-      <div role="tablist" aria-label="Financeiro" className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
+      {/* Seções como botões com aria-pressed (não é um tablist completo, sem tabpanel/setas). */}
+      <div role="group" aria-label="Seções do Financeiro" className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
         {tabs.map((t) => (
           <button
             key={t}
-            role="tab"
             type="button"
-            aria-selected={tab === t}
+            aria-pressed={tab === t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
               tab === t ? "bg-[#eca826] text-white" : "bg-[#f7f7f7] text-[#737373] hover:text-[#1d1d1b]"

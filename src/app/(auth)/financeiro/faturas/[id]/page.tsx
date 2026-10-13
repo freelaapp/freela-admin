@@ -217,9 +217,9 @@ function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
         )}
       </header>
 
-      {detail.alerts.map((alert) => (
+      {detail.alerts.map((alert, index) => (
         <div
-          key={`${alert.code}-${alert.at}`}
+          key={`${index}-${alert.code}-${alert.at}`}
           role="alert"
           className="flex items-start gap-2 rounded-xl border border-[#fecaca] bg-[#fef2f2] p-3 text-sm text-[#b91c1c]"
         >
@@ -339,8 +339,8 @@ function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
       {detail.auditTrail.length > 0 && (
         <Section title="Histórico de ações">
           <ul className="space-y-1.5 text-sm text-[#1d1d1b]">
-            {detail.auditTrail.map((entry) => (
-              <li key={`${entry.action}-${entry.at}`}>
+            {detail.auditTrail.map((entry, index) => (
+              <li key={`${index}-${entry.action}-${entry.at}`}>
                 {`${entry.label} · ${formatInstantBrt(entry.at)} · ${entry.by} · Motivo: "${entry.reason}"`}
               </li>
             ))}
@@ -373,8 +373,8 @@ function MessagesTable({ history }: { history: AdminInvoiceDetail["history"] }) 
             </tr>
           </thead>
           <tbody>
-            {history.map((event) => (
-              <tr key={`${event.step}-${event.at}`} className="border-b border-[#f2f2f2] align-top last:border-0">
+            {history.map((event, index) => (
+              <tr key={`${index}-${event.step}-${event.at}`} className="border-b border-[#f2f2f2] align-top last:border-0">
                 <td className="py-2 pr-3 text-[#1d1d1b]">
                   {event.label}
                   {event.note && <p className="text-xs text-[#737373]">{`nota: "${event.note}"`}</p>}
@@ -390,8 +390,8 @@ function MessagesTable({ history }: { history: AdminInvoiceDetail["history"] }) 
         </table>
       </div>
       <ul className="space-y-2 md:hidden" data-testid="messages-cards">
-        {history.map((event) => (
-          <li key={`${event.step}-${event.at}`} className="rounded-lg border border-[#e5e5e5] p-3 text-sm">
+        {history.map((event, index) => (
+          <li key={`${index}-${event.step}-${event.at}`} className="rounded-lg border border-[#e5e5e5] p-3 text-sm">
             <p className="font-semibold text-[#1d1d1b]">{event.label}</p>
             <p className="text-xs text-[#737373]">{`${formatInstantBrt(event.at)} · ${event.by}`}</p>
             {event.note && <p className="mt-1 text-xs text-[#525252]">{`nota: "${event.note}"`}</p>}
