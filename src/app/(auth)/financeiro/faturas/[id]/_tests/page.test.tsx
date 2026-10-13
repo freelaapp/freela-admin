@@ -560,6 +560,19 @@ describe("Detalhe da fatura — Reemitir nota", () => {
     expect(within(note).queryByRole("button", { name: "Reemitir nota" })).not.toBeInTheDocument();
   });
 
+  it("nota emitida ou na prefeitura: sem o botão (só aparece com a nota recusada)", async () => {
+    vi.mocked(getAdminInvoice).mockResolvedValue({
+      ...AFTER_REISSUE,
+      auditTrail: PAID.auditTrail,
+    });
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent("Enviada à prefeitura; aguardando autorização.");
+    expect(within(note).queryByRole("button", { name: "Reemitir nota" })).not.toBeInTheDocument();
+    expect(note).not.toHaveTextContent("Reemitir nota: A nota não está recusada.");
+  });
+
   it("desabilitado pela API: o botão fica cinza e o porquê aparece embaixo", async () => {
     vi.mocked(getAdminInvoice).mockResolvedValue({
       ...REISSUABLE,

@@ -702,7 +702,9 @@ export function NfseReissueAction({ detail }: { detail: AdminInvoiceDetail }) {
   const [opening, setOpening] = useState(0);
   const reasonId = useId();
   const state = detail.actions.nfseReissue;
-  if (!state) return null;
+  // Só com a nota recusada (ou já liberada pela API): botão desabilitado em toda
+  // fatura com nota emitida ou na prefeitura só polui o quadro.
+  if (!state || (!state.enabled && detail.nfse?.status !== "FAILED")) return null;
   const why = !state.enabled && state.reason ? state.reason : null;
 
   return (
