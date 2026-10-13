@@ -123,3 +123,53 @@ describe("DataTable — cartões no celular", () => {
     expect(cards().getByText("Carregando…")).toBeInTheDocument();
   });
 });
+
+describe("DataTable — caption, aria-sort e vazio", () => {
+  it("legenda para leitor de tela e aria-sort da ordem do servidor", () => {
+    const cols: Column<Row>[] = [
+      { header: "Nome", accessor: "nome" },
+      { header: "Valor", accessor: (r) => `R$ ${r.valor}`, ariaSort: "ascending" },
+    ];
+    render(<DataTable columns={cols} data={ROWS} caption="Pessoas, pelo valor" />);
+
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Pessoas, pelo valor")).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Valor" })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
+    expect(within(table).getByRole("columnheader", { name: "Nome" })).not.toHaveAttribute(
+      "aria-sort",
+    );
+  });
+
+  it("ordenação do clique também vira aria-sort", () => {
+    render(<DataTable columns={columns()} data={ROWS} />);
+    const header = within(screen.getByRole("table")).getByRole("columnheader", { name: "Nome" });
+
+    fireEvent.click(header);
+    expect(header).toHaveAttribute("aria-sort", "ascending");
+    fireEvent.click(header);
+    expect(header).toHaveAttribute("aria-sort", "descending");
+  });
+
+  it("mensagem de vazio própria na tabela e nos cartões", () => {
+    render(<DataTable columns={columns()} data={[]} emptyMessage="Nada por aqui." />);
+    expect(screen.getAllByText("Nada por aqui.")).toHaveLength(2);
+  });
+});
+
+describe("DataTable — o que é a coluna", () => {
+  it("headerTitle vira title no cabeçalho e no rótulo do cartão", () => {
+    const cols: Column<Row>[] = [
+      { header: "Nome", accessor: "nome" },
+      { header: "Valor", accessor: (r) => `R$ ${r.valor}`, headerTitle: "Valor = soma. Fonte: x." },
+    ];
+    render(<DataTable columns={cols} data={ROWS} />);
+
+    expect(
+      within(screen.getByRole("table")).getByRole("columnheader", { name: "Valor" }),
+    ).toHaveAttribute("title", "Valor = soma. Fonte: x.");
+    expect(cards().getAllByText("Valor")[0]).toHaveAttribute("title", "Valor = soma. Fonte: x.");
+  });
+});

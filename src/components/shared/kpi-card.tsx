@@ -16,6 +16,12 @@ interface KpiCardProps {
   /** "Abre" o card: quebra o valor principal em fatias (ex.: freelancers ×
    * contratantes). Entra logo abaixo do número grande, antes da meta. */
   breakdown?: { label: string; value: string }[];
+  /**
+   * A conta inteira e a fonte do número (regra: todo número diz o que é, a
+   * conta e de onde veio). Fica num "Ver a conta" que abre com um toque — o
+   * `help` só aparece no hover, que não existe no celular.
+   */
+  details?: { calc: string; source: string };
 }
 
 export function KpiCard({
@@ -29,6 +35,7 @@ export function KpiCard({
   className,
   help,
   breakdown,
+  details,
 }: KpiCardProps) {
   return (
     <Card className={cn("p-4 flex flex-col gap-1", className)}>
@@ -65,6 +72,15 @@ export function KpiCard({
         <p className={cn("text-xs font-medium", metaColor || "text-[#737373]")}>
           {meta}
         </p>
+      )}
+      {details && (
+        <details className="mt-1 text-xs text-[#525252]">
+          <summary className="cursor-pointer select-none font-medium text-[#737373] hover:text-[#1d1d1b]">
+            Ver a conta
+          </summary>
+          <p className="mt-1">{`Conta: ${details.calc}`}</p>
+          <p className="mt-0.5">{`Fonte: ${details.source}`}</p>
+        </details>
       )}
       {progress !== undefined && (
         <div className="w-full h-1.5 bg-[#e5e5e5] rounded-full mt-1">

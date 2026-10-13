@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { canOpenDocument, withNoScriptPolicy } from "./vacancy-documents-open";
+import {
+  canOpenDocument,
+  invoicedNfseLink,
+  isInvoicedVacancy,
+  withNoScriptPolicy,
+} from "./vacancy-documents-open";
 
 describe("canOpenDocument", () => {
   it("abre qualquer documento emitido", () => {
@@ -49,5 +54,47 @@ describe("withNoScriptPolicy", () => {
 
   it("sem <head>, coloca a política no começo", () => {
     expect(withNoScriptPolicy("<p>oi</p>")).toBe(`${csp}<p>oi</p>`);
+  });
+});
+
+describe("NFS-e da vaga faturada (AD2c.3)", () => {
+  it("com o id da fatura da API: o detalhe da fatura, sem olhar o texto", () => {
+    expect(
+      invoicedNfseLink(
+        { invoiceId: "inv-123", number: "FAT-2026-000123" },
+        "NFS-e na fatura FAT-2026-000999: texto antigo",
+      ),
+    ).toEqual({ href: "/financeiro/faturas/inv-123", number: "FAT-2026-000123" });
+  });
+
+  it("fallback: só o número no formato FAT-AAAA-N (regex FAT-\\d{4}-\\d+), o primeiro do texto, para a aba Faturas", () => {
+    const fallback = (text: string | null) => invoicedNfseLink(undefined, text);
+    expect(fallback("NFS-e na fatura FAT-2026-000131: emissão falhou")).toEqual({
+      href: "/financeiro?aba=faturas",
+      number: "FAT-2026-000131",
+    });
+    expect(fallback("NFS-e na fatura FAT-2027-7")).toEqual({
+      href: "/financeiro?aba=faturas",
+      number: "FAT-2027-7",
+    });
+    expect(fallback("FAT-2026-000001 e FAT-2026-000002")?.number).toBe("FAT-2026-000001");
+    // Fora do formato: nenhum link (só o texto da API).
+    expect(fallback("NFS-e na fatura FAT-26-000131")).toBeNull();
+    expect(fallback("NFS-e na fatura fat-2026-000131")).toBeNull();
+    expect(fallback("NFS-e na fatura XFAT-2026-000131")).toBeNull();
+    expect(fallback("NFS-e na fatura FAT-2026-")).toBeNull();
+    expect(fallback("NFS-e na fatura: sai depois que a fatura for paga")).toBeNull();
+    expect(fallback("Sem NFS-e: o cupom CORTESIA cobriu a vaga")).toBeNull();
+    expect(fallback(null)).toBeNull();
+    // `nfseInvoice: null` (antes do fechamento) também cai no texto.
+    expect(invoicedNfseLink(null, "NFS-e na fatura FAT-2026-000131")?.href).toBe("/financeiro?aba=faturas");
+  });
+
+  it("faturada = pagamento INVOICE, ou a API mandou o campo nfseInvoice (mesmo null)", () => {
+    expect(isInvoicedVacancy("INVOICE", undefined)).toBe(true);
+    expect(isInvoicedVacancy("invoice", undefined)).toBe(true);
+    expect(isInvoicedVacancy(null, null)).toBe(true);
+    expect(isInvoicedVacancy("PIX", undefined)).toBe(false);
+    expect(isInvoicedVacancy(undefined, undefined)).toBe(false);
   });
 });

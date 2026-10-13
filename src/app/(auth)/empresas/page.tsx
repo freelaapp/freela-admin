@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays, CalendarPlus, ShieldOff, Search } from "lucide-react";
+import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays, CalendarPlus, ShieldOff, Search, Receipt, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -37,6 +37,7 @@ import { AbrirVagaDialog } from "@/components/admin/vacancy/abrir-vaga-dialog";
 import { cn, formatPhoneBr } from "@/lib/utils";
 import { formatPhoneMask } from "@/modules/consultant/application/phone-mask";
 import { resolveContactPhoneForSave } from "./_lib/contact-phone";
+import { cepError as cepErrorOf, formatCepMask } from "./_lib/cep";
 import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
 import {
   adminBlockProvider,
@@ -47,8 +48,20 @@ import { formatInstantDate } from "@/lib/date.utils";
 import { downloadCsv } from "@/lib/csv";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { ExcluirUsuarioPanel } from "@/components/admin/excluir-usuario-dialog";
+import { PreferencesDialog } from "./_components/preferences-dialog";
+import { BillingModeSummary, PaperworkSummary } from "./_components/paperwork-summary";
+import { BillingBadge } from "./_components/billing-badge";
 
-type ModalType = "view" | "edit" | "delete" | "employee" | "report" | "blocked" | "vaga" | null;
+type ModalType =
+  | "view"
+  | "edit"
+  | "delete"
+  | "employee"
+  | "report"
+  | "blocked"
+  | "vaga"
+  | "preferencias"
+  | null;
 
 function mapContractorToRow(c: ContractorItem) {
   return {
@@ -96,8 +109,14 @@ export default function EmpresasPage() {
     document: "",
     city: "",
     uf: "",
+    cep: "",
+    street: "",
+    number: "",
+    neighborhood: "",
+    complement: "",
   });
   const [contactPhoneError, setContactPhoneError] = useState<string | null>(null);
+  const [cepError, setCepError] = useState<string | null>(null);
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -122,6 +141,7 @@ export default function EmpresasPage() {
     setModalOpen(true);
     if (type === "edit") {
       setContactPhoneError(null);
+      setCepError(null);
       setEditForm({
         companyName: item.raw.companyName ?? "",
         segment: item.raw.segment ?? "",
@@ -134,6 +154,12 @@ export default function EmpresasPage() {
         document: item.raw.cnpj ?? item.raw.cpf ?? "",
         city: item.raw.city ?? "",
         uf: item.raw.uf ?? "",
+        // Endereço completo: o faturado exige (CEP, rua, número, bairro, cidade, UF).
+        cep: formatCepMask(item.raw.cep ?? ""),
+        street: item.raw.street ?? "",
+        number: item.raw.number ?? "",
+        neighborhood: item.raw.neighborhood ?? "",
+        complement: item.raw.complement ?? "",
       });
     }
     if (type === "report") {
@@ -232,6 +258,12 @@ export default function EmpresasPage() {
       toast.error(contactPhone.error);
       return;
     }
+    // CEP incompleto não sai: iria para a fatura e a NFS-e.
+    const cepProblem = cepErrorOf(editForm.cep);
+    if (cepProblem) {
+      setCepError(cepProblem);
+      return;
+    }
     try {
       await updateContractor.mutateAsync({
         id: selectedItem.id,
@@ -246,6 +278,11 @@ export default function EmpresasPage() {
           document: editForm.document.trim() || undefined,
           city: editForm.city.trim() || undefined,
           uf: editForm.uf.trim().toUpperCase() || undefined,
+          cep: formatCepMask(editForm.cep) || undefined,
+          street: editForm.street.trim() || undefined,
+          number: editForm.number.trim() || undefined,
+          neighborhood: editForm.neighborhood.trim() || undefined,
+          complement: editForm.complement.trim() || undefined,
         },
       });
       toast.success("Empresa atualizada com sucesso.");
@@ -273,7 +310,15 @@ export default function EmpresasPage() {
   }
 
   const columns = [
-    { header: "Empresa", accessor: "nome" as const },
+    {
+      header: "Empresa",
+      accessor: (row: Row) => (
+        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>{row.nome}</span>
+          <BillingBadge company={row.raw} />
+        </span>
+      ),
+    },
     { header: "Responsável", accessor: "responsavel" as const, className: "hidden md:table-cell" },
     { header: "Telefone", accessor: "telefone" as const, className: "hidden lg:table-cell" },
     { header: "Cidade", accessor: "cidade" as const },
@@ -312,6 +357,7 @@ export default function EmpresasPage() {
         <div className="flex items-center gap-1">
           <button onClick={() => openModal("view", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
+          <button onClick={() => openModal("preferencias", row)} disabled={!row.raw.userId} aria-label="Documentos e cobrança" className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Documentos e cobrança" : "Usuário da empresa não encontrado"}><Receipt className="w-4 h-4" aria-hidden="true" /></button>
           <button onClick={() => openModal("vaga", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Abrir vaga em nome da empresa" : "Usuário da empresa não encontrado"}><CalendarPlus className="w-4 h-4" /></button>
           <button onClick={() => openModal("employee", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current" title={row.raw.userId ? "Gerenciar funcionário" : "Usuário da empresa não encontrado"}><UserCog className="w-4 h-4" /></button>
           <button onClick={() => openModal("blocked", row)} disabled={!row.raw.userId} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Freelancers bloqueados"><ShieldOff className="w-4 h-4" /></button>
@@ -418,6 +464,21 @@ export default function EmpresasPage() {
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                 Status: <StatusBadge status={selectedItem.status} />
               </div>
+              {selectedItem.raw.userId && (
+                <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
+                  <Wallet className="w-4 h-4 text-[#737373]" aria-hidden="true" />
+                  <BillingModeSummary
+                    contractorUserId={selectedItem.raw.userId}
+                    company={selectedItem.raw}
+                  />
+                </div>
+              )}
+              {selectedItem.raw.userId && (
+                <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
+                  <Receipt className="w-4 h-4 text-[#737373]" aria-hidden="true" />
+                  <PaperworkSummary contractorUserId={selectedItem.raw.userId} />
+                </div>
+              )}
 
               {/* Cadastro completo. Tudo isto já vinha da API e só aparecia no
                   CSV — quem precisava do CNPJ ou do endereço exportava a base
@@ -516,6 +577,46 @@ export default function EmpresasPage() {
                   <Input id="uf-emp" value={editForm.uf} maxLength={2} onChange={(e) => setEditForm((f) => ({ ...f, uf: e.target.value.toUpperCase() }))} />
                 </div>
               </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="cep-emp">CEP</Label>
+                  <Input
+                    id="cep-emp"
+                    inputMode="numeric"
+                    placeholder="36000-000"
+                    value={editForm.cep}
+                    aria-invalid={cepError ? true : undefined}
+                    aria-describedby={cepError ? "cep-emp-erro" : undefined}
+                    onChange={(e) => {
+                      setCepError(null);
+                      setEditForm((f) => ({ ...f, cep: formatCepMask(e.target.value) }));
+                    }}
+                  />
+                  {cepError && (
+                    <p id="cep-emp-erro" role="alert" className="text-xs text-red-600">
+                      {cepError}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="rua-emp">Rua</Label>
+                  <Input id="rua-emp" value={editForm.street} onChange={(e) => setEditForm((f) => ({ ...f, street: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="numero-emp">Número</Label>
+                  <Input id="numero-emp" value={editForm.number} onChange={(e) => setEditForm((f) => ({ ...f, number: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="bairro-emp">Bairro</Label>
+                  <Input id="bairro-emp" value={editForm.neighborhood} onChange={(e) => setEditForm((f) => ({ ...f, neighborhood: e.target.value }))} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="complemento-emp">Complemento</Label>
+                <Input id="complemento-emp" value={editForm.complement} onChange={(e) => setEditForm((f) => ({ ...f, complement: e.target.value }))} />
+              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="doc-emp">CNPJ / CPF</Label>
                 <Input id="doc-emp" value={editForm.document} onChange={(e) => setEditForm((f) => ({ ...f, document: e.target.value }))} />
@@ -611,6 +712,25 @@ export default function EmpresasPage() {
           />
         );
       }
+      case "preferencias": {
+        // Burocracias e cobrança são da conta do DONO (User.id), não do registro
+        // da empresa: mesma chave de carteira e funcionário.
+        const ownerUserId = selectedItem.raw.userId;
+        if (!ownerUserId) return null;
+        return (
+          <PreferencesDialog
+            key={ownerUserId}
+            contractorUserId={ownerUserId}
+            companyName={selectedItem.nome}
+            companyDocument={selectedItem.raw.cnpj}
+            // Sem o campo (API anterior), nenhuma frase sobre o bloqueio.
+            blockEnabled={selectedItem.raw.billingStanding?.blockEnabled}
+            onClose={closeModal}
+            // "Corrigir cadastro" (aba Cobrança): troca para o "Editar Empresa".
+            onEditCompany={() => openModal("edit", selectedItem)}
+          />
+        );
+      }
       case "employee": {
         const ownerUserId = selectedItem.raw.userId;
         if (!ownerUserId) {
@@ -696,11 +816,19 @@ export default function EmpresasPage() {
           </div>
         }
       />
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        className={modalType === "preferencias" ? "max-w-xl" : undefined}
+      >
         <DialogContent
           className={cn(
             "relative",
-            (modalType === "vaga" || modalType === "delete") && "max-h-[88vh] overflow-y-auto",
+            (modalType === "vaga" ||
+              modalType === "delete" ||
+              modalType === "preferencias" ||
+              modalType === "edit") &&
+              "max-h-[88vh] overflow-y-auto",
           )}
         >
           <DialogClose onClick={closeModal} />

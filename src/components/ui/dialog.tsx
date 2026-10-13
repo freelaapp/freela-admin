@@ -43,15 +43,21 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
   );
 }
 
+/**
+ * O painel branco do diálogo. Aceita atributos HTML (`role`, `aria-*`) para o
+ * papel de diálogo ficar no próprio painel, sem um wrapper aninhado.
+ */
 export function DialogContent({
   children,
   className,
-}: {
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <div
+      {...props}
       className={cn(
         "bg-white rounded-xl border border-[#e5e5e5] shadow-lg p-6",
         className

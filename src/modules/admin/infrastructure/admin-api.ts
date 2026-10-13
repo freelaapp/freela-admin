@@ -1,6 +1,7 @@
 import { isAxiosError } from "axios";
 
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { VacancyNfseInvoice } from "./vacancy-documents-api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -245,6 +246,15 @@ export interface ContractorItem {
   referredByPartnership?: { id: string; name: string; code: string } | null;
   /** Origem completa do cadastro. Ausente = API anterior a 29/09/2026. */
   signupOrigin?: SignupOrigin | null;
+  /**
+   * Faturamento (API-3e): modo de cobrança efetivo (`PREPAID` com a chave
+   * desligada), o rótulo do selo e desde quando vale. Ausentes em API anterior.
+   */
+  billingMode?: "PREPAID" | "INVOICED_7" | "INVOICED_15" | "INVOICED_30";
+  billingModeLabel?: string;
+  billingModeSince?: string | null;
+  /** Bloqueio derivado das faturas vencidas (só com o bloqueio por atraso ligado). */
+  billingStanding?: { blocked: boolean; overdueDays: number; blockEnabled: boolean } | null;
 }
 
 // ─── Origem do cadastro (API 29/09/2026) ────────────────────────────────────
@@ -575,9 +585,20 @@ export interface VacancyItem {
    * "Não divulgada". Ausente = API anterior ao campo (não afirma nada).
    */
   groupBroadcastAt?: string | null;
+  /**
+   * Meio do pagamento liquidado da vaga (API-3e): `PIX`, `WALLET`, `CREDIT_CARD`,
+   * `INVOICE` (faturado)… `null` sem pagamento; ausente em API anterior.
+   */
+  paymentMethod?: string | null;
+  /**
+   * Vaga faturada: a fatura da NFS-e (API-3g, N11). Ausente no pré-pago e em
+   * API que ainda não manda o campo; `null` antes de a vaga entrar numa fatura.
+   */
+  nfseInvoice?: VacancyNfseInvoice | null;
 }
 
-export type VacancyDocumentState = "OK" | "PENDING" | "FAILED" | "MISSING" | "NA";
+/** `WAIVED` = dispensado pelo contratante nas burocracias (contrato ou RPA). */
+export type VacancyDocumentState = "OK" | "PENDING" | "FAILED" | "MISSING" | "NA" | "WAIVED";
 
 export interface VacancyDocuments {
   contract: VacancyDocumentState;
@@ -1074,6 +1095,9 @@ export interface PaymentItem {
   correlationId: string;
   paymentLinkUrl: string | null;
   createdAt: string;
+  /** Meio (API-3e): `PIX`, `WALLET`, `INVOICE` (faturado, não é caixa)… Ausente em API anterior. */
+  method?: string | null;
+  provider?: string | null;
 }
 
 export async function getAdminPayments(): Promise<PaymentItem[]> {
@@ -1119,6 +1143,20 @@ export interface FinanceSummary {
   entradasCount: number;
   saidasCount: number;
   estornosCount: number;
+  /**
+   * Faturado (API-3e). O pagamento `INVOICE` é venda, não caixa: sai de entradas
+   * e estornos; a fatura paga entra nas entradas pela data do pagamento.
+   * Opcionais: ausentes em API anterior.
+   */
+  invoicedCents?: number;
+  invoicedCount?: number;
+  invoicePaymentsCents?: number;
+  /** A receber do faturado AGORA: faturas em aberto + ainda não faturado. `null` sem a leitura. */
+  receivableCents?: number | null;
+  lucroBasis?: "COMPETENCIA";
+  lucroLabel?: string;
+  /** A conta de cada número (regra: todo número com a conta e a fonte). */
+  calc?: { entradas: string; estornos: string; lucro: string; receivable: string | null };
 }
 
 export interface FinanceTransaction {
@@ -1140,6 +1178,10 @@ export interface FinanceTransaction {
    * contratante como se fosse quem recebeu.
    */
   party?: string | null;
+  /** `false` no faturado (venda, não caixa). Ausente em API anterior. */
+  isCash?: boolean;
+  /** Rótulo pronto da API ("Faturado (não é entrada de caixa)", "Fatura FAT-… paga (Pix)"). */
+  label?: string | null;
   /** A vaga por trás da transação, com custo e nossa receita já resolvidos. */
   vacancy?: {
     id: string;

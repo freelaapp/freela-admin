@@ -91,6 +91,11 @@ describe("documentBadge", () => {
     expect(documentBadge("NA")).toEqual({ label: "Não se aplica", tone: "idle", symbol: "–" });
   });
 
+  it("WAIVED → 'Dispensado', tom idle, símbolo '–'", () => {
+    // Contrato ou RPA que a empresa desligou nas burocracias: não é falha nem falta.
+    expect(documentBadge("WAIVED")).toEqual({ label: "Dispensado", tone: "idle", symbol: "–" });
+  });
+
   it("valor desconhecido (API mais nova que o painel) cai em neutro com o texto cru", () => {
     expect(documentBadge("NOVO")).toEqual({ label: "NOVO", tone: "idle", symbol: "?" });
   });
