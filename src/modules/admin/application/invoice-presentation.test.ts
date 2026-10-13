@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  chargeStatusLabel,
   channelText,
   channelsLine,
   dayLabel,
   formatBrl,
   formatInstantBrt,
+  instantWithWeekday,
   lastMessageLines,
   periodLabel,
   SITUATION_CHIPS,
@@ -97,5 +99,21 @@ describe("invoice-presentation", () => {
   it("caption da tabela diz o filtro", () => {
     expect(tableCaption(null)).toBe("Faturas, todas as situações");
     expect(tableCaption("VENCIDA")).toBe("Faturas, filtradas por: Vencidas");
+  });
+});
+
+describe("invoice-presentation — detalhe", () => {
+  it("instante com o dia da semana, em Brasília", () => {
+    expect(instantWithWeekday("2026-10-23T03:00:00.000Z")).toBe("sex 23/10 às 00:00");
+    expect(instantWithWeekday(null)).toBe("—");
+  });
+
+  it("situação da cobrança Pix em português", () => {
+    expect(chargeStatusLabel("PENDING")).toBe("Pendente");
+    expect(chargeStatusLabel("COMPLETED")).toBe("Paga");
+    expect(chargeStatusLabel("PAID")).toBe("Paga");
+    expect(chargeStatusLabel("CANCELLED")).toBe("Cancelada");
+    expect(chargeStatusLabel("EXPIRED")).toBe("Expirada");
+    expect(chargeStatusLabel("OUTRO")).toBe("OUTRO");
   });
 });

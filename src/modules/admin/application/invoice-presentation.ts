@@ -161,3 +161,31 @@ export function lastMessageLines(last: AdminInvoiceListItem["lastMessage"]): {
     channels: last.channels ? channelsLine(last.channels) : null,
   };
 }
+
+// ─── Detalhe ──────────────────────────────────────────────────────────────────
+
+const brtDayKey = (date: Date) => date.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+/** "sex 23/10 às 00:00" em Brasília (início do bloqueio, envio de mensagens). */
+export function instantWithWeekday(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  const time = formatInstantBrt(iso).split(" ")[1];
+  return `${dayLabel(brtDayKey(date))} às ${time}`;
+}
+
+const CHARGE_STATUS: Record<string, string> = {
+  PENDING: "Pendente",
+  ACTIVE: "Pendente",
+  COMPLETED: "Paga",
+  PAID: "Paga",
+  CANCELLED: "Cancelada",
+  EXPIRED: "Expirada",
+  FAILED: "Falhou",
+};
+
+/** Situação de uma tentativa de cobrança Pix (`billing_invoice_charges.status`). */
+export function chargeStatusLabel(status: string): string {
+  return CHARGE_STATUS[status] ?? status;
+}
