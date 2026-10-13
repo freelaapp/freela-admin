@@ -440,6 +440,28 @@ describe("Detalhe da fatura — nota fiscal", () => {
     expect(within(note).queryByRole("link")).not.toBeInTheDocument();
   });
 
+  it("valor e competência malformados: '—' (nunca R$ 0,00), com a situação da nota visível", async () => {
+    withNote({ ...NOTE, amountInCents: null, competenceDate: null });
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent("Emitida em seg 26/10 às 10:15");
+    expect(note).toHaveTextContent("Nota fiscal nº 123 · — · competência —");
+    expect(note).not.toHaveTextContent("R$ 0,00");
+    expect(note).not.toHaveTextContent("competência  (");
+  });
+
+  it("FAILED com valor malformado: '—' e a situação 'Com problema' continua", async () => {
+    withNote({ ...FAILED_NOTE, amountInCents: null, competenceDate: "23/10/2026" });
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent("Com problema");
+    expect(note).toHaveTextContent("— · competência —");
+    expect(note).not.toHaveTextContent("R$ 0,00");
+    expect(note).not.toHaveTextContent("23/10/2026");
+  });
+
   it("sem nota (null): em aberto, paga e cancelada", async () => {
     withNote(null, DETAIL);
     const first = renderPage();

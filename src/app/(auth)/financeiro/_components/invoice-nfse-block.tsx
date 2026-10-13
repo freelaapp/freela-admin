@@ -74,7 +74,7 @@ export function InvoiceNfseBlock({
     nfse.status === "ISSUED" && nfse.issuedAt
       ? `Emitida em ${instantWithWeekday(nfse.issuedAt)}`
       : badge.text;
-  const valueLine = `${formatBrl(nfse.amountInCents)} · competência ${ddmmyyyy(nfse.competenceDate)} (data de fechamento da fatura)`;
+  const valueLine = `${amountLabel(nfse.amountInCents)} · competência ${competenceLabel(nfse.competenceDate)}`;
 
   return (
     <div className="space-y-2 text-sm">
@@ -171,6 +171,18 @@ function retryText(nfse: AdminInvoiceNfse, now: number): { text: string; source:
     text: `Próxima tentativa automática: ${retryAtLabel(nfse.nextRetryAt)} (Brasília)`,
     source,
   };
+}
+
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Valor da nota. Dado quebrado vira "—", nunca R$ 0,00 (que diria "nota de zero"). */
+function amountLabel(cents: number | null): string {
+  return typeof cents === "number" && Number.isFinite(cents) ? formatBrl(cents) : "—";
+}
+
+/** "23/10/2026 (data de fechamento da fatura)"; fora de `AAAA-MM-DD`, "—". */
+function competenceLabel(key: string | null): string {
+  return key && DATE_KEY.test(key) ? `${ddmmyyyy(key)} (data de fechamento da fatura)` : "—";
 }
 
 /** Sem nota ainda: o texto depende da situação da fatura. */

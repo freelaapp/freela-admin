@@ -199,9 +199,10 @@ export interface AdminInvoiceNfse {
   number: string | null;
   pdfUrl: string | null;
   issuedAt: string | null;
-  amountInCents: number;
-  /** Dia do fechamento da fatura, em Brasília (`AAAA-MM-DD`). */
-  competenceDate: DateKey;
+  /** Valor da nota. `null` = a API mandou um valor que não é centavos (a tela mostra "—"). */
+  amountInCents: number | null;
+  /** Dia do fechamento da fatura, em Brasília (`AAAA-MM-DD`). `null` = fora do formato ("—"). */
+  competenceDate: DateKey | null;
   /** A conta da nota: Σ das taxas das linhas SERVICE, menos cupom e estorno parcial automático. */
   calc: string;
   /** A fonte da conta (texto pronto da API). */
@@ -223,10 +224,34 @@ const NFSE_STATUSES: ReadonlySet<string> = new Set(["PENDING", "ISSUED", "FAILED
 const textOrNull = (value: unknown): string | null =>
   typeof value === "string" && value !== "" ? value : null;
 
+/** Centavos: inteiro, não negativo. Qualquer outra coisa é dado quebrado. */
+const centsOrNull = (value: unknown): number | null =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+
+const DATE_KEY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const dateKeyOrNull = (value: unknown): DateKey | null =>
+  typeof value === "string" && DATE_KEY.test(value) ? value : null;
+
+/**
+ * O link do PDF vai para um `href`: só `https:` passa. `javascript:`, `data:`,
+ * `http:` ou texto que não é URL viram `null` (a tela diz que o PDF não está
+ * disponível, em vez de abrir algo perigoso).
+ */
+function httpsUrlOrNull(value: unknown): string | null {
+  const text = textOrNull(value)?.trim();
+  if (!text) return null;
+  try {
+    return new URL(text).protocol === "https:" ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Lê o `nfse` do detalhe. Ausente (API anterior à 3g), nulo ou com situação
  * desconhecida → `null` (a tela diz quando a nota sai). Os campos só do admin
- * que faltarem ficam `null`.
+ * que faltarem ficam `null`; valor, competência ou PDF malformados também
+ * (a situação da nota continua valendo).
  */
 export function adminInvoiceNfseOf(raw: unknown): AdminInvoiceNfse | null {
   if (!raw || typeof raw !== "object") return null;
@@ -235,10 +260,10 @@ export function adminInvoiceNfseOf(raw: unknown): AdminInvoiceNfse | null {
   return {
     status: r.status as InvoiceNfseStatus,
     number: textOrNull(r.number),
-    pdfUrl: textOrNull(r.pdfUrl),
+    pdfUrl: httpsUrlOrNull(r.pdfUrl),
     issuedAt: textOrNull(r.issuedAt),
-    amountInCents: typeof r.amountInCents === "number" && Number.isFinite(r.amountInCents) ? r.amountInCents : 0,
-    competenceDate: typeof r.competenceDate === "string" ? r.competenceDate : "",
+    amountInCents: centsOrNull(r.amountInCents),
+    competenceDate: dateKeyOrNull(r.competenceDate),
     calc: typeof r.calc === "string" ? r.calc : "",
     source: typeof r.source === "string" ? r.source : "",
     failureReason: textOrNull(r.failureReason),

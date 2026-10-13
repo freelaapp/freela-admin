@@ -188,6 +188,67 @@ describe("billing-api", () => {
     await expect(getAdminInvoice("inv-1")).resolves.toEqual({ nfse: null });
   });
 
+  it("detalhe: PDF da nota só com https (javascript:, data: e http: viram null)", async () => {
+    const base = {
+      status: "ISSUED",
+      number: "123",
+      issuedAt: "2026-10-26T13:15:00.000Z",
+      amountInCents: 4240,
+      competenceDate: "2026-10-23",
+      calc: "42,40",
+      source: "Fonte.",
+    };
+    for (const pdfUrl of [
+      "javascript:alert(1)",
+      " JavaScript:alert(document.cookie)",
+      "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+      "http://nfse.example/123.pdf",
+      "//nfse.example/123.pdf",
+      "não é url",
+    ]) {
+      get.mockResolvedValueOnce({ data: { data: { nfse: { ...base, pdfUrl } } } });
+      const detail = await getAdminInvoice("inv-1");
+      expect(detail.nfse?.pdfUrl, pdfUrl).toBeNull();
+      expect(detail.nfse?.status).toBe("ISSUED");
+    }
+
+    get.mockResolvedValueOnce({
+      data: { data: { nfse: { ...base, pdfUrl: "https://nfse.example/123.pdf" } } },
+    });
+    expect((await getAdminInvoice("inv-1")).nfse?.pdfUrl).toBe("https://nfse.example/123.pdf");
+  });
+
+  it("detalhe: valor ou competência malformados viram null (a tela mostra '—'); a situação fica", async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        data: {
+          nfse: {
+            status: "FAILED",
+            amountInCents: "4240",
+            competenceDate: "23/10/2026",
+            calc: "42,40",
+            source: "Fonte.",
+          },
+        },
+      },
+    });
+    const detail = await getAdminInvoice("inv-1");
+    expect(detail.nfse).toMatchObject({ status: "FAILED", amountInCents: null, competenceDate: null });
+
+    for (const [amountInCents, competenceDate] of [
+      [Number.NaN, ""],
+      [-1, "2026-13"],
+      [42.5, null],
+    ] as const) {
+      get.mockResolvedValueOnce({ data: { data: { nfse: { status: "PENDING", amountInCents, competenceDate } } } });
+      expect((await getAdminInvoice("inv-1")).nfse).toMatchObject({
+        status: "PENDING",
+        amountInCents: null,
+        competenceDate: null,
+      });
+    }
+  });
+
   it("2ª via sem cobrança devolve null", async () => {
     post.mockResolvedValueOnce({ data: { data: null } });
     await expect(issueSecondCopy("inv-1", { reason: "Código expirou" })).resolves.toBeNull();
