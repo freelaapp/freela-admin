@@ -575,6 +575,11 @@ export interface VacancyItem {
    * "Não divulgada". Ausente = API anterior ao campo (não afirma nada).
    */
   groupBroadcastAt?: string | null;
+  /**
+   * Meio do pagamento liquidado da vaga (API-3e): `PIX`, `WALLET`, `CREDIT_CARD`,
+   * `INVOICE` (faturado)… `null` sem pagamento; ausente em API anterior.
+   */
+  paymentMethod?: string | null;
 }
 
 /** `WAIVED` = dispensado pelo contratante nas burocracias (contrato ou RPA). */

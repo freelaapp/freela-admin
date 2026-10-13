@@ -55,7 +55,10 @@ import {
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
 import { useAdminCancelVacancy, useAdminRestartVacancy, useFinalizeVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
-import { RefundTypeSelector } from "@/components/shared/refund-type-selector";
+import {
+  cancelResultMessage,
+  RefundTypeSelector,
+} from "@/components/shared/refund-type-selector";
 import type { VacancyItem, RefundType } from "@/modules/admin/infrastructure/admin-api";
 import { computeVacancyMoney } from "@/modules/admin/domain/vacancy-money";
 import { formatCents } from "@/lib/money";
@@ -336,15 +339,10 @@ export default function JobsPage() {
         reason: cancelReason.trim(),
         refundType: cancelRefundType,
       });
-      // Vaga sem pagamento confirmado (ex.: nenhum freelancer aceito) cancela sem
-      // estorno — não fala de pagamento. Só mostra o estorno quando houve devolução.
-      if (result.refundAmount > 0) {
-        const valor = (result.refundAmount / 100).toFixed(2).replace(".", ",");
-        const tipo = result.refundType === "FULL" ? "integral" : "parcial (50%)";
-        toast.success(`Vaga cancelada. Estorno ${tipo} de R$ ${valor} processado.`);
-      } else {
-        toast.success("Vaga cancelada com sucesso.");
-      }
+      // Faturado: nada foi pago por Pix, o aviso diz o efeito na fatura.
+      toast.success(
+        cancelResultMessage(result, cancelTarget.raw.paymentMethod === "INVOICE"),
+      );
       setCancelTarget(null);
       setCancelReason("");
       setModalDetalhes(null);
@@ -1234,6 +1232,7 @@ export default function JobsPage() {
               <RefundTypeSelector
                 value={cancelRefundType}
                 onChange={setCancelRefundType}
+                invoiced={cancelTarget.raw.paymentMethod === "INVOICE"}
                 disabled={cancelMutation.isPending}
               />
               <div>
