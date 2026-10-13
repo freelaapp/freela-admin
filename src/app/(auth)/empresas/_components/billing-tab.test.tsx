@@ -14,8 +14,11 @@ vi.mock("@/modules/admin/infrastructure/contractor-settings-api", () => ({
   updateContractorSettings: vi.fn(),
 }));
 
+import { AxiosError, AxiosHeaders } from "axios";
+import { toast } from "sonner";
 import {
   getBillingModeSettings,
+  updateBillingMode,
   type BillingModeSettings,
 } from "@/modules/admin/infrastructure/billing-mode-api";
 import { BillingTab } from "./billing-tab";
@@ -164,5 +167,160 @@ describe("BillingTab — modos e pré-requisitos", () => {
       "Se não pagar, publicar e aprovar ficam bloqueados a partir de sex 23/10.",
     );
     await waitFor(() => expect(getBillingModeSettings).toHaveBeenCalledWith("owner-1"));
+  });
+});
+
+/** Erro do axios com o corpo `{ error: { code, message, ... } }` do filtro global. */
+function apiError(status: number, error: Record<string, unknown>): AxiosError {
+  const config = { headers: new AxiosHeaders() };
+  return new AxiosError("falhou", String(status), config, null, {
+    status,
+    statusText: "",
+    headers: {},
+    config,
+    data: { error },
+  });
+}
+
+const REASON_ERROR = "Escreva o motivo (pelo menos 5 caracteres).";
+const saveButton = () => screen.getByRole("button", { name: "Salvar cobrança" });
+const reasonField = () => screen.getByLabelText("Motivo da mudança (obrigatório)");
+
+describe("BillingTab — validação e salvar", () => {
+  it("'Salvar cobrança' desabilitado sem mudança ou com motivo < 5", async () => {
+    renderTab();
+    await screen.findByRole("group", { name: "Modo de cobrança" });
+
+    expect(saveButton()).toBeDisabled();
+    fireEvent.change(reasonField(), { target: { value: "Contrato assinado" } });
+    expect(saveButton()).toBeDisabled(); // nada mudou
+
+    fireEvent.click(screen.getByRole("radio", { name: 'Faturado semanal ("boleto 7")' }));
+    fireEvent.change(reasonField(), { target: { value: "abc" } });
+    expect(saveButton()).toBeDisabled();
+    fireEvent.change(reasonField(), { target: { value: "abcde" } });
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it("ao sair do campo curto: 'Escreva o motivo (pelo menos 5 caracteres).'", async () => {
+    renderTab();
+    fireEvent.click(await screen.findByRole("radio", { name: 'Faturado semanal ("boleto 7")' }));
+
+    fireEvent.change(reasonField(), { target: { value: "abc" } });
+    fireEvent.blur(reasonField());
+
+    expect(screen.getByRole("alert")).toHaveTextContent(REASON_ERROR);
+    expect(reasonField()).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("só o e-mail mudou: salva sem confirmação, manda só billingEmail + reason e avisa", async () => {
+    vi.mocked(updateBillingMode).mockResolvedValue({
+      ...BILLING_VIEW,
+      email: "contas@bardoze.com.br",
+    });
+    renderTab();
+
+    fireEvent.change(await screen.findByLabelText("E-mail do financeiro (opcional)"), {
+      target: { value: "contas@bardoze.com.br" },
+    });
+    fireEvent.change(reasonField(), { target: { value: "Cliente pediu por e-mail" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(updateBillingMode).toHaveBeenCalledWith("owner-1", {
+        billingEmail: "contas@bardoze.com.br",
+        reason: "Cliente pediu por e-mail",
+      }),
+    );
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith(
+      "Salvo. E-mail do financeiro: contas@bardoze.com.br.",
+    );
+  });
+
+  it("trocar o modo abre a confirmação; confirmar manda billingMode + reason", async () => {
+    vi.mocked(updateBillingMode).mockResolvedValue({ ...BILLING_VIEW, mode: "INVOICED_7" });
+    renderTab();
+
+    fireEvent.click(await screen.findByRole("radio", { name: 'Faturado semanal ("boleto 7")' }));
+    fireEvent.change(reasonField(), { target: { value: "Contrato comercial assinado" } });
+    fireEvent.click(saveButton());
+
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText("Ligar o faturado semanal para Bar do Zé?")).toBeInTheDocument();
+    expect(updateBillingMode).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ligar faturado semanal" }));
+
+    await waitFor(() =>
+      expect(updateBillingMode).toHaveBeenCalledWith("owner-1", {
+        billingMode: "INVOICED_7",
+        reason: "Contrato comercial assinado",
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(toast.success).toHaveBeenCalledWith("Salvo. Modo de cobrança: Faturado semanal.");
+  });
+
+  it("422 BILLING_REQUIRES_COMPANY_DATA lista os campos de `missing`", async () => {
+    vi.mocked(updateBillingMode).mockRejectedValue(
+      apiError(422, {
+        code: "BILLING_REQUIRES_COMPANY_DATA",
+        message: "Para faturar, complete o cadastro: número do endereço, bairro.",
+        missing: ["number", "neighborhood"],
+      }),
+    );
+    const onEditCompany = vi.fn();
+    renderTab({ onEditCompany });
+
+    fireEvent.click(await screen.findByRole("radio", { name: 'Faturado mensal ("boleto 30")' }));
+    fireEvent.change(reasonField(), { target: { value: "Contrato comercial assinado" } });
+    fireEvent.click(saveButton());
+    fireEvent.click(screen.getByRole("button", { name: "Ligar faturado mensal" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Para faturar, complete o cadastro: o número do endereço e o bairro.",
+    );
+    fireEvent.click(within(alert).getByRole("button", { name: "Corrigir cadastro" }));
+    expect(onEditCompany).toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("422 REASON_REQUIRED aparece no campo", async () => {
+    vi.mocked(updateBillingMode).mockRejectedValue(
+      apiError(422, { code: "REASON_REQUIRED", message: REASON_ERROR }),
+    );
+    renderTab();
+
+    fireEvent.change(await screen.findByLabelText("E-mail do financeiro (opcional)"), {
+      target: { value: "contas@bardoze.com.br" },
+    });
+    fireEvent.change(reasonField(), { target: { value: "     ok   " } });
+    fireEvent.change(reasonField(), { target: { value: "motivo" } });
+    fireEvent.click(saveButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(REASON_ERROR);
+    expect(reasonField()).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("422 BILLING_EMAIL_INVALID aparece no campo do e-mail", async () => {
+    vi.mocked(updateBillingMode).mockRejectedValue(
+      apiError(422, {
+        code: "BILLING_EMAIL_INVALID",
+        message: "O e-mail do financeiro não parece válido. Confira e tente de novo.",
+      }),
+    );
+    renderTab();
+
+    const email = await screen.findByLabelText("E-mail do financeiro (opcional)");
+    fireEvent.change(email, { target: { value: "contas@" } });
+    fireEvent.change(reasonField(), { target: { value: "Cliente pediu" } });
+    fireEvent.click(saveButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "O e-mail do financeiro não parece válido. Confira e tente de novo.",
+    );
+    expect(email).toHaveAttribute("aria-invalid", "true");
   });
 });

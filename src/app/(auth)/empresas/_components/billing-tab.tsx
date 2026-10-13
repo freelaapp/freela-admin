@@ -1,28 +1,39 @@
 "use client";
 
 import { useId, useState } from "react";
-import { AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useAdminBillingMode } from "@/modules/admin/application/use-admin-billing-mode";
+import {
+  useAdminBillingMode,
+  useUpdateAdminBillingMode,
+} from "@/modules/admin/application/use-admin-billing-mode";
+import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import type {
   BillingMode,
   BillingModeSettings,
+  CompanyDataField,
+  UpdateBillingModeInput,
 } from "@/modules/admin/infrastructure/billing-mode-api";
 import {
   BILLING_MODE_OPTION,
   BILLING_MODES,
   CYCLE_DESCRIPTION,
   currentModeLabel,
+  billingChangeSummary,
   isInvoicedMode,
+  missingFromServer,
   missingPhrase,
   requirementRows,
   whatChanges,
 } from "../_lib/billing-presentation";
+import { isValidReason, REASON_ERROR } from "../_lib/paperwork-presentation";
+import { BillingModeConfirmDialog } from "./billing-mode-confirm-dialog";
 
 export interface BillingTabProps {
   /** User.id do dono da empresa. */
@@ -62,6 +73,8 @@ export function BillingTab(props: BillingTabProps) {
 
 function BillingForm({
   view,
+  contractorUserId,
+  companyName,
   companyDocument,
   blockEnabled = false,
   onClose,
@@ -73,16 +86,63 @@ function BillingForm({
   const [selected, setSelected] = useState<BillingMode>(view.mode);
   const [email, setEmail] = useState(view.email ?? "");
   const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  // 422 BILLING_REQUIRES_COMPANY_DATA: o cadastro mudou depois de a aba abrir.
+  const [serverMissing, setServerMissing] = useState<CompanyDataField[] | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const update = useUpdateAdminBillingMode(contractorUserId);
 
   const missing = view.requirements.missing;
   const modeChanged = selected !== view.mode;
   const emailChanged = email.trim() !== (view.email ?? "");
   const hasChanges = modeChanged || emailChanged;
+  const canSave = hasChanges && isValidReason(reason) && !update.isPending;
   const preview = whatChanges(view, selected, blockEnabled);
   const requirements = requirementRows(missing, {
     cnpj: companyDocument,
     contactEmail: view.contactEmail,
   });
+
+  const save = async () => {
+    const patch: UpdateBillingModeInput = { reason: reason.trim() };
+    if (modeChanged) patch.billingMode = selected;
+    if (emailChanged) patch.billingEmail = email.trim() || null;
+    try {
+      const saved = await update.mutateAsync(patch);
+      toast.success(`Salvo. ${billingChangeSummary(patch)}.`);
+      setConfirmOpen(false);
+      setSelected(saved.mode);
+      setEmail(saved.email ?? "");
+      setReason("");
+      setReasonError(null);
+      setServerMissing(null);
+    } catch (err) {
+      setConfirmOpen(false);
+      const { code, message, extra } = apiErrorOf(err);
+      if (code === "REASON_REQUIRED") {
+        setReasonError(REASON_ERROR);
+        return;
+      }
+      if (code === "BILLING_REQUIRES_COMPANY_DATA") {
+        const fields = Array.isArray(extra.missing) ? (extra.missing as CompanyDataField[]) : [];
+        setServerMissing(fields);
+        return;
+      }
+      if (code === "BILLING_EMAIL_INVALID") {
+        setEmailError(message ?? "O e-mail do financeiro não parece válido.");
+        return;
+      }
+      toast.error(message ?? "Não foi possível salvar a cobrança.");
+    }
+  };
+
+  const handleSave = () => {
+    if (!canSave) return;
+    // Trocar o modo pede confirmação com o efeito (UX 5.3); só o e-mail, não.
+    if (modeChanged) setConfirmOpen(true);
+    else void save();
+  };
 
   return (
     <div>
@@ -116,7 +176,10 @@ function BillingForm({
                     value={mode}
                     checked={selected === mode}
                     disabled={blocked}
-                    onChange={() => setSelected(mode)}
+                    onChange={() => {
+                      setSelected(mode);
+                      setServerMissing(null);
+                    }}
                     aria-describedby={blocked ? `${descriptionId} ${missingId}` : descriptionId}
                     className="mt-1 h-4 w-4 shrink-0 accent-[#eca826]"
                   />
@@ -187,13 +250,24 @@ function BillingForm({
             autoComplete="off"
             value={email}
             maxLength={200}
+            aria-invalid={emailError ? true : undefined}
             aria-describedby={`${emailId}-help`}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setEmailError(null);
+            }}
+            className={cn(emailError && "border-red-400 focus-visible:ring-red-300")}
           />
           <p id={`${emailId}-help`} className="text-xs text-[#737373]">
-            {`As faturas vão para este e-mail. Vazio: vão para o e-mail de contato (${
-              view.contactEmail || "sem e-mail de contato no cadastro"
-            }).`}
+            {emailError ? (
+              <span role="alert" className="text-red-600">
+                {emailError}
+              </span>
+            ) : (
+              `As faturas vão para este e-mail. Vazio: vão para o e-mail de contato (${
+                view.contactEmail || "sem e-mail de contato no cadastro"
+              }).`
+            )}
           </p>
         </div>
 
@@ -209,17 +283,50 @@ function BillingForm({
           </section>
         )}
 
+        {serverMissing && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-lg border border-[#fecaca] bg-[#fef2f2] p-3 text-sm text-[#b91c1c]"
+          >
+            <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="space-y-2">
+              <p>{missingFromServer(serverMissing)}</p>
+              {onEditCompany && (
+                <Button variant="outline" size="sm" onClick={onEditCompany}>
+                  Corrigir cadastro
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <Label htmlFor={reasonId}>Motivo da mudança (obrigatório)</Label>
           <Input
             id={reasonId}
             value={reason}
             maxLength={500}
+            aria-invalid={reasonError ? true : undefined}
             aria-describedby={`${reasonId}-help`}
-            onChange={(e) => setReason(e.target.value)}
+            onChange={(e) => {
+              setReason(e.target.value);
+              if (reasonError && isValidReason(e.target.value)) setReasonError(null);
+            }}
+            onBlur={() => {
+              // Passar pelo campo vazio sem ter mudado nada não é erro.
+              const untouched = !hasChanges && reason.trim().length === 0;
+              setReasonError(isValidReason(reason) || untouched ? null : REASON_ERROR);
+            }}
+            className={cn(reasonError && "border-red-400 focus-visible:ring-red-300")}
           />
           <p id={`${reasonId}-help`} className="text-xs text-[#737373]">
-            Pelo menos 5 caracteres. Fica no histórico e o cliente não vê.
+            {reasonError ? (
+              <span role="alert" className="text-red-600">
+                {reasonError}
+              </span>
+            ) : (
+              "Pelo menos 5 caracteres. Fica no histórico e o cliente não vê."
+            )}
           </p>
         </div>
       </div>
@@ -232,10 +339,34 @@ function BillingForm({
         >
           Cancelar
         </Button>
-        <Button disabled={!hasChanges} className="bg-[#eca826] text-white hover:bg-[#d4951e]">
-          Salvar cobrança
+        <Button
+          onClick={handleSave}
+          disabled={!canSave}
+          className="bg-[#eca826] text-white hover:bg-[#d4951e]"
+        >
+          {update.isPending && !confirmOpen ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              Salvando...
+            </>
+          ) : (
+            "Salvar cobrança"
+          )}
         </Button>
       </DialogFooter>
+
+      {confirmOpen && (
+        <BillingModeConfirmDialog
+          open
+          view={view}
+          next={selected}
+          companyName={companyName}
+          blockEnabled={blockEnabled}
+          pending={update.isPending}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={() => void save()}
+        />
+      )}
     </div>
   );
 }
