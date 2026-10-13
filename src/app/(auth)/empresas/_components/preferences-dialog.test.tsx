@@ -9,6 +9,10 @@ vi.mock("@/modules/admin/infrastructure/contractor-settings-api", () => ({
   getContractorSettingsHistory: vi.fn(),
   updateContractorSettings: vi.fn(),
 }));
+vi.mock("@/modules/admin/infrastructure/billing-mode-api", () => ({
+  getBillingModeSettings: vi.fn(),
+  updateBillingMode: vi.fn(),
+}));
 
 import { toast } from "sonner";
 import {
@@ -19,6 +23,7 @@ import {
   type PaperworkOption,
   type SettingsHistoryEntry,
 } from "@/modules/admin/infrastructure/contractor-settings-api";
+import { getBillingModeSettings } from "@/modules/admin/infrastructure/billing-mode-api";
 import { PreferencesDialog } from "./preferences-dialog";
 
 const option = (key: PaperworkOption["key"], title: string, summary: string): PaperworkOption => ({
@@ -278,6 +283,41 @@ describe("PreferencesDialog — aba Histórico", () => {
     expect(screen.getByText("Contrato assinado: ligado (escolha do cadastro)")).toBeInTheDocument();
   });
 
+  it("Histórico: 'Modo de cobrança: Pré-pago → Faturado semanal' e 'E-mail do financeiro: (vazio) → contas@…' com o motivo", async () => {
+    const billingSave = (
+      id: string,
+      field: string,
+      oldValue: string | null,
+      newValue: string | null,
+    ): SettingsHistoryEntry => ({
+      id,
+      field,
+      oldValue,
+      newValue,
+      actorKind: "ADMIN",
+      actorId: "admin-1",
+      actorName: "Maria Souza",
+      origin: "ADMIN",
+      channel: "ADMIN",
+      reason: "Contrato comercial assinado em 10/10",
+      createdAt: "2026-10-11T18:20:00.000Z",
+    });
+    vi.mocked(getContractorSettingsHistory).mockResolvedValue([
+      billingSave("b1", "billing_mode", "PREPAID", "INVOICED_7"),
+      billingSave("b2", "billing_email", null, "contas@bardoze.com.br"),
+    ]);
+    renderDialog();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Histórico" }));
+
+    expect(await screen.findByText("11/10/2026 15:20 · Maria Souza (admin)")).toBeInTheDocument();
+    expect(screen.getByText("Modo de cobrança: Pré-pago → Faturado semanal")).toBeInTheDocument();
+    expect(
+      screen.getByText("E-mail do financeiro: (vazio) → contas@bardoze.com.br"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Motivo: "Contrato comercial assinado em 10/10"')).toHaveLength(1);
+  });
+
   it("vazio: 'Nenhuma mudança ainda. A empresa usa o padrão: tudo ligado e pré-pago.'", async () => {
     vi.mocked(getContractorSettingsHistory).mockResolvedValue([]);
     renderDialog();
@@ -293,7 +333,38 @@ describe("PreferencesDialog — aba Histórico", () => {
 });
 
 describe("PreferencesDialog — aba Cobrança e chave desligada", () => {
-  it("aba Cobrança só mostra 'Pré-pago (padrão)' e o aviso 'O modo de cobrança chega na próxima fase', sem controles", async () => {
+  it("aba Cobrança renderiza a BillingTab (modo de cobrança com os quatro modos)", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({
+      mode: "PREPAID",
+      since: null,
+      email: null,
+      contactEmail: "contato@bardoze.com.br",
+      editable: true,
+      requirements: { missing: [] },
+      appUsage: { lastAppDay: null },
+      previews: {
+        INVOICED_7: {
+          period: { start: "2026-10-09", end: "2026-10-15" },
+          closeDate: "2026-10-16",
+          dueDate: "2026-10-19",
+          blockFromDate: "2026-10-23",
+        },
+        INVOICED_15: {
+          period: { start: "2026-10-01", end: "2026-10-15" },
+          closeDate: "2026-10-16",
+          dueDate: "2026-10-19",
+          blockFromDate: "2026-10-23",
+        },
+        INVOICED_30: {
+          period: { start: "2026-10-01", end: "2026-10-31" },
+          closeDate: "2026-11-01",
+          dueDate: "2026-11-04",
+          blockFromDate: "2026-11-08",
+        },
+      },
+      openPreview: null,
+      extraordinaryInvoice: null,
+    });
     renderDialog();
     await contractSwitch();
 
@@ -305,12 +376,11 @@ describe("PreferencesDialog — aba Cobrança e chave desligada", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Cobrança" }));
 
     const panel = screen.getByRole("tabpanel");
-    expect(within(panel).getByText("Pré-pago (padrão)")).toBeInTheDocument();
-    expect(within(panel).getByText("O modo de cobrança chega na próxima fase.")).toBeInTheDocument();
-    expect(within(panel).queryAllByRole("radio")).toHaveLength(0);
-    expect(within(panel).queryAllByRole("switch")).toHaveLength(0);
-    expect(within(panel).queryAllByRole("button")).toHaveLength(0);
-    expect(within(panel).queryAllByRole("textbox")).toHaveLength(0);
+    const group = await within(panel).findByRole("group", { name: "Modo de cobrança" });
+    expect(within(group).getAllByRole("radio")).toHaveLength(4);
+    expect(within(panel).getByRole("button", { name: "Salvar cobrança" })).toBeDisabled();
+    expect(within(panel).queryByText("O modo de cobrança chega na próxima fase.")).not.toBeInTheDocument();
+    expect(getBillingModeSettings).toHaveBeenCalledWith("u1");
   });
 
   it("readOnlyReason FEATURE_DISABLED: Burocracias mostra 'Disponível em breve', sem chaves; Histórico continua", async () => {

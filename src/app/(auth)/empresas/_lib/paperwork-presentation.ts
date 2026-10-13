@@ -206,6 +206,24 @@ export function historyHeadLine(entry: SettingsHistoryEntry): string {
   return parts.join(" · ");
 }
 
+/** Campos da cobrança na mesma trilha (Fase 3): rótulo e como ler o valor. */
+const BILLING_FIELD_LABEL: Record<string, string> = {
+  billing_mode: "Modo de cobrança",
+  billing_email: "E-mail do financeiro",
+};
+
+const BILLING_MODE_HISTORY_LABEL: Record<string, string> = {
+  PREPAID: "Pré-pago",
+  INVOICED_7: "Faturado semanal",
+  INVOICED_15: "Faturado quinzenal",
+  INVOICED_30: "Faturado mensal",
+};
+
+function billingHistoryValue(field: string, value: string | null): string {
+  if (value === null || value === "") return "(vazio)";
+  return field === "billing_mode" ? (BILLING_MODE_HISTORY_LABEL[value] ?? value) : value;
+}
+
 function historyValue(value: string | null): string {
   if (value === "true") return "ligado";
   if (value === "false") return "desligado";
@@ -214,6 +232,11 @@ function historyValue(value: string | null): string {
 
 /** "Contrato assinado: ligado → desligado" ou "...: ligado (escolha do cadastro)". */
 export function historyChangeLine(entry: SettingsHistoryEntry): string {
+  // Na cobrança, `null` é "vazio" (e-mail de contato), não a escolha do cadastro.
+  const billingLabel = BILLING_FIELD_LABEL[entry.field];
+  if (billingLabel) {
+    return `${billingLabel}: ${billingHistoryValue(entry.field, entry.oldValue)} → ${billingHistoryValue(entry.field, entry.newValue)}`;
+  }
   const key = FIELD_TO_KEY[entry.field];
   const label = key ? PAPERWORK_SHORT_LABEL[key] : entry.field;
   if (entry.oldValue === null) {

@@ -34,6 +34,7 @@ import {
   paperworkOptions,
   REASON_ERROR,
 } from "../_lib/paperwork-presentation";
+import { BillingTab } from "./billing-tab";
 
 type TabKey = "burocracias" | "cobranca" | "historico";
 
@@ -57,11 +58,20 @@ function getAxiosErrorCode(err: unknown): string | undefined {
 export function PreferencesDialog({
   contractorUserId,
   companyName,
+  companyDocument,
+  blockEnabled,
   onClose,
+  onEditCompany,
 }: {
   contractorUserId: string;
   companyName: string;
+  /** CNPJ do cadastro, para os pré-requisitos da aba Cobrança. */
+  companyDocument?: string | null;
+  /** Chave do bloqueio por atraso (lista de Empresas, API-3e). */
+  blockEnabled?: boolean;
   onClose: () => void;
+  /** "Corrigir cadastro" da aba Cobrança: abre o modal "Editar Empresa". */
+  onEditCompany?: () => void;
 }) {
   const baseId = useId();
   const [tab, setTab] = useState<TabKey>("burocracias");
@@ -143,7 +153,14 @@ export function PreferencesDialog({
           aria-labelledby={tabId("cobranca")}
           className="mt-4"
         >
-          <BillingPlaceholder />
+          <BillingTab
+            contractorUserId={contractorUserId}
+            companyName={companyName}
+            companyDocument={companyDocument}
+            blockEnabled={blockEnabled}
+            onClose={onClose}
+            onEditCompany={onEditCompany}
+          />
         </TabsContent>
 
         <TabsContent
@@ -360,23 +377,6 @@ function ComingSoon() {
           A escolha de documentos e burocracias ainda não está ligada. Por enquanto, toda empresa
           segue o padrão: contrato assinado, RPA e lembretes do INSS ligados.
         </p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Aba Cobrança (espaço da Fase 3) ─────────────────────────────────────────
-
-function BillingPlaceholder() {
-  return (
-    <div className="space-y-3 text-sm">
-      <p className="text-[#1d1d1b]">
-        Modo atual: <strong className="font-semibold">Pré-pago (padrão)</strong>
-      </p>
-      <p className="text-[#737373]">Pix a cada contratação.</p>
-      <div className="flex items-start gap-3 rounded-lg border border-[#e5e5e5] bg-[#f7f7f7] p-3">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#737373]" aria-hidden="true" />
-        <p className="text-[#525252]">O modo de cobrança chega na próxima fase.</p>
       </div>
     </div>
   );
