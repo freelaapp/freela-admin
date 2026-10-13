@@ -187,6 +187,66 @@ export interface TakerSnapshot {
   capturedAt: string;
 }
 
+/**
+ * A nota fiscal (NFS-e) da fatura no admin (API-3g, plano §17; UX 6.10.3). Uma
+ * nota por fatura paga ou quitada com crédito, com a competência no dia do
+ * fechamento (Brasília). `NONE` = taxa líquida zero: não há nota, só a conta.
+ */
+export type InvoiceNfseStatus = "PENDING" | "ISSUED" | "FAILED" | "NONE";
+
+export interface AdminInvoiceNfse {
+  status: InvoiceNfseStatus;
+  number: string | null;
+  pdfUrl: string | null;
+  issuedAt: string | null;
+  amountInCents: number;
+  /** Dia do fechamento da fatura, em Brasília (`AAAA-MM-DD`). */
+  competenceDate: DateKey;
+  /** A conta da nota: Σ das taxas das linhas SERVICE, menos cupom e estorno parcial automático. */
+  calc: string;
+  /** A fonte da conta (texto pronto da API). */
+  source: string;
+  /** Só na FAILED: o motivo que a emissora devolveu. */
+  failureReason: string | null;
+  /**
+   * Último dia (Brasília) da janela de 14 dias depois do pagamento em que a
+   * varredura ainda reenvia. `null` = sem reenvio automático (6 reenvios feitos,
+   * ou falha que reenviar não resolve, como tomador sem CPF/CNPJ).
+   */
+  retryUntil: DateKey | null;
+  /** A partir de quando sai o próximo reenvio automático (ISO). `null` = nenhum pendente. */
+  nextRetryAt: string | null;
+}
+
+const NFSE_STATUSES: ReadonlySet<string> = new Set(["PENDING", "ISSUED", "FAILED", "NONE"]);
+
+const textOrNull = (value: unknown): string | null =>
+  typeof value === "string" && value !== "" ? value : null;
+
+/**
+ * Lê o `nfse` do detalhe. Ausente (API anterior à 3g), nulo ou com situação
+ * desconhecida → `null` (a tela diz quando a nota sai). Os campos só do admin
+ * que faltarem ficam `null`.
+ */
+export function adminInvoiceNfseOf(raw: unknown): AdminInvoiceNfse | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.status !== "string" || !NFSE_STATUSES.has(r.status)) return null;
+  return {
+    status: r.status as InvoiceNfseStatus,
+    number: textOrNull(r.number),
+    pdfUrl: textOrNull(r.pdfUrl),
+    issuedAt: textOrNull(r.issuedAt),
+    amountInCents: typeof r.amountInCents === "number" && Number.isFinite(r.amountInCents) ? r.amountInCents : 0,
+    competenceDate: typeof r.competenceDate === "string" ? r.competenceDate : "",
+    calc: typeof r.calc === "string" ? r.calc : "",
+    source: typeof r.source === "string" ? r.source : "",
+    failureReason: textOrNull(r.failureReason),
+    retryUntil: textOrNull(r.retryUntil),
+    nextRetryAt: textOrNull(r.nextRetryAt),
+  };
+}
+
 export interface AdminInvoiceDetail {
   invoice: Omit<AdminInvoiceListItem, "lastMessage"> & {
     closeReason: string | null;
@@ -231,6 +291,11 @@ export interface AdminInvoiceDetail {
     markPaid: ActionState & { defaultAmountInCents: number; defaultPaidDate: DateKey };
     waiveBlock: ActionState & { suggestedUntil: DateKey; maxUntil: DateKey };
   };
+  /**
+   * A NFS-e da fatura (API-3g). `null` antes do pagamento, na cancelada, na
+   * paga cuja nota ainda não foi pedida, ou com a API anterior ao campo.
+   */
+  nfse: AdminInvoiceNfse | null;
   links: { pdfRoute: string; contractorWebUrl: string };
 }
 
@@ -369,7 +434,8 @@ export async function listAdminInvoices(params: AdminInvoiceListParams = {}): Pr
 
 export async function getAdminInvoice(id: string): Promise<AdminInvoiceDetail> {
   const res = await billingApi.get(invoicePath(id));
-  return res.data.data;
+  const detail = res.data.data;
+  return { ...detail, nfse: adminInvoiceNfseOf(detail?.nfse) };
 }
 
 /** O PDF precisa do token: baixa como blob pelo cliente autenticado. */

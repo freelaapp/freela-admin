@@ -74,7 +74,7 @@ describe("billing-api", () => {
   });
 
   it("detalhe, PDF (blob), reenviar, 2ª via, baixa, liberar, ajuste, fechar agora, resumo", async () => {
-    await expect(getAdminInvoice("inv 1")).resolves.toEqual({ ok: true });
+    await expect(getAdminInvoice("inv 1")).resolves.toEqual({ ok: true, nfse: null });
     expect(get).toHaveBeenLastCalledWith("/billing/invoices/inv%201");
 
     const pdf = new Blob(["%PDF"], { type: "application/pdf" });
@@ -135,6 +135,57 @@ describe("billing-api", () => {
     expect(get).toHaveBeenLastCalledWith("/billing/summary", {
       params: { period: "custom", from: "2026-10-01", to: "2026-10-31" },
     });
+  });
+
+  it("detalhe com nfse e failureReason (o motivo, até quando e a próxima tentativa)", async () => {
+    const nfse = {
+      status: "FAILED",
+      number: null,
+      pdfUrl: null,
+      issuedAt: null,
+      amountInCents: 4240,
+      competenceDate: "2026-10-23",
+      calc: "24,96 + (24,96 − cupom PROMO10 20,00 = 4,96) + 12,48 = 42,40",
+      source: "Taxa de intermediação de cada serviço desta fatura.",
+      failureReason: "Inscrição municipal do prestador inválida",
+      retryUntil: "2026-11-09",
+      nextRetryAt: "2026-10-26T14:20:00.000Z",
+    };
+    get.mockResolvedValueOnce({ data: { data: { invoice: { id: "inv-1" }, nfse } } });
+
+    await expect(getAdminInvoice("inv-1")).resolves.toEqual({ invoice: { id: "inv-1" }, nfse });
+  });
+
+  it("detalhe: nota emitida passa inteira; sem o campo (API anterior) ou com forma estranha vira null", async () => {
+    const issued = {
+      status: "ISSUED",
+      number: "123",
+      pdfUrl: "https://nfse.example/123.pdf",
+      issuedAt: "2026-10-26T13:15:00.000Z",
+      amountInCents: 4240,
+      competenceDate: "2026-10-23",
+      calc: "24,96 + 4,96 + 12,48 = 42,40",
+      source: "Taxa de intermediação de cada serviço desta fatura.",
+      failureReason: null,
+      retryUntil: null,
+      nextRetryAt: null,
+    };
+    get.mockResolvedValueOnce({ data: { data: { nfse: issued } } });
+    await expect(getAdminInvoice("inv-1")).resolves.toEqual({ nfse: issued });
+
+    // Sem os campos do admin (failureReason, retryUntil, nextRetryAt): ficam null.
+    const { failureReason, retryUntil, nextRetryAt, ...contractorShape } = issued;
+    void failureReason;
+    void retryUntil;
+    void nextRetryAt;
+    get.mockResolvedValueOnce({ data: { data: { nfse: contractorShape } } });
+    await expect(getAdminInvoice("inv-1")).resolves.toEqual({ nfse: issued });
+
+    get.mockResolvedValueOnce({ data: { data: { invoice: { id: "inv-1" } } } });
+    await expect(getAdminInvoice("inv-1")).resolves.toEqual({ invoice: { id: "inv-1" }, nfse: null });
+
+    get.mockResolvedValueOnce({ data: { data: { nfse: { status: "CANCELLED" } } } });
+    await expect(getAdminInvoice("inv-1")).resolves.toEqual({ nfse: null });
   });
 
   it("2ª via sem cobrança devolve null", async () => {

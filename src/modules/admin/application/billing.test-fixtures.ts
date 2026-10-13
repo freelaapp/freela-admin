@@ -315,6 +315,7 @@ export const DETAIL: AdminInvoiceDetail = {
       maxUntil: "2026-11-19",
     },
   },
+  nfse: null,
   links: {
     pdfRoute: "/v1/admin/billing/invoices/inv-123/pdf",
     contractorWebUrl: "https://freelaservicos.com.br/contractor/faturas/inv-123",
