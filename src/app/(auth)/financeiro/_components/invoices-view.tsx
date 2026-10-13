@@ -50,6 +50,9 @@ const CYCLES: Array<{ value: BillingMode | ""; label: string }> = [
 
 type CardKey = keyof BillingSummary["cards"];
 
+/** O que é o número da coluna Total, e de onde vem. */
+const TOTAL_HELP = "Total da fatura = débitos − créditos. Fonte: a fatura fechada.";
+
 /** Ordem e ícone dos seis cards do topo (UX 7.3). */
 const CARDS: Array<{ key: CardKey; icon: React.ElementType; iconColor: string; money: boolean }> = [
   { key: "upcoming", icon: CalendarClock, iconColor: "text-[#eca826]", money: true },
@@ -128,9 +131,23 @@ export function InvoicesView() {
     setPage(1);
   };
 
-  const countFor = (code: AdminInvoiceSituationCode | null): number | null => {
-    if (code === situation && list.data && !list.isPlaceholderData) return list.data.total;
-    if (code === "VENCIDA" && summary.data) return summary.data.cards.overdue.count;
+  /** A contagem do chip e de onde ela vem (regra: todo número com a conta e a fonte). */
+  const countFor = (
+    code: AdminInvoiceSituationCode | null,
+  ): { value: number; source: string } | null => {
+    if (code === situation && list.data && !list.isPlaceholderData) {
+      return {
+        value: list.data.total,
+        source: `${list.data.total} = faturas na lista com os filtros de agora.`,
+      };
+    }
+    if (code === "VENCIDA" && summary.data) {
+      const value = summary.data.cards.overdue.count;
+      return {
+        value,
+        source: `${value} = faturas vencidas. Fonte: indicador Vencido (emitidas, não pagas, vencimento antes de hoje).`,
+      };
+    }
     return null;
   };
 
@@ -168,7 +185,15 @@ export function InvoicesView() {
         </div>
       ),
     },
-    { header: "Total", accessor: (row) => <span className="font-medium">{row.total}</span> },
+    {
+      header: "Total",
+      headerTitle: TOTAL_HELP,
+      accessor: (row) => (
+        <span className="font-medium" title={TOTAL_HELP}>
+          {row.total}
+        </span>
+      ),
+    },
     {
       header: "Vence",
       accessor: (row) => dayLabel(row.dueDate),
@@ -210,7 +235,8 @@ export function InvoicesView() {
               type="button"
               aria-pressed={active}
               // "Vencidas, 1": a contagem faz parte do nome lido pelo leitor de tela.
-              aria-label={count !== null ? `${label}, ${count}` : label}
+              aria-label={count !== null ? `${label}, ${count.value}` : label}
+              title={count?.source}
               onClick={() => changeFilter(setSituation)(code)}
               className={cn(
                 "inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
@@ -228,7 +254,7 @@ export function InvoicesView() {
                     active ? "bg-white/20" : "bg-white text-[#1d1d1b]",
                   )}
                 >
-                  {count}
+                  {count.value}
                 </span>
               )}
             </button>
@@ -412,6 +438,11 @@ function DoublePaymentAlert({ summary }: { summary: BillingSummary }) {
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <div className="space-y-1">
         <p className="font-medium">{summary.doublePayments.text}</p>
+        <details className="text-xs">
+          <summary className="cursor-pointer select-none font-medium">Ver a conta</summary>
+          <p className="mt-1">{`Conta: ${summary.doublePayments.calc}`}</p>
+          <p className="mt-0.5">{`Fonte: ${summary.doublePayments.source}`}</p>
+        </details>
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           {summary.doublePayments.latest.map((item) => (
             <Link

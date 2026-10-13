@@ -103,8 +103,8 @@ describe("InvoicesView — indicadores", () => {
       doublePayments: {
         count: 1,
         text: "1 pagamento em dobro em outubro/2026 para devolver: FAT-2026-000123 (Bar do Zé).",
-        calc: "",
-        source: "",
+        calc: "pagamentos em dobro registrados em outubro/2026 = 1",
+        source: "Histórico das faturas: passos \"pagamento em dobro\" registrados no período.",
         latest: [
           {
             invoiceId: "inv-123",
@@ -124,6 +124,12 @@ describe("InvoicesView — indicadores", () => {
     expect(within(alert).getByRole("link", { name: "Ver FAT-2026-000123" })).toHaveAttribute(
       "href",
       "/financeiro/faturas/inv-123",
+    );
+    // A conta e a fonte do número, a um toque.
+    expect(within(alert).getByText("Ver a conta")).toBeInTheDocument();
+    expect(alert).toHaveTextContent("Conta: pagamentos em dobro registrados em outubro/2026 = 1");
+    expect(alert).toHaveTextContent(
+      'Fonte: Histórico das faturas: passos "pagamento em dobro" registrados no período.',
     );
   });
 });
@@ -279,5 +285,24 @@ describe("InvoicesView — estados", () => {
     await waitFor(() =>
       expect(listAdminInvoices).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 })),
     );
+  });
+});
+
+describe("InvoicesView — o que é cada número", () => {
+  it("coluna Total diz o que é e a fonte; contagem de 'Vencidas' diz de onde vem", async () => {
+    renderView();
+    const table = await screen.findByRole("table");
+
+    expect(within(table).getByRole("columnheader", { name: "Total" })).toHaveAttribute(
+      "title",
+      "Total da fatura = débitos − créditos. Fonte: a fatura fechada.",
+    );
+    const overdue = await screen.findByRole("button", { name: "Vencidas, 1" });
+    expect(overdue).toHaveAttribute(
+      "title",
+      "1 = faturas vencidas. Fonte: indicador Vencido (emitidas, não pagas, vencimento antes de hoje).",
+    );
+    const all = screen.getByRole("button", { name: /^Todas/ });
+    expect(all).toHaveAttribute("title", "2 = faturas na lista com os filtros de agora.");
   });
 });

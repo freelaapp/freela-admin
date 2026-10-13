@@ -158,3 +158,18 @@ describe("DataTable — caption, aria-sort e vazio", () => {
     expect(screen.getAllByText("Nada por aqui.")).toHaveLength(2);
   });
 });
+
+describe("DataTable — o que é a coluna", () => {
+  it("headerTitle vira title no cabeçalho e no rótulo do cartão", () => {
+    const cols: Column<Row>[] = [
+      { header: "Nome", accessor: "nome" },
+      { header: "Valor", accessor: (r) => `R$ ${r.valor}`, headerTitle: "Valor = soma. Fonte: x." },
+    ];
+    render(<DataTable columns={cols} data={ROWS} />);
+
+    expect(
+      within(screen.getByRole("table")).getByRole("columnheader", { name: "Valor" }),
+    ).toHaveAttribute("title", "Valor = soma. Fonte: x.");
+    expect(cards().getAllByText("Valor")[0]).toHaveAttribute("title", "Valor = soma. Fonte: x.");
+  });
+});

@@ -19,6 +19,8 @@ export interface Column<T> {
   mobile?: ColumnMobileRole;
   /** Ordem que o SERVIDOR aplicou nesta coluna (vira `aria-sort` no cabeçalho). */
   ariaSort?: "ascending" | "descending" | "other";
+  /** O que a coluna mostra (a conta e a fonte do número), no `title` do cabeçalho. */
+  headerTitle?: string;
 }
 
 interface DataTableProps<T> {
@@ -184,6 +186,7 @@ export function DataTable<T extends { id?: string | number }>({
                     <th
                       key={i}
                       aria-sort={ariaSort}
+                      title={col.headerTitle}
                       onClick={isSortable ? () => toggleSort(i) : undefined}
                       className={`px-4 py-3 text-left font-medium text-[#737373] ${
                         isSortable
@@ -280,7 +283,12 @@ export function DataTable<T extends { id?: string | number }>({
                     <dl className="mt-2 space-y-1.5">
                       {card.fields.map((index) => (
                         <div key={index} className="flex items-start justify-between gap-3">
-                          <dt className="shrink-0 text-xs text-[#737373]">{columns[index].header}</dt>
+                          <dt
+                            className="shrink-0 text-xs text-[#737373]"
+                            title={columns[index].headerTitle}
+                          >
+                            {columns[index].header}
+                          </dt>
                           <dd className="min-w-0 break-words text-right text-[#1d1d1b]">
                             {renderCell(columns[index], row)}
                           </dd>
