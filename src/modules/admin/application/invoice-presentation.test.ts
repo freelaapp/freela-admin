@@ -8,6 +8,7 @@ import {
   formatInstantBrt,
   instantWithWeekday,
   lastMessageLines,
+  parseBrlToCents,
   periodLabel,
   SITUATION_CHIPS,
   situationStyle,
@@ -115,5 +116,18 @@ describe("invoice-presentation — detalhe", () => {
     expect(chargeStatusLabel("CANCELLED")).toBe("Cancelada");
     expect(chargeStatusLabel("EXPIRED")).toBe("Expirada");
     expect(chargeStatusLabel("OUTRO")).toBe("OUTRO");
+  });
+});
+
+describe("invoice-presentation — valor digitado", () => {
+  it("'1.248,60', '1248,60', 'R$ 52', '0,5' viram centavos; texto inválido vira null", () => {
+    expect(parseBrlToCents("1.248,60")).toBe(124860);
+    expect(parseBrlToCents("1248,60")).toBe(124860);
+    expect(parseBrlToCents("R$ 52")).toBe(5200);
+    expect(parseBrlToCents("0,5")).toBe(50);
+    expect(parseBrlToCents("12.5")).toBe(1250);
+    expect(parseBrlToCents("")).toBeNull();
+    expect(parseBrlToCents("abc")).toBeNull();
+    expect(parseBrlToCents("1,234,5")).toBeNull();
   });
 });

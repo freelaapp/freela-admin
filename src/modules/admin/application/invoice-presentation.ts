@@ -189,3 +189,27 @@ const CHARGE_STATUS: Record<string, string> = {
 export function chargeStatusLabel(status: string): string {
   return CHARGE_STATUS[status] ?? status;
 }
+
+/**
+ * Valor digitado pelo admin ("1.248,60", "1248,60", "R$ 52") → centavos.
+ * Vazio ou ilegível → `null` (a tela diz o que digitar).
+ */
+export function parseBrlToCents(raw: string): number | null {
+  const text = raw.replace(/R\$/g, "").replace(/\s/g, "");
+  if (!text) return null;
+  let normalized: string;
+  if (text.includes(",")) {
+    if (!/^\d{1,3}(\.\d{3})*,\d{1,2}$|^\d+,\d{1,2}$/.test(text)) return null;
+    normalized = text.replace(/\./g, "").replace(",", ".");
+  } else {
+    if (!/^\d+(\.\d{1,2})?$/.test(text)) return null;
+    normalized = text;
+  }
+  const value = Number(normalized);
+  return Number.isFinite(value) ? Math.round(value * 100) : null;
+}
+
+/** "1.248,60" (sem o "R$"), para preencher o campo de valor. */
+export function centsToInput(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}

@@ -23,6 +23,7 @@ import {
   type InvoiceReportItem,
 } from "@/modules/admin/infrastructure/billing-api";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
+import { InvoiceActions } from "../../_components/invoice-action-dialogs";
 import { InvoiceSituationBadge } from "../../_components/invoice-situation-badge";
 
 const BACK_HREF = "/financeiro?aba=faturas";
@@ -111,14 +112,7 @@ function Section({
   );
 }
 
-function InvoiceDetail({
-  detail,
-  actions,
-}: {
-  detail: AdminInvoiceDetail;
-  /** Botões das ações (reenviar, 2ª via, baixa, liberar, ajuste, fechar agora). */
-  actions?: React.ReactNode;
-}) {
+function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
   const { invoice, report } = detail;
   const [downloading, setDownloading] = useState(false);
   const lines: InvoiceReportItem[] = [
@@ -240,7 +234,9 @@ function InvoiceDetail({
         </p>
       </Section>
 
-      {actions && <Section title="Ações">{actions}</Section>}
+      <Section title="Ações">
+        <InvoiceActions detail={detail} />
+      </Section>
 
       <Section title="Cobranças Pix">
         {detail.charges.length === 0 ? (
