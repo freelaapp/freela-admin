@@ -127,3 +127,13 @@ describe("BillingModeConfirmDialog", () => {
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
   });
 });
+
+describe("BillingModeConfirmDialog — acessibilidade", () => {
+  it("o papel alertdialog fica no painel, sem wrapper aninhado", () => {
+    renderDialog({});
+    const panel = screen.getByRole("alertdialog", { name: "Ligar o faturado semanal para Bar do Zé?" });
+    // O painel branco do diálogo (DialogContent) é o próprio alertdialog.
+    expect(panel).toHaveClass("rounded-xl");
+    expect(panel.firstElementChild?.tagName).toBe("H2");
+  });
+});

@@ -75,3 +75,19 @@ describe("DialogFooter", () => {
     expect(footer).toHaveClass("sm:justify-between");
   });
 });
+
+describe("DialogContent — papel no próprio painel", () => {
+  it("repassa role e aria-* para o painel (sem um wrapper aninhado)", () => {
+    render(
+      <Dialog open onOpenChange={vi.fn()}>
+        <DialogContent role="alertdialog" aria-modal="true" aria-label="Confirmar" className="p-2">
+          <p>texto</p>
+        </DialogContent>
+      </Dialog>,
+    );
+    const panel = screen.getByRole("alertdialog", { name: "Confirmar" });
+    expect(panel).toHaveAttribute("aria-modal", "true");
+    expect(panel).toHaveClass("p-2");
+    expect(panel.firstElementChild?.tagName).toBe("P");
+  });
+});

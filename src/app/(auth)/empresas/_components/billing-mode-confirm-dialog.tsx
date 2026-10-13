@@ -39,7 +39,8 @@ export function BillingModeConfirmDialog({
   const titleId = useId();
   const copy = confirmCopy(view, next, companyName, blockEnabled);
   // A conta do valor da fatura extra (regra: todo número com a conta e a fonte).
-  const openLines = next === "PREPAID" && view.openPreview?.lineCount ? view.openPreview : null;
+  const openLines =
+    next === "PREPAID" && view.openPreview?.lineCount ? view.openPreview : null;
 
   return (
     <Dialog
@@ -49,50 +50,56 @@ export function BillingModeConfirmDialog({
       }}
       className="max-w-md"
     >
-      <DialogContent className="max-h-[88vh] overflow-y-auto">
-        <div role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
-          <h2
-            id={titleId}
-            className="text-lg font-bold text-[#1d1d1b]"
-            style={{ fontFamily: "var(--font-display)" }}
+      <DialogContent
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="max-h-[88vh] overflow-y-auto"
+      >
+        <h2
+          id={titleId}
+          className="text-lg font-bold text-[#1d1d1b]"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {copy.title}
+        </h2>
+        <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-[#1d1d1b]">
+          {copy.items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+        {openLines && (
+          <p className="mt-2 text-xs text-[#525252]">
+            {`Conta (débitos − créditos): ${openLines.calc}. Fonte: lançamentos do faturado ainda sem fatura.`}
+          </p>
+        )}
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            disabled={pending}
+            className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
           >
-            {copy.title}
-          </h2>
-          <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-[#1d1d1b]">
-            {copy.items.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-          {openLines && (
-            <p className="mt-2 text-xs text-[#525252]">
-              {`Conta (débitos − créditos): ${openLines.calc}. Fonte: lançamentos do faturado ainda sem fatura.`}
-            </p>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={onCancel}
-              disabled={pending}
-              className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={onConfirm}
-              disabled={pending}
-              className="bg-[#eca826] text-white hover:bg-[#d4951e]"
-            >
-              {pending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  Salvando...
-                </>
-              ) : (
-                copy.action
-              )}
-            </Button>
-          </DialogFooter>
-        </div>
+            Cancelar
+          </Button>
+          <Button
+            onClick={onConfirm}
+            disabled={pending}
+            className="bg-[#eca826] text-white hover:bg-[#d4951e]"
+          >
+            {pending ? (
+              <>
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+                Salvando...
+              </>
+            ) : (
+              copy.action
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
