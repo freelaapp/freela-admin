@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays, CalendarPlus, ShieldOff, Search, Receipt } from "lucide-react";
+import { Eye, Pencil, Star, MapPin, Phone, User, Briefcase, TrendingUp, Loader2, Trash2, ShieldAlert, UserCog, FileText, Download, CalendarDays, CalendarPlus, ShieldOff, Search, Receipt, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -48,7 +48,8 @@ import { downloadCsv } from "@/lib/csv";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { ExcluirUsuarioPanel } from "@/components/admin/excluir-usuario-dialog";
 import { PreferencesDialog } from "./_components/preferences-dialog";
-import { PaperworkSummary } from "./_components/paperwork-summary";
+import { BillingModeSummary, PaperworkSummary } from "./_components/paperwork-summary";
+import { BillingBadge } from "./_components/billing-badge";
 
 type ModalType =
   | "view"
@@ -300,7 +301,15 @@ export default function EmpresasPage() {
   }
 
   const columns = [
-    { header: "Empresa", accessor: "nome" as const },
+    {
+      header: "Empresa",
+      accessor: (row: Row) => (
+        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>{row.nome}</span>
+          <BillingBadge company={row.raw} />
+        </span>
+      ),
+    },
     { header: "Responsável", accessor: "responsavel" as const, className: "hidden md:table-cell" },
     { header: "Telefone", accessor: "telefone" as const, className: "hidden lg:table-cell" },
     { header: "Cidade", accessor: "cidade" as const },
@@ -446,6 +455,15 @@ export default function EmpresasPage() {
               <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                 Status: <StatusBadge status={selectedItem.status} />
               </div>
+              {selectedItem.raw.userId && (
+                <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
+                  <Wallet className="w-4 h-4 text-[#737373]" aria-hidden="true" />
+                  <BillingModeSummary
+                    contractorUserId={selectedItem.raw.userId}
+                    company={selectedItem.raw}
+                  />
+                </div>
+              )}
               {selectedItem.raw.userId && (
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <Receipt className="w-4 h-4 text-[#737373]" aria-hidden="true" />
@@ -680,6 +698,7 @@ export default function EmpresasPage() {
             contractorUserId={ownerUserId}
             companyName={selectedItem.nome}
             companyDocument={selectedItem.raw.cnpj}
+            blockEnabled={selectedItem.raw.billingStanding?.blockEnabled ?? false}
             onClose={closeModal}
             // "Corrigir cadastro" (aba Cobrança): troca para o "Editar Empresa".
             onEditCompany={() => openModal("edit", selectedItem)}

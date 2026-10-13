@@ -245,6 +245,15 @@ export interface ContractorItem {
   referredByPartnership?: { id: string; name: string; code: string } | null;
   /** Origem completa do cadastro. Ausente = API anterior a 29/09/2026. */
   signupOrigin?: SignupOrigin | null;
+  /**
+   * Faturamento (API-3e): modo de cobrança efetivo (`PREPAID` com a chave
+   * desligada), o rótulo do selo e desde quando vale. Ausentes em API anterior.
+   */
+  billingMode?: "PREPAID" | "INVOICED_7" | "INVOICED_15" | "INVOICED_30";
+  billingModeLabel?: string;
+  billingModeSince?: string | null;
+  /** Bloqueio derivado das faturas vencidas (só com o bloqueio por atraso ligado). */
+  billingStanding?: { blocked: boolean; overdueDays: number; blockEnabled: boolean } | null;
 }
 
 // ─── Origem do cadastro (API 29/09/2026) ────────────────────────────────────

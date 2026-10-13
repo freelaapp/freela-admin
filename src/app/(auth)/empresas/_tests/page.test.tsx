@@ -59,8 +59,36 @@ const barDoZe: ContractorItem = {
 
 const semUsuario: ContractorItem = { ...barDoZe, id: "contractor-2", userId: "", companyName: "Sem Dono" };
 
+/** Faturada semanal desde 11/10/2026 15:20 (Brasília), com fatura vencida bloqueando. */
+const redeX: ContractorItem = {
+  ...barDoZe,
+  id: "contractor-3",
+  userId: "owner-user-3",
+  companyName: "Rede X",
+  billingMode: "INVOICED_7",
+  billingModeLabel: "Faturado semanal",
+  billingModeSince: "2026-10-11T18:20:00.000Z",
+  billingStanding: { blocked: true, overdueDays: 5, blockEnabled: true },
+};
+
+/** Faturada quinzenal, em dia. */
+const redeY: ContractorItem = {
+  ...barDoZe,
+  id: "contractor-4",
+  userId: "owner-user-4",
+  companyName: "Rede Y",
+  billingMode: "INVOICED_15",
+  billingModeLabel: "Faturado quinzenal",
+  billingModeSince: "2026-10-01T12:00:00.000Z",
+  billingStanding: { blocked: false, overdueDays: 0, blockEnabled: true },
+};
+
 vi.mock("@/modules/admin/application/use-admin-contractors", () => ({
-  useAdminContractors: () => ({ data: [barDoZe, semUsuario], isLoading: false, isError: false }),
+  useAdminContractors: () => ({
+    data: [barDoZe, semUsuario, redeX, redeY],
+    isLoading: false,
+    isError: false,
+  }),
   useAdminUpdateContractor: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
@@ -125,5 +153,33 @@ describe("Empresas — Detalhes da Empresa", () => {
     fireEvent.click(within(rowOf("Bar do Zé")).getByRole("button", { name: "Ver detalhes" }));
 
     expect(screen.getByText("Documentos: tudo ligado")).toBeInTheDocument();
+  });
+});
+
+describe("Empresas — modo de cobrança", () => {
+  it("selo 'Faturado semanal · bloqueada' de billingMode + billingStanding", () => {
+    render(<EmpresasPage />);
+
+    expect(within(rowOf("Rede X")).getByText("Faturado semanal · bloqueada")).toBeInTheDocument();
+    expect(within(rowOf("Rede Y")).getByText("Faturado quinzenal")).toBeInTheDocument();
+    expect(within(rowOf("Rede Y")).queryByText(/bloqueada/)).not.toBeInTheDocument();
+  });
+
+  it("pré-pago: sem selo", () => {
+    render(<EmpresasPage />);
+
+    expect(within(rowOf("Bar do Zé")).queryByText(/Faturado/)).not.toBeInTheDocument();
+    expect(within(rowOf("Bar do Zé")).queryByText(/Pré-pago/)).not.toBeInTheDocument();
+  });
+
+  it("Detalhes: 'Cobrança: Faturado semanal desde 11/10/2026'; pré-pago: 'Cobrança: Pré-pago (Pix a cada contratação)'", () => {
+    const { unmount } = render(<EmpresasPage />);
+    fireEvent.click(within(rowOf("Rede X")).getByRole("button", { name: "Ver detalhes" }));
+    expect(screen.getByText("Cobrança: Faturado semanal desde 11/10/2026")).toBeInTheDocument();
+    unmount();
+
+    render(<EmpresasPage />);
+    fireEvent.click(within(rowOf("Bar do Zé")).getByRole("button", { name: "Ver detalhes" }));
+    expect(screen.getByText("Cobrança: Pré-pago (Pix a cada contratação)")).toBeInTheDocument();
   });
 });
