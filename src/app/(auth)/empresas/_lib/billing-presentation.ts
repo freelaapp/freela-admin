@@ -188,7 +188,12 @@ function brl(cents: number): string {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-function blockSentence(blockFromDate: DateKey, blockEnabled: boolean): string {
+/**
+ * A frase do bloqueio por atraso. `undefined` = a tela não sabe se a chave está
+ * ligada (lista de Empresas sem o campo): não afirma nada (D17).
+ */
+function blockSentence(blockFromDate: DateKey, blockEnabled: boolean | undefined): string | null {
+  if (blockEnabled === undefined) return null;
   return blockEnabled
     ? `Se não pagar, publicar e aprovar ficam bloqueados a partir de ${dayLabel(blockFromDate)}.`
     : `O bloqueio por atraso ainda está desligado. Quando ligar, publicar e aprovar ficam bloqueados a partir de ${dayLabel(blockFromDate)} se a fatura não for paga.`;
@@ -209,7 +214,7 @@ function openLinesSentence(view: BillingModeSettings): string {
 export function whatChanges(
   view: BillingModeSettings,
   next: BillingMode,
-  blockEnabled: boolean,
+  blockEnabled: boolean | undefined,
 ): string | null {
   const current = view.mode;
   if (next === current) return null;
@@ -225,7 +230,9 @@ export function whatChanges(
     `1ª fatura: fecha ${dayLabel(preview.closeDate)} às 08:00 com os serviços realizados até ${dayLabel(preview.period.end)}; vence ${dayLabel(preview.dueDate)}.`,
     "Sem multa e sem juros.",
     blockSentence(preview.blockFromDate, blockEnabled),
-  ].join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 export interface ConfirmCopy {
@@ -240,7 +247,7 @@ export function confirmCopy(
   view: BillingModeSettings,
   next: BillingMode,
   companyName: string,
-  blockEnabled: boolean,
+  blockEnabled: boolean | undefined,
 ): ConfirmCopy {
   const current = view.mode;
   if (!isInvoicedMode(next)) {
@@ -267,9 +274,11 @@ export function confirmCopy(
     items: [
       "A partir do próximo aceite, a empresa não paga Pix na hora; a Freela adianta o pagamento dos freelancers.",
       `1ª fatura: fecha ${dayLabel(preview.closeDate)}, vence ${dayLabel(preview.dueDate)}.`,
-      blockEnabled
-        ? "Sem multa e sem juros. Bloqueio de publicar e aprovar no 4º dia depois do vencimento."
-        : "Sem multa e sem juros. O bloqueio por atraso (4º dia depois do vencimento) ainda está desligado.",
+      blockEnabled === undefined
+        ? "Sem multa e sem juros."
+        : blockEnabled
+          ? "Sem multa e sem juros. Bloqueio de publicar e aprovar no 4º dia depois do vencimento."
+          : "Sem multa e sem juros. O bloqueio por atraso (4º dia depois do vencimento) ainda está desligado.",
       "Contratações já pagas por Pix não entram na fatura.",
     ],
     action: `Ligar faturado ${cycle}`,

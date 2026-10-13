@@ -132,3 +132,23 @@ describe("billing-presentation", () => {
     );
   });
 });
+
+describe("billing-presentation — chave do bloqueio desconhecida", () => {
+  it("sem `blockEnabled` (lista sem o campo): nenhuma frase sobre o bloqueio", () => {
+    const text = whatChanges(VIEW, "INVOICED_7", undefined) as string;
+    expect(text).toBe(
+      "A partir do próximo aceite, as contratações desta empresa entram na fatura e a Freela adianta o pagamento dos freelancers. 1ª fatura: fecha sex 16/10 às 08:00 com os serviços realizados até qui 15/10; vence seg 19/10. Sem multa e sem juros.",
+    );
+    expect(text).not.toMatch(/bloque/i);
+
+    const copy = confirmCopy(VIEW, "INVOICED_7", "Bar do Zé", undefined);
+    expect(copy.items[2]).toBe("Sem multa e sem juros.");
+    expect(copy.items.join(" ")).not.toMatch(/bloque/i);
+  });
+
+  it("bloqueio desligado (false): diz que está desligado", () => {
+    expect(confirmCopy(VIEW, "INVOICED_7", "Bar do Zé", false).items[2]).toBe(
+      "Sem multa e sem juros. O bloqueio por atraso (4º dia depois do vencimento) ainda está desligado.",
+    );
+  });
+});

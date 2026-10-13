@@ -45,7 +45,10 @@ export interface BillingTabProps {
   companyName: string;
   /** CNPJ como está no cadastro, só para mostrar nos pré-requisitos. */
   companyDocument?: string | null;
-  /** `BILLING_OVERDUE_BLOCK_ENABLED` (vem da lista de Empresas). Desligado: nada ameaça bloqueio. */
+  /**
+   * `BILLING_OVERDUE_BLOCK_ENABLED` (vem da lista de Empresas). Desligado: nada
+   * ameaça bloqueio. Ausente (API sem o campo): nenhuma frase sobre o bloqueio.
+   */
   blockEnabled?: boolean;
   onClose: () => void;
   /** "Corrigir cadastro": abre o modal "Editar Empresa". */
@@ -167,7 +170,7 @@ function BillingForm({
   contractorUserId,
   companyName,
   companyDocument,
-  blockEnabled = false,
+  blockEnabled,
   onClose,
   onEditCompany,
   onFeatureDisabled,

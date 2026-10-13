@@ -30,7 +30,8 @@ export function BillingModeConfirmDialog({
   view: BillingModeSettings;
   next: BillingMode;
   companyName: string;
-  blockEnabled: boolean;
+  /** Ausente: a tela não sabe se o bloqueio está ligado e não fala dele. */
+  blockEnabled: boolean | undefined;
   pending: boolean;
   onCancel: () => void;
   onConfirm: () => void;

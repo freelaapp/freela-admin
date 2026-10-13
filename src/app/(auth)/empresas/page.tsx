@@ -723,7 +723,8 @@ export default function EmpresasPage() {
             contractorUserId={ownerUserId}
             companyName={selectedItem.nome}
             companyDocument={selectedItem.raw.cnpj}
-            blockEnabled={selectedItem.raw.billingStanding?.blockEnabled ?? false}
+            // Sem o campo (API anterior), nenhuma frase sobre o bloqueio.
+            blockEnabled={selectedItem.raw.billingStanding?.blockEnabled}
             onClose={closeModal}
             // "Corrigir cadastro" (aba Cobrança): troca para o "Editar Empresa".
             onEditCompany={() => openModal("edit", selectedItem)}
