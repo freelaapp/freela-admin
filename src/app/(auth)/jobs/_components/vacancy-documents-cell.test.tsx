@@ -56,6 +56,36 @@ describe("VacancyDocumentsCell — NFS-e da vaga faturada (AD2c.3)", () => {
     ).toBeInTheDocument();
   });
 
+  it("paymentMethod INVOICE com nfseInvoice: link direto para /financeiro/faturas/<id>, nunca o fallback", () => {
+    renderCell({
+      documents: { ...ALL_OK, nfse: "PENDING" },
+      // Texto com outro número: o link segue o nfseInvoice, não o texto.
+      detail: { nfse: "NFS-e na fatura FAT-2026-000999: aguardando emissão" },
+      paymentMethod: "INVOICE",
+      nfseInvoice: { invoiceId: "inv-777", number: "FAT-2026-000777" },
+    });
+
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName("NFS-e na fatura FAT-2026-000777");
+    expect(links[0]).toHaveAttribute("href", "/financeiro/faturas/inv-777");
+    expect(screen.queryByRole("link", { name: /FAT-2026-000999/ })).not.toBeInTheDocument();
+    expect(document.querySelector('a[href="/financeiro?aba=faturas"]')).toBeNull();
+  });
+
+  it("fallback: o texto do link é 'NFS-e na fatura FAT-AAAA-N' tirado do texto da API", () => {
+    renderCell({
+      documents: { ...ALL_OK, nfse: "PENDING" },
+      detail: { nfse: "NFS-e na fatura FAT-2026-000131: sai quando a fatura for paga" },
+      paymentMethod: "INVOICE",
+    });
+
+    const link = screen.getByRole("link");
+    expect(link.textContent).toMatch(/^NFS-e na fatura FAT-\d{4}-\d+$/);
+    expect(link).toHaveTextContent("NFS-e na fatura FAT-2026-000131");
+    expect(link).toHaveAttribute("href", "/financeiro?aba=faturas");
+  });
+
   it("vaga faturada com a nota emitida: o link da fatura no lugar de 'Abrir' (não há nota da vaga)", () => {
     renderCell({
       documents: ALL_OK,
