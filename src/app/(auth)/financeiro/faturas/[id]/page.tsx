@@ -154,7 +154,8 @@ function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+      // Liberar a URL no mesmo tique pode cancelar o download em alguns navegadores.
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch (err) {
       toast.error(apiErrorOf(err).message ?? "Não foi possível baixar o PDF da fatura.");
     } finally {

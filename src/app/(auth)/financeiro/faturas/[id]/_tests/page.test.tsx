@@ -214,10 +214,21 @@ describe("Detalhe da fatura", () => {
     vi.mocked(downloadAdminInvoicePdf).mockResolvedValue(new Blob(["%PDF"]));
     renderPage();
 
+    // O link é clicado; o resto do código síncrono roda; só depois a URL é liberada.
+    let revokedSynchronously: boolean | null = null;
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {
+      queueMicrotask(() => {
+        revokedSynchronously = revokeObjectURL.mock.calls.length > 0;
+      });
+    });
     fireEvent.click(await screen.findByRole("button", { name: "Baixar PDF" }));
 
     await waitFor(() => expect(downloadAdminInvoicePdf).toHaveBeenCalledWith("inv-123"));
     await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith("blob:fatura"));
+    expect(click).toHaveBeenCalled();
+    expect(revokedSynchronously).toBe(false);
+    click.mockRestore();
   });
 
   it("404: 'Fatura não encontrada.' com o caminho de volta", async () => {
