@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { useAdminUpdateContractor } from "@/modules/admin/application/use-admin-contractors";
 import type { ContractorItem } from "@/modules/admin/infrastructure/admin-api";
 import EmpresasPage from "../page";
 
@@ -89,7 +90,7 @@ vi.mock("@/modules/admin/application/use-admin-contractors", () => ({
     isLoading: false,
     isError: false,
   }),
-  useAdminUpdateContractor: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAdminUpdateContractor: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));
 
 const settings = vi.hoisted(() => ({
@@ -181,5 +182,34 @@ describe("Empresas — modo de cobrança", () => {
     render(<EmpresasPage />);
     fireEvent.click(within(rowOf("Bar do Zé")).getByRole("button", { name: "Ver detalhes" }));
     expect(screen.getByText("Cobrança: Pré-pago (Pix a cada contratação)")).toBeInTheDocument();
+  });
+});
+
+describe("Empresas — Editar Empresa, CEP", () => {
+  it("CEP com máscara; incompleto não salva e mostra o erro no campo", async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    vi.mocked(useAdminUpdateContractor).mockReturnValue({ mutateAsync, isPending: false } as never);
+    render(<EmpresasPage />);
+    fireEvent.click(within(rowOf("Bar do Zé")).getByRole("button", { name: "Editar" }));
+
+    const cep = screen.getByLabelText("CEP");
+    fireEvent.change(cep, { target: { value: "36000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(cep).toHaveAttribute("aria-invalid", "true");
+    expect(cep).toHaveAccessibleDescription("O CEP tem 8 números, por exemplo 36000-000.");
+
+    fireEvent.change(cep, { target: { value: "36000000" } });
+    expect(cep).toHaveValue("36000-000");
+    expect(cep).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await vi.waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        id: "contractor-1",
+        payload: expect.objectContaining({ cep: "36000-000" }),
+      }),
+    );
   });
 });

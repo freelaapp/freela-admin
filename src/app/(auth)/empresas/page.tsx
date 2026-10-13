@@ -37,6 +37,7 @@ import { AbrirVagaDialog } from "@/components/admin/vacancy/abrir-vaga-dialog";
 import { cn, formatPhoneBr } from "@/lib/utils";
 import { formatPhoneMask } from "@/modules/consultant/application/phone-mask";
 import { resolveContactPhoneForSave } from "./_lib/contact-phone";
+import { cepError as cepErrorOf, formatCepMask } from "./_lib/cep";
 import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
 import {
   adminBlockProvider,
@@ -115,6 +116,7 @@ export default function EmpresasPage() {
     complement: "",
   });
   const [contactPhoneError, setContactPhoneError] = useState<string | null>(null);
+  const [cepError, setCepError] = useState<string | null>(null);
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -139,6 +141,7 @@ export default function EmpresasPage() {
     setModalOpen(true);
     if (type === "edit") {
       setContactPhoneError(null);
+      setCepError(null);
       setEditForm({
         companyName: item.raw.companyName ?? "",
         segment: item.raw.segment ?? "",
@@ -152,7 +155,7 @@ export default function EmpresasPage() {
         city: item.raw.city ?? "",
         uf: item.raw.uf ?? "",
         // Endereço completo: o faturado exige (CEP, rua, número, bairro, cidade, UF).
-        cep: item.raw.cep ?? "",
+        cep: formatCepMask(item.raw.cep ?? ""),
         street: item.raw.street ?? "",
         number: item.raw.number ?? "",
         neighborhood: item.raw.neighborhood ?? "",
@@ -255,6 +258,12 @@ export default function EmpresasPage() {
       toast.error(contactPhone.error);
       return;
     }
+    // CEP incompleto não sai: iria para a fatura e a NFS-e.
+    const cepProblem = cepErrorOf(editForm.cep);
+    if (cepProblem) {
+      setCepError(cepProblem);
+      return;
+    }
     try {
       await updateContractor.mutateAsync({
         id: selectedItem.id,
@@ -269,7 +278,7 @@ export default function EmpresasPage() {
           document: editForm.document.trim() || undefined,
           city: editForm.city.trim() || undefined,
           uf: editForm.uf.trim().toUpperCase() || undefined,
-          cep: editForm.cep.trim() || undefined,
+          cep: formatCepMask(editForm.cep) || undefined,
           street: editForm.street.trim() || undefined,
           number: editForm.number.trim() || undefined,
           neighborhood: editForm.neighborhood.trim() || undefined,
@@ -571,7 +580,23 @@ export default function EmpresasPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="cep-emp">CEP</Label>
-                  <Input id="cep-emp" inputMode="numeric" value={editForm.cep} onChange={(e) => setEditForm((f) => ({ ...f, cep: e.target.value }))} />
+                  <Input
+                    id="cep-emp"
+                    inputMode="numeric"
+                    placeholder="36000-000"
+                    value={editForm.cep}
+                    aria-invalid={cepError ? true : undefined}
+                    aria-describedby={cepError ? "cep-emp-erro" : undefined}
+                    onChange={(e) => {
+                      setCepError(null);
+                      setEditForm((f) => ({ ...f, cep: formatCepMask(e.target.value) }));
+                    }}
+                  />
+                  {cepError && (
+                    <p id="cep-emp-erro" role="alert" className="text-xs text-red-600">
+                      {cepError}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="rua-emp">Rua</Label>
