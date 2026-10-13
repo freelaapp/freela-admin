@@ -17,6 +17,8 @@ export interface Column<T> {
   sortable?: boolean;
   className?: string;
   mobile?: ColumnMobileRole;
+  /** Ordem que o SERVIDOR aplicou nesta coluna (vira `aria-sort` no cabeçalho). */
+  ariaSort?: "ascending" | "descending" | "other";
 }
 
 interface DataTableProps<T> {
@@ -29,6 +31,10 @@ interface DataTableProps<T> {
   defaultSort?: { index: number; direction: "asc" | "desc" };
   controlledSearch?: { value: string; onChange: (v: string) => void };
   isFetching?: boolean;
+  /** Legenda da tabela (lida pelo leitor de tela): o que a lista mostra e em que ordem. */
+  caption?: string;
+  /** O que mostrar com a lista vazia (padrão: "Nenhum resultado encontrado."). */
+  emptyMessage?: React.ReactNode;
 }
 
 type SortState = { index: number; direction: "asc" | "desc" };
@@ -86,6 +92,8 @@ export function DataTable<T extends { id?: string | number }>({
   defaultSort,
   controlledSearch,
   isFetching = false,
+  caption,
+  emptyMessage = "Nenhum resultado encontrado.",
 }: DataTableProps<T>) {
   const [internalSearch, setInternalSearch] = useState("");
   const [sort, setSort] = useState<SortState | null>(defaultSort ?? null);
@@ -159,14 +167,23 @@ export function DataTable<T extends { id?: string | number }>({
               isFetching && sortedData.length > 0 ? "blur-[2px] opacity-60 pointer-events-none" : ""
             }`}
           >
+            {caption && <caption className="sr-only">{caption}</caption>}
             <thead>
               <tr className="border-b border-[#e5e5e5]">
                 {columns.map((col, i) => {
                   const isSortable = !!col.sortable && !!col.sortAccessor;
                   const active = sort?.index === i;
+                  const ariaSort =
+                    col.ariaSort ??
+                    (isSortable && active
+                      ? sort!.direction === "asc"
+                        ? ("ascending" as const)
+                        : ("descending" as const)
+                      : undefined);
                   return (
                     <th
                       key={i}
+                      aria-sort={ariaSort}
                       onClick={isSortable ? () => toggleSort(i) : undefined}
                       className={`px-4 py-3 text-left font-medium text-[#737373] ${
                         isSortable
@@ -214,7 +231,7 @@ export function DataTable<T extends { id?: string | number }>({
                     colSpan={columns.length}
                     className="px-4 py-8 text-center text-[#737373]"
                   >
-                    {isFetching ? "Carregando…" : "Nenhum resultado encontrado."}
+                    {isFetching ? "Carregando…" : emptyMessage}
                   </td>
                 </tr>
               )}
@@ -290,7 +307,7 @@ export function DataTable<T extends { id?: string | number }>({
               <span className="text-xs font-medium">Carregando…</span>
             </div>
           ) : (
-            <p className="px-4 py-8 text-center text-[#737373]">Nenhum resultado encontrado.</p>
+            <div className="px-4 py-8 text-center text-[#737373]">{emptyMessage}</div>
           )}
         </div>
         {isFetching && sortedData.length > 0 && (
