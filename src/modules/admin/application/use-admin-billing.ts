@@ -85,11 +85,24 @@ function invalidateAfterAction(qc: QueryClient) {
   ]);
 }
 
+/**
+ * Erros que dizem que a tela está velha (a fatura já foi paga ou cancelada, a
+ * chave foi desligada, não havia nada a faturar): recarrega tudo, para o
+ * detalhe não seguir com as ações ligadas.
+ */
+const STALE_CODES = new Set(["INVOICE_NOT_OPEN", "FEATURE_DISABLED", "NOTHING_TO_INVOICE"]);
+
+function refreshIfStale(qc: QueryClient, error: unknown) {
+  const code = apiErrorOf(error).code;
+  if (code && STALE_CODES.has(code)) return invalidateAfterAction(qc);
+}
+
 export function useResendInvoice(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { reason: string; channels?: ResendChannel[] }) => resendInvoice(id, input),
     onSuccess: () => invalidateAfterAction(qc),
+    onError: (error) => refreshIfStale(qc, error),
   });
 }
 
@@ -98,6 +111,7 @@ export function useIssueSecondCopy(id: string) {
   return useMutation({
     mutationFn: (input: { reason: string }) => issueSecondCopy(id, input),
     onSuccess: () => invalidateAfterAction(qc),
+    onError: (error) => refreshIfStale(qc, error),
   });
 }
 
@@ -107,6 +121,7 @@ export function useMarkInvoicePaid(id: string) {
     mutationFn: (input: { reason: string; paidAt?: DateKey; amountInCents?: number }) =>
       markInvoicePaid(id, input),
     onSuccess: () => invalidateAfterAction(qc),
+    onError: (error) => refreshIfStale(qc, error),
   });
 }
 
@@ -115,6 +130,7 @@ export function useWaiveInvoiceBlock(id: string) {
   return useMutation({
     mutationFn: (input: { reason: string; until: DateKey }) => waiveInvoiceBlock(id, input),
     onSuccess: () => invalidateAfterAction(qc),
+    onError: (error) => refreshIfStale(qc, error),
   });
 }
 
@@ -123,6 +139,7 @@ export function useBillingAdjustment(contractorUserId: string) {
   return useMutation({
     mutationFn: (input: AdjustmentInput) => createBillingAdjustment(contractorUserId, input),
     onSuccess: () => invalidateAfterAction(qc),
+    onError: (error) => refreshIfStale(qc, error),
   });
 }
 
@@ -131,5 +148,6 @@ export function useCloseInvoiceNow(contractorUserId: string) {
   return useMutation({
     mutationFn: (input: { reason: string }) => closeInvoiceNow(contractorUserId, input),
     onSuccess: () => invalidateAfterAction(qc),
+    onError: (error) => refreshIfStale(qc, error),
   });
 }

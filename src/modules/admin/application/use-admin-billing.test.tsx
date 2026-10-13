@@ -1,6 +1,7 @@
 import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { AxiosError, AxiosHeaders } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../infrastructure/billing-api", () => ({
@@ -146,5 +147,52 @@ describe("use-admin-billing — cada ação invalida a lista, o detalhe e o resu
     vi.mocked(closeInvoiceNow).mockResolvedValue({ ok: true } as never);
     await runAction(() => useCloseInvoiceNow("owner-1"), { reason: "Fim do contrato" });
     expect(closeInvoiceNow).toHaveBeenCalledWith("owner-1", { reason: "Fim do contrato" });
+  });
+});
+
+function apiError(status: number, code: string): AxiosError {
+  const config = { headers: new AxiosHeaders() };
+  return new AxiosError("falhou", String(status), config, null, {
+    status,
+    statusText: "",
+    headers: {},
+    config,
+    data: { error: { code, message: code } },
+  });
+}
+
+/** A ação falha; devolve se lista, detalhe e resumo ficaram inválidos. */
+async function failAction<TInput>(
+  useHook: () => { mutateAsync: (input: TInput) => Promise<unknown> },
+  input: TInput,
+) {
+  seedCache();
+  const { result } = renderHook(useHook, { wrapper });
+  await act(async () => {
+    await result.current.mutateAsync(input).catch(() => undefined);
+  });
+}
+
+describe("use-admin-billing — erro de dado velho recarrega a fatura", () => {
+  it.each(["INVOICE_NOT_OPEN", "FEATURE_DISABLED"])(
+    "%s: lista, detalhe e resumo recarregam (os botões não ficam ligados à toa)",
+    async (code) => {
+      vi.mocked(markInvoicePaid).mockRejectedValue(apiError(code === "FEATURE_DISABLED" ? 404 : 409, code));
+      await failAction(() => useMarkInvoicePaid("inv-1"), { reason: "Transferência" });
+      await waitFor(expectAllInvalidated);
+    },
+  );
+
+  it("NOTHING_TO_INVOICE no 'fechar agora' também recarrega", async () => {
+    vi.mocked(closeInvoiceNow).mockRejectedValue(apiError(409, "NOTHING_TO_INVOICE"));
+    await failAction(() => useCloseInvoiceNow("owner-1"), { reason: "Fim do contrato" });
+    await waitFor(expectAllInvalidated);
+  });
+
+  it("erro de campo (REASON_REQUIRED) não recarrega nada", async () => {
+    vi.mocked(resendInvoice).mockRejectedValue(apiError(422, "REASON_REQUIRED"));
+    await failAction(() => useResendInvoice("inv-1"), { reason: "abc" });
+    expect(qc.getQueryState(billingKeys.detail("inv-1"))?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(billingKeys.summary({}))?.isInvalidated).toBe(false);
   });
 });
