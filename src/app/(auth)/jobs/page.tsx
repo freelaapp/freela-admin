@@ -1075,6 +1075,8 @@ export default function JobsPage() {
                 vacancyId={modalDetalhes.raw?.id}
                 documents={modalDetalhes.raw?.documents}
                 detail={modalDetalhes.raw?.documentsDetail}
+                paymentMethod={modalDetalhes.raw?.paymentMethod}
+                nfseInvoice={modalDetalhes.raw?.nfseInvoice}
               />
 
               {modalDetalhes.raw?.id && (() => {

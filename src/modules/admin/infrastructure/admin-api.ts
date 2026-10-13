@@ -1,6 +1,7 @@
 import { isAxiosError } from "axios";
 
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { VacancyNfseInvoice } from "./vacancy-documents-api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -589,6 +590,11 @@ export interface VacancyItem {
    * `INVOICE` (faturado)… `null` sem pagamento; ausente em API anterior.
    */
   paymentMethod?: string | null;
+  /**
+   * Vaga faturada: a fatura da NFS-e (API-3g, N11). Ausente no pré-pago e em
+   * API que ainda não manda o campo; `null` antes de a vaga entrar numa fatura.
+   */
+  nfseInvoice?: VacancyNfseInvoice | null;
 }
 
 /** `WAIVED` = dispensado pelo contratante nas burocracias (contrato ou RPA). */

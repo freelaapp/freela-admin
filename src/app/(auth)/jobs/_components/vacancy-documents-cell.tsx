@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import axios from "axios";
-import { ExternalLink, FileText, Loader2, RotateCcw } from "lucide-react";
+import { ExternalLink, FileText, Loader2, ReceiptText, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { reissueVacancyNfse } from "@/modules/admin/infrastructure/vacancy-documents-api";
+import {
+  reissueVacancyNfse,
+  type VacancyNfseInvoice,
+} from "@/modules/admin/infrastructure/vacancy-documents-api";
 
 import type { VacancyDocuments, VacancyDocumentsDetail } from "@/modules/admin/infrastructure/admin-api";
 import {
@@ -16,6 +20,8 @@ import {
 } from "@/modules/admin/application/system-health-presentation";
 import {
   canOpenDocument,
+  invoicedNfseLink,
+  isInvoicedVacancy,
   openVacancyDocument,
 } from "@/modules/admin/application/vacancy-documents-open";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
@@ -34,17 +40,27 @@ import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-canc
  * Com `vacancyId`, a variante `full` ganha "Abrir" em cada documento que existe
  * (emitido; o contrato também com uma assinatura faltando) — abre numa aba nova
  * pronto para imprimir/salvar em PDF; a NF-e abre o PDF da prefeitura.
+ *
+ * Vaga faturada (API-3g, N10/N11): a NFS-e é a da fatura. A linha da NF-e leva
+ * "NFS-e na fatura FAT-…" com link para a fatura, sem "Reemitir" e sem "Abrir"
+ * (não existe nota da vaga; a reemissão por vaga responde 404).
  */
 export function VacancyDocumentsCell({
   documents,
   detail,
   variant = "compact",
   vacancyId,
+  paymentMethod,
+  nfseInvoice,
 }: {
   documents: VacancyDocuments | null | undefined;
   detail?: VacancyDocumentsDetail | null;
   variant?: "compact" | "full";
   vacancyId?: string | null;
+  /** Meio do pagamento da vaga (`INVOICE` = faturada). */
+  paymentMethod?: string | null;
+  /** A fatura da NFS-e da vaga faturada, quando a API manda. */
+  nfseInvoice?: VacancyNfseInvoice | null;
 }) {
   const [opening, setOpening] = useState<DocumentKey | null>(null);
   const qc = useQueryClient();
@@ -127,17 +143,23 @@ export function VacancyDocumentsCell({
     );
   }
 
+  const invoiced = isInvoicedVacancy(paymentMethod, nfseInvoice);
+  const invoiceLink = invoiced ? invoicedNfseLink(nfseInvoice, detail?.nfse) : null;
+
   return (
     <DocumentsBox>
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
         {DOCUMENT_KEYS.map(({ key, label }) => {
           const badge = documentBadge(documents[key]);
           const motivo = detail?.[key];
-          const openable = Boolean(vacancyId) && canOpenDocument(key, documents[key]);
+          // A NFS-e da vaga faturada é a da fatura: nada a abrir nem a reemitir aqui.
+          const invoicedNfse = key === "nfse" && invoiced;
+          const openable =
+            Boolean(vacancyId) && !invoicedNfse && canOpenDocument(key, documents[key]);
           return (
             <li
               key={key}
-              className="flex items-center justify-between gap-2 rounded-md border border-[#e5e5e5] bg-white px-2 py-1"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#e5e5e5] bg-white px-2 py-1"
             >
               <span
                 title={motivo ?? badge.label}
@@ -147,7 +169,16 @@ export function VacancyDocumentsCell({
                 <span aria-hidden="true">{badge.symbol}</span>
                 <span className="font-normal">{badge.label}</span>
               </span>
-              {key === "nfse" && vacancyId && (documents[key] ?? "").toUpperCase() === "FAILED" && (
+              {invoicedNfse && invoiceLink && (
+                <Link
+                  href={invoiceLink.href}
+                  className="inline-flex min-h-8 items-center gap-1 rounded px-1.5 font-medium text-[#b45309] underline-offset-2 hover:underline"
+                >
+                  <ReceiptText className="w-3.5 h-3.5" aria-hidden="true" />
+                  {`NFS-e na fatura ${invoiceLink.number}`}
+                </Link>
+              )}
+              {key === "nfse" && !invoiced && vacancyId && (documents[key] ?? "").toUpperCase() === "FAILED" && (
                 <button
                   type="button"
                   onClick={handleReissueNfse}

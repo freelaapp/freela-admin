@@ -1,6 +1,7 @@
 import {
   getVacancyDocumentHtml,
   getVacancyNfse,
+  type VacancyNfseInvoice,
 } from "@/modules/admin/infrastructure/vacancy-documents-api";
 import type { DocumentKey } from "./system-health-presentation";
 
@@ -66,4 +67,34 @@ export async function openVacancyDocument(vacancyId: string, key: DocumentKey): 
     tab?.close();
     throw err;
   }
+}
+
+/** Vaga faturada (API-3g): o meio do pagamento é a fatura, ou a API já mandou a fatura da nota. */
+export function isInvoicedVacancy(
+  paymentMethod: string | null | undefined,
+  nfseInvoice: VacancyNfseInvoice | null | undefined,
+): boolean {
+  return (paymentMethod ?? "").toUpperCase() === "INVOICE" || nfseInvoice !== undefined;
+}
+
+const INVOICE_NUMBER = /\bFAT-\d{4}-\d+\b/;
+
+/**
+ * Para onde a NFS-e da vaga faturada leva: o detalhe da fatura, quando a API
+ * manda o id dela (`nfseInvoice`). Sem o id, mas com o número no texto da API
+ * ("NFS-e na fatura FAT-…"), a aba Faturas. Sem fatura (antes do fechamento, ou
+ * vaga que o cupom zerou): nenhum link, só o texto da API.
+ */
+export function invoicedNfseLink(
+  nfseInvoice: VacancyNfseInvoice | null | undefined,
+  detailText: string | null | undefined,
+): { href: string; number: string } | null {
+  if (nfseInvoice?.invoiceId && nfseInvoice.number) {
+    return {
+      href: `/financeiro/faturas/${encodeURIComponent(nfseInvoice.invoiceId)}`,
+      number: nfseInvoice.number,
+    };
+  }
+  const number = detailText?.match(INVOICE_NUMBER)?.[0];
+  return number ? { href: "/financeiro?aba=faturas", number } : null;
 }
