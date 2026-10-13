@@ -15,12 +15,14 @@ vi.mock("@/modules/auth/application/use-area-guard", () => ({
 vi.mock("@/modules/admin/infrastructure/billing-api", () => ({
   getAdminInvoice: vi.fn(),
   downloadAdminInvoicePdf: vi.fn(),
+  getBillingSummary: vi.fn(),
 }));
 
-import { DETAIL } from "@/modules/admin/application/billing.test-fixtures";
+import { DETAIL, SUMMARY } from "@/modules/admin/application/billing.test-fixtures";
 import {
   downloadAdminInvoicePdf,
   getAdminInvoice,
+  getBillingSummary,
 } from "@/modules/admin/infrastructure/billing-api";
 import InvoiceDetailPage from "../page";
 
@@ -46,9 +48,19 @@ function renderPage() {
 
 const section = (name: string) => screen.getByRole("region", { name });
 
+/** O indicador de empresas bloqueadas diz se o bloqueio por atraso está ligado. */
+const summaryWithBlock = (blockEnabled: boolean) => ({
+  ...SUMMARY,
+  cards: {
+    ...SUMMARY.cards,
+    blockedCompanies: { ...SUMMARY.cards.blockedCompanies, blockEnabled },
+  },
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getAdminInvoice).mockResolvedValue(DETAIL);
+  vi.mocked(getBillingSummary).mockResolvedValue(summaryWithBlock(true));
 });
 
 describe("Detalhe da fatura", () => {
@@ -70,8 +82,29 @@ describe("Detalhe da fatura", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Vencimento: seg 19/10/2026 · Bloqueio a partir de sex 23/10 às 00:00"),
+      await screen.findByText("Vencimento: seg 19/10/2026 · Bloqueio a partir de sex 23/10 às 00:00"),
     ).toBeInTheDocument();
+  });
+
+  it("bloqueio por atraso desligado: diz que está desligado e quando bloquearia", async () => {
+    vi.mocked(getBillingSummary).mockResolvedValue(summaryWithBlock(false));
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "Vencimento: seg 19/10/2026 · Bloqueio por atraso desligado; se ligar, bloquearia a partir de sex 23/10 às 00:00",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("sem saber a chave (indicadores com erro): só a data, sem afirmar nada do bloqueio ligado", async () => {
+    vi.mocked(getBillingSummary).mockRejectedValue(new Error("rede"));
+    renderPage();
+
+    expect(
+      await screen.findByText("Vencimento: seg 19/10/2026 · Data do bloqueio na fatura: sex 23/10 às 00:00"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Bloqueio a partir de/)).not.toBeInTheDocument();
   });
 
   it("total com a conta e o tomador fotografado", async () => {

@@ -15,7 +15,7 @@ import {
   formatInstantBrt,
   instantWithWeekday,
 } from "@/modules/admin/application/invoice-presentation";
-import { useAdminInvoice } from "@/modules/admin/application/use-admin-billing";
+import { useAdminInvoice, useBillingSummary } from "@/modules/admin/application/use-admin-billing";
 import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import {
   downloadAdminInvoicePdf,
@@ -66,6 +66,18 @@ export default function InvoiceDetailPage() {
       )}
     </div>
   );
+}
+
+/**
+ * A data do bloqueio no cabeçalho. Desligado: diz que está desligado (mesma
+ * regra do `blockSentence` da aba Cobrança, D17). Sem saber a chave: só a data.
+ */
+function blockLine(when: string, blockEnabled: boolean | undefined): string {
+  if (blockEnabled === true) return `Bloqueio a partir de ${when}`;
+  if (blockEnabled === false) {
+    return `Bloqueio por atraso desligado; se ligar, bloquearia a partir de ${when}`;
+  }
+  return `Data do bloqueio na fatura: ${when}`;
 }
 
 function DetailError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
@@ -124,9 +136,11 @@ function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
   const takerLine = [report.taker.name, report.taker.document, report.taker.address, report.taker.email]
     .filter(Boolean)
     .join(" · ");
+  // A chave do bloqueio por atraso vem dos indicadores (em cache se veio da lista).
+  const blockEnabled = useBillingSummary().data?.cards.blockedCompanies.blockEnabled;
   const dueLine =
     invoice.status === "ISSUED"
-      ? `${report.header.due} · Bloqueio a partir de ${instantWithWeekday(invoice.blockFrom)}`
+      ? `${report.header.due} · ${blockLine(instantWithWeekday(invoice.blockFrom), blockEnabled)}`
       : report.header.due;
 
   const downloadPdf = async () => {
