@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { DataTable } from "@/components/shared/data-table";
 import {
   DollarSign, TrendingDown, TrendingUp, RotateCcw,
-  Loader2, Wallet, Landmark, PiggyBank, X, HelpCircle,
+  Loader2, Wallet, Landmark, PiggyBank, X, HelpCircle, FileClock,
 } from "lucide-react";
 import {
   Dialog,
@@ -26,12 +26,27 @@ import type {
 } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
+import { InvoicesView } from "./_components/invoices-view";
 
-const tabs = ["Visão Geral", "Transações", "Pagamentos", "Repasses", "Estornos & Cancelamentos"] as const;
+const tabs = [
+  "Visão Geral",
+  "Transações",
+  "Pagamentos",
+  "Repasses",
+  "Faturas",
+  "Estornos & Cancelamentos",
+] as const;
 type Tab = typeof tabs[number];
 
-// Tabs que operam sobre o dashboard financeiro novo (com filtro de data).
+// Tabs que operam sobre o dashboard financeiro novo (com filtro de data). A aba
+// Faturas tem o próprio filtro (data de fechamento): o período da página, que
+// abre em "Este mês", esconderia as vencidas fechadas no mês anterior.
 const FINANCE_TABS: Tab[] = ["Visão Geral", "Transações", "Estornos & Cancelamentos"];
+
+/** `?aba=faturas` (volta do detalhe da fatura) → a aba Faturas. */
+const TAB_BY_QUERY: Record<string, Tab> = { faturas: "Faturas" };
+
+const INVOICED_LABEL = "Faturado (não é entrada de caixa)";
 
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -156,6 +171,8 @@ const KIND_LABELS: Record<string, string> = {
   refund_admin_br: "Estorno · admin (bar/restaurante)",
   refund_admin_casa: "Estorno · admin (em casa)",
   refund_cancel: "Estorno · cancelamento",
+  invoiced: INVOICED_LABEL,
+  invoice_payment: "Fatura paga",
 };
 
 function providerLabel(provider: string | null) {
@@ -206,7 +223,8 @@ function mapTxToRow(t: FinanceTransaction): TxRow {
   return {
     id: t.id,
     data: formatInstant(t.createdAt),
-    descricao: KIND_LABELS[t.kind] ?? t.kind,
+    // O rótulo da API vem primeiro: no faturado ele diz que não é caixa.
+    descricao: t.label ?? KIND_LABELS[t.kind] ?? t.kind,
     gateway: providerLabel(t.provider),
     // O nome entra na busca: procurar o repasse de alguém pelo nome é o caminho
     // mais curto quando chega "não recebi" no suporte.
@@ -700,15 +718,20 @@ const LEGACY_PAYMENT_STATUS: Record<string, string> = {
 
 function mapPaymentToRow(p: PaymentItem) {
   const hasBreakdown = (p.serviceAmountInCents ?? 0) > 0;
+  // Faturado: a vaga foi liquidada na fatura, o dinheiro entra quando ela for paga.
+  const invoiced = p.method === "INVOICE";
   return {
     id: p.id,
     freelancer: p.correlationId.slice(0, 12),
     valor: formatCurrency(p.value),
     valorServico: hasBreakdown ? formatCurrency(p.serviceAmountInCents) : "—",
     taxa: hasBreakdown ? formatCurrency(p.value - p.serviceAmountInCents) : "—",
-    tipo: "Diária",
+    tipo: invoiced ? INVOICED_LABEL : "Diária",
     data: formatDate(p.createdAt),
-    status: LEGACY_PAYMENT_STATUS[p.status] ?? p.status,
+    status:
+      invoiced && p.status === "COMPLETED"
+        ? "Faturado"
+        : (LEGACY_PAYMENT_STATUS[p.status] ?? p.status),
     raw: p,
   };
 }
@@ -791,6 +814,12 @@ export default function FinanceiroPage() {
   // Área controlada por permissão (FINANCE); sem ela, volta para o dashboard.
   const { isChecking: isAreaChecking, allowed: isAreaAllowed } = useAreaGuard("FINANCE");
   const [tab, setTab] = useState<Tab>("Visão Geral");
+  // Lido no cliente (sem `useSearchParams`, que pediria um Suspense na página).
+  useEffect(() => {
+    const aba = new URLSearchParams(window.location.search).get("aba");
+    const fromQuery = aba ? TAB_BY_QUERY[aba] : undefined;
+    if (fromQuery) setTab(fromQuery);
+  }, []);
   const [guideOpen, setGuideOpen] = useState(false);
   // Default "Este mês": o acumulado desde sempre (preset "Tudo") inclui o
   // piloto de maio/2026 e induzia leitura de "números altos demais".
@@ -817,7 +846,11 @@ export default function FinanceiroPage() {
       header: "Status",
       accessor: (row: typeof paymentRows[0]) => (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          row.status === "Pago" ? "bg-green-500/10 text-green-500" : "bg-[#eca826]/10 text-[#eca826]"
+          row.status === "Pago"
+            ? "bg-green-500/10 text-green-500"
+            : row.status === "Faturado"
+              ? "bg-[#f7f7f7] text-[#525252]"
+              : "bg-[#eca826]/10 text-[#eca826]"
         }`}>
           {row.status}
         </span>
@@ -873,10 +906,13 @@ export default function FinanceiroPage() {
       />
       <FinanceGuideDialog open={guideOpen} onClose={() => setGuideOpen(false)} />
 
-      <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
+      <div role="tablist" aria-label="Financeiro" className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
         {tabs.map((t) => (
           <button
             key={t}
+            role="tab"
+            type="button"
+            aria-selected={tab === t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
               tab === t ? "bg-[#eca826] text-white" : "bg-[#f7f7f7] text-[#737373] hover:text-[#1d1d1b]"
@@ -905,7 +941,7 @@ export default function FinanceiroPage() {
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> ao vivo
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <KpiCard
                     title="Saldo Woovi (OpenPix)"
                     value={formatCurrencyNullable(summary?.saldoWooviCents ?? null)}
@@ -923,6 +959,22 @@ export default function FinanceiroPage() {
                     value={formatCurrencyNullable(summary?.saldoTotalCents ?? null)}
                     icon={PiggyBank}
                     help="Woovi + Asaas somados. É quanto a plataforma tem em conta neste instante — não confundir com lucro."
+                  />
+                  <KpiCard
+                    title="A receber (faturado)"
+                    value={formatCurrencyNullable(summary?.receivableCents ?? null)}
+                    icon={FileClock}
+                    iconColor="text-[#b45309]"
+                    meta="faturas em aberto + ainda não faturado"
+                    help="Quanto as empresas do faturado devem AGORA: faturas emitidas e não pagas, mais os serviços realizados que ainda vão para a próxima fatura. Não é dinheiro em conta. Detalhe na aba Faturas."
+                    details={
+                      summary?.calc?.receivable
+                        ? {
+                            calc: summary.calc.receivable,
+                            source: "Faturas emitidas e não pagas e o livro do faturado ainda sem fatura.",
+                          }
+                        : undefined
+                    }
                   />
                 </div>
               </div>
@@ -942,6 +994,14 @@ export default function FinanceiroPage() {
                     iconColor="text-green-600"
                     meta={`${summary?.entradasCount ?? 0} pagamentos · inclui repasse e estornados`}
                     help="Tudo que os contratantes PAGARAM no período. A maior parte não é nossa: inclui a fatia que vai para o freelancer (repasse) e pagamentos que depois foram devolvidos (estornos). Para saber quanto a empresa ganhou, olhe o card Lucro."
+                    details={
+                      summary?.calc?.entradas
+                        ? {
+                            calc: summary.calc.entradas,
+                            source: "Pagamentos recebidos no período (o faturado fica de fora) e faturas pagas, pela data do pagamento.",
+                          }
+                        : undefined
+                    }
                   />
                   <KpiCard
                     title="Saídas (repasses + bônus)"
@@ -958,6 +1018,14 @@ export default function FinanceiroPage() {
                     iconColor="text-[#eca826]"
                     meta={`${summary?.estornosCount ?? 0} pagamentos estornados (inclui manuais)`}
                     help="Pagamentos devolvidos aos contratantes no período (vaga cancelada, no-show etc.), inclusive estornos feitos manualmente direto na Woovi. Esses valores aparecem nas Entradas e são descontados aqui."
+                    details={
+                      summary?.calc?.estornos
+                        ? {
+                            calc: summary.calc.estornos,
+                            source: "Pagamentos estornados no período; no faturado o estorno vira crédito na fatura.",
+                          }
+                        : undefined
+                    }
                   />
                   <KpiCard
                     title="Líquido no período"
@@ -979,12 +1047,20 @@ export default function FinanceiroPage() {
                     help="O que sobrou no caixa das operações do período: entrou, menos o que foi para freelancers, menos o que foi devolvido. Ainda não desconta a tarifa do gateway (~R$ 0,85 por PIX) — esta já está abatida no Lucro."
                   />
                   <KpiCard
-                    title="Lucro (taxa da plataforma)"
+                    title={summary?.lucroLabel ?? "Lucro (taxa da plataforma)"}
                     value={formatCurrency(summary?.lucroCents ?? 0)}
                     icon={DollarSign}
                     iconColor={(summary?.lucroCents ?? 0) >= 0 ? "text-green-600" : "text-red-600"}
                     meta={`taxa − gateway (${formatCurrency(summary?.gatewayFeesCents ?? 0)}) − bônus`}
                     help="A RECEITA da plataforma no período: soma das nossas taxas de serviço nas vagas pagas, menos a tarifa do gateway e os bônus que pagamos. Se a pergunta é 'quanto a empresa ganhou?', o número é este."
+                    details={
+                      summary?.calc?.lucro
+                        ? {
+                            calc: summary.calc.lucro,
+                            source: "Por competência: a taxa das vagas contratadas no período, faturadas inclusive (antes de a fatura ser paga).",
+                          }
+                        : undefined
+                    }
                   />
                 </div>
               </div>
@@ -1014,6 +1090,8 @@ export default function FinanceiroPage() {
           isFetching={loadingRepasses}
         />
       )}
+
+      {tab === "Faturas" && <InvoicesView />}
 
       {tab === "Estornos & Cancelamentos" && (
         <TransactionsView range={range} fixedType="estorno" />

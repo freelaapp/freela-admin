@@ -1088,6 +1088,9 @@ export interface PaymentItem {
   correlationId: string;
   paymentLinkUrl: string | null;
   createdAt: string;
+  /** Meio (API-3e): `PIX`, `WALLET`, `INVOICE` (faturado, não é caixa)… Ausente em API anterior. */
+  method?: string | null;
+  provider?: string | null;
 }
 
 export async function getAdminPayments(): Promise<PaymentItem[]> {
@@ -1133,6 +1136,20 @@ export interface FinanceSummary {
   entradasCount: number;
   saidasCount: number;
   estornosCount: number;
+  /**
+   * Faturado (API-3e). O pagamento `INVOICE` é venda, não caixa: sai de entradas
+   * e estornos; a fatura paga entra nas entradas pela data do pagamento.
+   * Opcionais: ausentes em API anterior.
+   */
+  invoicedCents?: number;
+  invoicedCount?: number;
+  invoicePaymentsCents?: number;
+  /** A receber do faturado AGORA: faturas em aberto + ainda não faturado. `null` sem a leitura. */
+  receivableCents?: number | null;
+  lucroBasis?: "COMPETENCIA";
+  lucroLabel?: string;
+  /** A conta de cada número (regra: todo número com a conta e a fonte). */
+  calc?: { entradas: string; estornos: string; lucro: string; receivable: string | null };
 }
 
 export interface FinanceTransaction {
@@ -1154,6 +1171,10 @@ export interface FinanceTransaction {
    * contratante como se fosse quem recebeu.
    */
   party?: string | null;
+  /** `false` no faturado (venda, não caixa). Ausente em API anterior. */
+  isCash?: boolean;
+  /** Rótulo pronto da API ("Faturado (não é entrada de caixa)", "Fatura FAT-… paga (Pix)"). */
+  label?: string | null;
   /** A vaga por trás da transação, com custo e nossa receita já resolvidos. */
   vacancy?: {
     id: string;
