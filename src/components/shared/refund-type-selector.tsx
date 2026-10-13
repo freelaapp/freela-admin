@@ -74,15 +74,38 @@ export function RefundTypeSelector({
   );
 }
 
-/** Aviso depois de cancelar. No faturado não há dinheiro devolvido: diz o efeito na fatura. */
+/** O efeito de cada escolha na fatura, curto, para o aviso neutro. */
+const INVOICE_EFFECT: Record<RefundType, string> = {
+  FULL: "não entra",
+  PARTIAL_50: "cobra 50%",
+  NONE: "cobra 100%",
+};
+
+/**
+ * Aviso depois de cancelar. No faturado não há dinheiro devolvido: diz o efeito
+ * na fatura. Sem estorno (`NONE`), a API só cobra quando havia pagamento
+ * faturado liquidado (freelancer confirmado): sem essa certeza, o texto é neutro.
+ */
 export function cancelResultMessage(
   result: { refundAmount: number; refundType: RefundType },
   invoiced: boolean,
+  context: {
+    /** O que o admin escolheu (a API pode não estornar se o repasse já saiu). */
+    requested?: RefundType;
+    /** A linha tem freelancer aceito (logo, pagamento faturado liquidado). */
+    confirmedFreelancer?: boolean;
+  } = {},
 ): string {
   if (invoiced) {
     if (result.refundType === "FULL") return "Vaga cancelada. O serviço não entra na fatura.";
     if (result.refundType === "PARTIAL_50") return "Vaga cancelada. A fatura cobra 50% do serviço.";
-    return "Vaga cancelada. A fatura cobra o valor cheio do serviço.";
+    if (context.confirmedFreelancer) {
+      return context.requested && context.requested !== "NONE"
+        ? "Vaga cancelada sem estorno: o freelancer já recebeu o repasse. A fatura cobra o valor cheio do serviço."
+        : "Vaga cancelada. A fatura cobra o valor cheio do serviço.";
+    }
+    const effect = INVOICE_EFFECT[context.requested ?? "NONE"];
+    return `Vaga cancelada. A fatura reflete a escolha: ${effect}, se a vaga já tinha freelancer confirmado.`;
   }
   // Vaga sem pagamento confirmado (ex.: nenhum freelancer aceito) cancela sem
   // estorno — não fala de pagamento. Só mostra o estorno quando houve devolução.

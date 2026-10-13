@@ -341,7 +341,11 @@ export default function JobsPage() {
       });
       // Faturado: nada foi pago por Pix, o aviso diz o efeito na fatura.
       toast.success(
-        cancelResultMessage(result, cancelTarget.raw.paymentMethod === "INVOICE"),
+        cancelResultMessage(result, cancelTarget.raw.paymentMethod === "INVOICE", {
+          requested: cancelRefundType,
+          // Freelancer aceito = pagamento faturado liquidado; sem ele, o aviso é neutro.
+          confirmedFreelancer: cancelTarget.raw.providerId ? true : undefined,
+        }),
       );
       setCancelTarget(null);
       setCancelReason("");

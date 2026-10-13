@@ -65,8 +65,38 @@ describe("cancelResultMessage", () => {
     expect(cancelResultMessage({ refundAmount: 6240, refundType: "PARTIAL_50" }, true)).toBe(
       "Vaga cancelada. A fatura cobra 50% do serviço.",
     );
+  });
+
+  it("faturado sem estorno: só afirma o valor cheio quando a linha tem freelancer confirmado", () => {
+    // Freelancer aceito = pagamento faturado liquidado: a API retém (ou a linha do serviço cobra).
+    expect(
+      cancelResultMessage({ refundAmount: 0, refundType: "NONE" }, true, {
+        requested: "NONE",
+        confirmedFreelancer: true,
+      }),
+    ).toBe("Vaga cancelada. A fatura cobra o valor cheio do serviço.");
+    // Pediu estorno, mas a API não estornou: o repasse já tinha saído.
+    expect(
+      cancelResultMessage({ refundAmount: 0, refundType: "NONE" }, true, {
+        requested: "FULL",
+        confirmedFreelancer: true,
+      }),
+    ).toBe(
+      "Vaga cancelada sem estorno: o freelancer já recebeu o repasse. A fatura cobra o valor cheio do serviço.",
+    );
+    // Sem saber se havia freelancer confirmado: texto neutro com o efeito da escolha.
+    expect(
+      cancelResultMessage({ refundAmount: 0, refundType: "NONE" }, true, { requested: "NONE" }),
+    ).toBe(
+      "Vaga cancelada. A fatura reflete a escolha: cobra 100%, se a vaga já tinha freelancer confirmado.",
+    );
+    expect(
+      cancelResultMessage({ refundAmount: 0, refundType: "NONE" }, true, { requested: "FULL" }),
+    ).toBe(
+      "Vaga cancelada. A fatura reflete a escolha: não entra, se a vaga já tinha freelancer confirmado.",
+    );
     expect(cancelResultMessage({ refundAmount: 0, refundType: "NONE" }, true)).toBe(
-      "Vaga cancelada. A fatura cobra o valor cheio do serviço.",
+      "Vaga cancelada. A fatura reflete a escolha: cobra 100%, se a vaga já tinha freelancer confirmado.",
     );
   });
 });
