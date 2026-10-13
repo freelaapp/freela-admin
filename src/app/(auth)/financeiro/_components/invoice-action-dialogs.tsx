@@ -43,21 +43,31 @@ type ActionKey = "resend" | "secondCopy" | "markPaid" | "waiveBlock" | "adjust" 
 
 const ALWAYS: ActionState = { enabled: true, reason: null };
 
-/** O texto de cada erro da API, perto de quem precisa agir (UX 7.6). */
+/** O texto de cada código de erro das rotas de faturas (API-3e), em português comum. */
+const ERROR_TEXT: Record<string, string> = {
+  INVOICE_NOT_OPEN: "Esta fatura já foi paga ou cancelada. Recarregue a página.",
+  CHARGE_PROVIDER_UNAVAILABLE: "O código Pix ainda não está disponível.",
+  NOTHING_TO_INVOICE: "Não há serviços a faturar para esta empresa.",
+  FEATURE_DISABLED: "O faturamento está desligado: esta ação não está disponível agora.",
+  REASON_REQUIRED: REASON_HINT,
+  PAID_AT_INVALID: "A data do pagamento precisa estar entre o fechamento da fatura e hoje.",
+  WAIVE_UNTIL_INVALID: "Escolha uma data de hoje até 30 dias à frente.",
+  INVALID_AMOUNT: "Informe um valor maior que zero e até R$ 1.000.000,00.",
+  CHANNELS_REQUIRED: "Escolha pelo menos um canal: push ou e-mail.",
+  ALREADY_CLOSED_TODAY:
+    "Esta empresa já teve uma fatura fechada hoje. Os lançamentos novos entram no próximo fechamento.",
+  IDEMPOTENCY_KEY_CONFLICT:
+    "Este ajuste já foi lançado com outros dados. Feche e abra o diálogo de novo.",
+};
+
+/**
+ * O texto de cada erro da API, perto de quem precisa agir (UX 7.6). Código
+ * conhecido → texto fixo; desconhecido → a mensagem da API; sem ela, um geral.
+ */
 export function actionErrorMessage(err: unknown): string {
   const { status, code, message } = apiErrorOf(err);
-  if (code === "INVOICE_NOT_OPEN") return "Esta fatura já foi paga ou cancelada. Recarregue a página.";
-  if (code === "CHARGE_PROVIDER_UNAVAILABLE" || status === 503) {
-    return "O código Pix ainda não está disponível.";
-  }
-  if (code === "NOTHING_TO_INVOICE") return "Não há serviços a faturar para esta empresa.";
-  if (code === "FEATURE_DISABLED") {
-    return "O faturamento está desligado: esta ação não está disponível agora.";
-  }
-  if (code === "IDEMPOTENCY_KEY_CONFLICT") {
-    return "Este ajuste já foi lançado com outros dados. Feche e abra o diálogo de novo.";
-  }
-  if (code === "REASON_REQUIRED") return REASON_HINT;
+  if (code && ERROR_TEXT[code]) return ERROR_TEXT[code];
+  if (status === 503) return ERROR_TEXT.CHARGE_PROVIDER_UNAVAILABLE;
   return message ?? "Não foi possível concluir. Tente de novo.";
 }
 

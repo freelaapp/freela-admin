@@ -24,6 +24,7 @@ vi.mock("@/modules/admin/infrastructure/billing-api", () => ({
   waiveInvoiceBlock: vi.fn(),
   createBillingAdjustment: vi.fn(),
   closeInvoiceNow: vi.fn(),
+  getBillingSummary: vi.fn(),
 }));
 vi.mock("@/modules/admin/infrastructure/billing-mode-api", () => ({
   getBillingModeSettings: vi.fn(),
@@ -44,7 +45,7 @@ import {
 } from "@/modules/admin/infrastructure/billing-api";
 import { getBillingModeSettings } from "@/modules/admin/infrastructure/billing-mode-api";
 import InvoiceDetailPage from "../faturas/[id]/page";
-import { InvoiceActions } from "./invoice-action-dialogs";
+import { actionErrorMessage, InvoiceActions } from "./invoice-action-dialogs";
 
 function apiError(status: number, code: string, message = code): AxiosError {
   const config = { headers: new AxiosHeaders() };
@@ -388,5 +389,38 @@ describe("Detalhe da fatura com as ações", () => {
     );
     const messages = screen.getByRole("region", { name: "Mensagens de cobrança" });
     expect(await within(messages).findAllByText("João Lima")).not.toHaveLength(0);
+  });
+});
+
+describe("actionErrorMessage — os códigos reais da API", () => {
+  it.each([
+    ["INVOICE_NOT_OPEN", 409, "Esta fatura já foi paga ou cancelada. Recarregue a página."],
+    ["CHARGE_PROVIDER_UNAVAILABLE", 503, "O código Pix ainda não está disponível."],
+    ["NOTHING_TO_INVOICE", 409, "Não há serviços a faturar para esta empresa."],
+    ["FEATURE_DISABLED", 404, "O faturamento está desligado: esta ação não está disponível agora."],
+    ["REASON_REQUIRED", 422, "Escreva o motivo (pelo menos 5 caracteres)."],
+    ["PAID_AT_INVALID", 422, "A data do pagamento precisa estar entre o fechamento da fatura e hoje."],
+    ["WAIVE_UNTIL_INVALID", 422, "Escolha uma data de hoje até 30 dias à frente."],
+    ["INVALID_AMOUNT", 422, "Informe um valor maior que zero e até R$ 1.000.000,00."],
+    ["CHANNELS_REQUIRED", 422, "Escolha pelo menos um canal: push ou e-mail."],
+    [
+      "ALREADY_CLOSED_TODAY",
+      409,
+      "Esta empresa já teve uma fatura fechada hoje. Os lançamentos novos entram no próximo fechamento.",
+    ],
+    [
+      "IDEMPOTENCY_KEY_CONFLICT",
+      409,
+      "Este ajuste já foi lançado com outros dados. Feche e abra o diálogo de novo.",
+    ],
+  ] as const)("%s", (code, status, text) => {
+    expect(actionErrorMessage(apiError(status, code, "mensagem da API"))).toBe(text);
+  });
+
+  it("código que a tela não conhece: a mensagem da API; sem ela, um texto geral", () => {
+    expect(actionErrorMessage(apiError(422, "VACANCY_NOT_OF_CONTRACTOR", "A vaga é de outra empresa."))).toBe(
+      "A vaga é de outra empresa.",
+    );
+    expect(actionErrorMessage(new Error("rede"))).toBe("Não foi possível concluir. Tente de novo.");
   });
 });
