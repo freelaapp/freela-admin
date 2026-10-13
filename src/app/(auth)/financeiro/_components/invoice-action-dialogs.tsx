@@ -22,6 +22,7 @@ import {
   useCloseInvoiceNow,
   useIssueSecondCopy,
   useMarkInvoicePaid,
+  useReissueInvoiceNfse,
   useResendInvoice,
   useWaiveInvoiceBlock,
 } from "@/modules/admin/application/use-admin-billing";
@@ -177,6 +178,7 @@ function ActionDialog({
   description,
   children,
   submitLabel,
+  pendingLabel = "Salvando...",
   canSubmit,
   pending,
   error,
@@ -187,6 +189,8 @@ function ActionDialog({
   description?: React.ReactNode;
   children: React.ReactNode;
   submitLabel: string;
+  /** O texto do botão enquanto a ação roda (padrão: "Salvando..."). */
+  pendingLabel?: string;
   canSubmit: boolean;
   pending: boolean;
   error: string | null;
@@ -225,24 +229,25 @@ function ActionDialog({
             {error}
           </p>
         )}
+        {/* No celular, os botões ocupam a largura toda (um embaixo do outro). */}
         <DialogFooter className="sticky bottom-0 bg-white py-3 sm:static sm:py-0">
           <Button
             variant="outline"
             onClick={onClose}
             disabled={pending}
-            className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]"
+            className="w-full border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7] sm:w-auto"
           >
             Cancelar
           </Button>
           <Button
             onClick={onSubmit}
             disabled={!canSubmit || pending}
-            className="bg-[#eca826] text-white hover:bg-[#d4951e]"
+            className="w-full bg-[#eca826] text-white hover:bg-[#d4951e] sm:w-auto"
           >
             {pending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                Salvando...
+                {pendingLabel}
               </>
             ) : (
               submitLabel
@@ -662,6 +667,121 @@ function CloseNowDialog({ detail, onClose }: DialogProps) {
         </>
       }
       submitLabel="Fechar fatura agora"
+      canSubmit={valid}
+      pending={mutation.isPending}
+      error={error}
+      onSubmit={submit}
+      onClose={onClose}
+    >
+      <ReasonField value={reason} onChange={setReason} />
+    </ActionDialog>
+  );
+}
+
+// ─── Reemitir a nota fiscal (NFS-e recusada) ─────────────────────────────────
+
+const REISSUE_TEXT =
+  "A nota vai de novo para a prefeitura com os dados ATUAIS da empresa (razão social, CNPJ, endereço, telefone e e-mail). A fatura não muda. Se a recusa foi por dado errado, corrija o cadastro da empresa antes de reemitir.";
+
+/**
+ * O erro da reemissão: a `message` da API primeiro (ela diz qual chave está
+ * desligada, se a nota já não está recusada etc.); sem ela, o texto das irmãs.
+ */
+function reissueErrorMessage(err: unknown): string {
+  return apiErrorOf(err).message ?? actionErrorMessage(err);
+}
+
+/**
+ * "Reemitir nota" no quadro da NFS-e da fatura. Só aparece quando a API manda
+ * `actions.nfseReissue` (API antiga não manda); desabilitado, mostra o porquê,
+ * como as outras ações.
+ */
+export function NfseReissueAction({ detail }: { detail: AdminInvoiceDetail }) {
+  const [open, setOpen] = useState(false);
+  // Cada abertura remonta o diálogo: motivo limpo.
+  const [opening, setOpening] = useState(0);
+  const reasonId = useId();
+  const state = detail.actions.nfseReissue;
+  if (!state) return null;
+  const why = !state.enabled && state.reason ? state.reason : null;
+
+  return (
+    <div className="mt-3 space-y-1.5">
+      <Button
+        variant="outline"
+        disabled={!state.enabled}
+        aria-describedby={why ? reasonId : undefined}
+        onClick={() => {
+          setOpening((n) => n + 1);
+          setOpen(true);
+        }}
+        className="min-h-11 w-full sm:min-h-0 sm:w-auto"
+      >
+        Reemitir nota
+      </Button>
+      {why && (
+        <p id={reasonId} className="text-xs text-[#737373]">
+          {`Reemitir nota: ${why}`}
+        </p>
+      )}
+      {open && <NfseReissueDialog key={opening} detail={detail} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+function NfseReissueDialog({ detail, onClose }: DialogProps) {
+  const mutation = useReissueInvoiceNfse(detail.invoice.id);
+  // Reemitir é ato fiscal: o clique duplo não pode mandar duas notas.
+  const submitting = useRef(false);
+  const { reason, setReason, valid } = useReason();
+  const [error, setError] = useState<string | null>(null);
+  const refusal =
+    detail.nfse?.status === "FAILED"
+      ? (detail.nfse.failureReason ?? "a emissora não informou o motivo")
+      : null;
+
+  const submit = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setError(null);
+    try {
+      const result = await mutation.mutateAsync({ reason: reason.trim() });
+      if (result.status === "PENDING") {
+        toast.success("Nota enviada à prefeitura. A resposta chega em alguns minutos.");
+      } else if (result.status === "ISSUED") {
+        toast.success(result.number ? `Nota emitida: nº ${result.number}.` : "Nota emitida.");
+      } else if (result.status === "FAILED") {
+        toast.error(
+          `A prefeitura recusou de novo: ${result.failureReason ?? "a emissora não informou o motivo"}`,
+          { description: "A nota volta ao reenvio automático com os dados novos." },
+        );
+      } else {
+        toast.info("Pedido de reemissão registrado. Confira a situação no quadro da nota.");
+      }
+      onClose();
+    } catch (err) {
+      setError(reissueErrorMessage(err));
+    } finally {
+      submitting.current = false;
+    }
+  };
+
+  return (
+    <ActionDialog
+      title={`Reemitir a nota fiscal da fatura ${detail.invoice.number}`}
+      description={
+        <div className="space-y-3">
+          {refusal && (
+            <div className="rounded-lg border border-[#fecaca] bg-[#fef2f2] p-2.5">
+              <p className="text-xs font-medium text-[#b91c1c]">Motivo da recusa da prefeitura</p>
+              <p className="mt-0.5 break-words text-[#1d1d1b]">{refusal}</p>
+            </div>
+          )}
+          <p>{REISSUE_TEXT}</p>
+        </div>
+      }
+      submitLabel="Reemitir nota"
+      pendingLabel="Enviando..."
       canSubmit={valid}
       pending={mutation.isPending}
       error={error}

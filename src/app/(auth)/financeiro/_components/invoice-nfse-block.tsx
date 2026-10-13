@@ -29,17 +29,26 @@ import { TONES } from "./invoice-situation-badge";
 const NOTE_RULE =
   "Uma nota por fatura (contador, 13/10): taxa de intermediação de cada vaga, menos cupom e estorno parcial automático; o valor do freelancer, o seguro e a taxa Pix não entram. Competência: dia do fechamento da fatura, em Brasília (dono, 13/10). Tomador: dados da empresa no fechamento. Número e PDF: da prefeitura, na autorização.";
 
+/** Na reemissão manual o tomador não é o do fechamento: são os dados atuais da empresa. */
+const REISSUE_TAKER_RULE =
+  'Na reemissão ("Reemitir nota"), o tomador sai com os dados atuais da empresa.';
+
+/** O caminho depois dos reenvios automáticos, quando a API oferece a reemissão. */
+const REISSUE_PATH = 'Depois dos reenvios automáticos, o caminho é o botão "Reemitir nota".';
+
 /**
  * A regra do reenvio automático da nota FAILED (API-3g, `invoice-nfse-retry.ts`):
  * até 6 reenvios, na varredura das :20, com a espera mínima de cada um, só na
- * janela de 14 dias depois do pagamento. Sem reemissão manual.
+ * janela de 14 dias depois do pagamento. Depois deles, o "Reemitir nota" (quando
+ * a API manda `actions.nfseReissue`).
  */
-function retryRule(retryUntil: string): string {
-  return `reenvio automático da nota da fatura: até 6 reenvios, na varredura dos 20 min de cada hora, com espera mínima de 1 h, 3 h, 6 h, 12 h, 24 h e 24 h depois do envio anterior (o 1º conta da criação da nota), só nos 14 dias depois do pagamento (até ${ddmm(retryUntil)}). Tomador sem CPF/CNPJ não é reenviado. A nota da fatura não tem reemissão manual.`;
+function retryRule(retryUntil: string, reissueAvailable: boolean): string {
+  const rule = `reenvio automático da nota da fatura: até 6 reenvios, na varredura dos 20 min de cada hora, com espera mínima de 1 h, 3 h, 6 h, 12 h, 24 h e 24 h depois do envio anterior (o 1º conta da criação da nota), só nos 14 dias depois do pagamento (até ${ddmm(retryUntil)}). Tomador sem CPF/CNPJ não é reenviado.`;
+  return reissueAvailable ? `${rule} ${REISSUE_PATH}` : rule;
 }
 
 const NO_RETRY_SOURCE =
-  "os reenvios automáticos acabaram (6 reenvios feitos, ou falha que reenviar não resolve, como tomador sem CPF/CNPJ). A nota da fatura não tem reemissão manual.";
+  "os reenvios automáticos acabaram (6 reenvios feitos, ou falha que reenviar não resolve, como tomador sem CPF/CNPJ).";
 
 const STATUS_BADGE: Record<InvoiceNfseStatus, { tone: SituationTone; icon: LucideIcon; text: string }> = {
   PENDING: { tone: "warning", icon: Clock, text: "Sendo emitida" },
@@ -52,15 +61,19 @@ const STATUS_BADGE: Record<InvoiceNfseStatus, { tone: SituationTone; icon: Lucid
  * Bloco "Nota fiscal (NFS-e)" do detalhe da fatura no admin (AD2c.2; UX 6.10.3).
  * Uma nota por fatura paga ou quitada com crédito. Todo número com a conta
  * (`calc` da API) e a fonte (`source` + a regra). A FAILED mostra o motivo e a
- * próxima tentativa automática; a nota da fatura não tem "Reemitir".
+ * próxima tentativa automática; o botão "Reemitir nota" fica logo abaixo do
+ * bloco (`NfseReissueAction`), e o texto só aponta para ele quando ele existe.
  */
 export function InvoiceNfseBlock({
   nfse,
   invoiceStatus,
+  reissueAvailable = false,
   now = Date.now(),
 }: {
   nfse: AdminInvoiceNfse | null;
   invoiceStatus: InvoiceStatus;
+  /** A API manda `actions.nfseReissue` (há o botão "Reemitir nota"). */
+  reissueAvailable?: boolean;
   /** Para decidir se a hora do reenvio já passou (testes fixam o relógio). */
   now?: number;
 }) {
@@ -105,7 +118,9 @@ export function InvoiceNfseBlock({
 
       <div className="space-y-0.5 text-xs">
         <p className="text-[#525252]">{`Conta: ${nfse.calc || "—"}`}</p>
-        <p className="text-[#737373]">{`Fonte: ${nfse.source || "—"} ${NOTE_RULE}`}</p>
+        <p className="text-[#737373]">
+          {`Fonte: ${nfse.source || "—"} ${NOTE_RULE}${reissueAvailable ? ` ${REISSUE_TAKER_RULE}` : ""}`}
+        </p>
       </div>
 
       {nfse.status === "ISSUED" &&
@@ -127,13 +142,23 @@ export function InvoiceNfseBlock({
           </p>
         ))}
 
-      {nfse.status === "FAILED" && <FailedNote nfse={nfse} now={now} />}
+      {nfse.status === "FAILED" && (
+        <FailedNote nfse={nfse} now={now} reissueAvailable={reissueAvailable} />
+      )}
     </div>
   );
 }
 
-function FailedNote({ nfse, now }: { nfse: AdminInvoiceNfse; now: number }) {
-  const retry = retryText(nfse, now);
+function FailedNote({
+  nfse,
+  now,
+  reissueAvailable,
+}: {
+  nfse: AdminInvoiceNfse;
+  now: number;
+  reissueAvailable: boolean;
+}) {
+  const retry = retryText(nfse, now, reissueAvailable);
   return (
     <div className="space-y-1 rounded-lg border border-[#fecaca] bg-[#fef2f2] p-2.5">
       <p className="text-[#b91c1c]">
@@ -149,14 +174,23 @@ function FailedNote({ nfse, now }: { nfse: AdminInvoiceNfse; now: number }) {
  * A linha do reenvio. `retryUntil` nulo é o único sinal de "acabou" (a API zera
  * os dois campos quando para); a tela não recalcula a janela de 14 dias.
  */
-function retryText(nfse: AdminInvoiceNfse, now: number): { text: string; source: string } {
+function retryText(
+  nfse: AdminInvoiceNfse,
+  now: number,
+  reissueAvailable: boolean,
+): { text: string; source: string } {
   if (!nfse.retryUntil) {
-    return {
-      text: "Sem nova tentativa automática. Fale com o time de tecnologia.",
-      source: NO_RETRY_SOURCE,
-    };
+    return reissueAvailable
+      ? {
+          text: 'Sem nova tentativa automática. Se o motivo for dado errado, corrija o cadastro da empresa e use "Reemitir nota".',
+          source: `${NO_RETRY_SOURCE} O caminho agora é o botão "Reemitir nota", com os dados atuais da empresa.`,
+        }
+      : {
+          text: "Sem nova tentativa automática. Fale com o time de tecnologia.",
+          source: NO_RETRY_SOURCE,
+        };
   }
-  const source = retryRule(nfse.retryUntil);
+  const source = retryRule(nfse.retryUntil, reissueAvailable);
   if (!nfse.nextRetryAt) {
     return { text: `Reenvio automático pendente (até ${ddmm(nfse.retryUntil)}).`, source };
   }

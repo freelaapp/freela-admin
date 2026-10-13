@@ -17,6 +17,7 @@ import {
   issueSecondCopy,
   listAdminInvoices,
   markInvoicePaid,
+  reissueInvoiceNfse,
   resendInvoice,
   waiveInvoiceBlock,
 } from "./billing-api";
@@ -247,6 +248,63 @@ describe("billing-api", () => {
         competenceDate: null,
       });
     }
+  });
+
+  it("reemitir a nota: POST /nfse/reissue com o motivo limpo; devolve situação, número e motivo", async () => {
+    post.mockResolvedValueOnce({
+      data: { data: { status: "PENDING", number: null, failureReason: null } },
+    });
+    await expect(
+      reissueInvoiceNfse("inv 1", { reason: "  Telefone corrigido no cadastro  " }),
+    ).resolves.toEqual({ status: "PENDING", number: null, failureReason: null });
+    expect(post).toHaveBeenLastCalledWith("/billing/invoices/inv%201/nfse/reissue", {
+      reason: "Telefone corrigido no cadastro",
+    });
+
+    post.mockResolvedValueOnce({ data: { data: { status: "ISSUED", number: "456", failureReason: null } } });
+    await expect(reissueInvoiceNfse("inv-1", { reason: "Dados corrigidos" })).resolves.toEqual({
+      status: "ISSUED",
+      number: "456",
+      failureReason: null,
+    });
+
+    post.mockResolvedValueOnce({
+      data: { data: { status: "FAILED", number: "", failureReason: "CEP do tomador não encontrado" } },
+    });
+    await expect(reissueInvoiceNfse("inv-1", { reason: "Dados corrigidos" })).resolves.toEqual({
+      status: "FAILED",
+      number: null,
+      failureReason: "CEP do tomador não encontrado",
+    });
+  });
+
+  it("reemitir a nota: situação desconhecida ou corpo vazio viram null (a tela não afirma 'emitida')", async () => {
+    post.mockResolvedValueOnce({ data: { data: { status: "NONE", number: 123 } } });
+    await expect(reissueInvoiceNfse("inv-1", { reason: "Dados corrigidos" })).resolves.toEqual({
+      status: null,
+      number: null,
+      failureReason: null,
+    });
+    post.mockResolvedValueOnce({ data: { data: null } });
+    await expect(reissueInvoiceNfse("inv-1", { reason: "Dados corrigidos" })).resolves.toEqual({
+      status: null,
+      number: null,
+      failureReason: null,
+    });
+  });
+
+  it("reemitir a nota: o erro da API chega inteiro para a tela ler a mensagem", async () => {
+    post.mockRejectedValueOnce(
+      axiosError(409, {
+        error: { code: "NFSE_NOT_FAILED", message: "A nota desta fatura não está recusada." },
+      }),
+    );
+    const err = await reissueInvoiceNfse("inv-1", { reason: "Dados corrigidos" }).catch((e) => e);
+    expect(billingErrorOf(err)).toEqual({
+      status: 409,
+      code: "NFSE_NOT_FAILED",
+      message: "A nota desta fatura não está recusada.",
+    });
   });
 
   it("2ª via sem cobrança devolve null", async () => {

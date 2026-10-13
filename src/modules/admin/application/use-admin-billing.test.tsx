@@ -14,6 +14,7 @@ vi.mock("../infrastructure/billing-api", () => ({
   waiveInvoiceBlock: vi.fn(),
   createBillingAdjustment: vi.fn(),
   closeInvoiceNow: vi.fn(),
+  reissueInvoiceNfse: vi.fn(),
 }));
 
 import {
@@ -23,6 +24,7 @@ import {
   issueSecondCopy,
   listAdminInvoices,
   markInvoicePaid,
+  reissueInvoiceNfse,
   resendInvoice,
   waiveInvoiceBlock,
 } from "../infrastructure/billing-api";
@@ -34,6 +36,7 @@ import {
   useCloseInvoiceNow,
   useIssueSecondCopy,
   useMarkInvoicePaid,
+  useReissueInvoiceNfse,
   useResendInvoice,
   useWaiveInvoiceBlock,
 } from "./use-admin-billing";
@@ -148,6 +151,16 @@ describe("use-admin-billing — cada ação invalida a lista, o detalhe e o resu
     await runAction(() => useCloseInvoiceNow("owner-1"), { reason: "Fim do contrato" });
     expect(closeInvoiceNow).toHaveBeenCalledWith("owner-1", { reason: "Fim do contrato" });
   });
+
+  it("reemitir a nota", async () => {
+    vi.mocked(reissueInvoiceNfse).mockResolvedValue({
+      status: "FAILED",
+      number: null,
+      failureReason: "CEP inválido",
+    });
+    await runAction(() => useReissueInvoiceNfse("inv-1"), { reason: "Telefone corrigido" });
+    expect(reissueInvoiceNfse).toHaveBeenCalledWith("inv-1", { reason: "Telefone corrigido" });
+  });
 });
 
 function apiError(status: number, code: string): AxiosError {
@@ -187,6 +200,24 @@ describe("use-admin-billing — erro de dado velho recarrega a fatura", () => {
     vi.mocked(closeInvoiceNow).mockRejectedValue(apiError(409, "NOTHING_TO_INVOICE"));
     await failAction(() => useCloseInvoiceNow("owner-1"), { reason: "Fim do contrato" });
     await waitFor(expectAllInvalidated);
+  });
+
+  it.each([
+    ["INVOICE_NOT_PAID", 409],
+    ["NFSE_NOT_FOUND", 404],
+    ["NFSE_NOT_FAILED", 409],
+    ["NFSE_REISSUE_IN_PROGRESS", 409],
+    ["NFSE_DISABLED", 409],
+  ] as const)("%s no 'reemitir a nota' também recarrega", async (code, status) => {
+    vi.mocked(reissueInvoiceNfse).mockRejectedValue(apiError(status, code));
+    await failAction(() => useReissueInvoiceNfse("inv-1"), { reason: "Telefone corrigido" });
+    await waitFor(expectAllInvalidated);
+  });
+
+  it("TAKER_WITHOUT_DOCUMENT no 'reemitir a nota' não recarrega (é o cadastro, não a tela)", async () => {
+    vi.mocked(reissueInvoiceNfse).mockRejectedValue(apiError(422, "TAKER_WITHOUT_DOCUMENT"));
+    await failAction(() => useReissueInvoiceNfse("inv-1"), { reason: "Telefone corrigido" });
+    expect(qc.getQueryState(billingKeys.detail("inv-1"))?.isInvalidated).toBe(false);
   });
 
   it("erro de campo (REASON_REQUIRED) não recarrega nada", async () => {

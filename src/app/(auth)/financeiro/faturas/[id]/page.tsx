@@ -23,7 +23,7 @@ import {
   type InvoiceReportItem,
 } from "@/modules/admin/infrastructure/billing-api";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
-import { InvoiceActions } from "../../_components/invoice-action-dialogs";
+import { InvoiceActions, NfseReissueAction } from "../../_components/invoice-action-dialogs";
 import { InvoiceNfseBlock } from "../../_components/invoice-nfse-block";
 import { InvoiceSituationBadge } from "../../_components/invoice-situation-badge";
 
@@ -31,8 +31,8 @@ const BACK_HREF = "/financeiro?aba=faturas";
 
 /**
  * Detalhe de uma fatura no admin (UX 7.5): cabeçalho com as datas, total com a
- * conta e o tomador fotografado, a nota fiscal da fatura (UX 6.10.3), cobranças
- * Pix, linhas com a conta e a fonte,
+ * conta e o tomador fotografado, a nota fiscal da fatura (UX 6.10.3) com o
+ * "Reemitir nota" da recusada, cobranças Pix, linhas com a conta e a fonte,
  * serviços em conferência, mensagens de cobrança e a trilha das ações. Página
  * (não modal): tem link direto, usado pelo alerta de pagamento em dobro.
  */
@@ -252,7 +252,12 @@ function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
       </Section>
 
       <Section title="Nota fiscal (NFS-e)">
-        <InvoiceNfseBlock nfse={detail.nfse ?? null} invoiceStatus={invoice.status} />
+        <InvoiceNfseBlock
+          nfse={detail.nfse ?? null}
+          invoiceStatus={invoice.status}
+          reissueAvailable={!!detail.actions.nfseReissue}
+        />
+        <NfseReissueAction detail={detail} />
       </Section>
 
       <Section title="Ações">

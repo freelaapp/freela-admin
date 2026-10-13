@@ -16,6 +16,7 @@ import {
   issueSecondCopy,
   listAdminInvoices,
   markInvoicePaid,
+  reissueInvoiceNfse,
   resendInvoice,
   waiveInvoiceBlock,
   type AdjustmentInput,
@@ -87,10 +88,21 @@ function invalidateAfterAction(qc: QueryClient) {
 
 /**
  * Erros que dizem que a tela está velha (a fatura já foi paga ou cancelada, a
- * chave foi desligada, não havia nada a faturar): recarrega tudo, para o
+ * chave foi desligada, não havia nada a faturar; na reemissão da nota: a nota
+ * já não está recusada, outra reemissão está em andamento, a fatura não está
+ * paga, a nota sumiu ou a emissão está desligada): recarrega tudo, para o
  * detalhe não seguir com as ações ligadas.
  */
-const STALE_CODES = new Set(["INVOICE_NOT_OPEN", "FEATURE_DISABLED", "NOTHING_TO_INVOICE"]);
+const STALE_CODES = new Set([
+  "INVOICE_NOT_OPEN",
+  "FEATURE_DISABLED",
+  "NOTHING_TO_INVOICE",
+  "INVOICE_NOT_PAID",
+  "NFSE_NOT_FOUND",
+  "NFSE_NOT_FAILED",
+  "NFSE_REISSUE_IN_PROGRESS",
+  "NFSE_DISABLED",
+]);
 
 function refreshIfStale(qc: QueryClient, error: unknown) {
   const code = apiErrorOf(error).code;
@@ -147,6 +159,16 @@ export function useCloseInvoiceNow(contractorUserId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { reason: string }) => closeInvoiceNow(contractorUserId, input),
+    onSuccess: () => invalidateAfterAction(qc),
+    onError: (error) => refreshIfStale(qc, error),
+  });
+}
+
+/** "Reemitir nota": a NFS-e recusada da fatura vai de novo para a prefeitura. */
+export function useReissueInvoiceNfse(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { reason: string }) => reissueInvoiceNfse(id, input),
     onSuccess: () => invalidateAfterAction(qc),
     onError: (error) => refreshIfStale(qc, error),
   });

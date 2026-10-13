@@ -43,7 +43,8 @@ import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-canc
  *
  * Vaga faturada (API-3g, N10/N11): a NFS-e é a da fatura. A linha da NF-e leva
  * "NFS-e na fatura FAT-…" com link para a fatura, sem "Reemitir" e sem "Abrir"
- * (não existe nota da vaga; a reemissão por vaga responde 404).
+ * (não existe nota da vaga; a reemissão por vaga responde 404). A nota da
+ * fatura é reemitida no detalhe da fatura ("Reemitir nota").
  */
 export function VacancyDocumentsCell({
   documents,
@@ -152,7 +153,8 @@ export function VacancyDocumentsCell({
         {DOCUMENT_KEYS.map(({ key, label }) => {
           const badge = documentBadge(documents[key]);
           const motivo = detail?.[key];
-          // A NFS-e da vaga faturada é a da fatura: nada a abrir nem a reemitir aqui.
+          // A NFS-e da vaga faturada é a da fatura: nada a abrir nem a reemitir aqui
+          // (a reemissão fica no detalhe da fatura).
           const invoicedNfse = key === "nfse" && invoiced;
           const openable =
             Boolean(vacancyId) && !invoicedNfse && canOpenDocument(key, documents[key]);

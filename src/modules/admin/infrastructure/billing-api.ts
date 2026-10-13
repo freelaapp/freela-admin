@@ -315,6 +315,11 @@ export interface AdminInvoiceDetail {
     secondCopy: ActionState;
     markPaid: ActionState & { defaultAmountInCents: number; defaultPaidDate: DateKey };
     waiveBlock: ActionState & { suggestedUntil: DateKey; maxUntil: DateKey };
+    /**
+     * "Reemitir nota" da NFS-e RECUSADA da fatura. Ausente = API anterior à
+     * reemissão manual: a tela não mostra o botão.
+     */
+    nfseReissue?: ActionState;
   };
   /**
    * A NFS-e da fatura (API-3g). `null` antes do pagamento, na cancelada, na
@@ -410,6 +415,22 @@ export interface WaiveBlockResult {
   until: DateKey;
   situation: AdminInvoiceSituation;
 }
+
+/** Situação da nota logo depois da reemissão. */
+export type InvoiceNfseReissueStatus = "PENDING" | "ISSUED" | "FAILED";
+
+export interface InvoiceNfseReissueResult {
+  /**
+   * PENDING = enviada à prefeitura (responde em minutos); ISSUED = emitida na
+   * hora; FAILED = recusada de novo. `null` = a API mandou outra coisa (a tela
+   * não afirma o resultado, só recarrega a nota).
+   */
+  status: InvoiceNfseReissueStatus | null;
+  number: string | null;
+  failureReason: string | null;
+}
+
+const REISSUE_STATUSES: ReadonlySet<string> = new Set(["PENDING", "ISSUED", "FAILED"]);
 
 export interface AdjustmentInput {
   /** DEBIT = cobrança, CREDIT = desconto. */
@@ -526,6 +547,29 @@ export async function createBillingAdjustment(
     }),
   );
   return res.data.data;
+}
+
+/**
+ * Reemite a NFS-e RECUSADA da fatura (FINANCE). A nota vai de novo para a
+ * prefeitura com os dados ATUAIS da empresa; a fatura não muda. A resposta é
+ * lida campo a campo: situação desconhecida vira `null`, nunca um "emitida".
+ */
+export async function reissueInvoiceNfse(
+  id: string,
+  input: { reason: string },
+): Promise<InvoiceNfseReissueResult> {
+  const res = await billingApi.post(`${invoicePath(id)}/nfse/reissue`, {
+    reason: input.reason.trim(),
+  });
+  const raw = (res.data?.data ?? {}) as Record<string, unknown>;
+  return {
+    status:
+      typeof raw.status === "string" && REISSUE_STATUSES.has(raw.status)
+        ? (raw.status as InvoiceNfseReissueStatus)
+        : null,
+    number: textOrNull(raw.number),
+    failureReason: textOrNull(raw.failureReason),
+  };
 }
 
 /** Fecha agora uma fatura extraordinária com o que está aberto. */

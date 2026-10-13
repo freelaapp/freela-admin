@@ -20,7 +20,8 @@ export interface VacancyNfse {
 /**
  * Vaga faturada (API-3g, plano §17, N10/N11): a NFS-e é UMA por fatura, não da
  * vaga. A célula de documentos aponta para a fatura e não oferece "Reemitir"
- * (a nota da fatura não tem reemissão manual; a da vaga responde 404).
+ * (a nota da fatura é reemitida no detalhe da fatura, botão "Reemitir nota";
+ * a reemissão por vaga responde 404).
  * `null` = vaga faturada que ainda não entrou numa fatura (ou que o cupom zerou).
  */
 export interface VacancyNfseInvoice {

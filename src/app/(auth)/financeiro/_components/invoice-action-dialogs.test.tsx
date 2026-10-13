@@ -25,6 +25,7 @@ vi.mock("@/modules/admin/infrastructure/billing-api", () => ({
   createBillingAdjustment: vi.fn(),
   closeInvoiceNow: vi.fn(),
   getBillingSummary: vi.fn(),
+  reissueInvoiceNfse: vi.fn(),
 }));
 vi.mock("@/modules/admin/infrastructure/billing-mode-api", () => ({
   getBillingModeSettings: vi.fn(),
