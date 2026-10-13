@@ -1,4 +1,5 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { BillingMode } from "./billing-mode-api";
 
 /**
  * Burocracias da empresa (API #582, ADR-016): contrato assinado, RPA e
@@ -34,8 +35,8 @@ export type SettingsChangeOrigin = "SIGNUP" | "PROFILE" | "ADMIN" | "SYSTEM";
 export type SettingsChangeChannel = "WEB" | "APP" | "ADMIN";
 
 export interface ContractorSettingsView extends PaperworkPrefs {
-  /** Constante até a Fase 3 (faturamento pós-pago). */
-  billingMode: "PREPAID";
+  /** Modo de cobrança efetivo (Fase 3); `PREPAID` com o faturamento desligado. */
+  billingMode: BillingMode;
   editable: boolean;
   readOnlyReason: "FEATURE_DISABLED" | "OWNER_ONLY" | null;
   updatedAt: string | null;

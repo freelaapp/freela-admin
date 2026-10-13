@@ -1,18 +1,20 @@
 "use client";
 
 import { useId, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Loader2, Smartphone, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatInstantDate } from "@/lib/date.utils";
 import { cn } from "@/lib/utils";
 import {
   useAdminBillingMode,
   useUpdateAdminBillingMode,
 } from "@/modules/admin/application/use-admin-billing-mode";
+import { useAdminContractorSettings } from "@/modules/admin/application/use-admin-contractor-settings";
 import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import type {
   BillingMode,
@@ -21,6 +23,7 @@ import type {
   UpdateBillingModeInput,
 } from "@/modules/admin/infrastructure/billing-mode-api";
 import {
+  appUsageHint,
   BILLING_MODE_OPTION,
   BILLING_MODES,
   CYCLE_DESCRIPTION,
@@ -30,6 +33,7 @@ import {
   missingFromServer,
   missingPhrase,
   requirementRows,
+  todayKeyBrasilia,
   whatChanges,
 } from "../_lib/billing-presentation";
 import { isValidReason, REASON_ERROR } from "../_lib/paperwork-presentation";
@@ -56,8 +60,22 @@ export interface BillingTabProps {
  */
 export function BillingTab(props: BillingTabProps) {
   const billing = useAdminBillingMode(props.contractorUserId);
+  // Sem FINANCE o GET da cobrança responde 403: o modo vem das preferências.
+  const forbidden = apiErrorOf(billing.error).status === 403;
+  const settings = useAdminContractorSettings(props.contractorUserId, forbidden);
+  // O PATCH respondeu 404 FEATURE_DISABLED: a chave foi desligada com a aba aberta.
+  const [featureOff, setFeatureOff] = useState(false);
 
   if (billing.isLoading) return <RadiosSkeleton />;
+  if (forbidden) {
+    return (
+      <ReadOnlyBilling
+        mode={settings.data?.billingMode ?? null}
+        notice="Só quem tem acesso ao Financeiro muda o modo de cobrança."
+        showRadios
+      />
+    );
+  }
   if (billing.isError || !billing.data) {
     return (
       <div className="rounded-lg border border-[#e5e5e5] p-4 text-sm text-[#1d1d1b]">
@@ -68,7 +86,80 @@ export function BillingTab(props: BillingTabProps) {
       </div>
     );
   }
-  return <BillingForm {...props} view={billing.data} />;
+  if (featureOff || !billing.data.editable) {
+    return (
+      <ReadOnlyBilling
+        mode={featureOff ? "PREPAID" : billing.data.mode}
+        notice="O faturamento ainda não está ligado. Por enquanto, toda empresa segue no pré-pago."
+      />
+    );
+  }
+  return (
+    <BillingForm
+      {...props}
+      view={billing.data}
+      onFeatureDisabled={() => {
+        setFeatureOff(true);
+        void billing.refetch();
+      }}
+    />
+  );
+}
+
+/** Modo atual em texto, com o porquê de não dar para mudar (403 ou chave desligada). */
+function ReadOnlyBilling({
+  mode,
+  notice,
+  showRadios = false,
+}: {
+  mode: BillingMode | null;
+  notice: string;
+  showRadios?: boolean;
+}) {
+  const baseId = useId();
+  return (
+    <div className="space-y-4 text-sm">
+      <p className="text-[#1d1d1b]">
+        <span>Modo atual:</span>{" "}
+        <strong className="font-semibold">{mode ? currentModeLabel(mode) : "carregando…"}</strong>
+      </p>
+      <div className="flex items-start gap-3 rounded-lg border border-[#e5e5e5] bg-[#f7f7f7] p-3">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#737373]" aria-hidden="true" />
+        <p className="text-[#525252]">{notice}</p>
+      </div>
+      {showRadios && (
+        <fieldset disabled className="space-y-2">
+          <legend className="mb-2 text-sm font-semibold text-[#1d1d1b]">Modo de cobrança</legend>
+          {BILLING_MODES.map((option) => {
+            const optionId = `${baseId}-${option}`;
+            return (
+              <div key={option} className="rounded-lg border border-[#e5e5e5] px-3 py-2.5 opacity-70">
+                <div className="flex items-start gap-2.5">
+                  <input
+                    type="radio"
+                    id={optionId}
+                    name={`${baseId}-mode`}
+                    checked={mode === option}
+                    readOnly
+                    aria-describedby={`${optionId}-description`}
+                    className="mt-1 h-4 w-4 shrink-0 accent-[#eca826]"
+                  />
+                  <div className="min-w-0">
+                    <label htmlFor={optionId} className="text-sm font-medium text-[#1d1d1b]">
+                      {BILLING_MODE_OPTION[option]}
+                    </label>
+                    <p id={`${optionId}-description`} className="mt-0.5 text-xs text-[#737373]">
+                      {CYCLE_DESCRIPTION[option]}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </fieldset>
+      )}
+    </div>
+  );
 }
 
 function BillingForm({
@@ -79,7 +170,8 @@ function BillingForm({
   blockEnabled = false,
   onClose,
   onEditCompany,
-}: BillingTabProps & { view: BillingModeSettings }) {
+  onFeatureDisabled,
+}: BillingTabProps & { view: BillingModeSettings; onFeatureDisabled: () => void }) {
   const baseId = useId();
   const emailId = `${baseId}-email`;
   const reasonId = `${baseId}-reason`;
@@ -103,6 +195,7 @@ function BillingForm({
     cnpj: companyDocument,
     contactEmail: view.contactEmail,
   });
+  const appHint = appUsageHint(view.appUsage.lastAppDay, todayKeyBrasilia());
 
   const save = async () => {
     const patch: UpdateBillingModeInput = { reason: reason.trim() };
@@ -129,6 +222,11 @@ function BillingForm({
         setServerMissing(fields);
         return;
       }
+      // A chave foi desligada entre abrir e salvar: estado calmo, não erro.
+      if (code === "FEATURE_DISABLED") {
+        onFeatureDisabled();
+        return;
+      }
       if (code === "BILLING_EMAIL_INVALID") {
         setEmailError(message ?? "O e-mail do financeiro não parece válido.");
         return;
@@ -150,7 +248,20 @@ function BillingForm({
         <p className="text-sm text-[#1d1d1b]">
           <span>Modo atual:</span>{" "}
           <strong className="font-semibold">{currentModeLabel(view.mode)}</strong>
+          {view.since && (
+            <>
+              {" "}
+              <span className="text-[#737373]">{`desde ${formatInstantDate(view.since)}`}</span>
+            </>
+          )}
         </p>
+
+        {appHint && (
+          <div className="flex items-start gap-2 rounded-lg border border-[#fde68a] bg-[#fffbeb] p-3 text-sm text-[#b45309]">
+            <Smartphone className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <p>{appHint}</p>
+          </div>
+        )}
 
         <fieldset className="space-y-2">
           <legend className="mb-2 text-sm font-semibold text-[#1d1d1b]">Modo de cobrança</legend>

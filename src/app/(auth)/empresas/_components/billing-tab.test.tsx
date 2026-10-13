@@ -21,6 +21,7 @@ import {
   updateBillingMode,
   type BillingModeSettings,
 } from "@/modules/admin/infrastructure/billing-mode-api";
+import { getContractorSettings } from "@/modules/admin/infrastructure/contractor-settings-api";
 import { BillingTab } from "./billing-tab";
 
 const BILLING_VIEW: BillingModeSettings = {
@@ -322,5 +323,106 @@ describe("BillingTab — validação e salvar", () => {
       "O e-mail do financeiro não parece válido. Confira e tente de novo.",
     );
     expect(email).toHaveAttribute("aria-invalid", "true");
+  });
+});
+
+/** `AAAA-MM-DD` de N dias atrás, no calendário de Brasília. */
+function daysAgoKey(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+describe("BillingTab — estados", () => {
+  it("sem FINANCE (403): modo atual em texto e o aviso, rádios desabilitados", async () => {
+    vi.mocked(getBillingModeSettings).mockRejectedValue(
+      apiError(403, { code: "FORBIDDEN", message: "Sem permissão." }),
+    );
+    vi.mocked(getContractorSettings).mockResolvedValue({ billingMode: "INVOICED_7" } as never);
+    renderTab();
+
+    expect(
+      await screen.findByText("Só quem tem acesso ao Financeiro muda o modo de cobrança."),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Faturado semanal")).toBeInTheDocument();
+    const radios = within(screen.getByRole("group", { name: "Modo de cobrança" })).getAllByRole(
+      "radio",
+    );
+    expect(radios).toHaveLength(4);
+    radios.forEach((radio) => expect(radio).toBeDisabled());
+    expect(screen.getByRole("radio", { name: 'Faturado semanal ("boleto 7")' })).toBeChecked();
+    expect(screen.queryByRole("button", { name: "Salvar cobrança" })).not.toBeInTheDocument();
+  });
+
+  it("editable false (chave do faturamento desligada): só o modo atual", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({ ...BILLING_VIEW, editable: false });
+    renderTab();
+
+    expect(
+      await screen.findByText(
+        "O faturamento ainda não está ligado. Por enquanto, toda empresa segue no pré-pago.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Pré-pago (Pix a cada contratação)")).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Salvar cobrança" })).not.toBeInTheDocument();
+  });
+
+  it("PATCH 404 FEATURE_DISABLED: vira só o modo atual, sem erro", async () => {
+    vi.mocked(updateBillingMode).mockRejectedValue(
+      apiError(404, { code: "FEATURE_DISABLED", message: "Recurso desligado." }),
+    );
+    renderTab();
+
+    fireEvent.change(await screen.findByLabelText("E-mail do financeiro (opcional)"), {
+      target: { value: "contas@bardoze.com.br" },
+    });
+    fireEvent.change(reasonField(), { target: { value: "Cliente pediu" } });
+    fireEvent.click(saveButton());
+
+    expect(
+      await screen.findByText(
+        "O faturamento ainda não está ligado. Por enquanto, toda empresa segue no pré-pago.",
+      ),
+    ).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("appUsage.lastAppDay recente: aviso para preferir quem usa o site", async () => {
+    const lastAppDay = daysAgoKey(2);
+    vi.mocked(getBillingModeSettings).mockResolvedValue({
+      ...BILLING_VIEW,
+      appUsage: { lastAppDay },
+    });
+    renderTab();
+
+    const ddmm = `${lastAppDay.slice(8, 10)}/${lastAppDay.slice(5, 7)}`;
+    expect(
+      await screen.findByText(
+        `Esta empresa usou o app em ${ddmm}. O app ainda não mostra o faturado; prefira começar por quem usa o site.`,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("uso do app antigo (mais de 30 dias): sem aviso", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({
+      ...BILLING_VIEW,
+      appUsage: { lastAppDay: daysAgoKey(45) },
+    });
+    renderTab();
+
+    await screen.findByRole("group", { name: "Modo de cobrança" });
+    expect(screen.queryByText(/usou o app/)).not.toBeInTheDocument();
+  });
+
+  it("modo faturado mostra desde quando vale", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({
+      ...BILLING_VIEW,
+      mode: "INVOICED_7",
+      since: "2026-10-11T18:20:00.000Z",
+    });
+    renderTab();
+
+    expect(await screen.findByText("desde 11/10/2026")).toBeInTheDocument();
   });
 });
