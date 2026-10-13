@@ -107,6 +107,11 @@ export default function EmpresasPage() {
     document: "",
     city: "",
     uf: "",
+    cep: "",
+    street: "",
+    number: "",
+    neighborhood: "",
+    complement: "",
   });
   const [contactPhoneError, setContactPhoneError] = useState<string | null>(null);
   const [reportFrom, setReportFrom] = useState("");
@@ -145,6 +150,12 @@ export default function EmpresasPage() {
         document: item.raw.cnpj ?? item.raw.cpf ?? "",
         city: item.raw.city ?? "",
         uf: item.raw.uf ?? "",
+        // Endereço completo: o faturado exige (CEP, rua, número, bairro, cidade, UF).
+        cep: item.raw.cep ?? "",
+        street: item.raw.street ?? "",
+        number: item.raw.number ?? "",
+        neighborhood: item.raw.neighborhood ?? "",
+        complement: item.raw.complement ?? "",
       });
     }
     if (type === "report") {
@@ -257,6 +268,11 @@ export default function EmpresasPage() {
           document: editForm.document.trim() || undefined,
           city: editForm.city.trim() || undefined,
           uf: editForm.uf.trim().toUpperCase() || undefined,
+          cep: editForm.cep.trim() || undefined,
+          street: editForm.street.trim() || undefined,
+          number: editForm.number.trim() || undefined,
+          neighborhood: editForm.neighborhood.trim() || undefined,
+          complement: editForm.complement.trim() || undefined,
         },
       });
       toast.success("Empresa atualizada com sucesso.");
@@ -534,6 +550,30 @@ export default function EmpresasPage() {
                   <Input id="uf-emp" value={editForm.uf} maxLength={2} onChange={(e) => setEditForm((f) => ({ ...f, uf: e.target.value.toUpperCase() }))} />
                 </div>
               </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="cep-emp">CEP</Label>
+                  <Input id="cep-emp" inputMode="numeric" value={editForm.cep} onChange={(e) => setEditForm((f) => ({ ...f, cep: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="rua-emp">Rua</Label>
+                  <Input id="rua-emp" value={editForm.street} onChange={(e) => setEditForm((f) => ({ ...f, street: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="numero-emp">Número</Label>
+                  <Input id="numero-emp" value={editForm.number} onChange={(e) => setEditForm((f) => ({ ...f, number: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="bairro-emp">Bairro</Label>
+                  <Input id="bairro-emp" value={editForm.neighborhood} onChange={(e) => setEditForm((f) => ({ ...f, neighborhood: e.target.value }))} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="complemento-emp">Complemento</Label>
+                <Input id="complemento-emp" value={editForm.complement} onChange={(e) => setEditForm((f) => ({ ...f, complement: e.target.value }))} />
+              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="doc-emp">CNPJ / CPF</Label>
                 <Input id="doc-emp" value={editForm.document} onChange={(e) => setEditForm((f) => ({ ...f, document: e.target.value }))} />
@@ -639,7 +679,10 @@ export default function EmpresasPage() {
             key={ownerUserId}
             contractorUserId={ownerUserId}
             companyName={selectedItem.nome}
+            companyDocument={selectedItem.raw.cnpj}
             onClose={closeModal}
+            // "Corrigir cadastro" (aba Cobrança): troca para o "Editar Empresa".
+            onEditCompany={() => openModal("edit", selectedItem)}
           />
         );
       }
@@ -736,7 +779,10 @@ export default function EmpresasPage() {
         <DialogContent
           className={cn(
             "relative",
-            (modalType === "vaga" || modalType === "delete" || modalType === "preferencias") &&
+            (modalType === "vaga" ||
+              modalType === "delete" ||
+              modalType === "preferencias" ||
+              modalType === "edit") &&
               "max-h-[88vh] overflow-y-auto",
           )}
         >

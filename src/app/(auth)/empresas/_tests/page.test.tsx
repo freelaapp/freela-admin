@@ -20,10 +20,21 @@ vi.mock("../_components/preferences-dialog", () => ({
   PreferencesDialog: ({
     contractorUserId,
     companyName,
+    companyDocument,
+    onEditCompany,
   }: {
     contractorUserId: string;
     companyName: string;
-  }) => <div data-testid="preferences-probe">{`${contractorUserId} · ${companyName}`}</div>,
+    companyDocument?: string | null;
+    onEditCompany?: () => void;
+  }) => (
+    <div data-testid="preferences-probe">
+      {`${contractorUserId} · ${companyName} · ${companyDocument ?? "-"}`}
+      <button type="button" onClick={onEditCompany}>
+        Corrigir cadastro
+      </button>
+    </div>
+  ),
 }));
 
 const barDoZe: ContractorItem = {
@@ -75,7 +86,21 @@ describe("Empresas — Documentos e cobrança", () => {
 
     fireEvent.click(documentsButton("Bar do Zé"));
 
-    expect(screen.getByTestId("preferences-probe")).toHaveTextContent("owner-user-1 · Bar do Zé");
+    expect(screen.getByTestId("preferences-probe")).toHaveTextContent(
+      "owner-user-1 · Bar do Zé · 12.345.678/0001-90",
+    );
+  });
+
+  it("'Corrigir cadastro' troca para o modal Editar Empresa, com o endereço para completar", () => {
+    render(<EmpresasPage />);
+    fireEvent.click(documentsButton("Bar do Zé"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Corrigir cadastro" }));
+
+    expect(screen.getByText("Editar Empresa")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nome da empresa")).toHaveValue("Bar do Zé");
+    expect(screen.getByLabelText("Número")).toHaveValue("");
+    expect(screen.queryByTestId("preferences-probe")).not.toBeInTheDocument();
   });
 
   it("sem usuário dono, o botão fica desabilitado", () => {
