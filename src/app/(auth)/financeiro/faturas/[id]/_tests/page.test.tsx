@@ -2,7 +2,7 @@ import "@testing-library/jest-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { AxiosError, AxiosHeaders } from "axios";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "inv-123" }),
@@ -23,6 +23,8 @@ import {
   downloadAdminInvoicePdf,
   getAdminInvoice,
   getBillingSummary,
+  type AdminInvoiceDetail,
+  type AdminInvoiceNfse,
 } from "@/modules/admin/infrastructure/billing-api";
 import InvoiceDetailPage from "../page";
 
@@ -257,5 +259,206 @@ describe("Detalhe da fatura — chaves das listas", () => {
       errors.mock.calls.some((call) => String(call[0]).includes("same key")),
     ).toBe(false);
     errors.mockRestore();
+  });
+});
+
+// ─── Nota fiscal da fatura (AD2c.2; API-3g) ──────────────────────────────────
+
+/** A FAT-2026-000123 paga por Pix em seg 26/10 (fechada sex 16/10). */
+const PAID: AdminInvoiceDetail = {
+  ...DETAIL,
+  invoice: {
+    ...DETAIL.invoice,
+    status: "PAID",
+    paidAt: "2026-10-26T12:00:00.000Z",
+    paidVia: "PIX",
+    paidAmountInCents: 124860,
+  },
+  situation: { code: "PAGA", label: "Paga em 26/10", overdueDays: 0, waivedUntil: null },
+  report: {
+    ...DETAIL.report,
+    header: { ...DETAIL.report.header, status: "Paga", statusCode: "PAID" },
+  },
+};
+
+const NOTE: AdminInvoiceNfse = {
+  status: "ISSUED",
+  number: "123",
+  pdfUrl: "https://nfse.example/123.pdf",
+  issuedAt: "2026-10-26T13:15:00.000Z",
+  amountInCents: 4240,
+  competenceDate: "2026-10-16",
+  calc: "24,96 + (24,96 − cupom PROMO10 20,00 = 4,96) + 12,48 (encerrado mais cedo: taxa proporcional) = 42,40",
+  source: "Taxa de intermediação de cada serviço desta fatura.",
+  failureReason: null,
+  retryUntil: null,
+  nextRetryAt: null,
+};
+
+const FAILED_NOTE: AdminInvoiceNfse = {
+  ...NOTE,
+  status: "FAILED",
+  number: null,
+  pdfUrl: null,
+  issuedAt: null,
+  failureReason: "Inscrição municipal do prestador inválida",
+  retryUntil: "2026-11-09",
+  nextRetryAt: "2026-10-26T14:20:00.000Z",
+};
+
+const withNote = (nfse: AdminInvoiceNfse | null, base: AdminInvoiceDetail = PAID) => {
+  vi.mocked(getAdminInvoice).mockResolvedValue({ ...base, nfse });
+};
+
+const noteSection = () => screen.findByRole("region", { name: "Nota fiscal (NFS-e)" });
+
+describe("Detalhe da fatura — nota fiscal", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("bloco 'Nota fiscal' com número, valor, competência, conta (meta) e fonte (help)", async () => {
+    withNote(NOTE);
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent("Emitida em seg 26/10 às 10:15");
+    expect(note).toHaveTextContent(
+      "Nota fiscal nº 123 · R$ 42,40 · competência 16/10/2026 (data de fechamento da fatura)",
+    );
+    expect(note).toHaveTextContent(
+      "Conta: 24,96 + (24,96 − cupom PROMO10 20,00 = 4,96) + 12,48 (encerrado mais cedo: taxa proporcional) = 42,40",
+    );
+    expect(note).toHaveTextContent("Fonte: Taxa de intermediação de cada serviço desta fatura.");
+    // A regra da nota: uma por fatura, a base, a competência e o tomador.
+    expect(note).toHaveTextContent("Uma nota por fatura");
+    expect(note).toHaveTextContent("menos cupom e estorno parcial automático");
+    expect(note).toHaveTextContent("o valor do freelancer, o seguro e a taxa Pix não entram");
+    expect(note).toHaveTextContent("Tomador: dados da empresa no fechamento");
+    const pdf = within(note).getByRole("link", { name: /Abrir PDF da nota/ });
+    expect(pdf).toHaveAttribute("href", "https://nfse.example/123.pdf");
+    expect(pdf).toHaveAttribute("target", "_blank");
+    expect(pdf.getAttribute("rel")).toContain("noopener");
+    expect(pdf).toHaveAccessibleName(/abre em nova aba/);
+    expect(within(note).queryByRole("button", { name: /Reemitir/ })).not.toBeInTheDocument();
+    expect(note).not.toHaveTextContent(/profissional/i);
+  });
+
+  it("emitida sem o PDF ainda: diz que a prefeitura devolve o link depois", async () => {
+    withNote({ ...NOTE, pdfUrl: null });
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent("Nota fiscal nº 123");
+    expect(within(note).queryByRole("link")).not.toBeInTheDocument();
+    expect(note).toHaveTextContent("O PDF ainda não está disponível");
+  });
+
+  it("FAILED com o motivo, a próxima tentativa automática (Brasília) e a regra na fonte; sem 'Reemitir'", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-26T13:30:00.000Z"));
+    withNote(FAILED_NOTE);
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent("Com problema");
+    expect(note).toHaveTextContent(
+      "R$ 42,40 · competência 16/10/2026 (data de fechamento da fatura)",
+    );
+    expect(note).toHaveTextContent("Motivo: Inscrição municipal do prestador inválida");
+    expect(note).toHaveTextContent("Próxima tentativa automática: 26/10, 11:20 (Brasília)");
+    expect(note).toHaveTextContent(
+      "Fonte: reenvio automático da nota da fatura: até 6 reenvios, na varredura dos 20 min de cada hora, com espera mínima de 1 h, 3 h, 6 h, 12 h, 24 h e 24 h depois do envio anterior (o 1º conta da criação da nota), só nos 14 dias depois do pagamento (até 09/11). Tomador sem CPF/CNPJ não é reenviado. A nota da fatura não tem reemissão manual.",
+    );
+    expect(note).toHaveTextContent("Conta: 24,96 + (24,96 − cupom PROMO10 20,00 = 4,96)");
+    expect(note).not.toHaveTextContent("tenta de novo por 14 dias");
+    expect(within(note).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Reemitir/ })).not.toBeInTheDocument();
+  });
+
+  it("FAILED com a hora do reenvio já passada: sai na próxima varredura", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-26T14:30:00.000Z"));
+    withNote(FAILED_NOTE);
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent(
+      "Próxima tentativa automática: na próxima varredura (aos 20 min de cada hora)",
+    );
+    expect(note).not.toHaveTextContent("26/10, 11:20");
+  });
+
+  it("FAILED sem reenvio (retryUntil null): sem nova tentativa automática, falar com tecnologia", async () => {
+    withNote({ ...FAILED_NOTE, failureReason: "Tomador sem CPF/CNPJ", retryUntil: null, nextRetryAt: null });
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent("Motivo: Tomador sem CPF/CNPJ");
+    expect(note).toHaveTextContent("Sem nova tentativa automática. Fale com o time de tecnologia.");
+    expect(note).toHaveTextContent(
+      "Fonte: os reenvios automáticos acabaram (6 reenvios feitos, ou falha que reenviar não resolve, como tomador sem CPF/CNPJ). A nota da fatura não tem reemissão manual.",
+    );
+    expect(note).not.toHaveTextContent("Próxima tentativa automática");
+  });
+
+  it("FAILED sem motivo informado: diz que a emissora não informou", async () => {
+    withNote({ ...FAILED_NOTE, failureReason: null });
+    renderPage();
+
+    expect(await noteSection()).toHaveTextContent("Motivo: a emissora não informou o motivo");
+  });
+
+  it("PENDING: enviada à prefeitura, com valor, competência e conta", async () => {
+    withNote({ ...NOTE, status: "PENDING", number: null, pdfUrl: null, issuedAt: null });
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent("Sendo emitida");
+    expect(note).toHaveTextContent("Enviada à prefeitura; aguardando autorização.");
+    expect(note).toHaveTextContent("R$ 42,40 · competência 16/10/2026 (data de fechamento da fatura)");
+    expect(note).toHaveTextContent("Conta: 24,96 +");
+  });
+
+  it("NONE com a conta (taxa líquida zero, nada a emitir)", async () => {
+    withNote({
+      ...NOTE,
+      status: "NONE",
+      number: null,
+      pdfUrl: null,
+      issuedAt: null,
+      amountInCents: 0,
+      calc: "24,96 − cupom CORTESIA30 30,00 = 0,00",
+    });
+    renderPage();
+
+    const note = await noteSection();
+    expect(note).toHaveTextContent("Sem nota");
+    expect(note).toHaveTextContent("Taxa líquida zero: nada a emitir.");
+    expect(note).toHaveTextContent("Conta: 24,96 − cupom CORTESIA30 30,00 = 0,00");
+    expect(note).toHaveTextContent("Fonte: Taxa de intermediação de cada serviço desta fatura.");
+    expect(within(note).queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("sem nota (null): em aberto, paga e cancelada", async () => {
+    withNote(null, DETAIL);
+    const first = renderPage();
+    expect(await noteSection()).toHaveTextContent(
+      "A nota sai quando a fatura for paga ou quitada com crédito.",
+    );
+    first.unmount();
+
+    withNote(null, PAID);
+    const second = renderPage();
+    expect(await noteSection()).toHaveTextContent("A nota desta fatura ainda não saiu; sai em seguida.");
+    second.unmount();
+
+    withNote(null, {
+      ...DETAIL,
+      invoice: { ...DETAIL.invoice, status: "CANCELLED" },
+      situation: { code: "CANCELADA", label: "Cancelada", overdueDays: 0, waivedUntil: null },
+    });
+    renderPage();
+    expect(await noteSection()).toHaveTextContent("Fatura cancelada: sem nota fiscal.");
   });
 });

@@ -112,6 +112,12 @@ export function dayLabel(key: string): string {
   return `${weekday} ${ddmm(key)}`;
 }
 
+/** "23/10/2026" de um dia `AAAA-MM-DD` (competência da nota fiscal). */
+export function ddmmyyyy(key: string): string {
+  const parts = keyParts(key);
+  return parts ? `${ddmm(key)}/${parts[0]}` : key;
+}
+
 /** "09/10 a 15/10". */
 export function periodLabel(start: string, end: string): string {
   return `${ddmm(start)} a ${ddmm(end)}`;
@@ -134,6 +140,12 @@ export function formatInstantBrt(iso: string | null | undefined): string {
   const parts = brtFormatter.formatToParts(date);
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("day")}/${get("month")} ${get("hour")}:${get("minute")}`;
+}
+
+/** "26/10, 11:20" em Brasília (próxima tentativa automática da nota fiscal). */
+export function retryAtLabel(iso: string | null | undefined): string {
+  const text = formatInstantBrt(iso);
+  return text === "—" ? text : text.replace(" ", ", ");
 }
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });

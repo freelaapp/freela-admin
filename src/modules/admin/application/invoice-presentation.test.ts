@@ -4,12 +4,14 @@ import {
   channelText,
   channelsLine,
   dayLabel,
+  ddmmyyyy,
   formatBrl,
   formatInstantBrt,
   instantWithWeekday,
   lastMessageLines,
   parseBrlToCents,
   periodLabel,
+  retryAtLabel,
   SITUATION_CHIPS,
   situationStyle,
   tableCaption,
@@ -129,5 +131,21 @@ describe("invoice-presentation — valor digitado", () => {
     expect(parseBrlToCents("")).toBeNull();
     expect(parseBrlToCents("abc")).toBeNull();
     expect(parseBrlToCents("1,234,5")).toBeNull();
+  });
+});
+
+describe("invoice-presentation — nota fiscal", () => {
+  it("competência em dd/mm/aaaa; texto ilegível volta como veio", () => {
+    expect(ddmmyyyy("2026-10-16")).toBe("16/10/2026");
+    expect(ddmmyyyy("")).toBe("");
+    expect(ddmmyyyy("amanhã")).toBe("amanhã");
+  });
+
+  it("próxima tentativa: 'dd/mm, hh:mm' em Brasília; vazio ou inválido vira '—'", () => {
+    expect(retryAtLabel("2026-10-26T14:20:00.000Z")).toBe("26/10, 11:20");
+    // Virada do dia em Brasília (UTC 02:20 = 23:20 do dia anterior).
+    expect(retryAtLabel("2026-10-27T02:20:00.000Z")).toBe("26/10, 23:20");
+    expect(retryAtLabel(null)).toBe("—");
+    expect(retryAtLabel("x")).toBe("—");
   });
 });

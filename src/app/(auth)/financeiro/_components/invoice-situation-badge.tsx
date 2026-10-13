@@ -26,8 +26,8 @@ const ICONS: Record<SituationIcon, LucideIcon> = {
   ban: Ban,
 };
 
-/** Tokens que passam AA em texto pequeno (UX 0.5). */
-const TONES: Record<SituationTone, string> = {
+/** Tokens que passam AA em texto pequeno (UX 0.5). Também no selo da nota fiscal. */
+export const TONES: Record<SituationTone, string> = {
   neutral: "border-[#e5e5e5] bg-white text-[#1d1d1b]",
   warning: "border-[#fde68a] bg-[#fffbeb] text-[#b45309]",
   danger: "border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]",
