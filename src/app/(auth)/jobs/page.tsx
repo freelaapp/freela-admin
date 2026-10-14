@@ -690,9 +690,11 @@ export default function JobsPage() {
               const r = await reenviarNoGrupo.mutateAsync({ vacancyId, module: "empresa" });
               // API nova: a rodada vai para todos os grupos no raio, em fila.
               toast.success(
-                r.roundId
-                  ? `Enviando a vaga para ${grupos(r.destinations.length)}, 1 a cada ~${SEGUNDOS_ENTRE_GRUPOS} s. Veja quais receberam em Detalhes da vaga.`
-                  : "Vaga reenviada no grupo da cidade.",
+                !r.roundId
+                  ? "Vaga reenviada no grupo da cidade."
+                  : r.destinations.length > 0
+                    ? `Enviando a vaga para ${grupos(r.destinations.length)}, 1 a cada ~${SEGUNDOS_ENTRE_GRUPOS} s. Veja quais receberam em Detalhes da vaga.`
+                    : "Envio pedido. Veja quais grupos receberam em Detalhes da vaga.",
               );
               // Auto-tica "Divulgar de novo no grupo de WhatsApp".
               await marcarAcaoDoChecklist(vacancyId, "divulgar_grupo");
