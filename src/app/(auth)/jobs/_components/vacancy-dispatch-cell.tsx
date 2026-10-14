@@ -69,7 +69,8 @@ function EmpresaDispatchCell({
     record?.groupBroadcast?.lastRound && record.groupBroadcast.lastRound.sent > 0
       ? record.groupBroadcast.lastRound.at
       : (record?.lastSentAt ?? broadcastAt);
-  const jaSaiu = Boolean(record || broadcastAt);
+  // Rodada que falhou inteira vem com `lastSentAt: null`: a vaga nunca saiu.
+  const jaSaiu = Boolean(record?.lastSentAt || broadcastAt);
 
   return (
     <div className="flex items-center gap-1.5">

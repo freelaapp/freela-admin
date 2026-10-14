@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useVacancyGroupBroadcastPreview } from "@/modules/admin/application/use-vacancy-group-broadcasts";
 import {
   cidadeUf,
@@ -22,9 +23,12 @@ import {
   sortDestinations,
 } from "@/modules/admin/domain/group-broadcast";
 import {
-  isNotFoundError,
-  type GroupBroadcastCenter,
+  isRouteMissingError,
+  type GroupBroadcastCenterSource,
 } from "@/modules/admin/infrastructure/vacancy-group-broadcasts-api";
+
+/** Teto da API para um envio (o que passa disso fica de fora). */
+const TETO_DO_ENVIO = "limite de 8 cidades vizinhas e 20 grupos por vaga";
 
 /** "Vagas Freela Campinas SP · Campinas-SP · 4 km" */
 export function linhaDoGrupo(g: {
@@ -36,13 +40,13 @@ export function linhaDoGrupo(g: {
   return [g.groupName, cidadeUf(g.city, g.uf), formatKm(g.distanceKm)].filter(Boolean).join(" · ");
 }
 
-/** "a até 30 km do local da vaga" — até onde o envio vai, e medido de onde. */
-export function alcanceDoEnvio(radiusKm: number, center: GroupBroadcastCenter | null): string {
+/** "todos os grupos a até 30 km do local da vaga" — até onde vai, e medido de onde. */
+export function alcanceDoEnvio(radiusKm: number, source: GroupBroadcastCenterSource): string {
   if (radiusKm <= 0) return "todos os grupos da cidade da vaga";
   const origem =
-    center?.source === "CONTRACTOR"
+    source === "CONTRACTOR"
       ? "do endereço da empresa"
-      : center?.source === "CITY_SEAT"
+      : source === "CITY_SEAT"
         ? "do centro da cidade da vaga"
         : "do local da vaga";
   return `todos os grupos a até ${radiusKm} km ${origem}`;
@@ -50,21 +54,25 @@ export function alcanceDoEnvio(radiusKm: number, center: GroupBroadcastCenter | 
 
 /** Estado "Nenhum grupo no raio" (modal e confirmação). */
 export function NoGroupInRadius({
-  center,
+  city,
+  uf,
+  centerSource,
   radiusKm,
 }: {
-  center: GroupBroadcastCenter | null;
+  city: string | null;
+  uf: string | null;
+  centerSource: GroupBroadcastCenterSource;
   radiusKm: number;
 }) {
-  const cidade = cidadeUf(center?.city ?? null, center?.uf ?? null);
+  const cidade = cidadeUf(city, uf);
   const semGrupo = cidade ? `${cidade} não tem grupo` : "A cidade da vaga não tem grupo";
   let titulo: string;
   let explicacao: string;
   if (radiusKm <= 0) {
     titulo = "Nenhum grupo na cidade da vaga.";
     explicacao = `${semGrupo}.`;
-  } else if (center && center.source === null) {
-    titulo = `Nenhum grupo para receber esta vaga.`;
+  } else if (centerSource === null) {
+    titulo = "Nenhum grupo para receber esta vaga.";
     explicacao = `${semGrupo}, e sem a localização da vaga não dá para procurar grupos a até ${radiusKm} km.`;
   } else {
     titulo = `Nenhum grupo a até ${radiusKm} km do local da vaga.`;
@@ -118,26 +126,26 @@ export function ResendGroupsDialog({
   if (!open || typeof document === "undefined") return null;
 
   const verbo = neverSent ? "Enviar" : "Reenviar";
-  const apiAntiga = preview.isError && isNotFoundError(preview.error);
-  const destinos = preview.data ? sortDestinations(preview.data.destinations) : [];
+  const apiAntiga = preview.isError && isRouteMissingError(preview.error);
+  const p = preview.data;
+  const destinos = p ? sortDestinations(p.destinations) : [];
   const n = destinos.length;
-  const radiusKm = preview.data?.radiusKm ?? RAIO_PADRAO_KM;
-  const semDestino = Boolean(preview.data) && n === 0;
+  const radiusKm = p?.radiusKm ?? RAIO_PADRAO_KM;
+  const bloqueado = Boolean(p && !p.canResend);
+  const semDestino = Boolean(p) && !bloqueado && n === 0;
+  const erroDaPrevia = preview.isError && !apiAntiga;
+  const podeEnviar = !preview.isLoading && !erroDaPrevia && !bloqueado && !semDestino;
 
   let titulo: string;
-  let rotuloBotao: string;
-  if (preview.isLoading) {
+  let rotuloBotao = verbo;
+  if (preview.isLoading || erroDaPrevia) {
     titulo = `${verbo} a vaga?`;
-    rotuloBotao = verbo;
   } else if (apiAntiga) {
     titulo = `${verbo} a vaga ao grupo da cidade?`;
-    rotuloBotao = verbo;
-  } else if (preview.isError) {
-    titulo = `${verbo} a vaga?`;
-    rotuloBotao = verbo;
+  } else if (bloqueado) {
+    titulo = "Não dá para divulgar esta vaga agora";
   } else if (semDestino) {
     titulo = "Nenhum grupo para receber esta vaga";
-    rotuloBotao = verbo;
   } else {
     titulo = `${verbo} a vaga para ${grupos(n)}?`;
     rotuloBotao = `${verbo} para ${grupos(n)}`;
@@ -148,6 +156,12 @@ export function ResendGroupsDialog({
     : "";
   const deNovo = neverSent ? "" : " de novo";
   const inclusive = neverSent ? "" : ", inclusive os que já receberam. Quem já viu vai receber de novo";
+  const cidade = cidadeUf(p?.vacancyCity ?? null, p?.vacancyUf ?? null) ?? "A cidade da vaga";
+  const notaDaCidade = !p || p.ownCityHasGroup
+    ? null
+    : p.fallbackUsed
+      ? `${cidade} não tem grupo, e nenhuma cidade a até ${radiusKm} km tem: vai para o grupo de reserva.`
+      : `${cidade} não tem grupo: vai só para os grupos de cidades vizinhas.`;
 
   async function confirmar() {
     const aceito = await onConfirm();
@@ -172,31 +186,36 @@ export function ResendGroupsDialog({
               {neverSent ? "." : ". Quem já viu vai receber de novo."}
               {ultima}
             </p>
-          ) : preview.isError ? (
-            <>
-              <p className="text-red-700">
-                Não conseguimos carregar a lista de grupos.{" "}
-                <button
-                  type="button"
-                  onClick={() => void preview.refetch()}
-                  className="cursor-pointer font-semibold underline underline-offset-2"
-                >
-                  Tentar de novo
-                </button>
-              </p>
-              <p>
-                A mensagem vai{deNovo} para {alcanceDoEnvio(RAIO_PADRAO_KM, null)}
-                {inclusive}.{ultima}
-              </p>
-            </>
+          ) : erroDaPrevia ? (
+            <div role="alert" className="text-red-700">
+              <p>Não conseguimos carregar a lista de grupos que vão receber.</p>
+              <p className="mt-1 text-xs">{getAxiosErrorMessage(preview.error, "")}</p>
+              <button
+                type="button"
+                onClick={() => void preview.refetch()}
+                className="mt-1 inline-flex min-h-10 cursor-pointer items-center font-semibold underline underline-offset-2"
+              >
+                Tentar de novo
+              </button>
+            </div>
+          ) : bloqueado ? (
+            <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900">
+              {p!.resendBlockedReason ?? "O reenvio não está liberado para esta vaga agora."}
+            </p>
           ) : semDestino ? (
-            <NoGroupInRadius center={preview.data!.center} radiusKm={radiusKm} />
+            <NoGroupInRadius
+              city={p!.vacancyCity}
+              uf={p!.vacancyUf}
+              centerSource={p!.centerSource}
+              radiusKm={radiusKm}
+            />
           ) : (
             <>
               <p>
-                A mensagem vai{deNovo} para {alcanceDoEnvio(radiusKm, preview.data!.center)}
+                A mensagem vai{deNovo} para {alcanceDoEnvio(radiusKm, p!.centerSource)}
                 {inclusive}.{ultima}
               </p>
+              {notaDaCidade && <p className="text-xs text-amber-800">{notaDaCidade}</p>}
               <ul className="space-y-1 rounded-lg bg-[#f7f7f7] p-2" aria-label="Grupos que vão receber">
                 {destinos.map((g) => (
                   <li key={g.groupJid || g.groupName} className="break-words text-[13px]">
@@ -204,18 +223,17 @@ export function ResendGroupsDialog({
                   </li>
                 ))}
               </ul>
-              {preview.data!.skipped.length > 0 && (
+              {p!.skipped.length > 0 && (
                 <div className="text-xs text-[#737373]">
                   <p className="font-medium">
-                    {preview.data!.skipped.length === 1
-                      ? "1 grupo fica de fora:"
-                      : `${preview.data!.skipped.length} grupos ficam de fora:`}
+                    {p!.skipped.length === 1
+                      ? `1 grupo fica de fora pelo ${TETO_DO_ENVIO}:`
+                      : `${p!.skipped.length} grupos ficam de fora pelo ${TETO_DO_ENVIO}:`}
                   </p>
-                  <ul className="mt-1 space-y-0.5">
-                    {preview.data!.skipped.map((g, i) => (
-                      <li key={`${g.groupName}-${i}`} className="break-words">
+                  <ul className="mt-1 space-y-0.5" aria-label="Grupos que ficam de fora">
+                    {sortDestinations(p!.skipped).map((g, i) => (
+                      <li key={`${g.groupJid || g.groupName}-${i}`} className="break-words">
                         {linhaDoGrupo(g)}
-                        {g.reason ? ` — ${g.reason}` : ""}
                       </li>
                     ))}
                   </ul>
@@ -233,7 +251,7 @@ export function ResendGroupsDialog({
           >
             Voltar
           </Button>
-          {!semDestino && (
+          {(podeEnviar || preview.isLoading) && (
             <Button
               onClick={() => void confirmar()}
               disabled={sending || preview.isLoading}

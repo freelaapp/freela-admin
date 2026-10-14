@@ -31,6 +31,7 @@ import { NotBroadcastBadge } from "./_components/vacancy-not-broadcast";
 import { GroupDispatchBadge } from "./_components/group-dispatch-badge";
 import { VacancyGroupBroadcastsSection } from "./_components/vacancy-group-broadcasts-section";
 import { grupos, SEGUNDOS_ENTRE_GRUPOS } from "@/modules/admin/domain/group-broadcast";
+import { avisarErroDoReenvio } from "@/modules/admin/application/use-vacancy-group-broadcasts";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -573,8 +574,10 @@ export default function JobsPage() {
             </div>
             {/* Celular e tablet: a coluna "Disparo" não aparece, então o selo da
                 divulgação vem aqui, em 2ª linha (o reenvio fica no modal). Com
-                "Não divulgada" já ao lado do status, não repete. */}
-            {!naoDivulgada && (
+                "Não divulgada" já ao lado do status, só aparece se houver
+                rodada (falhou / enviando) — senão repetiria a mesma coisa. */}
+            {(!naoDivulgada ||
+              Boolean(findGroupBroadcastRecord(registrosDisparo, row.id)?.groupBroadcast?.lastRound)) && (
               <GroupDispatchBadge
                 record={findGroupBroadcastRecord(registrosDisparo, row.id)}
                 vacancyBroadcastAt={row.raw.groupBroadcastAt}
@@ -699,7 +702,9 @@ export default function JobsPage() {
               // Auto-tica "Divulgar de novo no grupo de WhatsApp".
               await marcarAcaoDoChecklist(vacancyId, "divulgar_grupo");
             } catch (e) {
-              toast.error(getAxiosErrorMessage(e) || "Não foi possível reenviar no grupo.");
+              // 409 (vaga não aberta / envio em andamento), 400 e sem resposta:
+              // o mesmo aviso do modal e da coluna.
+              avisarErroDoReenvio(e);
             } finally {
               setAvisandoId(null);
             }

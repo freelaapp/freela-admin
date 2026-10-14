@@ -50,7 +50,7 @@ function dest(over: Partial<GroupBroadcastDestination> = {}): GroupBroadcastDest
     reason: "VACANCY_CITY",
     status: "SENT",
     errorCode: null,
-    errorMessage: null,
+    error: null,
     sentAt: T1040,
     ...over,
   };
@@ -64,7 +64,11 @@ function round(
     roundId: "r-manual",
     mode: "MANUAL",
     createdAt: T1040,
-    summary: { total: 0, sent: 0, failed: 0, skipped: 0, pending: 0, ownCity: 0, inRadius: 0 },
+    radiusKm: 30,
+    centerSource: "VACANCY",
+    summary: {
+      total: 0, sent: 0, failedCount: 0, failed: [], skipped: 0, pending: 0, ownCity: 0, inRadius: 0, fallback: 0, vip: 0,
+    },
     destinations,
     ...over,
   };
@@ -73,16 +77,24 @@ function round(
 function broadcasts(over: Partial<VacancyGroupBroadcasts> = {}): VacancyGroupBroadcasts {
   return {
     radiusKm: 30,
-    center: { source: "VACANCY", city: "Campinas", uf: "SP" },
+    groupBroadcastAt: null,
+    inFlight: 0,
+    canResend: true,
+    resendBlockedReason: null,
     rounds: [],
-    legacy: null,
     ...over,
   };
 }
 
 const QUATRO: GroupBroadcastPreview = {
   radiusKm: 30,
-  center: { source: "VACANCY", city: "Campinas", uf: "SP" },
+  vacancyCity: "Campinas",
+  vacancyUf: "SP",
+  centerSource: "VACANCY",
+  ownCityHasGroup: true,
+  fallbackUsed: false,
+  canResend: true,
+  resendBlockedReason: null,
   destinations: [
     { groupJid: "c", groupName: "Vagas Freela Campinas SP", city: "Campinas", uf: "SP", distanceKm: 4.2, reason: "VACANCY_CITY" },
     { groupJid: "s", groupName: "Vagas Freela Sumaré SP", city: "Sumaré", uf: "SP", distanceKm: 21, reason: "RADIUS" },
@@ -94,7 +106,7 @@ const QUATRO: GroupBroadcastPreview = {
 
 /** Rodada manual: Campinas ok, Valinhos ok, Vinhedo falhou, Sumaré ok, Jundiaí pulado. */
 const PARCIAL = round([
-  dest({ groupName: "Vagas Freela Vinhedo SP", city: "Vinhedo", distanceKm: 12, reason: "RADIUS", status: "FAILED", errorMessage: "O bot não está no grupo." }),
+  dest({ groupName: "Vagas Freela Vinhedo SP", city: "Vinhedo", distanceKm: 12, reason: "RADIUS", status: "FAILED", errorCode: "FALHA_NO_ENVIO", error: "O bot não está no grupo." }),
   dest({ groupName: "Vagas Freela Sumaré SP", city: "Sumaré", distanceKm: 21, reason: "RADIUS" }),
   dest(),
   dest({ groupName: "Vagas Freela Valinhos SP", city: "Valinhos", distanceKm: 9.6, reason: "RADIUS" }),
@@ -105,11 +117,16 @@ const AUTO_OK = round(
   { roundId: "auto:v1", mode: "AUTO", createdAt: T0912 },
 );
 
-function erroHttp(status: number, message = "falhou") {
+function erroHttp(status: number, message = "falhou", code = "X") {
   return Object.assign(new Error(`Request failed with status code ${status}`), {
     isAxiosError: true,
-    response: { status, data: { error: { code: "X", message } } },
+    response: { status, data: { error: { code, message } } },
   });
+}
+
+/** 404 de rota inexistente (API antiga): o filtro da API dá `NOT_FOUND`. */
+function rotaInexistente() {
+  return erroHttp(404, "Cannot GET /v1/…", "NOT_FOUND");
 }
 
 function renderSection(
@@ -197,8 +214,8 @@ describe("VacancyGroupBroadcastsSection — estados", () => {
   it("sem localização: aviso âmbar acima da lista, e a lista continua", async () => {
     api.getVacancyGroupBroadcasts.mockResolvedValue(
       broadcasts({
-        center: { source: null, city: "Campinas", uf: "SP" },
-        rounds: [round([dest({ distanceKm: null })])],
+        groupBroadcastAt: T1040,
+        rounds: [round([dest({ distanceKm: null })], { centerSource: null })],
       }),
     );
     renderSection();
@@ -210,12 +227,12 @@ describe("VacancyGroupBroadcastsSection — estados", () => {
   });
 
   it("nenhum grupo no raio: explica e leva para Grupos de WhatsApp, sem botão de envio", async () => {
-    api.getVacancyGroupBroadcasts.mockResolvedValue(
-      broadcasts({ center: { source: "VACANCY", city: "Gramado", uf: "RS" } }),
-    );
+    api.getVacancyGroupBroadcasts.mockResolvedValue(broadcasts());
     api.getVacancyGroupBroadcastPreview.mockResolvedValue({
       ...QUATRO,
-      center: { source: "VACANCY", city: "Gramado", uf: "RS" },
+      vacancyCity: "Gramado",
+      vacancyUf: "RS",
+      ownCityHasGroup: false,
       destinations: [],
     });
     renderSection();
@@ -233,8 +250,8 @@ describe("VacancyGroupBroadcastsSection — estados", () => {
       broadcasts({
         rounds: [
           round([
-            dest({ status: "FAILED", sentAt: null, errorMessage: "WhatsApp desconectado." }),
-            dest({ groupName: "Vagas Freela Valinhos SP", reason: "RADIUS", status: "FAILED", sentAt: null, errorMessage: "WhatsApp desconectado." }),
+            dest({ status: "FAILED", sentAt: null, errorCode: "FALHA_NO_ENVIO", error: "WhatsApp desconectado." }),
+            dest({ groupName: "Vagas Freela Valinhos SP", reason: "RADIUS", status: "FAILED", sentAt: null, errorCode: "FALHA_NO_ENVIO", error: "WhatsApp desconectado." }),
           ]),
         ],
       }),
@@ -249,7 +266,7 @@ describe("VacancyGroupBroadcastsSection — estados", () => {
 
   it("registro antigo: diz quando saiu e que não sabemos para quais grupos", async () => {
     api.getVacancyGroupBroadcasts.mockResolvedValue(
-      broadcasts({ legacy: { autoSentAt: "2026-08-11T23:04:00.000Z", manualSentAt: null } }),
+      broadcasts({ groupBroadcastAt: "2026-08-11T23:04:00.000Z" }),
     );
     renderSection();
     expect(
@@ -260,12 +277,15 @@ describe("VacancyGroupBroadcastsSection — estados", () => {
     expect(await screen.findByRole("button", { name: "Reenviar para 4 grupos" })).toBeInTheDocument();
   });
 
-  it("erro ao carregar: mensagem e 'Tentar de novo' relê", async () => {
-    api.getVacancyGroupBroadcasts.mockRejectedValue(erroHttp(500));
+  it("erro ao carregar (503): mensagem, o motivo da API e 'Tentar de novo' relê", async () => {
+    api.getVacancyGroupBroadcasts.mockRejectedValue(
+      erroHttp(503, "Registro da divulgação indisponível agora.", "GROUP_BROADCAST_UNAVAILABLE"),
+    );
     renderSection();
     expect(
       await screen.findByText("Não conseguimos carregar a divulgação desta vaga.", undefined, { timeout: 4000 }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Registro da divulgação indisponível agora.")).toBeInTheDocument();
     const antes = api.getVacancyGroupBroadcasts.mock.calls.length;
     api.getVacancyGroupBroadcasts.mockResolvedValue(broadcasts());
     fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
@@ -274,8 +294,8 @@ describe("VacancyGroupBroadcastsSection — estados", () => {
   });
 
   it("API antiga (404): mostra o registro da coluna e reenvia ao grupo da cidade", async () => {
-    api.getVacancyGroupBroadcasts.mockRejectedValue(erroHttp(404));
-    api.getVacancyGroupBroadcastPreview.mockRejectedValue(erroHttp(404));
+    api.getVacancyGroupBroadcasts.mockRejectedValue(rotaInexistente());
+    api.getVacancyGroupBroadcastPreview.mockRejectedValue(rotaInexistente());
     api.resendVacancyGroupMessage.mockResolvedValue({ roundId: null, destinations: [] });
     renderSection({
       record: { vacancyId: "v1", stage: "groupBroadcast", lastSentAt: T0912, sendCount: 1, autoSentAt: T0912 },
@@ -337,15 +357,15 @@ describe("VacancyGroupBroadcastsSection — reenviar", () => {
     const fim = round(
       [
         dest({ sentAt: "2026-10-14T14:04:03.000Z" }),
-        dest({ groupName: "Vagas Freela Vinhedo SP", city: "Vinhedo", distanceKm: 12, reason: "RADIUS", status: "FAILED", sentAt: null, errorMessage: "O bot não está no grupo." }),
+        dest({ groupName: "Vagas Freela Vinhedo SP", city: "Vinhedo", distanceKm: 12, reason: "RADIUS", status: "FAILED", sentAt: null, errorCode: "FALHA_NO_ENVIO", error: "O bot não está no grupo." }),
       ],
       { roundId: "r-novo", createdAt: "2026-10-14T14:04:00.000Z" },
     );
 
     api.getVacancyGroupBroadcasts
       .mockResolvedValueOnce(broadcasts()) // abertura: nunca saiu
-      .mockResolvedValueOnce(broadcasts({ rounds: [naFila] })) // logo depois do POST
-      .mockResolvedValueOnce(broadcasts({ rounds: [andando] }))
+      .mockResolvedValueOnce(broadcasts({ inFlight: 2, canResend: false, rounds: [naFila] })) // logo depois do POST
+      .mockResolvedValueOnce(broadcasts({ inFlight: 1, canResend: false, rounds: [andando] }))
       .mockResolvedValue(broadcasts({ rounds: [fim] }));
     let responder: (v: unknown) => void = () => {};
     api.resendVacancyGroupMessage.mockReturnValue(
@@ -416,5 +436,108 @@ describe("VacancyGroupBroadcastsSection — reenviar", () => {
         "Não conseguimos confirmar o envio. Atualize a página antes de reenviar, para não mandar em dobro.",
       ),
     );
+  });
+});
+
+describe("VacancyGroupBroadcastsSection — contrato final (bloqueio, 404 e 409)", () => {
+  it("404 VACANCY_NOT_FOUND é erro de verdade, não 'API antiga'", async () => {
+    api.getVacancyGroupBroadcasts.mockRejectedValue(erroHttp(404, "Vaga não encontrada.", "VACANCY_NOT_FOUND"));
+    renderSection();
+    expect(await screen.findByText("Não conseguimos carregar a divulgação desta vaga.")).toBeInTheDocument();
+    expect(screen.getByText("Vaga não encontrada.")).toBeInTheDocument();
+    expect(api.getVacancyGroupBroadcasts).toHaveBeenCalledTimes(1); // 404 não repete
+  });
+
+  it("canResend falso: botão travado com o porquê da API", async () => {
+    api.getVacancyGroupBroadcasts.mockResolvedValue(
+      broadcasts({
+        groupBroadcastAt: T1040,
+        canResend: false,
+        resendBlockedReason: "Só dá para divulgar vaga aberta.",
+        rounds: [PARCIAL],
+      }),
+    );
+    api.getVacancyGroupBroadcastPreview.mockResolvedValue({
+      ...QUATRO,
+      canResend: false,
+      resendBlockedReason: "Só dá para divulgar vaga aberta.",
+    });
+    renderSection();
+    expect(await screen.findByText("Só dá para divulgar vaga aberta.")).toBeInTheDocument();
+    const botao = screen.getByRole("button", { name: /Reenviar/ });
+    expect(botao).toBeDisabled();
+    fireEvent.click(botao);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("envio anterior ainda na fila (inFlight): botão 'Enviando…' travado", async () => {
+    const naFila = round([dest(), dest({ groupName: "Vagas Freela Vinhedo SP", reason: "RADIUS", status: "PENDING", sentAt: null })]);
+    api.getVacancyGroupBroadcasts.mockResolvedValue(
+      broadcasts({
+        inFlight: 1,
+        canResend: false,
+        resendBlockedReason: "Ainda estamos enviando a divulgação anterior (1 grupo(s) na fila). Espere terminar para reenviar.",
+        rounds: [naFila],
+      }),
+    );
+    renderSection({ pollMs: 60_000 });
+    expect(await screen.findByRole("button", { name: "Enviando…" })).toBeDisabled();
+    expect(screen.getByText(/Espere terminar para reenviar\./)).toBeInTheDocument();
+    expect(screen.getByText(/^Enviando: 1 de 2 grupos já receberam/)).toBeInTheDocument();
+  });
+
+  it("POST 409 BROADCAST_IN_PROGRESS: aviso com a mensagem da API, sem tom de erro", async () => {
+    api.getVacancyGroupBroadcasts.mockResolvedValue(broadcasts({ groupBroadcastAt: T1040, rounds: [PARCIAL] }));
+    api.resendVacancyGroupMessage.mockRejectedValue(
+      erroHttp(409, "Ainda estamos enviando a divulgação anterior (2 grupo(s) na fila). Espere terminar para reenviar.", "BROADCAST_IN_PROGRESS"),
+    );
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "Reenviar para 4 grupos" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Reenviar para 4 grupos" }));
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith(
+        "Ainda estamos enviando a divulgação anterior (2 grupo(s) na fila). Espere terminar para reenviar.",
+      ),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("POST 409 VACANCY_NOT_OPEN: mostra a mensagem da API", async () => {
+    api.getVacancyGroupBroadcasts.mockResolvedValue(broadcasts({ groupBroadcastAt: T1040, rounds: [PARCIAL] }));
+    api.resendVacancyGroupMessage.mockRejectedValue(
+      erroHttp(409, "Só dá para divulgar vaga aberta.", "VACANCY_NOT_OPEN"),
+    );
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "Reenviar para 4 grupos" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Reenviar para 4 grupos" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Só dá para divulgar vaga aberta."));
+  });
+
+  it("confirmação: cidade sem grupo vai só para as vizinhas, e o teto diz quem fica de fora", async () => {
+    api.getVacancyGroupBroadcasts.mockResolvedValue(broadcasts());
+    api.getVacancyGroupBroadcastPreview.mockResolvedValue({
+      ...QUATRO,
+      vacancyCity: "Gramado",
+      vacancyUf: "RS",
+      centerSource: "CITY_SEAT",
+      ownCityHasGroup: false,
+      destinations: [
+        { groupJid: "c", groupName: "Vagas Freela Canela RS", city: "Canela", uf: "RS", distanceKm: 7.9, reason: "RADIUS" },
+      ],
+      skipped: [
+        { groupJid: "x", groupName: "Vagas Freela Caxias RS", city: "Caxias do Sul", uf: "RS", distanceKm: 28.4, reason: "RADIUS" },
+      ],
+    });
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "Enviar para 1 grupo" }));
+    const dialogo = await screen.findByRole("dialog");
+    expect(dialogo).toHaveTextContent(
+      "A mensagem vai para todos os grupos a até 30 km do centro da cidade da vaga.",
+    );
+    expect(within(dialogo).getByText("Gramado-RS não tem grupo: vai só para os grupos de cidades vizinhas.")).toBeInTheDocument();
+    expect(
+      within(dialogo).getByText("1 grupo fica de fora pelo limite de 8 cidades vizinhas e 20 grupos por vaga:"),
+    ).toBeInTheDocument();
+    expect(within(dialogo).getByText("Vagas Freela Caxias RS · Caxias do Sul-RS · 28 km")).toBeInTheDocument();
   });
 });

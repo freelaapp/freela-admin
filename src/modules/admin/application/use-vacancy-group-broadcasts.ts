@@ -13,9 +13,9 @@ import {
   shouldKeepPolling,
 } from "../domain/group-broadcast";
 import {
+  apiErrorCode,
   getVacancyGroupBroadcastPreview,
   getVacancyGroupBroadcasts,
-  isNotFoundError,
   type VacancyGroupBroadcasts,
 } from "../infrastructure/vacancy-group-broadcasts-api";
 
@@ -28,9 +28,43 @@ export function groupBroadcastPreviewKey(vacancyId: string | null) {
   return ["admin", "vacancy-group-broadcasts", vacancyId, "preview"] as const;
 }
 
-/** 404 = rota ainda não existe (API antiga): não adianta tentar de novo. */
-function retryUnlessNotFound(failureCount: number, err: unknown) {
-  return !isNotFoundError(err) && failureCount < 1;
+/**
+ * 404 (rota ainda não existe, ou vaga/empresa não encontrada) e 409 não mudam
+ * tentando de novo; o resto (ex.: 503 de diretório) tenta mais uma vez.
+ */
+function retryUnlessFinal(failureCount: number, err: unknown) {
+  const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+  return status !== 404 && status !== 409 && failureCount < 1;
+}
+
+/**
+ * Aviso do erro do reenvio (modal, coluna e Modo painel): a mensagem da API é
+ * a que diz o que fazer. Sem resposta, não dá para saber se saiu — o aviso
+ * pede para atualizar antes de tentar, para não mandar em dobro.
+ */
+export function avisarErroDoReenvio(err: unknown): void {
+  if (axios.isAxiosError(err) && !err.response) {
+    toast.error(
+      "Não conseguimos confirmar o envio. Atualize a página antes de reenviar, para não mandar em dobro.",
+    );
+    return;
+  }
+  const code = apiErrorCode(err);
+  if (code === "BROADCAST_IN_PROGRESS") {
+    // Não é erro de quem clicou: a rodada anterior ainda está na fila.
+    toast.info(
+      getAxiosErrorMessage(
+        err,
+        "Ainda estamos enviando a divulgação anterior. Espere terminar para reenviar.",
+      ),
+    );
+    return;
+  }
+  if (code === "VACANCY_NOT_OPEN") {
+    toast.error(getAxiosErrorMessage(err, "Só dá para divulgar vaga aberta."));
+    return;
+  }
+  toast.error(getAxiosErrorMessage(err, "Não foi possível enviar aos grupos."));
 }
 
 /** Para onde a vaga foi divulgada, rodada por rodada (Empresas). */
@@ -43,7 +77,7 @@ export function useVacancyGroupBroadcasts(
     queryFn: () => getVacancyGroupBroadcasts(vacancyId as string),
     enabled: Boolean(vacancyId) && (options.enabled ?? true),
     refetchInterval: options.refetchInterval ?? false,
-    retry: retryUnlessNotFound,
+    retry: retryUnlessFinal,
     staleTime: 0,
   });
 }
@@ -54,7 +88,7 @@ export function useVacancyGroupBroadcastPreview(vacancyId: string | null, enable
     queryKey: groupBroadcastPreviewKey(vacancyId),
     queryFn: () => getVacancyGroupBroadcastPreview(vacancyId as string),
     enabled: Boolean(vacancyId) && enabled,
-    retry: retryUnlessNotFound,
+    retry: retryUnlessFinal,
     staleTime: 30_000,
   });
 }
@@ -98,6 +132,7 @@ export function useGroupBroadcastResend(
   // muda), então o prazo e o fim da fila são vistos na hora.
   const continuar = shouldKeepPolling({
     rounds: cache?.rounds,
+    inFlight: cache?.inFlight,
     watchRoundId: watch?.roundId ?? null,
     startedAt: watch?.startedAt ?? abertoEm,
     now: Date.now(),
@@ -154,12 +189,11 @@ export function useGroupBroadcastResend(
       }
       return true;
     } catch (e) {
-      if (axios.isAxiosError(e) && !e.response) {
-        toast.error(
-          "Não conseguimos confirmar o envio. Atualize a página antes de reenviar, para não mandar em dobro.",
-        );
-      } else {
-        toast.error(getAxiosErrorMessage(e, "Não foi possível enviar aos grupos."));
+      avisarErroDoReenvio(e);
+      // 409 (envio em andamento / vaga não aberta): relê para a tela mostrar o
+      // porquê no lugar do botão.
+      if (axios.isAxiosError(e) && e.response?.status === 409) {
+        void queryClient.invalidateQueries({ queryKey: groupBroadcastsKey(vacancyId) });
       }
       return false;
     } finally {

@@ -30,7 +30,8 @@ export function useVacancyOutreach() {
   const registros = new Map<string, OutreachRecord>();
   for (const r of query.data ?? []) {
     const key = outreachKey(r.vacancyId, r.stage);
-    enviados.set(key, r.lastSentAt);
+    // Rodada que falhou inteira / ainda na fila vem com `lastSentAt: null`: não foi enviado.
+    if (r.lastSentAt) enviados.set(key, r.lastSentAt);
     registros.set(key, r);
   }
 

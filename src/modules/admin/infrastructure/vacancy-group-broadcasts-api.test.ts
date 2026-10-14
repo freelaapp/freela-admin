@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  isNotFoundError,
+  apiErrorCode,
+  isRouteMissingError,
   parseGroupBroadcastPreview,
   parseOutreachGroupBroadcast,
   parseResendGroupResult,
@@ -16,116 +17,210 @@ const DESTINO = {
   distanceKm: 4.2,
   reason: "VACANCY_CITY",
   status: "SENT",
-  errorCode: null,
-  errorMessage: null,
   sentAt: "2026-10-14T13:40:00.000Z",
+  errorCode: null,
+  error: null,
 };
 
-describe("parseVacancyGroupBroadcasts", () => {
-  it("lê o contrato completo e põe a rodada mais nova primeiro", () => {
+const RESUMO = {
+  total: 1,
+  sent: 1,
+  failedCount: 0,
+  failed: [],
+  skipped: 0,
+  pending: 0,
+  ownCity: 1,
+  inRadius: 0,
+  fallback: 0,
+  vip: 0,
+};
+
+function rodada(over: Record<string, unknown> = {}) {
+  return {
+    roundId: "auto:v1",
+    origin: "auto",
+    mode: "AUTO",
+    requestedByAdminId: null,
+    createdAt: "2026-10-14T12:12:00.000Z",
+    radiusKm: 30,
+    centerSource: "VACANCY",
+    summary: RESUMO,
+    destinations: [DESTINO],
+    ...over,
+  };
+}
+
+function axiosErro(status: number, code?: string) {
+  return {
+    isAxiosError: true,
+    response: { status, data: code ? { error: { code, message: "x" } } : {} },
+  };
+}
+
+describe("parseVacancyGroupBroadcasts (contrato final)", () => {
+  it("lê o topo e as rodadas, a mais nova primeiro", () => {
     const data = parseVacancyGroupBroadcasts({
       radiusKm: 30,
-      center: { source: "VACANCY", city: "Campinas", uf: "SP" },
+      groupBroadcastAt: "2026-10-14T13:40:00.000Z",
+      inFlight: 0,
+      canResend: true,
+      resendBlockedReason: null,
       rounds: [
-        {
-          roundId: "auto:v1",
-          mode: "AUTO",
-          createdAt: "2026-10-14T12:12:00.000Z",
-          summary: { total: 1, sent: 1, failed: 0, skipped: 0, pending: 0, ownCity: 1, inRadius: 0 },
-          destinations: [DESTINO],
-        },
-        {
-          roundId: "r2",
-          mode: "MANUAL",
-          createdAt: "2026-10-14T13:40:00.000Z",
-          summary: { total: 1, sent: 1, failed: 0, skipped: 0, pending: 0, ownCity: 1, inRadius: 0 },
-          destinations: [DESTINO],
-        },
+        rodada(),
+        rodada({ roundId: "r2", origin: "manual", mode: "MANUAL", requestedByAdminId: "adm-1", createdAt: "2026-10-14T13:40:00.000Z" }),
       ],
-      legacy: null,
     });
-    expect(data.radiusKm).toBe(30);
-    expect(data.center).toEqual({ source: "VACANCY", city: "Campinas", uf: "SP" });
+    expect(data).toMatchObject({
+      radiusKm: 30,
+      groupBroadcastAt: "2026-10-14T13:40:00.000Z",
+      inFlight: 0,
+      canResend: true,
+      resendBlockedReason: null,
+    });
     expect(data.rounds.map((r) => r.roundId)).toEqual(["r2", "auto:v1"]);
+    expect(data.rounds[0]).toMatchObject({ mode: "MANUAL", radiusKm: 30, centerSource: "VACANCY", summary: RESUMO });
     expect(data.rounds[0].destinations[0]).toEqual(DESTINO);
-    expect(data.legacy).toBeNull();
+  });
+
+  it("o motivo da falha vem de `error` (e aceita o nome antigo `errorMessage`)", () => {
+    const data = parseVacancyGroupBroadcasts({
+      rounds: [
+        rodada({
+          destinations: [
+            { ...DESTINO, status: "FAILED", errorCode: "FALHA_NO_ENVIO", error: "O bot não está no grupo." },
+            { ...DESTINO, groupJid: "2", status: "FAILED", error: undefined, errorMessage: "Sem bot" },
+          ],
+        }),
+      ],
+    });
+    expect(data.rounds[0].destinations.map((d) => d.error)).toEqual(["O bot não está no grupo.", "Sem bot"]);
+    expect(data.rounds[0].destinations[0].errorCode).toBe("FALHA_NO_ENVIO");
+  });
+
+  it("sem localização: centerSource nulo na rodada", () => {
+    expect(parseVacancyGroupBroadcasts({ rounds: [rodada({ centerSource: null })] }).rounds[0].centerSource).toBeNull();
+  });
+
+  it("bloqueio do reenvio", () => {
+    expect(
+      parseVacancyGroupBroadcasts({ canResend: false, resendBlockedReason: "Só dá para divulgar vaga aberta.", rounds: [] }),
+    ).toMatchObject({ canResend: false, resendBlockedReason: "Só dá para divulgar vaga aberta." });
   });
 
   it("tolerante: enum novo vira UNKNOWN, campo que falta vira nulo, resumo é calculado", () => {
     const data = parseVacancyGroupBroadcasts({
       radiusKm: 30,
-      center: { source: "OUTRA_COISA" },
       rounds: [
         {
           roundId: "r1",
           mode: "manual",
           createdAt: "2026-10-14T13:40:00.000Z",
+          centerSource: "OUTRA_COISA",
           destinations: [
-            { groupName: "Vagas Freela Vinhedo SP", reason: "NOVO_MOTIVO", status: "failed", errorMessage: "Sem bot" },
+            { groupName: "Vagas Freela Vinhedo SP", reason: "NOVO_MOTIVO", status: "failed", error: "Sem bot" },
             { groupName: "Vagas Freela Campinas SP", reason: "VACANCY_CITY", status: "SENT" },
+            { groupName: "Reserva", reason: "FALLBACK", status: "SKIPPED" },
             "lixo",
           ],
         },
       ],
     });
-    expect(data.center).toEqual({ source: null, city: null, uf: null });
+    expect(data).toMatchObject({ groupBroadcastAt: null, inFlight: 0, canResend: true, resendBlockedReason: null });
     const r = data.rounds[0];
     expect(r.mode).toBe("MANUAL");
-    expect(r.destinations).toHaveLength(2);
+    expect(r.centerSource).toBeNull();
+    expect(r.radiusKm).toBe(0);
+    expect(r.destinations).toHaveLength(3);
     expect(r.destinations[0]).toMatchObject({
       groupJid: "",
       city: null,
       distanceKm: null,
       reason: "UNKNOWN",
       status: "FAILED",
-      errorMessage: "Sem bot",
+      error: "Sem bot",
       sentAt: null,
     });
-    expect(r.summary).toEqual({ total: 2, sent: 1, failed: 1, skipped: 0, pending: 0, ownCity: 1, inRadius: 0 });
-    expect(data.legacy).toBeNull();
-  });
-
-  it("registro antigo só conta se tiver alguma data", () => {
-    expect(parseVacancyGroupBroadcasts({ rounds: [], legacy: { autoSentAt: null, manualSentAt: null } }).legacy).toBeNull();
-    expect(
-      parseVacancyGroupBroadcasts({ rounds: [], legacy: { autoSentAt: "2026-08-11T23:04:00.000Z" } }).legacy,
-    ).toEqual({ autoSentAt: "2026-08-11T23:04:00.000Z", manualSentAt: null });
+    expect(r.summary).toEqual({
+      total: 2,
+      sent: 1,
+      failedCount: 1,
+      failed: [{ groupName: "Vagas Freela Vinhedo SP", errorMessage: "Sem bot" }],
+      skipped: 1,
+      pending: 0,
+      ownCity: 1,
+      inRadius: 0,
+      fallback: 0,
+      vip: 0,
+    });
   });
 
   it("resposta vazia não quebra", () => {
     expect(parseVacancyGroupBroadcasts(undefined)).toEqual({
       radiusKm: 0,
-      center: { source: null, city: null, uf: null },
+      groupBroadcastAt: null,
+      inFlight: 0,
+      canResend: true,
+      resendBlockedReason: null,
       rounds: [],
-      legacy: null,
     });
   });
 });
 
 describe("parseGroupBroadcastPreview", () => {
-  it("lê destinos e os que ficam de fora", () => {
+  it("lê cidade da vaga, centro, grupos e os que ficam de fora pelo teto", () => {
     const p = parseGroupBroadcastPreview({
       radiusKm: 30,
-      center: { source: "CITY_SEAT", city: "Gramado", uf: "RS" },
+      vacancyCity: "Gramado",
+      vacancyUf: "RS",
+      center: { source: "CITY_SEAT", latitude: -29.37, longitude: -50.87 },
+      ownCityHasGroup: false,
+      fallbackUsed: false,
       destinations: [{ groupJid: "1@g.us", groupName: "Vagas Freela Canela RS", city: "Canela", uf: "RS", distanceKm: 7.9, reason: "RADIUS" }],
-      skipped: [{ groupName: "Vagas Freela Caxias RS", city: "Caxias do Sul", uf: "RS", distanceKm: 28, reason: "Passou do limite de 20 grupos" }],
+      skipped: [{ groupJid: "2@g.us", groupName: "Vagas Freela Caxias RS", city: "Caxias do Sul", uf: "RS", distanceKm: 28, reason: "RADIUS" }],
+      canResend: false,
+      resendBlockedReason: "Só dá para divulgar vaga aberta.",
     });
-    expect(p.center.source).toBe("CITY_SEAT");
+    expect(p).toMatchObject({
+      radiusKm: 30,
+      vacancyCity: "Gramado",
+      vacancyUf: "RS",
+      centerSource: "CITY_SEAT",
+      ownCityHasGroup: false,
+      fallbackUsed: false,
+      canResend: false,
+      resendBlockedReason: "Só dá para divulgar vaga aberta.",
+    });
     expect(p.destinations).toEqual([
       { groupJid: "1@g.us", groupName: "Vagas Freela Canela RS", city: "Canela", uf: "RS", distanceKm: 7.9, reason: "RADIUS" },
     ]);
-    expect(p.skipped[0].reason).toBe("Passou do limite de 20 grupos");
+    expect(p.skipped[0]).toMatchObject({ groupName: "Vagas Freela Caxias RS", reason: "RADIUS" });
   });
 
-  it("sem `skipped`: lista vazia", () => {
-    expect(parseGroupBroadcastPreview({ radiusKm: 30, destinations: [] }).skipped).toEqual([]);
+  it("campos ausentes: não bloqueia e não acusa falta de grupo", () => {
+    expect(parseGroupBroadcastPreview({ radiusKm: 30, destinations: [] })).toMatchObject({
+      centerSource: null,
+      ownCityHasGroup: true,
+      fallbackUsed: false,
+      skipped: [],
+      canResend: true,
+      resendBlockedReason: null,
+    });
   });
 });
 
 describe("parseResendGroupResult", () => {
   it("API nova: roundId + destinos", () => {
     expect(
-      parseResendGroupResult({ roundId: "r9", destinations: [{ groupJid: "1", groupName: "G", reason: "RADIUS" }] }),
+      parseResendGroupResult({
+        ok: true,
+        roundId: "r9",
+        ownCityHasGroup: true,
+        fallbackUsed: false,
+        radiusKm: 30,
+        center: { source: "VACANCY", latitude: 1, longitude: 2 },
+        destinations: [{ groupJid: "1", groupName: "G", reason: "RADIUS" }],
+        skipped: [],
+      }),
     ).toEqual({
       roundId: "r9",
       destinations: [{ groupJid: "1", groupName: "G", city: null, uf: null, distanceKm: null, reason: "RADIUS" }],
@@ -143,24 +238,84 @@ describe("parseOutreachGroupBroadcast (coluna Disparo)", () => {
     expect(parseOutreachGroupBroadcast(undefined)).toBeUndefined();
   });
 
-  it("null ou lastRound nulo: API nova sem rodada", () => {
+  it("null ou lastRound nulo: registro antigo", () => {
     expect(parseOutreachGroupBroadcast(null)).toEqual({ lastRound: null });
     expect(parseOutreachGroupBroadcast({ lastRound: null })).toEqual({ lastRound: null });
   });
 
-  it("última rodada com contagens (o que faltar vira 0)", () => {
+  it("última rodada: `failed` é a lista (≤3) e o número é `failedCount`", () => {
     expect(
-      parseOutreachGroupBroadcast({ lastRound: { mode: "AUTO", at: "2026-10-14T12:12:00.000Z", total: 4, sent: 3, failed: 1 } }),
+      parseOutreachGroupBroadcast({
+        lastRound: {
+          roundId: "auto:v1",
+          mode: "AUTO",
+          at: "2026-10-14T12:12:00.000Z",
+          total: 4,
+          sent: 3,
+          failedCount: 1,
+          failed: [{ groupName: "Vagas Freela Vinhedo SP", errorMessage: "O bot não está no grupo." }],
+          skipped: 0,
+          pending: 0,
+          ownCity: 1,
+          inRadius: 3,
+          fallback: 0,
+          vip: 0,
+        },
+      }),
     ).toEqual({
-      lastRound: { mode: "AUTO", at: "2026-10-14T12:12:00.000Z", total: 4, sent: 3, failed: 1, skipped: 0, pending: 0, ownCity: 0, inRadius: 0 },
+      lastRound: {
+        roundId: "auto:v1",
+        mode: "AUTO",
+        at: "2026-10-14T12:12:00.000Z",
+        total: 4,
+        sent: 3,
+        failedCount: 1,
+        failed: [{ groupName: "Vagas Freela Vinhedo SP", errorMessage: "O bot não está no grupo." }],
+        skipped: 0,
+        pending: 0,
+        ownCity: 1,
+        inRadius: 3,
+        fallback: 0,
+        vip: 0,
+      },
+    });
+  });
+
+  it("o que faltar vira 0 / lista vazia", () => {
+    expect(
+      parseOutreachGroupBroadcast({ lastRound: { mode: "AUTO", at: "2026-10-14T12:12:00.000Z", total: 4, sent: 4 } }),
+    ).toEqual({
+      lastRound: {
+        roundId: null,
+        mode: "AUTO",
+        at: "2026-10-14T12:12:00.000Z",
+        total: 4,
+        sent: 4,
+        failedCount: 0,
+        failed: [],
+        skipped: 0,
+        pending: 0,
+        ownCity: 0,
+        inRadius: 0,
+        fallback: 0,
+        vip: 0,
+      },
     });
   });
 });
 
-describe("isNotFoundError", () => {
-  it("só 404 do axios", () => {
-    expect(isNotFoundError({ isAxiosError: true, response: { status: 404 } })).toBe(true);
-    expect(isNotFoundError({ isAxiosError: true, response: { status: 500 } })).toBe(false);
-    expect(isNotFoundError(new Error("x"))).toBe(false);
+describe("erros", () => {
+  it("apiErrorCode lê `error.code`", () => {
+    expect(apiErrorCode(axiosErro(409, "BROADCAST_IN_PROGRESS"))).toBe("BROADCAST_IN_PROGRESS");
+    expect(apiErrorCode(new Error("x"))).toBeNull();
+  });
+
+  it("isRouteMissingError: só 404 de rota (API antiga), não 404 do domínio", () => {
+    expect(isRouteMissingError(axiosErro(404))).toBe(true);
+    expect(isRouteMissingError(axiosErro(404, "NOT_FOUND"))).toBe(true);
+    expect(isRouteMissingError(axiosErro(404, "VACANCY_NOT_FOUND"))).toBe(false);
+    expect(isRouteMissingError(axiosErro(404, "CONTRACTOR_NOT_FOUND"))).toBe(false);
+    expect(isRouteMissingError(axiosErro(503, "GROUP_BROADCAST_UNAVAILABLE"))).toBe(false);
+    expect(isRouteMissingError(new Error("x"))).toBe(false);
   });
 });

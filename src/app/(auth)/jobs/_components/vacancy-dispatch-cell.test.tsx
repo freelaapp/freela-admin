@@ -4,7 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { GroupBroadcastPreview } from "@/modules/admin/infrastructure/vacancy-group-broadcasts-api";
+import type {
+  GroupBroadcastLastRound,
+  GroupBroadcastPreview,
+} from "@/modules/admin/infrastructure/vacancy-group-broadcasts-api";
 import type { OutreachRecord } from "@/modules/admin/infrastructure/vacancy-outreach-api";
 
 import { GroupDispatchBadge } from "./group-dispatch-badge";
@@ -35,15 +38,41 @@ const T0912 = "2026-10-14T12:12:00.000Z";
 
 const PREVIA: GroupBroadcastPreview = {
   radiusKm: 30,
-  center: { source: "VACANCY", city: "Campinas", uf: "SP" },
+  vacancyCity: "Campinas",
+  vacancyUf: "SP",
+  centerSource: "VACANCY",
+  ownCityHasGroup: true,
+  fallbackUsed: false,
+  canResend: true,
+  resendBlockedReason: null,
   destinations: [
     { groupJid: "c", groupName: "Vagas Freela Campinas SP", city: "Campinas", uf: "SP", distanceKm: 4, reason: "VACANCY_CITY" },
     { groupJid: "v", groupName: "Vagas Freela Vinhedo SP", city: "Vinhedo", uf: "SP", distanceKm: 12, reason: "RADIUS" },
   ],
   skipped: [
-    { groupName: "Vagas Freela Jundiaí SP", city: "Jundiaí", uf: "SP", distanceKm: 29, reason: "Passou do limite de grupos por vaga" },
+    { groupJid: "j", groupName: "Vagas Freela Jundiaí SP", city: "Jundiaí", uf: "SP", distanceKm: 29, reason: "RADIUS" },
   ],
 };
+
+/** Contrato final: `total` = tentados; `failed` é a lista (≤3), o número é `failedCount`. */
+function rodada(over: Partial<GroupBroadcastLastRound> = {}): GroupBroadcastLastRound {
+  return {
+    roundId: "auto:v1",
+    mode: "AUTO",
+    at: T0912,
+    total: 4,
+    sent: 4,
+    failedCount: 0,
+    failed: [],
+    skipped: 0,
+    pending: 0,
+    ownCity: 1,
+    inRadius: 3,
+    fallback: 0,
+    vip: 0,
+    ...over,
+  };
+}
 
 function registro(over: Partial<OutreachRecord> = {}): OutreachRecord {
   return {
@@ -81,7 +110,11 @@ describe("GroupDispatchBadge", () => {
       <GroupDispatchBadge
         record={registro({
           groupBroadcast: {
-            lastRound: { mode: "AUTO", at: T0912, total: 4, sent: 3, failed: 1, skipped: 0, pending: 0, ownCity: 1, inRadius: 3 },
+            lastRound: rodada({
+              sent: 3,
+              failedCount: 1,
+              failed: [{ groupName: "Vagas Freela Vinhedo SP", errorMessage: "O bot não está no grupo." }],
+            }),
           },
         })}
       />,
@@ -89,7 +122,9 @@ describe("GroupDispatchBadge", () => {
     const selo = screen.getByTestId("group-dispatch-badge");
     expect(selo).toHaveTextContent("⚠ 3 de 4 grupos · 09:12");
     expect(selo).toHaveClass("text-amber-700");
-    expect(selo.getAttribute("title")).toContain("Recebeu em 3 de 4 grupos (tentados: 1 da cidade da vaga + 3 a até 30 km).");
+    expect(selo.getAttribute("title")).toContain(
+      "Recebeu em 3 de 4 grupos (tentados: 1 da cidade da vaga + 3 a até 30 km). Não recebeu: Vagas Freela Vinhedo SP. Motivo: O bot não está no grupo.",
+    );
   });
 
   it("API antiga (sem groupBroadcast): o selo de antes", () => {
@@ -108,7 +143,7 @@ describe("VacancyDispatchCell (Empresas)", () => {
     renderCell(
       registro({
         groupBroadcast: {
-          lastRound: { mode: "AUTO", at: T0912, total: 4, sent: 4, failed: 0, skipped: 0, pending: 0, ownCity: 1, inRadius: 3 },
+          lastRound: rodada(),
         },
       }),
     );
@@ -126,12 +161,51 @@ describe("VacancyDispatchCell (Empresas)", () => {
     renderCell(
       registro({
         groupBroadcast: {
-          lastRound: { mode: "AUTO", at: T0912, total: 4, sent: 1, failed: 0, skipped: 0, pending: 3, ownCity: 1, inRadius: 3 },
+          lastRound: rodada({ sent: 1, pending: 3 }),
         },
       }),
     );
     expect(screen.getByTestId("group-dispatch-badge")).toHaveTextContent("… enviando 1 de 4 grupos");
     expect(screen.getByRole("button", { name: "Enviando…" })).toBeDisabled();
+  });
+
+  it("rodada que falhou inteira (lastSentAt nulo): ✗ Falhou e o botão diz 'Enviar'", () => {
+    renderCell(
+      registro({
+        lastSentAt: null,
+        sendCount: 0,
+        autoSentAt: null,
+        groupBroadcast: {
+          lastRound: rodada({
+            sent: 0,
+            failedCount: 4,
+            failed: [{ groupName: "Vagas Freela Campinas SP", errorMessage: "WhatsApp desconectado." }],
+          }),
+        },
+      }),
+    );
+    const selo = screen.getByTestId("group-dispatch-badge");
+    expect(selo).toHaveTextContent("✗ Falhou · 09:12");
+    expect(selo).toHaveAttribute(
+      "title",
+      "Tentamos 4 grupos em 14/10 às 09:12 e nenhum recebeu. Motivo: WhatsApp desconectado.",
+    );
+    expect(screen.getByRole("button", { name: "Enviar" })).toBeEnabled();
+  });
+
+  it("confirmação aberta pela lista: vaga bloqueada mostra o porquê e não deixa enviar", async () => {
+    api.getVacancyGroupBroadcastPreview.mockResolvedValue({
+      ...PREVIA,
+      canResend: false,
+      resendBlockedReason: "Só dá para divulgar vaga aberta.",
+    });
+    renderCell(registro({ groupBroadcast: { lastRound: rodada() } }));
+    fireEvent.click(screen.getByRole("button", { name: "Reenviar" }));
+    const dialogo = await screen.findByRole("dialog");
+    expect(await within(dialogo).findByText("Só dá para divulgar vaga aberta.")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Não dá para divulgar esta vaga agora")).toBeInTheDocument();
+    expect(within(dialogo).queryByRole("button", { name: /^Reenviar/ })).not.toBeInTheDocument();
+    expect(api.resendVacancyGroupMessage).not.toHaveBeenCalled();
   });
 
   it("vaga que saiu antes do registro (groupBroadcastAt) não vira 'Não divulgada'", () => {
@@ -144,19 +218,25 @@ describe("VacancyDispatchCell (Empresas)", () => {
     api.resendVacancyGroupMessage.mockResolvedValue({ roundId: "r9", destinations: PREVIA.destinations });
     api.getVacancyGroupBroadcasts.mockResolvedValue({
       radiusKm: 30,
-      center: PREVIA.center,
-      legacy: null,
+      groupBroadcastAt: T0912,
+      inFlight: 0,
+      canResend: true,
+      resendBlockedReason: null,
       rounds: [
         {
           roundId: "r9",
           mode: "MANUAL",
           createdAt: T0912,
-          summary: { total: 2, sent: 2, failed: 0, skipped: 0, pending: 0, ownCity: 1, inRadius: 1 },
+          radiusKm: 30,
+          centerSource: "VACANCY",
+          summary: {
+            total: 2, sent: 2, failedCount: 0, failed: [], skipped: 0, pending: 0, ownCity: 1, inRadius: 1, fallback: 0, vip: 0,
+          },
           destinations: PREVIA.destinations.map((d) => ({
             ...d,
             status: "SENT",
             errorCode: null,
-            errorMessage: null,
+            error: null,
             sentAt: T0912,
           })),
         },
@@ -169,10 +249,10 @@ describe("VacancyDispatchCell (Empresas)", () => {
     expect(await within(dialogo).findByText("Reenviar a vaga para 2 grupos?")).toBeInTheDocument();
     expect(within(dialogo).getByText("Vagas Freela Campinas SP · Campinas-SP · 4 km")).toBeInTheDocument();
     expect(within(dialogo).getByText("Vagas Freela Vinhedo SP · Vinhedo-SP · 12 km")).toBeInTheDocument();
-    expect(within(dialogo).getByText("1 grupo fica de fora:")).toBeInTheDocument();
     expect(
-      within(dialogo).getByText("Vagas Freela Jundiaí SP · Jundiaí-SP · 29 km — Passou do limite de grupos por vaga"),
+      within(dialogo).getByText("1 grupo fica de fora pelo limite de 8 cidades vizinhas e 20 grupos por vaga:"),
     ).toBeInTheDocument();
+    expect(within(dialogo).getByText("Vagas Freela Jundiaí SP · Jundiaí-SP · 29 km")).toBeInTheDocument();
 
     const confirmar = within(dialogo).getByRole("button", { name: "Reenviar para 2 grupos" });
     fireEvent.click(confirmar);

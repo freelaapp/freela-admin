@@ -18,15 +18,20 @@ export const GROUP_BROADCAST_STAGE = "groupBroadcast";
 export interface OutreachRecord {
   vacancyId: string;
   stage: string;
-  lastSentAt: string;
+  /**
+   * Último envio confirmado. `null` no registro do Disparo de uma vaga cuja
+   * rodada falhou inteira ou ainda está na fila (aí vale `groupBroadcast`).
+   */
+  lastSentAt: string | null;
   sendCount: number;
   /** Quando o disparo AUTOMÁTICO saiu (o do próprio fluxo de publicação). */
   autoSentAt?: string | null;
   /** Quando alguém do painel apertou o botão. Os dois convivem. */
   manualSentAt?: string | null;
   /**
-   * Última rodada nos grupos (cidade da vaga + até 30 km). Ausente = API
-   * anterior ao registro por grupo: a coluna "Disparo" mostra como antes.
+   * Última rodada nos grupos (cidade da vaga + até 30 km), só no registro
+   * `stage: 'groupBroadcast'`. Ausente = API anterior ao registro por grupo: a
+   * coluna "Disparo" mostra como antes.
    */
   groupBroadcast?: OutreachGroupBroadcast;
 }

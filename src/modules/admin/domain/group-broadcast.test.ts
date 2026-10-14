@@ -7,6 +7,9 @@ import {
   formatKm,
   formatQuandoRelativo,
   lastBroadcastAt,
+  lastRoundInFlight,
+  motivoDoGrupo,
+  origemDaDistancia,
   roundHeadline,
   roundShortSummary,
   shouldKeepPolling,
@@ -22,17 +25,22 @@ import type {
 const T0912 = "2026-10-14T12:12:00.000Z";
 const T1040 = "2026-10-14T13:40:00.000Z";
 
+/** `total` = tentados = ownCity + inRadius + fallback + vip = sent + failedCount + pending. */
 function last(over: Partial<GroupBroadcastLastRound> = {}): GroupBroadcastLastRound {
   return {
+    roundId: "auto:v1",
     mode: "AUTO",
     at: T0912,
     total: 4,
     sent: 4,
-    failed: 0,
+    failedCount: 0,
+    failed: [],
     skipped: 0,
     pending: 0,
     ownCity: 1,
     inRadius: 3,
+    fallback: 0,
+    vip: 0,
     ...over,
   };
 }
@@ -47,7 +55,7 @@ function dest(over: Partial<GroupBroadcastDestination> = {}): GroupBroadcastDest
     reason: "VACANCY_CITY",
     status: "SENT",
     errorCode: null,
-    errorMessage: null,
+    error: null,
     sentAt: T1040,
     ...over,
   };
@@ -58,19 +66,23 @@ function round(destinations: GroupBroadcastDestination[], over: Partial<GroupBro
     roundId: "r1",
     mode: "MANUAL",
     createdAt: T1040,
-    summary: { total: 0, sent: 0, failed: 0, skipped: 0, pending: 0, ownCity: 0, inRadius: 0 },
+    radiusKm: 30,
+    centerSource: "VACANCY",
+    summary: {
+      total: 0, sent: 0, failedCount: 0, failed: [], skipped: 0, pending: 0, ownCity: 0, inRadius: 0, fallback: 0, vip: 0,
+    },
     destinations,
     ...over,
   };
 }
 
-/** 1 da cidade (enviado) + 3 a até 30 km (2 enviados, 1 falhou). */
+/** 1 da cidade (enviado) + 3 a até 30 km (2 enviados, 1 falhou) + 1 pulado. */
 const RODADA_PARCIAL = round([
-  dest({ groupName: "Vagas Freela Vinhedo SP", city: "Vinhedo", distanceKm: 12, reason: "RADIUS", status: "FAILED", sentAt: null, errorMessage: "O bot não está no grupo." }),
+  dest({ groupName: "Vagas Freela Vinhedo SP", city: "Vinhedo", distanceKm: 12, reason: "RADIUS", status: "FAILED", sentAt: null, errorCode: "FALHA_NO_ENVIO", error: "O bot não está no grupo." }),
   dest({ groupName: "Vagas Freela Valinhos SP", city: "Valinhos", distanceKm: 9.6, reason: "RADIUS" }),
   dest({ groupName: "Vagas Freela Campinas SP", distanceKm: 4.2 }),
   dest({ groupName: "Vagas Freela Sumaré SP", city: "Sumaré", distanceKm: 21, reason: "RADIUS" }),
-  dest({ groupName: "Vagas Freela Jundiaí SP", city: "Jundiaí", distanceKm: 38, reason: "RADIUS", status: "SKIPPED", errorMessage: "Passou do limite de 20 grupos." }),
+  dest({ groupName: "Vagas Freela Jundiaí SP", city: "Jundiaí", distanceKm: 28, reason: "RADIUS", status: "SKIPPED", errorCode: "LIMITE_DE_GRUPOS", error: null }),
 ]);
 
 describe("dispatchBadge — selo da coluna Disparo (só a última rodada)", () => {
@@ -87,7 +99,7 @@ describe("dispatchBadge — selo da coluna Disparo (só a última rodada)", () =
   });
 
   it("todos receberam (automático): ✓ 4 grupos · auto 09:12, com a conta no title", () => {
-    const selo = dispatchBadge({ groupBroadcast: { lastRound: last() } });
+    const selo = dispatchBadge({ lastSentAt: T0912, groupBroadcast: { lastRound: last() } });
     expect(selo).toMatchObject({ text: "✓ 4 grupos · auto", time: "09:12", tone: "green" });
     expect(selo.title).toBe(
       "Última rodada: automática, 14/10 às 09:12. Recebeu em 4 de 4 grupos: 1 da cidade da vaga + 3 a até 30 km.",
@@ -104,39 +116,82 @@ describe("dispatchBadge — selo da coluna Disparo (só a última rodada)", () =
     expect(selo.title).toContain("Antes: automática, 14/10 às 09:12.");
   });
 
-  it("parte falhou: ⚠ 3 de 4 grupos · 09:12 (âmbar)", () => {
-    const selo = dispatchBadge({ groupBroadcast: { lastRound: last({ sent: 3, failed: 1 }) } });
-    expect(selo).toMatchObject({ text: "⚠ 3 de 4 grupos ·", time: "09:12", tone: "amber" });
-    expect(selo.title).toContain("Recebeu em 3 de 4 grupos");
-    expect(selo.title).toContain("1 não recebeu: veja quais e o motivo em Detalhes da vaga.");
-  });
-
-  it("todos falharam: ✗ Falhou · 09:12", () => {
-    const selo = dispatchBadge({ groupBroadcast: { lastRound: last({ sent: 0, failed: 4 }) } });
-    expect(selo).toMatchObject({ text: "✗ Falhou ·", time: "09:12", tone: "red" });
-    expect(selo.title).toContain("Tentamos 4 grupos em 14/10 às 09:12 e nenhum recebeu.");
-  });
-
-  it("pulados ficam fora da conta (e o title diz quantos)", () => {
+  it("parte falhou: ⚠ 3 de 4 grupos · 09:12, com o nome e o motivo de quem não recebeu", () => {
     const selo = dispatchBadge({
-      groupBroadcast: { lastRound: last({ total: 6, skipped: 2, sent: 4 }) },
+      groupBroadcast: {
+        lastRound: last({
+          sent: 3,
+          failedCount: 1,
+          failed: [{ groupName: "Vagas Freela Vinhedo SP", errorMessage: "O bot não está no grupo." }],
+        }),
+      },
     });
+    expect(selo).toMatchObject({ text: "⚠ 3 de 4 grupos ·", time: "09:12", tone: "amber" });
+    expect(selo.title).toBe(
+      "Última rodada: automática, 14/10 às 09:12. Recebeu em 3 de 4 grupos (tentados: 1 da cidade da vaga + 3 a até 30 km). Não recebeu: Vagas Freela Vinhedo SP. Motivo: O bot não está no grupo.",
+    );
+  });
+
+  it("mais falhas do que os 3 nomes da API: lista os 3 e diz quantos faltam", () => {
+    const selo = dispatchBadge({
+      groupBroadcast: {
+        lastRound: last({
+          total: 6,
+          sent: 1,
+          failedCount: 5,
+          inRadius: 5,
+          failed: [
+            { groupName: "A", errorMessage: "Sem bot" },
+            { groupName: "B", errorMessage: null },
+            { groupName: "C", errorMessage: "Sem bot." },
+          ],
+        }),
+      },
+    });
+    expect(selo.title).toContain("Não receberam: A (Sem bot); B; C (Sem bot). E mais 2: veja em Detalhes da vaga.");
+  });
+
+  it("todos falharam: ✗ Falhou · 09:12 e o motivo", () => {
+    const selo = dispatchBadge({
+      lastSentAt: null,
+      groupBroadcast: {
+        lastRound: last({
+          sent: 0,
+          failedCount: 4,
+          failed: [{ groupName: "Vagas Freela Campinas SP", errorMessage: "WhatsApp desconectado." }],
+        }),
+      },
+    });
+    expect(selo).toMatchObject({ text: "✗ Falhou ·", time: "09:12", tone: "red" });
+    expect(selo.title).toBe(
+      "Tentamos 4 grupos em 14/10 às 09:12 e nenhum recebeu. Motivo: WhatsApp desconectado.",
+    );
+  });
+
+  it("pulados ficam fora da conta (total já vem sem eles) e o title diz quantos", () => {
+    const selo = dispatchBadge({ groupBroadcast: { lastRound: last({ skipped: 2 }) } });
     expect(selo.text).toBe("✓ 4 grupos · auto");
     expect(selo.title).toContain("Recebeu em 4 de 4 grupos");
     expect(selo.title).toContain("2 grupos ficaram de fora (pulados) e não entram na conta.");
   });
 
-  it("singular: ✓ 1 grupo", () => {
-    const selo = dispatchBadge({
-      groupBroadcast: { lastRound: last({ total: 1, sent: 1, ownCity: 1, inRadius: 0 }) },
+  it("grupo de reserva e grupo exclusivo entram na composição", () => {
+    const reserva = dispatchBadge({
+      groupBroadcast: { lastRound: last({ total: 1, sent: 1, ownCity: 0, inRadius: 0, fallback: 1 }) },
     });
-    expect(selo.text).toBe("✓ 1 grupo · auto");
-    expect(selo.title).toContain("Recebeu em 1 de 1 grupo: 1 da cidade da vaga.");
+    expect(reserva.title).toContain("Recebeu em 1 de 1 grupo: 1 grupo de reserva.");
+    const vip = dispatchBadge({
+      groupBroadcast: { lastRound: last({ total: 1, sent: 1, ownCity: 0, inRadius: 0, vip: 1 }) },
+    });
+    expect(vip.title).toContain("Recebeu em 1 de 1 grupo: 1 exclusivo da empresa.");
   });
 
-  it("ainda na fila: … enviando 1 de 4 grupos", () => {
-    const selo = dispatchBadge({ groupBroadcast: { lastRound: last({ sent: 1, pending: 3 }) } });
+  it("ainda na fila (lastSentAt nulo): … enviando 1 de 4 grupos, não '✓ enviado'", () => {
+    const r = last({ sent: 1, pending: 3 });
+    const selo = dispatchBadge({ lastSentAt: null, groupBroadcast: { lastRound: r } });
     expect(selo).toMatchObject({ text: "… enviando 1 de 4 grupos", tone: "blue", time: null });
+    expect(lastRoundInFlight(r)).toBe(true);
+    expect(lastRoundInFlight(last())).toBe(false);
   });
 
   it("composição que não fecha com o total: não afirma a divisão", () => {
@@ -144,7 +199,7 @@ describe("dispatchBadge — selo da coluna Disparo (só a última rodada)", () =
     expect(selo.title).toBe("Última rodada: automática, 14/10 às 09:12. Recebeu em 4 de 4 grupos.");
   });
 
-  it("API nova sem rodada registrada: ✓ enviado (registro antigo)", () => {
+  it("registro antigo (lastRound nulo): ✓ enviado", () => {
     expect(dispatchBadge({ lastSentAt: T0912, groupBroadcast: { lastRound: null } })).toMatchObject({
       text: "✓ enviado",
       tone: "gray",
@@ -175,14 +230,18 @@ describe("dispatchBadge — selo da coluna Disparo (só a última rodada)", () =
 
 describe("rodada no modal", () => {
   it("cabeçalho: recebeu em 3 de 4 (1 da cidade + 2 de 3 a até 30 km); pulado fora", () => {
-    expect(roundHeadline(RODADA_PARCIAL, 30)).toBe(
+    expect(roundHeadline(RODADA_PARCIAL)).toBe(
       "Recebeu em 3 de 4 grupos na última rodada (1 da cidade da vaga + 2 de 3 a até 30 km).",
     );
   });
 
+  it("cabeçalho usa o raio DA RODADA", () => {
+    expect(roundHeadline({ ...RODADA_PARCIAL, radiusKm: 25 })).toContain("2 de 3 a até 25 km");
+  });
+
   it("cabeçalho enquanto a fila anda", () => {
     const r = round([dest(), dest({ reason: "RADIUS", status: "PENDING", sentAt: null })]);
-    expect(roundHeadline(r, 30)).toBe(
+    expect(roundHeadline(r)).toBe(
       "Enviando: 1 de 2 grupos já receberam (1 da cidade da vaga + 0 de 1 a até 30 km). A mensagem sai em 1 grupo a cada ~3 s.",
     );
   });
@@ -206,6 +265,27 @@ describe("rodada no modal", () => {
     expect(formatKm(0.4)).toBe("menos de 1 km");
     expect(formatKm(null)).toBeNull();
   });
+
+  it("motivo do grupo: o texto da API; sem texto, pelo código", () => {
+    expect(motivoDoGrupo({ error: "O bot não está no grupo.", errorCode: "FALHA_NO_ENVIO" })).toBe(
+      "O bot não está no grupo.",
+    );
+    expect(motivoDoGrupo({ error: null, errorCode: "LIMITE_DE_GRUPOS" })).toBe(
+      "Passou do limite de grupos por vaga.",
+    );
+    expect(motivoDoGrupo({ error: null, errorCode: "EXPIRADO" })).toBe("Ficou mais de 2 h na fila e não saiu.");
+    expect(motivoDoGrupo({ error: null, errorCode: null })).toBe("Motivo não informado.");
+  });
+
+  it("de onde a distância foi medida", () => {
+    expect(origemDaDistancia("VACANCY")).toBe("do local da vaga");
+    expect(origemDaDistancia("CITY_SEAT", "Gramado", "RS")).toBe(
+      "do centro de Gramado-RS (a vaga não tem localização no mapa)",
+    );
+    expect(origemDaDistancia("CONTRACTOR")).toBe(
+      "do endereço da empresa (a vaga não tem localização própria no mapa)",
+    );
+  });
 });
 
 describe("describeRoundOutcome — aviso quando a rodada termina", () => {
@@ -224,14 +304,15 @@ describe("describeRoundOutcome — aviso quando a rodada termina", () => {
     });
   });
 
-  it("nenhum recebeu: motivo da API", () => {
+  it("nenhum recebeu: motivo da API (ou do código)", () => {
     const r = round([
-      dest({ status: "FAILED", errorMessage: "WhatsApp desconectado.", sentAt: null }),
-      dest({ status: "FAILED", reason: "RADIUS", errorMessage: "WhatsApp desconectado.", sentAt: null }),
+      dest({ status: "FAILED", error: null, errorCode: "WHATSAPP_DESLIGADO", sentAt: null }),
+      dest({ status: "FAILED", reason: "RADIUS", errorCode: "WHATSAPP_DESLIGADO", sentAt: null }),
     ]);
     expect(describeRoundOutcome(r)).toEqual({
       tone: "error",
-      message: "A vaga não saiu em nenhum grupo. WhatsApp desconectado. Tente de novo em alguns minutos.",
+      message:
+        "A vaga não saiu em nenhum grupo. A integração com o WhatsApp está desligada. Tente de novo em alguns minutos.",
     });
   });
 });
@@ -258,10 +339,13 @@ describe("shouldKeepPolling", () => {
     ).toBe(false);
   });
 
-  it("sem reenvio: acompanha a última rodada que ainda está na fila", () => {
+  it("sem reenvio: acompanha enquanto a API diz que há grupo na fila", () => {
     const r = round([dest({ status: "SENDING" })]);
     expect(shouldKeepPolling({ ...base, rounds: [r], watchRoundId: null })).toBe(true);
     expect(shouldKeepPolling({ ...base, rounds: [RODADA_PARCIAL], watchRoundId: null })).toBe(false);
+    expect(
+      shouldKeepPolling({ ...base, rounds: [RODADA_PARCIAL], inFlight: 2, watchRoundId: null }),
+    ).toBe(true);
   });
 });
 
@@ -282,17 +366,18 @@ describe("datas", () => {
     );
   });
 
-  it("lastBroadcastAt: o último envio que deu certo", () => {
+  it("lastBroadcastAt: o último envio que deu certo (ou o groupBroadcastAt da vaga)", () => {
+    const base = { radiusKm: 30, inFlight: 0, canResend: true, resendBlockedReason: null };
     expect(
       lastBroadcastAt({
-        radiusKm: 30,
-        center: { source: "VACANCY", city: "Campinas", uf: "SP" },
+        ...base,
+        groupBroadcastAt: T0912,
         rounds: [
           round([dest({ status: "FAILED", sentAt: null })], { roundId: "r2", createdAt: "2026-10-14T15:00:00.000Z" }),
           RODADA_PARCIAL,
         ],
-        legacy: { autoSentAt: T0912, manualSentAt: null },
       }),
     ).toBe(T1040);
+    expect(lastBroadcastAt({ ...base, groupBroadcastAt: T0912, rounds: [] })).toBe(T0912);
   });
 });
