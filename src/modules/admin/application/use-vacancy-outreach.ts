@@ -48,7 +48,10 @@ export function useSendVacancyStageMessage() {
   });
 }
 
-/** Reenvio do anúncio no grupo da cidade. */
+/**
+ * Reenvio do anúncio nos grupos (Empresas: todos a até 30 km; Casa: o da
+ * cidade). Devolve a rodada aberta (`roundId`) quando a API já registra por grupo.
+ */
 export function useResendVacancyGroupMessage() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -59,7 +62,12 @@ export function useResendVacancyGroupMessage() {
       vacancyId: string;
       module?: "empresa" | "casa";
     }) => resendVacancyGroupMessage(vacancyId, module),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-outreach"] }),
+    onSuccess: (_res, { vacancyId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-outreach"] }),
+        // Divulgação e prévia da vaga (mesmo prefixo de `groupBroadcastsKey`).
+        queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-group-broadcasts", vacancyId] }),
+      ]),
   });
 }
 

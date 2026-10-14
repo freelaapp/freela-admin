@@ -27,7 +27,10 @@ import {
   findGroupBroadcastRecord,
   isRowNotBroadcast,
 } from "./_components/vacancy-display-status";
-import { NotBroadcastBadge, VacancyNotBroadcastNotice } from "./_components/vacancy-not-broadcast";
+import { NotBroadcastBadge } from "./_components/vacancy-not-broadcast";
+import { GroupDispatchBadge } from "./_components/group-dispatch-badge";
+import { VacancyGroupBroadcastsSection } from "./_components/vacancy-group-broadcasts-section";
+import { grupos, SEGUNDOS_ENTRE_GRUPOS } from "@/modules/admin/domain/group-broadcast";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -541,9 +544,13 @@ export default function JobsPage() {
           vacancyId={row.id}
           record={registrosDisparo.get(`${row.id}::${GROUP_BROADCAST_STAGE}`)}
           module="empresa"
+          broadcastAt={row.raw.groupBroadcastAt}
         />
       ),
       className: "hidden lg:table-cell",
+      // No cartão do celular o selo já vai embaixo do Status (e o reenvio fica
+      // no modal da vaga): sem isto o selo apareceria duas vezes.
+      mobile: "hide" as const,
     },
     {
       // Contrato · Recibo · RPA · NF-e em quatro pastilhas; o motivo vai no
@@ -556,12 +563,27 @@ export default function JobsPage() {
     },
     {
       header: "Status",
-      accessor: (row: Row) => (
-        <div className="flex flex-wrap items-center gap-1">
-          <StatusBadge status={row.statusExibido} />
-          {isRowNotBroadcast(registrosDisparo, row) && <NotBroadcastBadge />}
-        </div>
-      ),
+      accessor: (row: Row) => {
+        const naoDivulgada = isRowNotBroadcast(registrosDisparo, row);
+        return (
+          <div className="flex flex-col items-end gap-1 md:items-start">
+            <div className="flex flex-wrap items-center gap-1">
+              <StatusBadge status={row.statusExibido} />
+              {naoDivulgada && <NotBroadcastBadge />}
+            </div>
+            {/* Celular e tablet: a coluna "Disparo" não aparece, então o selo da
+                divulgação vem aqui, em 2ª linha (o reenvio fica no modal). Com
+                "Não divulgada" já ao lado do status, não repete. */}
+            {!naoDivulgada && (
+              <GroupDispatchBadge
+                record={findGroupBroadcastRecord(registrosDisparo, row.id)}
+                vacancyBroadcastAt={row.raw.groupBroadcastAt}
+                className="lg:hidden"
+              />
+            )}
+          </div>
+        );
+      },
     },
     {
       header: "Ações",
@@ -665,8 +687,13 @@ export default function JobsPage() {
           onReenviarGrupo={async (vacancyId) => {
             setAvisandoId(vacancyId);
             try {
-              await reenviarNoGrupo.mutateAsync({ vacancyId, module: "empresa" });
-              toast.success("Vaga reenviada no grupo da cidade.");
+              const r = await reenviarNoGrupo.mutateAsync({ vacancyId, module: "empresa" });
+              // API nova: a rodada vai para todos os grupos no raio, em fila.
+              toast.success(
+                r.roundId
+                  ? `Enviando a vaga para ${grupos(r.destinations.length)}, 1 a cada ~${SEGUNDOS_ENTRE_GRUPOS} s. Veja quais receberam em Detalhes da vaga.`
+                  : "Vaga reenviada no grupo da cidade.",
+              );
               // Auto-tica "Divulgar de novo no grupo de WhatsApp".
               await marcarAcaoDoChecklist(vacancyId, "divulgar_grupo");
             } catch (e) {
@@ -848,13 +875,6 @@ export default function JobsPage() {
                   setCancelRefundType("FULL");
                 }}
               />
-              {isRowNotBroadcast(registrosDisparo, modalDetalhes) && (
-                <VacancyNotBroadcastNotice
-                  vacancyId={modalDetalhes.id}
-                  module="empresa"
-                  record={findGroupBroadcastRecord(registrosDisparo, modalDetalhes.id)}
-                />
-              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
                   <p className="text-[#737373]">Empresa</p>
@@ -1063,6 +1083,14 @@ export default function JobsPage() {
                   <div className="mt-1"><StatusBadge status={modalDetalhes.statusExibido} /></div>
                 </div>
               </div>
+
+              {/* Para quais grupos de WhatsApp a vaga foi + reenvio (substitui o
+                  antigo aviso "Vaga não divulgada": o estado vazio já diz isso). */}
+              <VacancyGroupBroadcastsSection
+                key={modalDetalhes.id}
+                vacancyId={modalDetalhes.id}
+                record={findGroupBroadcastRecord(registrosDisparo, modalDetalhes.id)}
+              />
 
               <VacancyRoadmap vacancy={modalDetalhes.raw} />
 

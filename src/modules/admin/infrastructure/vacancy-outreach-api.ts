@@ -1,5 +1,12 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 
+import {
+  parseOutreachGroupBroadcast,
+  parseResendGroupResult,
+  type OutreachGroupBroadcast,
+  type ResendGroupResult,
+} from "./vacancy-group-broadcasts-api";
+
 const outreachApi = createAuthedClient("/v1/admins/vacancy-outreach");
 
 /** Etapas em que a vaga está parada esperando o CONTRATANTE. */
@@ -17,11 +24,20 @@ export interface OutreachRecord {
   autoSentAt?: string | null;
   /** Quando alguém do painel apertou o botão. Os dois convivem. */
   manualSentAt?: string | null;
+  /**
+   * Última rodada nos grupos (cidade da vaga + até 30 km). Ausente = API
+   * anterior ao registro por grupo: a coluna "Disparo" mostra como antes.
+   */
+  groupBroadcast?: OutreachGroupBroadcast;
 }
 
 export async function getVacancyOutreach(): Promise<OutreachRecord[]> {
   const res = await outreachApi.get("");
-  return res.data.data ?? [];
+  const records: OutreachRecord[] = res.data.data ?? [];
+  return records.map((r) => ({
+    ...r,
+    groupBroadcast: parseOutreachGroupBroadcast((r as { groupBroadcast?: unknown }).groupBroadcast),
+  }));
 }
 
 export async function sendVacancyStageMessage(
@@ -38,21 +54,24 @@ export function outreachKey(vacancyId: string, stage: string): string {
 }
 
 /**
- * Reenvia o anúncio da vaga no grupo da cidade.
+ * Reenvia o anúncio da vaga nos grupos.
  *
- * Rota do MÓDULO (não a de avisos): quem reenvia é o próprio fluxo de criação
- * da vaga, para o texto do reenvio não divergir do original.
+ * Empresas (API nova): abre uma rodada para TODOS os grupos a até 30 km e
+ * responde na hora com `{ roundId, destinations }`; o envio sai em fila (1
+ * grupo a cada ~3 s). API antiga / Casa: envia só ao grupo da cidade e não
+ * devolve rodada (`roundId: null`).
  */
 export async function resendVacancyGroupMessage(
   vacancyId: string,
   module: "empresa" | "casa" = "empresa",
-): Promise<void> {
+): Promise<ResendGroupResult> {
   // Rota do MÓDULO, não a de avisos: quem reenvia é o próprio fluxo de criação
   // da vaga, para o texto do reenvio não divergir do original — e cada módulo
   // tem o seu.
   const base = module === "casa" ? "/v1/home-services/admin" : "/v1/bars-restaurants/admin";
   const moduleApi = createAuthedClient(base);
-  await moduleApi.post(`/vacancies/${vacancyId}/resend-group-message`, {});
+  const res = await moduleApi.post(`/vacancies/${vacancyId}/resend-group-message`, {});
+  return parseResendGroupResult(res?.data?.data);
 }
 
 // ─── Convidar compatíveis ──────────────────────────────────────────────────

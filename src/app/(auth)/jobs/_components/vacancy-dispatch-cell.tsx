@@ -5,8 +5,13 @@ import { toast } from "sonner";
 
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useResendVacancyGroupMessage } from "@/modules/admin/application/use-vacancy-outreach";
+import { useGroupBroadcastResend } from "@/modules/admin/application/use-vacancy-group-broadcasts";
+import { lastRoundInFlight, RAIO_PADRAO_KM } from "@/modules/admin/domain/group-broadcast";
 import type { OutreachRecord } from "@/modules/admin/infrastructure/vacancy-outreach-api";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
+
+import { GroupDispatchBadge } from "./group-dispatch-badge";
+import { ResendGroupsDialog } from "./resend-groups-dialog";
 
 /**
  * Coluna "Disparo" — o anúncio da vaga no grupo da cidade.
@@ -21,6 +26,78 @@ import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
  * faria Empresa e Casa divergirem na primeira mudança.
  */
 export function VacancyDispatchCell({
+  vacancyId,
+  record,
+  module,
+  broadcastAt,
+}: {
+  vacancyId: string;
+  record: OutreachRecord | undefined;
+  module: "empresa" | "casa";
+  /** Empresas: `groupBroadcastAt` da vaga (saiu num grupo antes do registro da coluna). */
+  broadcastAt?: string | null;
+}) {
+  // Empresas: divulgação por raio (vários grupos), com confirmação e andamento.
+  // Casa (encerrado): exatamente o comportamento de antes.
+  return module === "empresa" ? (
+    <EmpresaDispatchCell vacancyId={vacancyId} record={record} broadcastAt={broadcastAt ?? null} />
+  ) : (
+    <CasaDispatchCell vacancyId={vacancyId} record={record} module={module} />
+  );
+}
+
+/**
+ * Empresas: selo da última rodada nos grupos + "Reenviar", que pede
+ * confirmação listando os grupos (vai para TODOS no raio, inclusive os que já
+ * receberam) e acompanha a fila até o fim.
+ */
+function EmpresaDispatchCell({
+  vacancyId,
+  record,
+  broadcastAt,
+}: {
+  vacancyId: string;
+  record: OutreachRecord | undefined;
+  broadcastAt: string | null;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const fluxo = useGroupBroadcastResend(vacancyId);
+  // Rodada ainda na fila: reenviar agora abriria outra rodada por cima dela.
+  const ocupado =
+    fluxo.enviando || fluxo.acompanhando || lastRoundInFlight(record?.groupBroadcast?.lastRound);
+  const ultimaVez =
+    record?.groupBroadcast?.lastRound && record.groupBroadcast.lastRound.sent > 0
+      ? record.groupBroadcast.lastRound.at
+      : (record?.lastSentAt ?? broadcastAt);
+  const jaSaiu = Boolean(record || broadcastAt);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <GroupDispatchBadge record={record} vacancyBroadcastAt={broadcastAt} />
+      <button
+        type="button"
+        disabled={ocupado}
+        onClick={() => setConfirmando(true)}
+        className="cursor-pointer whitespace-nowrap rounded-md bg-[#1d1d1b] px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-[#333] disabled:cursor-wait disabled:opacity-60"
+        title={`Manda de novo para todos os grupos a até ${RAIO_PADRAO_KM} km da vaga, inclusive os que já receberam.`}
+      >
+        {ocupado ? "Enviando…" : jaSaiu ? "Reenviar" : "Enviar"}
+      </button>
+      <ResendGroupsDialog
+        vacancyId={vacancyId}
+        open={confirmando}
+        onClose={() => setConfirmando(false)}
+        onConfirm={fluxo.resend}
+        sending={fluxo.enviando}
+        lastBroadcastAt={ultimaVez}
+        neverSent={!jaSaiu}
+      />
+    </div>
+  );
+}
+
+/** Casa (encerrado): o botão de antes, sem confirmação, só o grupo da cidade. */
+function CasaDispatchCell({
   vacancyId,
   record,
   module,
