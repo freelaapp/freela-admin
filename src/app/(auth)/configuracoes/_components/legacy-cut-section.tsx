@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useLegacyCut, useSetLegacyCut } from "@/modules/admin/application/use-notification-events";
+import { SUPER_ADMIN_ONLY_HINT } from "./super-admin-hint";
 
 /** C1–C18 da spec fase 2 §6, em linguagem do dia a dia. */
 export const LEGACY_CUT_ITEMS: string[] = [
@@ -50,7 +51,7 @@ function formatWhen(iso: string): string {
   });
 }
 
-export function LegacyCutSection() {
+export function LegacyCutSection({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { data, isLoading, isError } = useLegacyCut();
   const setCut = useSetLegacyCut();
   const [pending, setPending] = useState<boolean | null>(null);
@@ -87,7 +88,8 @@ export function LegacyCutSection() {
           aria-label="Cortar WhatsApp antigo"
           checked={enabled}
           className="before:absolute before:-inset-3 before:content-['']"
-          disabled={isLoading || isError || setCut.isPending}
+          disabled={readOnly || isLoading || isError || setCut.isPending}
+          title={readOnly ? SUPER_ADMIN_ONLY_HINT : undefined}
           onCheckedChange={(next) => setPending(next)}
         />
       </div>

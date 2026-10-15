@@ -15,6 +15,9 @@ const api = vi.hoisted(() => ({
 vi.mock("@/modules/admin/infrastructure/notification-events-api", async (orig) => ({ ...(await orig<object>()), ...api }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
+// A API só aceita mudança de super-admin; os testes de ação rodam como super-admin.
+const auth = vi.hoisted(() => ({ isSuperAdmin: true }));
+vi.mock("@/modules/auth/application/use-auth", () => ({ useAuth: () => auth }));
 
 const mockEvents = (events: unknown[], legacyCut = { enabled: false, updatedAt: null, updatedBy: null }) =>
   api.fetchNotificationEvents.mockResolvedValue({ events, legacyCut });
@@ -43,7 +46,54 @@ function renderCard() {
 }
 
 describe("MetaEventsCard", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    auth.isSuperAdmin = true;
+  });
+
+  it("não é super-admin: card só leitura, tudo travado com a dica, e nada é enviado", async () => {
+    auth.isSuperAdmin = false;
+    mockEvents(
+      [
+        row(),
+        row({
+          eventKey: "W02",
+          label: "Modelo recusado",
+          template: { name: "y", status: "REJECTED", category: null, rejectedReason: "INVALID_FORMAT" },
+        }),
+      ],
+      { enabled: false, updatedAt: null, updatedBy: null },
+    );
+    renderCard();
+
+    // Continua vendo a situação e os números (o GET segue aberto).
+    expect(await screen.findByText("Aprovado na vaga (confirme)")).toBeInTheDocument();
+    expect(screen.getAllByText(/12 enviados · 11 entregues/)).toHaveLength(2);
+    expect(screen.getByRole("note")).toHaveTextContent("Só leitura. Só super administradores podem mudar.");
+
+    const aviso = screen.getByRole("switch", { name: /Aprovado na vaga/ });
+    const corte = screen.getByRole("switch", { name: "Cortar WhatsApp antigo" });
+    const enviarModelo = screen.getByRole("button", { name: "Enviar para aprovação" });
+    const teste = screen.getByRole("button", { name: /Enviar teste/ });
+    for (const el of [aviso, corte, enviarModelo, teste, screen.getByLabelText("Seu WhatsApp para os testes")]) {
+      expect(el).toBeDisabled();
+      expect(el).toHaveAttribute("title", "Só super administradores podem mudar.");
+    }
+
+    fireEvent.click(aviso);
+    fireEvent.click(enviarModelo);
+    fireEvent.click(corte);
+    expect(api.setNotificationEvent).not.toHaveBeenCalled();
+    expect(api.submitNotificationTemplate).not.toHaveBeenCalled();
+    expect(screen.queryByText("Ligar o corte do WhatsApp antigo?")).not.toBeInTheDocument();
+  });
+
+  it("super-admin: sem a faixa de só leitura", async () => {
+    mockEvents([row()]);
+    renderCard();
+    expect(await screen.findByRole("switch", { name: /Aprovado na vaga/ })).toBeEnabled();
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  });
 
   it("mostra o aviso, a situação do modelo e os números", async () => {
     mockEvents([row()]);
