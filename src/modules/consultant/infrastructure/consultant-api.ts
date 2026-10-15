@@ -71,7 +71,7 @@ export async function createRegistrationApi(payload: CreateRegistrationPayload):
   userId: string;
   inviteSentByWhatsApp: boolean;
   inviteSentByEmail: boolean;
-  /** Senha padrão de 1º acesso (o contratante troca no primeiro login). */
+  /** Senha de 1º acesso gerada pela API (aleatória); a pessoa troca no primeiro login. Pode não vir. */
   firstAccessPassword?: string;
 }> {
   const res = await consultantApi.post("/me/registrations", payload);

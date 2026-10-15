@@ -31,7 +31,7 @@ describe("Novo cadastro (consultor) — Freela em Casa encerrado", () => {
       userId: "u1",
       inviteSentByWhatsApp: true,
       inviteSentByEmail: false,
-      firstAccessPassword: "Mudar@123",
+      firstAccessPassword: "Qx7#vT2m",
     });
   });
 
@@ -54,6 +54,40 @@ describe("Novo cadastro (consultor) — Freela em Casa encerrado", () => {
       name: "Bar do Zé",
       phone: "+5585999998888",
     });
+  });
+
+  it("mostra a senha que a API gerou (aleatória), nunca uma fixa", async () => {
+    api.createRegistrationApi.mockResolvedValue({
+      userId: "u1",
+      inviteSentByWhatsApp: true,
+      inviteSentByEmail: false,
+      firstAccessPassword: "Qx7#vT2m",
+    });
+    renderPage();
+    fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Maria" } });
+    fireEvent.change(screen.getByLabelText("Telefone (WhatsApp)"), { target: { value: "85 99999-7777" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar" }));
+
+    expect(await screen.findByText("Qx7#vT2m")).toBeInTheDocument();
+    expect(screen.queryByText("Mudar@123")).not.toBeInTheDocument();
+  });
+
+  it("sem a senha na resposta: diz que foi no convite, sem inventar 'Mudar@123'", async () => {
+    api.createRegistrationApi.mockResolvedValue({
+      userId: "u1",
+      inviteSentByWhatsApp: true,
+      inviteSentByEmail: false,
+    });
+    renderPage();
+    fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Maria" } });
+    fireEvent.change(screen.getByLabelText("Telefone (WhatsApp)"), { target: { value: "85 99999-7777" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar" }));
+
+    expect(await screen.findByText("A senha de primeiro acesso foi enviada no convite.")).toBeInTheDocument();
+    expect(screen.queryByText("Mudar@123")).not.toBeInTheDocument();
+    expect(screen.queryByText("Senha de 1º acesso")).not.toBeInTheDocument();
+    // E não manda "passar a senha acima" quando não há senha nenhuma na tela.
+    expect(screen.queryByText(/passe a senha acima/)).not.toBeInTheDocument();
   });
 
   it("freelancer segue sem segmento", async () => {

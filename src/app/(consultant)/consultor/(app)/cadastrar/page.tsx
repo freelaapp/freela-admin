@@ -25,9 +25,16 @@ const CONTRACTOR_MODULE: RegistrationModule = "bars-restaurants";
 type SuccessInfo = {
   name: string;
   login: string;
-  firstAccessPassword: string;
+  /**
+   * Senha de 1º acesso que a API gerou (aleatória). `null` = a API não
+   * devolveu: o painel NÃO inventa uma (a antiga "Mudar@123" fixa não vale
+   * mais) — diz que ela foi no convite.
+   */
+  firstAccessPassword: string | null;
   channel: string | null;
 };
+
+const PASSWORD_IN_INVITE_NOTICE = "A senha de primeiro acesso foi enviada no convite.";
 
 export default function ConsultorCadastrarPage() {
   const router = useRouter();
@@ -74,7 +81,7 @@ export default function ConsultorCadastrarPage() {
       setSuccess({
         name: form.name.trim(),
         login: form.email.trim() || phoneE164,
-        firstAccessPassword: result.firstAccessPassword ?? "Mudar@123",
+        firstAccessPassword: result.firstAccessPassword?.trim() || null,
         channel,
       });
       toast.success("Cadastro criado com sucesso!");
@@ -104,7 +111,11 @@ export default function ConsultorCadastrarPage() {
 
           <div className="rounded-lg border border-[#eca826]/40 bg-[#eca826]/10 p-4 space-y-3">
             <CredentialRow label="Login" value={success.login} />
-            <CredentialRow label="Senha de 1º acesso" value={success.firstAccessPassword} mono />
+            {success.firstAccessPassword ? (
+              <CredentialRow label="Senha de 1º acesso" value={success.firstAccessPassword} mono />
+            ) : (
+              <p className="text-sm text-[#1d1d1b]">{PASSWORD_IN_INVITE_NOTICE}</p>
+            )}
             <p className="text-xs text-[#a8670a]">
               No primeiro acesso a pessoa troca a senha e completa o perfil.
             </p>
@@ -113,7 +124,9 @@ export default function ConsultorCadastrarPage() {
           <p className="text-sm text-[#737373]">
             {success.channel
               ? `Também enviamos um convite por ${success.channel} com um link para definir a senha.`
-              : "Não foi possível enviar o convite automaticamente — passe a senha acima manualmente."}
+              : success.firstAccessPassword
+                ? "Não foi possível enviar o convite automaticamente — passe a senha acima manualmente."
+                : "Não foi possível confirmar o envio do convite. Se a pessoa não receber, peça ao suporte para reenviar o acesso."}
           </p>
 
           <div className="flex gap-2 pt-1">
@@ -142,7 +155,7 @@ export default function ConsultorCadastrarPage() {
     <div>
       <PageHeader
         title="Novo cadastro"
-        description="Cadastro rápido — a pessoa entra com a senha padrão e a troca no primeiro acesso"
+        description="Cadastro rápido — a pessoa recebe uma senha de primeiro acesso e a troca no primeiro login"
       />
 
       <form
