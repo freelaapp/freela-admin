@@ -80,10 +80,11 @@ export function useBillingSummary(
  * e a troca do modo de cobrança a recarregam. Recarrega sozinha a cada minuto
  * (o painel não recarrega ao voltar para a aba do navegador).
  */
-export function useBillingCompanies() {
+export function useBillingCompanies(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: billingKeys.companies,
     queryFn: getBillingCompanies,
+    enabled: options.enabled ?? true,
     staleTime: 15000,
     refetchInterval: 60000,
     retry: retryUnlessClientError,

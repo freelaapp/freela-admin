@@ -606,7 +606,7 @@ function TransacaoVagaDialog({
               </p>
               <Linha rotulo="Movimento" valor={<TypeBadge type={tx.type} />} />
               <Linha rotulo="Valor" valor={formatCurrency(tx.amountInCents)} />
-              <Linha rotulo="Gateway" valor={tx.provider ?? "—"} />
+              <Linha rotulo="Gateway" valor={providerLabel(tx.provider)} />
               <Linha rotulo="Data" valor={formatInstantDate(tx.createdAt)} />
               {tx.party && <Linha rotulo={PARTY_LABEL[tx.type]} valor={tx.party} />}
             </div>

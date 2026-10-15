@@ -104,8 +104,6 @@ export function InvoicesView({
   const [page, setPage] = useState(1);
 
   const summary = useBillingSummary();
-  // Só para o texto da lista vazia: há empresa no faturado, mas nenhuma fatura fechada ainda.
-  const companies = useBillingCompanies();
   const list = useAdminInvoices({
     situation: situation ?? undefined,
     contractorUserId: company?.contractorUserId,
@@ -115,6 +113,11 @@ export function InvoicesView({
     closedTo: closedTo || undefined,
     page,
   });
+  const filtersActive = !!(situation || mode || search || closedFrom || closedTo || company);
+  const emptyTotal = !filtersActive && list.data && !list.isPlaceholderData && list.data.total === 0;
+  // Só para o texto da lista vazia (há empresa no faturado, mas nenhuma fatura
+  // fechada ainda): a lista das empresas só é lida quando a de faturas vem vazia.
+  const companies = useBillingCompanies({ enabled: !!emptyTotal });
 
   // Rota fora do ar (rollback da API-3e): aviso calmo, não erro (runbook).
   const unavailable = [list.error, summary.error].some((e) => apiErrorOf(e).status === 404);
@@ -135,7 +138,6 @@ export function InvoicesView({
     );
   }
 
-  const filtersActive = !!(situation || mode || search || closedFrom || closedTo || company);
   const clearFilters = () => {
     onClearCompany?.();
     setSituation(null);
@@ -236,7 +238,6 @@ export function InvoicesView({
   ];
 
   const totalPages = list.data ? Math.max(1, Math.ceil(list.data.total / list.data.pageSize)) : 1;
-  const emptyTotal = !filtersActive && list.data && !list.isPlaceholderData && list.data.total === 0;
   const hasInvoicedCompanies = (companies.data?.items.length ?? 0) > 0;
 
   return (
@@ -282,7 +283,7 @@ export function InvoicesView({
         })}
       </div>
 
-      {list.isLoading ? (
+      {list.isLoading || (emptyTotal && companies.isLoading) ? (
         <TableSkeleton />
       ) : list.isError ? (
         <div className="rounded-xl border border-[#e5e5e5] p-4 text-sm text-[#1d1d1b]">

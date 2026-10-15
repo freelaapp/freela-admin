@@ -269,6 +269,13 @@ describe("InvoicesView — estados", () => {
     expect(screen.queryByText(/Nenhuma empresa no faturado ainda/)).not.toBeInTheDocument();
   });
 
+  it("com faturas na lista, a lista das empresas nem é lida (ela só decide o texto do vazio)", async () => {
+    renderView();
+
+    await screen.findByRole("table");
+    expect(getBillingCompanies).not.toHaveBeenCalled();
+  });
+
   it("'Ver faturas' de uma empresa: lista filtrada por ela, com o chip para tirar o filtro", async () => {
     vi.mocked(listAdminInvoices).mockResolvedValue(page([]));
     vi.mocked(getBillingCompanies).mockResolvedValue(COMPANIES);
