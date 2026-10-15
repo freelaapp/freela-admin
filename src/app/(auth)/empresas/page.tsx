@@ -34,7 +34,7 @@ import {
   useAdminContractorEmployeeMutations,
 } from "@/modules/admin/application/use-admin-contractor-employee";
 import { AbrirVagaDialog } from "@/components/admin/vacancy/abrir-vaga-dialog";
-import { cn, formatPhoneBr } from "@/lib/utils";
+import { formatPhoneBr } from "@/lib/utils";
 import { formatPhoneMask } from "@/modules/consultant/application/phone-mask";
 import { resolveContactPhoneForSave } from "./_lib/contact-phone";
 import { cepError as cepErrorOf, formatCepMask } from "./_lib/cep";
@@ -821,16 +821,9 @@ export default function EmpresasPage() {
         onOpenChange={setModalOpen}
         className={modalType === "preferencias" ? "max-w-xl" : undefined}
       >
-        <DialogContent
-          className={cn(
-            "relative",
-            (modalType === "vaga" ||
-              modalType === "delete" ||
-              modalType === "preferencias" ||
-              modalType === "edit") &&
-              "max-h-[88vh] overflow-y-auto",
-          )}
-        >
+        {/* Todo modal desta tela rola por dentro: "Detalhes da Empresa" e os
+            outros passam da altura do celular e sumiam com o X e os botões. */}
+        <DialogContent className="relative max-h-[88vh] overflow-y-auto">
           <DialogClose onClick={closeModal} />
           {renderModalContent()}
         </DialogContent>

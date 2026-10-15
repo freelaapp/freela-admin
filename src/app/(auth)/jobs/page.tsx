@@ -1261,7 +1261,8 @@ export default function JobsPage() {
           }
         }}
       >
-        <DialogContent>
+        {/* Motivo + estorno + avisos passam da altura do celular: rola por dentro. */}
+        <DialogContent className="max-h-[88vh] overflow-y-auto">
           <DialogClose
             onClick={() => {
               if (!cancelMutation.isPending) {

@@ -132,7 +132,7 @@ export default function CarteirasPage() {
     {
       header: "Ações",
       accessor: (row: Row) => (
-        <Button variant="ghost" size="sm" onClick={() => setSelected(row)}>
+        <Button variant="ghost" size="sm" aria-label="Ver carteira" title="Ver carteira" onClick={() => setSelected(row)}>
           <Eye className="h-4 w-4" />
         </Button>
       ),
@@ -245,7 +245,8 @@ function WalletDetailDialog({
 
   return (
     <Dialog open={!!wallet} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="relative max-w-lg">
+      {/* Saldo + ajuste + extrato passam da altura do celular: rola por dentro. */}
+      <DialogContent className="relative max-h-[88vh] overflow-y-auto">
         <DialogClose onClick={onClose} />
         <DialogHeader>
           <DialogTitle>{wallet?.name ?? "Carteira"}</DialogTitle>

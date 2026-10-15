@@ -49,7 +49,7 @@ import {
   type AuthorProfile,
 } from "@/components/shared/author-profile-dialog";
 import { formatVacancyDate, formatInstantDate } from "@/lib/date.utils";
-import { cn, formatPhoneBr } from "@/lib/utils";
+import { formatPhoneBr } from "@/lib/utils";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { ExcluirUsuarioPanel } from "@/components/admin/excluir-usuario-dialog";
 
@@ -1067,9 +1067,9 @@ export default function FreelancersPage() {
         }
       />
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent
-          className={cn("relative", modalType === "delete" && "max-h-[88vh] overflow-y-auto")}
-        >
+        {/* Todo modal desta tela rola por dentro: "Ver perfil" passa da altura
+            do celular e sumia com o X e o "Fechar". */}
+        <DialogContent className="relative max-h-[88vh] overflow-y-auto">
           <DialogClose onClick={closeModal} />
           {renderModalContent()}
         </DialogContent>

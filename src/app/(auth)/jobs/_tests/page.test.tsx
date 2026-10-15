@@ -147,6 +147,17 @@ describe("Vagas Empresa — modal 'Detalhes da vaga'", () => {
   });
 });
 
+describe("Vagas Empresa — 'Cancelar Vaga' no celular", () => {
+  it("o diálogo rola por dentro (motivo, estorno e botões não somem)", () => {
+    render(ui());
+    fireEvent.click(screen.getAllByTitle("Ver")[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar Vaga" }));
+
+    const titulo = screen.getByRole("heading", { name: "Cancelar Vaga" });
+    expect(titulo.closest(".overflow-y-auto")).toHaveClass("max-h-[88vh]");
+  });
+});
+
 describe("Vagas Empresa — ordenação inicial", () => {
   const vagas = () => [
     vaga({ id: "v-out", contractorCompanyName: "Bar Outubro", date: "2026-10-20T00:00:00.000Z", candidacyCount: 1 }),
