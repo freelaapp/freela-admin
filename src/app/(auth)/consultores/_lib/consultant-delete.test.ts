@@ -62,6 +62,30 @@ describe("consultantDeleteCopy", () => {
     expect(text).toMatch(/R\$ 12,50 de comissão a pagar/);
   });
 
+  it("saldo não conferido (extrato falhou), sem indicações: nada de 'definitivamente'", () => {
+    const copy = consultantDeleteCopy(
+      { name: "André", code: "ANDRE2K", referralsCount: 0 },
+      { balanceUnavailable: true },
+    );
+    const text = copy.bullets.join(" ");
+
+    expect(copy.mode).toBe("UNCERTAIN");
+    expect(copy.title).toBe("Excluir consultor");
+    expect(copy.confirmLabel).toBe("Excluir");
+    expect(text).toMatch(/Não foi possível conferir o saldo de comissão dele agora/);
+    expect(`${copy.title} ${copy.confirmLabel} ${text}`).not.toMatch(/definitiv/i);
+  });
+
+  it("saldo não conferido, com indicações: exclusão lógica e o aviso de conferir o saldo", () => {
+    const copy = consultantDeleteCopy(
+      { name: "André", code: "ANDRE2K", referralsCount: 2 },
+      { balanceUnavailable: true },
+    );
+    expect(copy.mode).toBe("SOFT");
+    expect(copy.bullets[0]).toMatch(/Não foi possível conferir o saldo de comissão/);
+    expect(copy.bullets.join(" ")).toMatch(/2 cadastros indicados continuam/);
+  });
+
   it("sem indicações e sem saldo: avisa que histórico de comissão já pago ainda vira exclusão lógica", () => {
     const copy = consultantDeleteCopy({
       name: "André",

@@ -57,6 +57,21 @@ export function useCommissionStatement(id: string, filter: StatementFilter) {
   });
 }
 
+/**
+ * Saldos da comissão (a pagar / já pago, desde o início) de UM consultor, para
+ * decidir o texto da exclusão. Sem `placeholderData` de propósito: ao trocar de
+ * consultor, o saldo do anterior não pode aparecer como se fosse deste — fica
+ * pendente até a resposta dele chegar. `null` = a API não mandou os saldos.
+ */
+export function useCommissionBalances(id: string | null) {
+  return useQuery({
+    queryKey: [...key(id ?? ""), "balances"],
+    queryFn: () => getCommissionStatement(id!, { page: 1, pageSize: 1 }),
+    enabled: !!id,
+    select: (page) => page.balances ?? null,
+  });
+}
+
 export function useCommissionAdjustment(id: string) {
   const invalidate = useInvalidateCommission(id);
   return useMutation({

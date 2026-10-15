@@ -14,7 +14,8 @@ import { formatCents } from "@/lib/money";
 import type { ConsultantItem } from "@/modules/admin/infrastructure/consultants-api";
 
 export interface ConsultantDeleteCopy {
-  mode: "HARD" | "SOFT";
+  /** UNCERTAIN: sem indicações e sem o saldo conferido — a API decide entre HARD e SOFT. */
+  mode: "HARD" | "SOFT" | "UNCERTAIN";
   title: string;
   bullets: string[];
   confirmLabel: string;
@@ -26,11 +27,30 @@ export function isConsultantDeleted(c: Pick<ConsultantItem, "deletedAt">): boole
 
 export function consultantDeleteCopy(
   c: Pick<ConsultantItem, "name" | "code" | "referralsCount" | "openBalanceInCents">,
+  options: {
+    /** O saldo de comissão não pôde ser conferido (extrato falhou): nada de "definitivo". */
+    balanceUnavailable?: boolean;
+  } = {},
 ): ConsultantDeleteCopy {
   const linkBullet = `O link de indicação ${c.code} para de atribuir novos cadastros e o acesso ao painel do consultor é cortado na hora.`;
   const openBalance = c.openBalanceInCents ?? 0;
+  const unavailableBullet =
+    'Não foi possível conferir o saldo de comissão dele agora. Confira em "Extrato e pagamentos" se há valor a pagar antes de excluir.';
 
-  if (c.referralsCount === 0 && openBalance === 0) {
+  if (options.balanceUnavailable && c.referralsCount === 0) {
+    return {
+      mode: "UNCERTAIN",
+      title: "Excluir consultor",
+      bullets: [
+        unavailableBullet,
+        "Ele não tem cadastro indicado. Se nunca teve comissão lançada nem paga, o cadastro do consultor é apagado; se teve, a exclusão é lógica e o histórico fica. O aviso depois de confirmar diz qual foi.",
+        linkBullet,
+      ],
+      confirmLabel: "Excluir",
+    };
+  }
+
+  if (!options.balanceUnavailable && c.referralsCount === 0 && openBalance === 0) {
     return {
       mode: "HARD",
       title: "Excluir consultor definitivamente",
@@ -44,7 +64,7 @@ export function consultantDeleteCopy(
     };
   }
 
-  const bullets: string[] = [];
+  const bullets: string[] = options.balanceUnavailable ? [unavailableBullet] : [];
   const n = c.referralsCount;
   if (n > 0) {
     const indicados = n === 1 ? "1 cadastro indicado continua" : `${n} cadastros indicados continuam`;
