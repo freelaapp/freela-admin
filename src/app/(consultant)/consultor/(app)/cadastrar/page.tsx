@@ -15,6 +15,13 @@ import type {
   RegistrationPersona,
 } from "@/modules/consultant/domain/types";
 
+/**
+ * Contratante cadastrado pelo consultor é sempre EMPRESA (bar/restaurante).
+ * O Freela em Casa foi encerrado em 08/10/2026: conta só-Casa nasce sem login,
+ * então a opção "Serviços (Freela em Casa)" saiu do formulário.
+ */
+const CONTRACTOR_MODULE: RegistrationModule = "bars-restaurants";
+
 type SuccessInfo = {
   name: string;
   login: string;
@@ -27,7 +34,6 @@ export default function ConsultorCadastrarPage() {
   const createMutation = useCreateRegistration();
 
   const [persona, setPersona] = useState<RegistrationPersona>("provider");
-  const [module, setModule] = useState<RegistrationModule>("bars-restaurants");
   const [form, setForm] = useState({ name: "", phone: "", email: "" });
   const [success, setSuccess] = useState<SuccessInfo | null>(null);
 
@@ -55,7 +61,7 @@ export default function ConsultorCadastrarPage() {
     try {
       const result = await createMutation.mutateAsync({
         persona,
-        ...(persona === "contractor" ? { module } : {}),
+        ...(persona === "contractor" ? { module: CONTRACTOR_MODULE } : {}),
         name: form.name.trim(),
         phone: phoneE164,
         ...(form.email.trim() ? { email: form.email.trim() } : {}),
@@ -80,7 +86,6 @@ export default function ConsultorCadastrarPage() {
   function handleNewRegistration() {
     setForm({ name: "", phone: "", email: "" });
     setPersona("provider");
-    setModule("bars-restaurants");
     setSuccess(null);
   }
 
@@ -157,18 +162,9 @@ export default function ConsultorCadastrarPage() {
         </div>
 
         {persona === "contractor" && (
-          <div className="space-y-1.5">
-            <Label htmlFor="module">Segmento</Label>
-            <select
-              id="module"
-              value={module}
-              onChange={(e) => setModule(e.target.value as RegistrationModule)}
-              className="h-10 w-full rounded-lg border border-[#e5e5e5] bg-white px-3 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
-            >
-              <option value="bars-restaurants">Bares e Restaurantes</option>
-              <option value="home-services">Serviços (Freela em Casa)</option>
-            </select>
-          </div>
+          <p className="text-xs text-[#737373]">
+            Contratante = empresa (bar ou restaurante) que vai publicar vagas.
+          </p>
         )}
 
         <div className="space-y-1.5">
