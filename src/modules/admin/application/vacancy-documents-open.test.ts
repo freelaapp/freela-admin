@@ -90,11 +90,17 @@ describe("NFS-e da vaga faturada (AD2c.3)", () => {
     expect(invoicedNfseLink(null, "NFS-e na fatura FAT-2026-000131")?.href).toBe("/financeiro?aba=faturas");
   });
 
-  it("faturada = pagamento INVOICE, ou a API mandou o campo nfseInvoice (mesmo null)", () => {
+  it("faturada = pagamento INVOICE, ou a API mandou a fatura da nota (nfseInvoice preenchido)", () => {
     expect(isInvoicedVacancy("INVOICE", undefined)).toBe(true);
     expect(isInvoicedVacancy("invoice", undefined)).toBe(true);
-    expect(isInvoicedVacancy(null, null)).toBe(true);
+    expect(isInvoicedVacancy("INVOICE", null)).toBe(true);
+    expect(isInvoicedVacancy(null, { invoiceId: "inv-1", number: "FAT-2026-000131" })).toBe(true);
     expect(isInvoicedVacancy("PIX", undefined)).toBe(false);
     expect(isInvoicedVacancy(undefined, undefined)).toBe(false);
+  });
+
+  it("nfseInvoice null NÃO marca faturada: a lista manda null para toda vaga, inclusive a paga por Pix", () => {
+    expect(isInvoicedVacancy("PIX", null)).toBe(false);
+    expect(isInvoicedVacancy(null, null)).toBe(false);
   });
 });
