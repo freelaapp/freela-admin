@@ -615,6 +615,11 @@ export default function JobsPage() {
     },
   ];
 
+  // A tabela abre pela data do serviço, mais recente primeiro. O índice vem do
+  // título: um número fixo (era 5) apontava para outra coluna quando entraram
+  // "Consultor" (só super-admin), "Aberta em" e "Candidatos".
+  const dataDoServicoIndex = columns.findIndex((c) => c.header === "Data do serviço");
+
   return (
     <div>
       <PageHeader
@@ -753,7 +758,9 @@ export default function JobsPage() {
           data={rows}
           searchPlaceholder="Buscar por empresa..."
           searchKey="empresa"
-          defaultSort={{ index: 5, direction: "desc" }}
+          defaultSort={
+            dataDoServicoIndex >= 0 ? { index: dataDoServicoIndex, direction: "desc" } : undefined
+          }
           filters={
             <div className="flex flex-col gap-3">
               {/* Data do SERVIÇO (não a de publicação): é por ela que se

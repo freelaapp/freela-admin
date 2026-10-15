@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -144,5 +144,34 @@ describe("Vagas Empresa — modal 'Detalhes da vaga'", () => {
     state.vacancies = [vaga()];
     rerender(ui());
     expect(screen.queryByText("Detalhes da Vaga")).not.toBeInTheDocument();
+  });
+});
+
+describe("Vagas Empresa — ordenação inicial", () => {
+  const vagas = () => [
+    vaga({ id: "v-out", contractorCompanyName: "Bar Outubro", date: "2026-10-20T00:00:00.000Z", candidacyCount: 1 }),
+    vaga({ id: "v-nov", contractorCompanyName: "Bar Novembro", date: "2026-11-05T00:00:00.000Z", candidacyCount: 0 }),
+    vaga({ id: "v-set", contractorCompanyName: "Bar Setembro", date: "2026-09-02T00:00:00.000Z", candidacyCount: 9 }),
+  ];
+
+  function empresasNaOrdem() {
+    const tabela = screen.getByTestId("data-table-desktop");
+    return within(tabela)
+      .getAllByRole("row")
+      .slice(1)
+      .map((tr) => within(tr).getAllByRole("cell")[0].textContent);
+  }
+
+  it.each([
+    ["admin", false],
+    ["super-admin (com a coluna Consultor)", true],
+  ])("%s: abre pela 'Data do serviço', mais recente primeiro", (_quem, superAdmin) => {
+    state.isSuperAdmin = superAdmin;
+    state.vacancies = vagas();
+    render(ui());
+
+    expect(screen.getByRole("columnheader", { name: /Data do serviço/ })).toHaveAttribute("aria-sort", "descending");
+    expect(screen.getByRole("columnheader", { name: /Candidatos/ })).not.toHaveAttribute("aria-sort");
+    expect(empresasNaOrdem()).toEqual(["Bar Novembro", "Bar Outubro", "Bar Setembro"]);
   });
 });
