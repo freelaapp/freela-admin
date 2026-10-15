@@ -9,7 +9,6 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -24,16 +23,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { formatInstantDate } from "@/lib/date.utils";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import {
-  useAdjustWallet,
   useAdminWalletLedger,
   useAdminWallets,
 } from "@/modules/admin/application/use-admin-wallets";
 import type { WalletItem, WalletLedgerEntry } from "@/modules/admin/infrastructure/wallets-api";
+import { WalletAdjustForm } from "./_components/wallet-adjust-form";
 
 const PAGE_SIZE = 30;
 
@@ -263,7 +261,12 @@ function WalletDetailDialog({
               </p>
             </div>
 
-            {canAdjust && <AdjustForm userId={wallet.userId} />}
+            {canAdjust && (
+              <WalletAdjustForm
+                userId={wallet.userId}
+                currentBalanceInCents={ledger?.balanceInCents ?? wallet.balanceInCents}
+              />
+            )}
 
             <div>
               <p className="mb-2 text-sm font-semibold text-[#1d1d1b]">Extrato</p>
@@ -314,71 +317,5 @@ function WalletDetailDialog({
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function AdjustForm({ userId }: { userId: string }) {
-  const [direction, setDirection] = useState<"credit" | "debit">("credit");
-  const [amount, setAmount] = useState("");
-  const [reason, setReason] = useState("");
-  const mutation = useAdjustWallet();
-
-  async function submit() {
-    const value = Number.parseFloat(amount.replace(/\./g, "").replace(",", "."));
-    if (!Number.isFinite(value) || value <= 0) {
-      toast.error("Informe um valor válido.");
-      return;
-    }
-    if (!reason.trim()) {
-      toast.error("Informe o motivo do ajuste.");
-      return;
-    }
-    const cents = Math.round(value * 100) * (direction === "debit" ? -1 : 1);
-    try {
-      const res = await mutation.mutateAsync({
-        userId,
-        payload: { deltaInCents: cents, reason: reason.trim() },
-      });
-      toast.success(`Ajuste aplicado. Novo saldo: ${formatBrl(res.balanceInCents)}`);
-      setAmount("");
-      setReason("");
-    } catch (error) {
-      const message =
-        (error as { message?: string; error?: { message?: string } } | undefined)?.message ??
-        "Não foi possível aplicar o ajuste.";
-      toast.error(message);
-    }
-  }
-
-  return (
-    <div className="space-y-2 rounded-xl border border-dashed border-[#e5e5e5] p-3">
-      <p className="text-sm font-semibold text-[#1d1d1b]">Ajuste manual (super-admin)</p>
-      <div className="flex gap-2">
-        <select
-          value={direction}
-          onChange={(e) => setDirection(e.target.value as "credit" | "debit")}
-          className="rounded-lg border border-[#e5e5e5] px-2 text-sm outline-none"
-        >
-          <option value="credit">Creditar</option>
-          <option value="debit">Debitar</option>
-        </select>
-        <Input
-          inputMode="decimal"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="Valor (R$)"
-          className="flex-1"
-        />
-      </div>
-      <Input
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        placeholder="Motivo (ex.: chamado #123)"
-      />
-      <Button onClick={submit} disabled={mutation.isPending} className="w-full">
-        {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Aplicar ajuste
-      </Button>
-    </div>
   );
 }
