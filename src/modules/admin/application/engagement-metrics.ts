@@ -52,7 +52,7 @@ const V_PUBLISHED: MetricDef = {
 const V_COMPLETED: MetricDef = {
   key: "vacancies.completed",
   label: "Vagas concluídas",
-  help: "Serviços concluídos no período, pela data de término (mesma regra do dashboard).",
+  help: "Serviços concluídos no período, pela data de término (mesma regra do dashboard), inclusive de vagas publicadas antes do período — por isso pode passar de \"Vagas publicadas\".",
   kind: "int",
   higherIsBetter: true,
   icon: CircleCheck,
@@ -298,8 +298,8 @@ export const CONTRACTOR_INDICATORS: IndicatorDef[] = [
   {
     key: "contractors.grossCents",
     label: "Faturamento",
-    how: "Soma do que as empresas pagaram nas vagas concluídas no período",
-    source: "Pagamentos confirmados das vagas concluídas no período",
+    how: "Soma dos pagamentos confirmados das vagas concluídas no período; inclui vaga faturada (paga por fatura), que conta como confirmada no fechamento, antes de a fatura ser paga",
+    source: "Pagamentos confirmados (Pix, carteira e fatura) das vagas concluídas no período",
     kind: "brl",
     higherIsBetter: true,
     pick: (i) => i.contractors.grossCents,
@@ -445,29 +445,154 @@ export const SERIES_LINES: { key: SeriesKey; label: string; color: string }[] = 
 export interface DetailNumberDef<D> {
   key: string;
   label: string;
+  /** Como o número é contado, em linguagem simples (tela, Excel e PDF). */
+  how: string;
+  /** De onde o número vem. */
+  source: string;
   kind: ValueKind;
   higherIsBetter: boolean;
   icon: ElementType;
   pick: (d: D) => { current: number | null; previous: number | null };
 }
 
+const ACTIVE_DAYS_SOURCE = "Registro diário de acesso ao app e ao site (medido desde 07/10/2026)";
+
 export const FREELANCER_DETAIL_NUMBERS: DetailNumberDef<FreelancerDetail>[] = [
-  { key: "candidacies", label: "Candidaturas", kind: "int", higherIsBetter: true, icon: Inbox, pick: (d) => d.numbers.candidacies },
-  { key: "accepted", label: "Candidaturas aceitas", kind: "int", higherIsBetter: true, icon: CircleCheck, pick: (d) => d.numbers.accepted },
-  { key: "completed", label: "Serviços concluídos", kind: "int", higherIsBetter: true, icon: Briefcase, pick: (d) => d.numbers.completed },
-  { key: "activeDays", label: "Dias em que abriu o app ou site", kind: "int", higherIsBetter: true, icon: Smartphone, pick: (d) => d.numbers.activeDays },
+  {
+    key: "candidacies",
+    label: "Candidaturas",
+    how: "Candidaturas que o freelancer fez no período",
+    source: "Candidaturas do freelancer, pela data da candidatura",
+    kind: "int",
+    higherIsBetter: true,
+    icon: Inbox,
+    pick: (d) => d.numbers.candidacies,
+  },
+  {
+    key: "accepted",
+    label: "Candidaturas aceitas",
+    how: "Candidaturas aceitas no período, pela data do aceite — inclusive de candidaturas feitas antes do período",
+    source: "Candidaturas do freelancer, pela data do aceite",
+    kind: "int",
+    higherIsBetter: true,
+    icon: CircleCheck,
+    pick: (d) => d.numbers.accepted,
+  },
+  {
+    key: "completed",
+    label: "Serviços concluídos",
+    how: "Serviços que ele terminou no período, pela data de conclusão — inclusive de candidaturas feitas antes do período",
+    source: "Serviços concluídos do freelancer, pela data de conclusão",
+    kind: "int",
+    higherIsBetter: true,
+    icon: Briefcase,
+    pick: (d) => d.numbers.completed,
+  },
+  {
+    key: "activeDays",
+    label: "Dias em que abriu o app ou site",
+    how: "Dias diferentes do período em que ele abriu o app ou o site",
+    source: ACTIVE_DAYS_SOURCE,
+    kind: "int",
+    higherIsBetter: true,
+    icon: Smartphone,
+    pick: (d) => d.numbers.activeDays,
+  },
 ];
 
 export const CONTRACTOR_DETAIL_NUMBERS: DetailNumberDef<ContractorDetail>[] = [
-  { key: "published", label: "Vagas publicadas", kind: "int", higherIsBetter: true, icon: Briefcase, pick: (d) => d.numbers.published },
-  { key: "completed", label: "Vagas concluídas", kind: "int", higherIsBetter: true, icon: CircleCheck, pick: (d) => d.numbers.completed },
-  { key: "cancelled", label: "Vagas canceladas", kind: "int", higherIsBetter: false, icon: CircleX, pick: (d) => d.numbers.cancelled },
-  { key: "noCandidate", label: "Vagas sem candidato", kind: "int", higherIsBetter: false, icon: Hourglass, pick: (d) => d.numbers.noCandidate },
-  { key: "candidaciesReceived", label: "Candidaturas recebidas", kind: "int", higherIsBetter: true, icon: Inbox, pick: (d) => d.numbers.candidaciesReceived },
-  { key: "avgCandidaciesPerVacancy", label: "Candidaturas por vaga", kind: "decimal", higherIsBetter: true, icon: Activity, pick: (d) => d.numbers.avgCandidaciesPerVacancy },
-  { key: "distinctHired", label: "Freelancers contratados", kind: "int", higherIsBetter: true, icon: Users, pick: (d) => d.numbers.distinctHired },
-  { key: "contractedCents", label: "Valor contratado", kind: "brl", higherIsBetter: true, icon: Wallet, pick: (d) => d.numbers.contractedCents },
-  { key: "activeDays", label: "Dias em que abriu o app ou site", kind: "int", higherIsBetter: true, icon: Smartphone, pick: (d) => d.numbers.activeDays },
+  {
+    key: "published",
+    label: "Vagas publicadas",
+    how: "Vagas que a empresa publicou no período",
+    source: "Vagas da empresa, pela data de publicação",
+    kind: "int",
+    higherIsBetter: true,
+    icon: Briefcase,
+    pick: (d) => d.numbers.published,
+  },
+  {
+    // Não é parte de "Vagas publicadas": conta pela data de conclusão, então
+    // entra vaga publicada antes do período e o número pode passar das publicadas.
+    key: "completed",
+    label: "Vagas concluídas",
+    how: "Serviços terminados no período, pela data de conclusão — inclusive de vagas publicadas antes do período, por isso pode passar de \"Vagas publicadas\"",
+    source: "Serviços concluídos da empresa, pela data de conclusão",
+    kind: "int",
+    higherIsBetter: true,
+    icon: CircleCheck,
+    pick: (d) => d.numbers.completed,
+  },
+  {
+    key: "cancelled",
+    label: "Vagas canceladas",
+    how: "Das vagas publicadas no período, quantas estão canceladas hoje (pela empresa ou pelo Freela)",
+    source: "Vagas da empresa publicadas no período, situação atual",
+    kind: "int",
+    higherIsBetter: false,
+    icon: CircleX,
+    pick: (d) => d.numbers.cancelled,
+  },
+  {
+    key: "noCandidate",
+    label: "Vagas sem candidato",
+    how: "Das vagas publicadas no período, quantas não receberam nenhuma candidatura",
+    source: "Vagas da empresa publicadas no período × candidaturas",
+    kind: "int",
+    higherIsBetter: false,
+    icon: Hourglass,
+    pick: (d) => d.numbers.noCandidate,
+  },
+  {
+    key: "candidaciesReceived",
+    label: "Candidaturas recebidas",
+    how: "Candidaturas nas vagas publicadas no período, feitas em qualquer data",
+    source: "Candidaturas das vagas da empresa publicadas no período",
+    kind: "int",
+    higherIsBetter: true,
+    icon: Inbox,
+    pick: (d) => d.numbers.candidaciesReceived,
+  },
+  {
+    key: "avgCandidaciesPerVacancy",
+    label: "Candidaturas por vaga",
+    how: "Candidaturas recebidas ÷ vagas publicadas no período",
+    source: "Vagas da empresa publicadas no período e as candidaturas delas",
+    kind: "decimal",
+    higherIsBetter: true,
+    icon: Activity,
+    pick: (d) => d.numbers.avgCandidaciesPerVacancy,
+  },
+  {
+    key: "distinctHired",
+    label: "Freelancers contratados",
+    how: "Freelancers diferentes aceitos nas vagas publicadas no período",
+    source: "Candidaturas aceitas das vagas da empresa publicadas no período",
+    kind: "int",
+    higherIsBetter: true,
+    icon: Users,
+    pick: (d) => d.numbers.distinctHired,
+  },
+  {
+    key: "contractedCents",
+    label: "Valor contratado",
+    how: "Soma dos pagamentos confirmados das vagas publicadas no período; vaga faturada conta no fechamento, antes de a fatura ser paga",
+    source: "Pagamentos confirmados (Pix, carteira e fatura) das vagas da empresa publicadas no período",
+    kind: "brl",
+    higherIsBetter: true,
+    icon: Wallet,
+    pick: (d) => d.numbers.contractedCents,
+  },
+  {
+    key: "activeDays",
+    label: "Dias em que abriu o app ou site",
+    how: "Dias diferentes do período em que a empresa abriu o app ou o site",
+    source: ACTIVE_DAYS_SOURCE,
+    kind: "int",
+    higherIsBetter: true,
+    icon: Smartphone,
+    pick: (d) => d.numbers.activeDays,
+  },
 ];
 
 /** Relatório para o cliente: os números da vaga, sem os dias de acesso (uso interno). */

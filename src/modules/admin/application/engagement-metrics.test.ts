@@ -160,3 +160,24 @@ describe("indicadores da diretoria", () => {
     expect(indicatorParts(accessed, I, "current")).toBeNull();
   });
 });
+
+describe("conta e fonte que fecham (revisão 15/10)", () => {
+  it("Faturamento diz que soma vaga faturada antes de a fatura ser paga", () => {
+    const def = byLabel(CONTRACTOR_INDICATORS, "Faturamento");
+    expect(def.how).toMatch(/inclui vaga faturada .* antes de a fatura ser paga/);
+    expect(def.how).not.toMatch(/o que as empresas pagaram/);
+    expect(def.source).toMatch(/Pix, carteira e fatura/);
+  });
+
+  it("'Vagas concluídas' (aba Vagas) avisa que entra vaga publicada antes do período", () => {
+    const def = VACANCY_METRICS.find((d) => d.label === "Vagas concluídas");
+    expect(def?.help).toMatch(/inclusive de vagas publicadas antes do período/);
+  });
+
+  it("todo número da ficha tem a conta e a fonte", () => {
+    for (const def of CONTRACTOR_DETAIL_NUMBERS) {
+      expect(def.how.length, def.key).toBeGreaterThan(10);
+      expect(def.source.length, def.key).toBeGreaterThan(10);
+    }
+  });
+});

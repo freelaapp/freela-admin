@@ -115,6 +115,14 @@ describe("relatório para o cliente", () => {
     expect(textCalls).toContain("Cancelada pela empresa");
   });
 
+  it("explica como cada número é contado (concluídas pela data de conclusão)", () => {
+    buildContractorReportPdf(SAMPLE_CONTRACTOR_DETAIL, NOW);
+    expect(textCalls).toContain("Como cada número é contado:");
+    expect(
+      textCalls.some((t) => t.startsWith("Vagas concluídas: Serviços terminados no período, pela data de conclusão")),
+    ).toBe(true);
+  });
+
   it("NUNCA leva telefone, e-mail ou documento", () => {
     buildContractorReportPdf(SAMPLE_CONTRACTOR_DETAIL, NOW);
     const all = textCalls.join("\n");
