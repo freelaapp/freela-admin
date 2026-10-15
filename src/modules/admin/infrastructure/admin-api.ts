@@ -946,10 +946,15 @@ export async function getAdminAllVacancies(consultantId?: string): Promise<Vacan
   // Canceladas eram invisiveis: so open+closed eram buscadas, o filtro
   // "Canceladas" ficava eternamente (0) e vaga cancelada sumia da tela.
   // A API antiga (sem /cancelled-vacancies) devolve 404 -> degrada para [].
+  // Só o 404: 500, timeout ou 403 sobem para a tela mostrar o erro — engolir
+  // tudo fazia as canceladas sumirem em silêncio, com o chip em (0).
   const [open, closed, cancelled] = await Promise.all([
     getAdminOpenVacancies(consultantId),
     getAdminClosedVacancies(consultantId),
-    getAdminCancelledVacancies(consultantId).catch(() => []),
+    getAdminCancelledVacancies(consultantId).catch((err: unknown) => {
+      if (isAxiosError(err) && err.response?.status === 404) return [];
+      throw err;
+    }),
   ]);
   return [...open, ...closed, ...cancelled];
 }
