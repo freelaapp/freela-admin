@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { ReferralItem, ReferredAccount } from "@/modules/admin/infrastructure/referrals-api";
-import { describeSituation, empresaStepIndex, rejectionLabel } from "./referral-labels";
+import {
+  describeSituation,
+  empresaStepIndex,
+  registeredReferralsHint,
+  rejectionLabel,
+} from "./referral-labels";
 
 const account = (over: Partial<ReferredAccount> = {}): ReferredAccount => ({
   kind: "SEM_PERFIL",
@@ -97,5 +102,22 @@ describe("rejectionLabel", () => {
   it("mantém o código quando não conhece o motivo", () => {
     expect(rejectionLabel("MOTIVO_NOVO")).toBe("MOTIVO_NOVO");
     expect(rejectionLabel(null)).toBe("Rejeitada");
+  });
+});
+
+describe("registeredReferralsHint (cartão 'Indicações qualificadas')", () => {
+  it("separa as que ainda podem qualificar das que não contam mais", () => {
+    expect(
+      registeredReferralsHint({
+        referrals: { REGISTERED: 25, QUALIFIED: 0, REJECTED: 336 },
+        pendingByReason: { SO_LOGIN: 21, NAO_E_EMPRESA: 3, PRAZO_ENCERRADO: 1 },
+      }),
+    ).toBe("De 25 cadastradas sem recompensa: 21 ainda podem qualificar, 4 não contam mais (motivos abaixo)");
+  });
+
+  it("API sem os motivos: só o total, sem dizer que 'não contrataram'", () => {
+    expect(registeredReferralsHint({ referrals: { REGISTERED: 25, QUALIFIED: 0, REJECTED: 0 } })).toBe(
+      "25 cadastradas ainda sem qualificar",
+    );
   });
 });
