@@ -158,12 +158,15 @@ describe("Excel da ficha da empresa — conta e fonte de cada número", () => {
     expect(concluidas?.[4]).toMatch(/inclusive de vagas publicadas antes do período/);
     expect(concluidas?.[5]).toBe("Serviços concluídos da empresa, pela data de conclusão");
     expect(resumo.rows.find((r) => r[0] === "Vagas publicadas")?.[5]).toBe(
-      "Vagas da empresa, pela data de publicação",
+      "Vagas da empresa nos dois produtos, pela data de publicação, sem as excluídas",
     );
-    // Valor contratado: diz que a vaga faturada entra antes de a fatura ser paga.
+    // Valor contratado: o pagamento por fatura nasce confirmado no aceite (API
+    // settle-vacancy-on-invoice), antes de a fatura fechar e ser paga.
     expect(resumo.rows.find((r) => r[0] === "Valor contratado (R$)")?.[4]).toMatch(
-      /vaga faturada conta no fechamento, antes de a fatura ser paga/,
+      /vaga faturada conta como paga no aceite do freelancer, antes de a fatura fechar e ser paga; estornado não entra/,
     );
+    // Canceladas: status CANCELLED inclui o cancelamento automático (cancelledBySystem na API).
+    expect(resumo.rows.find((r) => r[0] === "Vagas canceladas")?.[4]).toMatch(/cancelamento automático/);
   });
 });
 
@@ -226,7 +229,7 @@ describe("tabelas do PDF", () => {
     );
     expect(numberNotes[1]).toMatch(/Fonte: Serviços concluídos da empresa, pela data de conclusão\.$/);
     expect(numberNotes[0]).toBe(
-      "Vagas publicadas: Vagas que a empresa publicou no período. Fonte: Vagas da empresa, pela data de publicação.",
+      "Vagas publicadas: Vagas que a empresa publicou no período. Fonte: Vagas da empresa nos dois produtos, pela data de publicação, sem as excluídas.",
     );
   });
 
