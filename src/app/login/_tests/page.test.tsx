@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   auth.isAuthenticated = false;
   auth.mustChangePassword = false;
+  window.history.replaceState({}, "", "/login");
 });
 
 function entrar() {
@@ -50,5 +51,18 @@ describe("Login do painel — senha temporária", () => {
     auth.mustChangePassword = true;
     render(<LoginPage />);
     expect(nav.replace).toHaveBeenCalledWith("/trocar-senha");
+  });
+});
+
+describe("Login do painel — aviso", () => {
+  it("depois da troca de senha (?motivo=senha-trocada): pede para entrar com a nova senha", () => {
+    window.history.replaceState({}, "", "/login?motivo=senha-trocada");
+    render(<LoginPage />);
+    expect(screen.getByRole("status")).toHaveTextContent("Senha trocada. Entre com a nova senha.");
+  });
+
+  it("sem motivo: sem aviso", () => {
+    render(<LoginPage />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

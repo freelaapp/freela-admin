@@ -60,6 +60,23 @@ describe("useAuth — senha temporária", () => {
   });
 });
 
+describe("useAuth — endSession (depois da troca de senha)", () => {
+  it("apaga a sessão local sem recarregar a página", async () => {
+    api.loginApi.mockResolvedValue({
+      data: { accessToken: token({ role: "ADMIN", mustChangePassword: true }), refreshToken: "r" },
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {
+      await result.current.login({ email: "novo@freela.com", password: "Temp@1234" });
+    });
+    expect(result.current.isAuthenticated).toBe(true);
+
+    act(() => result.current.endSession());
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(localStorage.getItem("authUser")).toBeNull();
+  });
+});
+
 describe("auth.store — sessão gravada antes do campo existir", () => {
   it("lê a senha temporária do token uma vez", () => {
     localStorage.setItem(

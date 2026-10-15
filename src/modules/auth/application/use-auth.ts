@@ -108,6 +108,17 @@ export function useAuth() {
     if (storedUser) setUser({ ...storedUser, mustChangePassword: false });
   }, [storedUser, setUser]);
 
+  /**
+   * Encerra a sessão local sem recarregar nem avisar "você saiu" — para quem
+   * leva ao login com o próprio aviso (troca de senha: a API invalida o
+   * refresh, então a sessão atual não vale mais). Limpa o cache inteiro: nada
+   * desta sessão sobra para a próxima.
+   */
+  const endSession = useCallback(() => {
+    clear();
+    queryClient.clear();
+  }, [clear, queryClient]);
+
   const logout = useCallback(() => {
     clear();
     queryClient.removeQueries({ queryKey: ADMIN_ME_QUERY_KEY });
@@ -148,6 +159,7 @@ export function useAuth() {
     /** Entrou com a senha temporária: precisa trocar antes de usar o painel. */
     mustChangePassword: !!storedUser?.mustChangePassword,
     clearMustChangePassword,
+    endSession,
     login,
     logout,
   };

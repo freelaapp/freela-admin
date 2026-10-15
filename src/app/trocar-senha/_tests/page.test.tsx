@@ -10,6 +10,7 @@ const auth = vi.hoisted(() => ({
   isAuthenticated: true,
   mustChangePassword: true,
   clearMustChangePassword: vi.fn(),
+  endSession: vi.fn(),
   logout: vi.fn(),
 }));
 vi.mock("@/modules/auth/application/use-auth", () => ({ useAuth: () => auth }));
@@ -44,15 +45,24 @@ beforeEach(() => {
 });
 
 describe("Troca obrigatória da senha temporária do admin", () => {
-  it("troca a senha, libera o painel e vai para o dashboard", async () => {
+  it("troca a senha: encerra a sessão local (a API invalidou o refresh) e leva ao login com o aviso", async () => {
     api.changeAdminPasswordApi.mockResolvedValue(undefined);
+    // Como o useAuth real: depois do endSession não há mais sessão.
+    auth.endSession.mockImplementation(() => {
+      auth.isAuthenticated = false;
+    });
     render(<TrocarSenhaPage />);
     preencher("Temp@1234", "Nova@Senha9");
 
     await waitFor(() => expect(api.changeAdminPasswordApi).toHaveBeenCalledWith("Temp@1234", "Nova@Senha9"));
-    expect(auth.clearMustChangePassword).toHaveBeenCalled();
-    expect(nav.replace).toHaveBeenCalledWith("/dashboard");
-    expect(toast.success).toHaveBeenCalledWith("Senha atualizada!");
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/login?motivo=senha-trocada"));
+    expect(auth.endSession).toHaveBeenCalledTimes(1);
+    expect(nav.replace).not.toHaveBeenCalledWith("/dashboard");
+    // O "sem sessão → /login" da tela não corre na frente e não perde o aviso.
+    expect(nav.replace).not.toHaveBeenCalledWith("/login");
+    expect(nav.replace).toHaveBeenCalledTimes(1);
+    expect(auth.clearMustChangePassword).not.toHaveBeenCalled();
+    expect(auth.logout).not.toHaveBeenCalled();
   });
 
   it("API antiga sem a rota (404): deixa entrar com aviso, sem quebrar o login", async () => {
@@ -64,6 +74,8 @@ describe("Troca obrigatória da senha temporária do admin", () => {
     expect(nav.replace).toHaveBeenCalledWith("/dashboard");
     expect(toast.info.mock.calls[0][0]).toMatch(/ainda não está disponível no servidor/);
     expect(toast.error).not.toHaveBeenCalled();
+    // API antiga: a sessão continua (não houve troca nenhuma).
+    expect(auth.endSession).not.toHaveBeenCalled();
   });
 
   it("senha temporária errada (401): mostra a mensagem da API e continua na tela", async () => {
@@ -73,6 +85,7 @@ describe("Troca obrigatória da senha temporária do admin", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Senha atual incorreta."));
     expect(auth.clearMustChangePassword).not.toHaveBeenCalled();
+    expect(auth.endSession).not.toHaveBeenCalled();
     expect(nav.replace).not.toHaveBeenCalled();
   });
 

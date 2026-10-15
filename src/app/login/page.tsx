@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { CHANGE_PASSWORD_PATH } from "@/modules/auth/application/use-auth-guard";
+import { adminLoginNoticeFromSearch } from "@/modules/auth/application/login-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,12 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  // Aviso vindo de outra tela (ex.: senha trocada). Lido no cliente.
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNotice(adminLoginNoticeFromSearch(window.location.search));
+  }, []);
 
   if (isAuthenticated) {
     router.replace(mustChangePassword ? CHANGE_PASSWORD_PATH : "/dashboard");
@@ -46,6 +53,11 @@ export default function LoginPage() {
           </p>
         </CardHeader>
         <CardContent>
+          {notice && (
+            <p role="status" className="mb-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
+              {notice}
+            </p>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

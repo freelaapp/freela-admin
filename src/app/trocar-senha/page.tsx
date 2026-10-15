@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/modules/auth/application/use-auth";
+import { PASSWORD_CHANGED_REASON } from "@/modules/auth/application/login-notice";
 import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import { changeAdminPasswordApi } from "@/modules/auth/infrastructure/auth.api";
 
@@ -20,19 +21,26 @@ const STRONG = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
  * "reenviar senha"). Fica fora do layout do painel de propósito: sem menu,
  * nada do painel abre antes da troca — a barreira mora no `useAuthGuard`.
  *
+ * Troca feita: a API invalida o refresh da sessão, então o painel encerra a
+ * sessão local e leva ao login com "Senha trocada. Entre com a nova senha."
+ *
  * API antiga, sem a rota de troca (404): deixa entrar com a senha temporária,
  * avisando, em vez de prender o admin fora do painel.
  */
 export default function TrocarSenhaPage() {
   const router = useRouter();
-  const { isHydrated, isAuthenticated, mustChangePassword, clearMustChangePassword, logout } = useAuth();
+  const { isHydrated, isAuthenticated, mustChangePassword, clearMustChangePassword, endSession, logout } =
+    useAuth();
+  // Saindo para o login com o aviso: o "sem sessão → /login" abaixo não pode
+  // correr na frente e levar ao login sem o `?motivo=`.
+  const leaving = useRef(false);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || leaving.current) return;
     if (!isAuthenticated) router.replace("/login");
     else if (!mustChangePassword) router.replace("/dashboard");
   }, [isHydrated, isAuthenticated, mustChangePassword, router]);
@@ -54,9 +62,10 @@ export default function TrocarSenhaPage() {
     setLoading(true);
     try {
       await changeAdminPasswordApi(current, next);
-      clearMustChangePassword();
-      toast.success("Senha atualizada!");
-      router.replace("/dashboard");
+      // A API invalidou o refresh desta sessão: entra de novo, com a senha nova.
+      leaving.current = true;
+      endSession();
+      router.replace(`/login?motivo=${PASSWORD_CHANGED_REASON}`);
     } catch (err) {
       const error = apiErrorOf(err);
       if (error.status === 404) {
