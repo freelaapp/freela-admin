@@ -143,6 +143,8 @@ export function useAuth() {
     hasPermission,
     /** `true` enquanto a sessão (papel + permissões) ainda não foi resolvida. */
     isSessionLoading,
+    /** `GET /v1/admins/me` falhou: as permissões não puderam ser conferidas. */
+    isSessionError: meQuery.isError,
     /** Entrou com a senha temporária: precisa trocar antes de usar o painel. */
     mustChangePassword: !!storedUser?.mustChangePassword,
     clearMustChangePassword,
