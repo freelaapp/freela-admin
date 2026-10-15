@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const wallet = {
   userId: "u1",
@@ -10,6 +10,8 @@ const wallet = {
   email: "ze@bar.com",
   createdAt: "2026-09-01T12:00:00.000Z",
 };
+
+const ledger = vi.hoisted(() => ({ loading: false }));
 
 vi.mock("@/modules/auth/application/use-auth", () => ({ useAuth: () => ({ isSuperAdmin: true }) }));
 vi.mock("@/modules/auth/application/use-area-guard", () => ({
@@ -28,10 +30,14 @@ vi.mock("@/modules/admin/application/use-admin-wallets", () => ({
     isError: false,
     isFetching: false,
   }),
-  useAdminWalletLedger: (userId: string | null) => ({
-    data: userId ? { balanceInCents: 12345, status: "ACTIVE", entries: [] } : undefined,
-    isLoading: false,
-  }),
+  useAdminWalletLedger: (userId: string | null) =>
+    ledger.loading
+      ? { data: undefined, isLoading: true, isError: false }
+      : {
+          data: userId ? { balanceInCents: 12345, status: "ACTIVE", entries: [] } : undefined,
+          isLoading: false,
+          isError: false,
+        },
   useAdjustWallet: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -41,6 +47,17 @@ import CarteirasPage from "../page";
 const plain = (text: string | null | undefined) => (text ?? "").replace(/ /g, " ");
 
 describe("Carteiras — detalhe da carteira", () => {
+  beforeEach(() => {
+    ledger.loading = false;
+  });
+
+  it("extrato ainda carregando: o ajuste não abre com o saldo da linha da lista", () => {
+    ledger.loading = true;
+    render(<CarteirasPage />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Ver carteira" })[0]);
+    expect(screen.getByRole("button", { name: /Carregando saldo atual/ })).toBeDisabled();
+  });
+
   it("rola por dentro no celular e a conferência do ajuste parte do saldo do extrato", () => {
     render(<CarteirasPage />);
     fireEvent.click(screen.getAllByRole("button", { name: "Ver carteira" })[0]);

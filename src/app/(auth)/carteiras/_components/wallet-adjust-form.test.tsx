@@ -100,6 +100,24 @@ describe("Ajuste manual da carteira", () => {
     expect(screen.getByRole("button", { name: /Confirmar: debitar/ })).toBeDisabled();
   });
 
+  it("enquanto o extrato carrega: 'Revisar ajuste' bloqueado (sem saldo atual não há conferência)", () => {
+    render(<WalletAdjustForm userId="u1" currentBalanceInCents={null} />);
+    const botao = screen.getByRole("button", { name: /Carregando saldo atual/ });
+    expect(botao).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Valor (R$)"), { target: { value: "50,00" } });
+    fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "Chamado #1" } });
+    fireEvent.click(botao);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(hook.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("extrato falhou: bloqueado e diz por quê", () => {
+    render(<WalletAdjustForm userId="u1" currentBalanceInCents={null} balanceError />);
+    expect(screen.getByRole("button", { name: "Saldo indisponível" })).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível carregar o saldo atual");
+  });
+
   it("erro da API: mostra a mensagem dela, não a do axios", async () => {
     hook.mutateAsync.mockRejectedValue(
       Object.assign(new Error("Request failed with status code 422"), {

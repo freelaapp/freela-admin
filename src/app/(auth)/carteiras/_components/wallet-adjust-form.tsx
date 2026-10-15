@@ -35,10 +35,17 @@ interface PendingAdjust {
 export function WalletAdjustForm({
   userId,
   currentBalanceInCents,
+  balanceError = false,
 }: {
   userId: string;
-  /** Saldo que a tela mostra (extrato, ou a linha da lista enquanto ele carrega). */
-  currentBalanceInCents: number;
+  /**
+   * Saldo atual, do extrato da carteira. `null` enquanto o extrato carrega: a
+   * conferência só abre com o saldo de verdade (o da linha da lista pode estar
+   * velho), senão o "saldo depois" sairia errado.
+   */
+  currentBalanceInCents: number | null;
+  /** O extrato falhou: sem saldo atual não há conferência. */
+  balanceError?: boolean;
 }) {
   const [direction, setDirection] = useState<Direction>("credit");
   const [amount, setAmount] = useState("");
@@ -46,7 +53,10 @@ export function WalletAdjustForm({
   const [pending, setPending] = useState<PendingAdjust | null>(null);
   const mutation = useAdjustWallet();
 
+  const balanceReady = currentBalanceInCents !== null;
+
   function review() {
+    if (!balanceReady) return;
     const cents = parseBrlToCents(amount);
     if (cents === null || cents <= 0) {
       toast.error("Valor inválido. Use reais e centavos, por exemplo 50,00.");
@@ -105,13 +115,28 @@ export function WalletAdjustForm({
         onChange={(e) => setReason(e.target.value)}
         placeholder="Motivo (ex.: chamado #123)"
       />
-      <Button onClick={review} disabled={mutation.isPending} className="w-full">
-        Revisar ajuste
+      <Button onClick={review} disabled={mutation.isPending || !balanceReady} className="w-full">
+        {balanceReady ? (
+          "Revisar ajuste"
+        ) : balanceError ? (
+          "Saldo indisponível"
+        ) : (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            Carregando saldo atual…
+          </>
+        )}
       </Button>
+      {!balanceReady && balanceError && (
+        <p role="alert" className="text-xs text-red-700">
+          Não foi possível carregar o saldo atual da carteira. O ajuste fica bloqueado até o extrato
+          carregar: feche e abra a carteira de novo.
+        </p>
+      )}
 
       <AdjustConfirmDialog
         pending={pending}
-        currentBalanceInCents={currentBalanceInCents}
+        currentBalanceInCents={currentBalanceInCents ?? 0}
         submitting={mutation.isPending}
         onCancel={() => setPending(null)}
         onConfirm={() => void apply()}

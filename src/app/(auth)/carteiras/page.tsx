@@ -241,7 +241,7 @@ function WalletDetailDialog({
   canAdjust: boolean;
   onClose: () => void;
 }) {
-  const { data: ledger, isLoading } = useAdminWalletLedger(wallet?.userId ?? null);
+  const { data: ledger, isLoading, isError: ledgerError } = useAdminWalletLedger(wallet?.userId ?? null);
 
   return (
     <Dialog open={!!wallet} onOpenChange={(open) => !open && onClose()}>
@@ -265,7 +265,9 @@ function WalletDetailDialog({
             {canAdjust && (
               <WalletAdjustForm
                 userId={wallet.userId}
-                currentBalanceInCents={ledger?.balanceInCents ?? wallet.balanceInCents}
+                // Só o saldo do extrato: o da linha da lista pode estar velho.
+                currentBalanceInCents={ledger ? ledger.balanceInCents : null}
+                balanceError={ledgerError}
               />
             )}
 
