@@ -136,7 +136,7 @@ describe("BillingCompaniesView — estados", () => {
   });
 
   it("erro: 'Não conseguimos carregar…' com 'Tentar de novo', nunca zero", async () => {
-    vi.mocked(getBillingCompanies).mockRejectedValue(apiError(403, "FORBIDDEN"));
+    vi.mocked(getBillingCompanies).mockRejectedValue(apiError(400, "BAD_REQUEST"));
     renderView();
 
     expect(
@@ -146,6 +146,34 @@ describe("BillingCompaniesView — estados", () => {
     vi.mocked(getBillingCompanies).mockResolvedValue(COMPANIES);
     fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
     expect(await screen.findAllByText("Chopp e Espeto Valinhos")).toHaveLength(2);
+  });
+
+  it("403 (sem a permissão Financeiro): diz que não tem acesso, sem 'Tentar de novo'", async () => {
+    vi.mocked(getBillingCompanies).mockRejectedValue(apiError(403, "FORBIDDEN"));
+    renderView();
+
+    expect(await screen.findByText("Você não tem acesso ao financeiro.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tentar de novo" })).not.toBeInTheDocument();
+  });
+
+  it("serviço sem desfecho há mais de 35 dias: à parte, em vermelho, com a conta pedindo o suporte", async () => {
+    const stale = {
+      valueInCents: 24962,
+      count: 2,
+      oldestEndDate: "2026-08-03",
+      label: "2 vagas · R$ 249,62",
+      calc: "2 serviços terminados há mais de 35 dias sem confirmação de presença nem cancelamento = R$ 249,62 (o mais antigo terminou seg 03/08); precisam de ação do suporte: confirmar a presença, ou cancelar a vaga para não cobrar",
+      source: "Pagamentos faturados.",
+    };
+    vi.mocked(getBillingCompanies).mockResolvedValue({ ...COMPANIES, items: [{ ...VALINHOS, stale }] });
+    renderView();
+
+    await screen.findAllByText("Chopp e Espeto Valinhos");
+    const row = within(screen.getByRole("table"))
+      .getByText("Chopp e Espeto Valinhos")
+      .closest("tr") as HTMLElement;
+    expect(within(row).getByText("Sem desfecho há mais de 35 dias: 2 vagas · R$ 249,62")).toBeInTheDocument();
+    expect(row).toHaveTextContent(`Conta: ${stale.calc}`);
   });
 
   it("404 (API anterior a esta aba): aviso calmo", async () => {

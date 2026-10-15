@@ -35,7 +35,7 @@ vi.mock("@/modules/admin/application/use-admin-payments", () => ({
   useAdminPayments: () =>
     finance.paymentsError
       ? { data: undefined, isLoading: false, isError: true, refetch: finance.refetch }
-      : { data: finance.payments, isLoading: false },
+      : { data: finance.payments, isLoading: false, isFetching: false, refetch: finance.refetch },
 }));
 vi.mock("@/modules/admin/application/use-admin-repasses", () => ({
   useAdminRepasses: () => ({ data: [], isLoading: false }),
@@ -349,6 +349,16 @@ describe("Financeiro — números do faturado e estados de erro", () => {
 
     expect(screen.getByText("Não conseguimos carregar os pagamentos.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("Pagamentos: sem recarga periódica, com 'Atualizar'", async () => {
+    const refetch = vi.fn();
+    finance.refetch = refetch;
+    renderPage();
+    fireEvent.click(await section("Pagamentos"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("Pagamentos: colunas Empresa e Meio", async () => {

@@ -406,6 +406,8 @@ export interface BillingCompanyItem {
   openPeriod: CompanyFigure & { debitsInCents: number; creditsInCents: number };
   acceptedUpcoming: CompanyFigure & { nextServiceDate: DateKey | null };
   inReview: CompanyFigure;
+  /** Terminou há mais de 35 dias sem desfecho (precisa do suporte). Ausente em API anterior. */
+  stale?: CompanyFigure & { oldestEndDate: DateKey | null };
   openInvoices: CompanyFigure & { nextDueDate: DateKey | null };
   standing: {
     code: BillingCompanyStandingCode;
@@ -430,7 +432,12 @@ export interface BillingCompanies {
       prepaidWithPending: number;
     };
     unbilled: SummaryCard;
-    accepted: SummaryCard & { inReviewCount: number; inReviewInCents: number };
+    accepted: SummaryCard & {
+      inReviewCount: number;
+      inReviewInCents: number;
+      staleCount?: number;
+      staleInCents?: number;
+    };
   };
   items: BillingCompanyItem[];
 }

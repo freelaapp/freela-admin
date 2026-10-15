@@ -81,6 +81,16 @@ export function BillingCompaniesView({
     );
   }
 
+  // Sem a permissão FINANCE: tentar de novo não muda nada.
+  if (apiErrorOf(companies.error).status === 403) {
+    return (
+      <Notice
+        title="Você não tem acesso ao financeiro."
+        text="Peça a um administrador a permissão Financeiro para ver as empresas faturadas."
+      />
+    );
+  }
+
   if (companies.isError || !companies.data) {
     return (
       <div className="rounded-xl border border-[#e5e5e5] p-4 text-sm text-[#1d1d1b]">
@@ -166,8 +176,19 @@ export function BillingCompaniesView({
     },
     {
       header: "Em conferência",
-      headerTitle: "Serviço terminou e espera a confirmação de presença para entrar na fatura.",
-      accessor: (row) => <FigureCell figure={row.inReview} />,
+      headerTitle:
+        "Serviço terminou e espera a confirmação de presença para entrar na fatura. Depois de 35 dias sem desfecho, sai à parte e precisa do suporte.",
+      accessor: (row) => (
+        <div className="min-w-0">
+          <FigureCell figure={row.inReview} />
+          {row.stale && row.stale.count > 0 && (
+            <div className="mt-1 text-[#b91c1c]">
+              <p className="text-xs font-medium">{`Sem desfecho há mais de 35 dias: ${row.stale.label}`}</p>
+              <SeeCalc calc={row.stale.calc} source={row.stale.source} />
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       header: "Faturas em aberto",

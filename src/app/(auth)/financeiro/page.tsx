@@ -828,9 +828,19 @@ function LoadError({ what, onRetry }: { what: string; onRetry: () => void }) {
   );
 }
 
+/** "Atualizar" das abas Pagamentos e Repasses (lidas inteiras, sem recarga periódica). */
+function RefreshButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
+  return (
+    <Button variant="outline" size="sm" onClick={onClick} disabled={busy}>
+      <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${busy ? "animate-spin" : ""}`} aria-hidden="true" />
+      Atualizar
+    </Button>
+  );
+}
+
 /**
  * Aba Pagamentos. O hook mora aqui (não na página): a lista só é lida com a aba
- * aberta, e recarrega sozinha a cada minuto (`useAdminPayments`).
+ * aberta, de novo a cada vez que a aba abre e no "Atualizar" (`useAdminPayments`).
  */
 function PaymentsTab() {
   const { data: payments, isLoading, isFetching, isError, refetch } = useAdminPayments();
@@ -875,12 +885,13 @@ function PaymentsTab() {
       data={rows}
       searchPlaceholder="Buscar por empresa, vaga ou ID…"
       searchKey="busca"
+      filters={<RefreshButton onClick={() => refetch()} busy={isFetching} />}
       isFetching={isFetching}
     />
   );
 }
 
-/** Aba Repasses: o hook mora aqui, com a mesma recarga a cada minuto. */
+/** Aba Repasses: o hook mora aqui; recarrega ao abrir a aba e no "Atualizar". */
 function RepassesTab() {
   const { data: repasses, isLoading, isFetching, isError, refetch } = useAdminRepasses();
   if (isLoading && !repasses) {
@@ -915,6 +926,7 @@ function RepassesTab() {
       data={rows}
       searchPlaceholder="Buscar..."
       searchKey="freelancer"
+      filters={<RefreshButton onClick={() => refetch()} busy={isFetching} />}
       isFetching={isFetching}
     />
   );
