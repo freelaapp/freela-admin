@@ -1,8 +1,9 @@
 /**
  * Decodifica o payload de um JWT sem verificar assinatura (uso client-side,
- * apenas para leitura de claims como `exp`).
+ * apenas para leitura de claims como `exp`, `role`, `mustChangePassword`).
+ * Quem decide de verdade é a API; aqui é só para a tela saber para onde ir.
  */
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
+export function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split(".")[1];
     if (!payload) return null;

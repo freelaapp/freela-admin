@@ -4,8 +4,11 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./use-auth";
 
+/** Tela da troca obrigatória da senha temporária (fora do layout do painel). */
+export const CHANGE_PASSWORD_PATH = "/trocar-senha";
+
 export function useAuthGuard(requireAdmin = true) {
-  const { isAuthenticated, isAdmin, isHydrated, logout } = useAuth();
+  const { isAuthenticated, isAdmin, isHydrated, mustChangePassword, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -23,7 +26,11 @@ export function useAuthGuard(requireAdmin = true) {
       logout();
       return;
     }
-  }, [isAuthenticated, isAdmin, isHydrated, requireAdmin, router, logout]);
 
-  return { isHydrated, isAuthenticated, isAdmin };
+    // Senha temporária: nada do painel antes da troca (mesma barreira do
+    // portal do consultor).
+    if (mustChangePassword) router.replace(CHANGE_PASSWORD_PATH);
+  }, [isAuthenticated, isAdmin, isHydrated, mustChangePassword, requireAdmin, router, logout]);
+
+  return { isHydrated, isAuthenticated, isAdmin, mustChangePassword };
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/modules/auth/application/use-auth";
+import { CHANGE_PASSWORD_PATH } from "@/modules/auth/application/use-auth-guard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,13 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, mustChangePassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   if (isAuthenticated) {
-    router.replace("/dashboard");
+    router.replace(mustChangePassword ? CHANGE_PASSWORD_PATH : "/dashboard");
     return null;
   }
 
@@ -26,8 +27,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login({ email, password });
-      router.push("/dashboard");
+      const user = await login({ email, password });
+      router.push(user.mustChangePassword ? CHANGE_PASSWORD_PATH : "/dashboard");
     } finally {
       setLoading(false);
     }
