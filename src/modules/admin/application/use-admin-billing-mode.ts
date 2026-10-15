@@ -37,8 +37,10 @@ export function useAdminBillingMode(contractorUserId: string, enabled = true) {
 /**
  * Muda o modo e/ou o e-mail do financeiro, com motivo. A resposta do PATCH já
  * é o estado novo e vai direto para o cache. Recarrega também as preferências
- * (que trazem o modo), o histórico (linha nova no topo) e a lista de Empresas
- * (o selo "Faturado semanal" ao lado do nome).
+ * (que trazem o modo), o histórico (linha nova no topo), a lista de Empresas
+ * (o selo "Faturado semanal" ao lado do nome) e o Financeiro: faturas e
+ * "Empresas faturadas" (prefixo `admin/billing`), o resumo (`admin/finance`) e
+ * os pagamentos (o aceite seguinte já sai faturado).
  */
 export function useUpdateAdminBillingMode(contractorUserId: string) {
   const qc = useQueryClient();
@@ -51,6 +53,9 @@ export function useUpdateAdminBillingMode(contractorUserId: string) {
         qc.invalidateQueries({ queryKey: contractorSettingsKeys.settings(contractorUserId) }),
         qc.invalidateQueries({ queryKey: contractorSettingsKeys.history(contractorUserId) }),
         qc.invalidateQueries({ queryKey: ["admin", "contractors"] }),
+        qc.invalidateQueries({ queryKey: ["admin", "billing"] }),
+        qc.invalidateQueries({ queryKey: ["admin", "finance"] }),
+        qc.invalidateQueries({ queryKey: ["admin", "payments"] }),
       ]);
     },
   });

@@ -369,6 +369,72 @@ export interface BillingSummary {
   };
 }
 
+// ─── Empresas faturadas (aba do Financeiro) ──────────────────────────────────
+
+/** Um número da linha da empresa: pronto para a célula, com a conta e a fonte. */
+export interface CompanyFigure {
+  valueInCents: number;
+  count: number;
+  /** "2 vagas · R$ 249,62". */
+  label: string;
+  calc: string;
+  source: string;
+}
+
+export type BillingCompanyStandingCode = "EM_DIA" | "VENCIDA" | "BLOQUEADA";
+
+export interface BillingCompanyItem {
+  /** User.id do dono da empresa. */
+  contractorUserId: string;
+  name: string | null;
+  /** CNPJ (ou CPF) só com dígitos. */
+  document: string | null;
+  mode: BillingMode;
+  /** "Faturado semanal"; "Pré-pago (com pendência)" para quem voltou ao pré-pago. */
+  modeLabel: string;
+  modeSince: string | null;
+  nextClose: {
+    closeDate: DateKey;
+    dueDate: DateKey;
+    /** "sex 16/10, 08:00 · vence seg 19/10". */
+    label: string;
+    /** Aviso quando, por enquanto, nada cai neste fechamento. */
+    note: string | null;
+    calc: string;
+    source: string;
+  } | null;
+  openPeriod: CompanyFigure & { debitsInCents: number; creditsInCents: number };
+  acceptedUpcoming: CompanyFigure & { nextServiceDate: DateKey | null };
+  inReview: CompanyFigure;
+  openInvoices: CompanyFigure & { nextDueDate: DateKey | null };
+  standing: {
+    code: BillingCompanyStandingCode;
+    /** "Em dia", "Vencida há 3 dias", "Bloqueada · vencida há 5 dias". */
+    label: string;
+    overdueDays: number;
+    calc: string | null;
+  };
+}
+
+/** Corpo do `GET /v1/admin/billing/companies`. */
+export interface BillingCompanies {
+  generatedAt: string;
+  /** `false` com a chave do faturamento desligada (lista vazia). */
+  invoicingEnabled: boolean;
+  blockEnabled?: boolean;
+  cards: {
+    companies: SummaryCard & {
+      weekly: number;
+      biweekly: number;
+      monthly: number;
+      prepaidWithPending: number;
+    };
+    unbilled: SummaryCard;
+    accepted: SummaryCard & { inReviewCount: number; inReviewInCents: number };
+  };
+  items: BillingCompanyItem[];
+}
+
 export type SummaryPeriod =
   | "today"
   | "yesterday"
@@ -588,6 +654,12 @@ export async function getBillingSummary(
   params: { period?: SummaryPeriod; from?: DateKey; to?: DateKey } = {},
 ): Promise<BillingSummary> {
   const res = await billingApi.get("/billing/summary", { params: compact({ ...params }) });
+  return res.data.data;
+}
+
+/** Empresas no faturado (e quem voltou ao pré-pago com pendência), com os números de cada uma. */
+export async function getBillingCompanies(): Promise<BillingCompanies> {
+  const res = await billingApi.get("/billing/companies");
   return res.data.data;
 }
 

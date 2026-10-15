@@ -36,7 +36,8 @@ import {
 } from "../_lib/paperwork-presentation";
 import { BillingTab } from "./billing-tab";
 
-type TabKey = "burocracias" | "cobranca" | "historico";
+export type PreferencesTabKey = "burocracias" | "cobranca" | "historico";
+type TabKey = PreferencesTabKey;
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "burocracias", label: "Burocracias" },
@@ -62,6 +63,7 @@ export function PreferencesDialog({
   blockEnabled,
   onClose,
   onEditCompany,
+  initialTab = "burocracias",
 }: {
   contractorUserId: string;
   companyName: string;
@@ -72,9 +74,11 @@ export function PreferencesDialog({
   onClose: () => void;
   /** "Corrigir cadastro" da aba Cobrança: abre o modal "Editar Empresa". */
   onEditCompany?: () => void;
+  /** Aba que abre primeiro ("Empresas faturadas" do Financeiro abre na Cobrança). */
+  initialTab?: PreferencesTabKey;
 }) {
   const baseId = useId();
-  const [tab, setTab] = useState<TabKey>("burocracias");
+  const [tab, setTab] = useState<TabKey>(initialTab);
   const settings = useAdminContractorSettings(contractorUserId);
   const history = useAdminContractorSettingsHistory(contractorUserId);
   // Chave da API desligada: o GET avisa por `readOnlyReason`; o PATCH, por 404.

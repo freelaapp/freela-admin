@@ -155,6 +155,18 @@ export function formatBrl(cents: number): string {
   return brlFormatter.format(cents / 100).replace(/ /g, " ");
 }
 
+/** CNPJ (ou CPF) só com dígitos → "12.345.678/0001-90". Fora do tamanho, como veio; vazio → "—". */
+export function formatTaxId(value: string | null | undefined): string {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (digits.length === 14) {
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+  }
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  }
+  return value || "—";
+}
+
 // ─── Última mensagem (coluna da lista) ────────────────────────────────────────
 
 const ACTOR_LABEL: Record<string, string> = {

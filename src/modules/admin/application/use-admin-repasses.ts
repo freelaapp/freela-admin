@@ -8,5 +8,8 @@ export function useAdminRepasses() {
     queryKey: ["admin", "repasses"],
     queryFn: getAdminRepasses,
     staleTime: 30000,
+    // O painel não recarrega ao voltar para a aba do navegador
+    // (`refetchOnWindowFocus: false` no cliente): recarrega sozinho a cada minuto.
+    refetchInterval: 60000,
   });
 }

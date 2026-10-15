@@ -1098,6 +1098,10 @@ export interface PaymentItem {
   /** Meio (API-3e): `PIX`, `WALLET`, `INVOICE` (faturado, não é caixa)… Ausente em API anterior. */
   method?: string | null;
   provider?: string | null;
+  vacancyId?: string | null;
+  /** Empresa da vaga (Bares e Restaurantes). Nula sem vaga, em vaga do Casa ou em API anterior. */
+  companyName?: string | null;
+  contractorUserId?: string | null;
 }
 
 export async function getAdminPayments(): Promise<PaymentItem[]> {
@@ -1156,7 +1160,16 @@ export interface FinanceSummary {
   lucroBasis?: "COMPETENCIA";
   lucroLabel?: string;
   /** A conta de cada número (regra: todo número com a conta e a fonte). */
-  calc?: { entradas: string; estornos: string; lucro: string; receivable: string | null };
+  calc?: {
+    entradas: string;
+    estornos: string;
+    lucro: string;
+    receivable: string | null;
+    /** Faturado no período (não é caixa), saídas e líquido. Ausentes em API anterior. */
+    invoiced?: string;
+    saidas?: string;
+    liquido?: string;
+  };
 }
 
 export interface FinanceTransaction {

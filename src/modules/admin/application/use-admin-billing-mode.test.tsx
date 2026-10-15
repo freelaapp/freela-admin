@@ -49,7 +49,7 @@ describe("useAdminBillingMode", () => {
 });
 
 describe("useUpdateAdminBillingMode", () => {
-  it("salvar invalida cobrança, preferências, histórico e a lista de empresas", async () => {
+  it("salvar invalida cobrança, preferências, histórico, a lista de empresas e o Financeiro", async () => {
     const saved = { mode: "INVOICED_7", editable: true };
     vi.mocked(updateBillingMode).mockResolvedValue(saved as never);
     const invalidate = vi.spyOn(qc, "invalidateQueries");
@@ -70,6 +70,10 @@ describe("useUpdateAdminBillingMode", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: contractorSettingsKeys.history("u1") });
     // O selo da tabela de Empresas lê o modo da lista.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin", "contractors"] });
+    // O Financeiro: faturas e "Empresas faturadas" (admin/billing), o resumo e os pagamentos.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin", "billing"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin", "finance"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin", "payments"] });
     // A resposta do PATCH já é o estado novo: a aba não pisca com o valor antigo.
     expect(qc.getQueryData(billingModeKeys.settings("u1"))).toEqual(saved);
   });

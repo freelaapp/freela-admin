@@ -7,14 +7,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/modules/admin/infrastructure/billing-api", () => ({
   listAdminInvoices: vi.fn(),
   getBillingSummary: vi.fn(),
+  getBillingCompanies: vi.fn(),
 }));
 
 import {
+  getBillingCompanies,
   getBillingSummary,
   listAdminInvoices,
   type AdminInvoiceListItem,
 } from "@/modules/admin/infrastructure/billing-api";
 import {
+  COMPANIES,
   OVERDUE_INVOICE,
   PAID_INVOICE,
   SUMMARY,
@@ -40,11 +43,11 @@ function apiError(status: number, code: string): AxiosError {
   });
 }
 
-function renderView() {
+function renderView(props: Parameters<typeof InvoicesView>[0] = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <InvoicesView />
+      <InvoicesView {...props} />
     </QueryClientProvider>,
   );
 }
@@ -52,6 +55,7 @@ function renderView() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getBillingSummary).mockResolvedValue(SUMMARY);
+  vi.mocked(getBillingCompanies).mockResolvedValue({ ...COMPANIES, items: [] });
   vi.mocked(listAdminInvoices).mockResolvedValue(page([OVERDUE_INVOICE, PAID_INVOICE]));
 });
 
@@ -240,7 +244,7 @@ describe("InvoicesView — estados", () => {
     );
   });
 
-  it("vazio total: 'Nenhuma empresa no faturado ainda. Ligue em Empresas > Documentos e cobrança.'", async () => {
+  it("vazio total sem empresa no faturado: 'Nenhuma empresa no faturado ainda. Ligue em Empresas > Documentos e cobrança.'", async () => {
     vi.mocked(listAdminInvoices).mockResolvedValue(page([]));
     renderView();
 
@@ -250,6 +254,43 @@ describe("InvoicesView — estados", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("vazio com empresas no faturado (antes do 1º fechamento): diz quando a 1ª fatura fecha, não que não há empresa", async () => {
+    vi.mocked(listAdminInvoices).mockResolvedValue(page([]));
+    vi.mocked(getBillingCompanies).mockResolvedValue(COMPANIES);
+    renderView();
+
+    expect(
+      await screen.findByText(
+        "Nenhuma fatura fechada ainda. A primeira fecha às 08:00 do dia do fechamento (semanal: sexta) com os serviços realizados e confirmados até a véspera. As empresas no faturado estão em 'Empresas faturadas'.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Nenhuma empresa no faturado ainda/)).not.toBeInTheDocument();
+  });
+
+  it("'Ver faturas' de uma empresa: lista filtrada por ela, com o chip para tirar o filtro", async () => {
+    vi.mocked(listAdminInvoices).mockResolvedValue(page([]));
+    vi.mocked(getBillingCompanies).mockResolvedValue(COMPANIES);
+    const onClearCompany = vi.fn();
+    renderView({
+      company: { contractorUserId: "dono-valinhos", name: "Chopp e Espeto Valinhos" },
+      onClearCompany,
+    });
+
+    await waitFor(() =>
+      expect(listAdminInvoices).toHaveBeenCalledWith(
+        expect.objectContaining({ contractorUserId: "dono-valinhos", page: 1 }),
+      ),
+    );
+    // Com o filtro da empresa, o vazio fala da empresa (não do faturado inteiro).
+    expect(
+      await screen.findAllByText(/Nenhuma fatura fechada para Chopp e Espeto Valinhos ainda/),
+    ).not.toHaveLength(0);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Tirar o filtro da empresa Chopp e Espeto Valinhos" }),
+    );
+    expect(onClearCompany).toHaveBeenCalled();
   });
 
   it("erro: 'Não conseguimos carregar as faturas.' com 'Tentar de novo'", { timeout: 10000 }, async () => {
