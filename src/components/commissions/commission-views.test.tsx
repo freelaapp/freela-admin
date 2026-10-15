@@ -2,6 +2,7 @@ import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CommissionDashboard, StatementItem } from "@/lib/commissions/types";
+import { CommissionBalanceCards } from "./balance-cards";
 import { CommissionDashboardView } from "./dashboard-view";
 import { CommissionStatementView, StatementPager } from "./statement-view";
 import { PeriodFilter } from "./period-filter";
@@ -53,6 +54,45 @@ describe("CommissionDashboardView", () => {
     expect(screen.getByText(/10% da taxa da Freela/)).toBeInTheDocument();
     expect(screen.getAllByText("R$ 3,15").length).toBeGreaterThan(0);
     expect(screen.getByText("Bar do Zé")).toBeInTheDocument();
+  });
+
+  it("'Comissão gerada' diz o recorte de cada número, a conta e a fonte", () => {
+    render(<CommissionDashboardView data={dash} isLoading={false} />);
+    expect(screen.getByText("Comissão gerada no período")).toBeInTheDocument();
+    expect(screen.getByText("Pago no período")).toBeInTheDocument();
+    // O saldo a receber é de hoje, desde o início — não segue o filtro.
+    expect(screen.getByText("A receber (desde o início)")).toBeInTheDocument();
+    expect(screen.queryByText("A receber (hoje)")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Conta: Gerada = soma dos lançamentos de comissão \(inclui ajustes\) com data de 01\/10\/2026 a 31\/10\/2026/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/A receber = soma de todos os lançamentos ainda sem pagamento, desde o início/)).toBeInTheDocument();
+    expect(screen.getByText("Fonte: livro de comissão do consultor (lançamentos e pagamentos)")).toBeInTheDocument();
+  });
+
+  it("sem período no filtro: 'desde o início'", () => {
+    render(<CommissionDashboardView data={{ ...dash, period: { from: null, to: null } }} isLoading={false} />);
+    expect(screen.getByText(/com data desde o início/)).toBeInTheDocument();
+  });
+});
+
+describe("CommissionBalanceCards", () => {
+  it("admin: 'A pagar' e 'Já pago' rotulados desde o início, com a conta e a fonte", () => {
+    render(<CommissionBalanceCards balances={{ openInCents: 4200, paidInCents: 31500 }} audience="admin" />);
+    expect(screen.getByText("A pagar")).toBeInTheDocument();
+    expect(screen.getByText("Já pago")).toBeInTheDocument();
+    expect(screen.getAllByText("· desde o início")).toHaveLength(2);
+    expect(screen.getByText("R$ 42,00")).toBeInTheDocument();
+    expect(screen.getByText("R$ 315,00")).toBeInTheDocument();
+    expect(screen.getByText(/Conta: soma dos lançamentos de comissão ainda sem pagamento, desde o início/)).toBeInTheDocument();
+    expect(screen.getByText(/Conta: soma dos pagamentos registrados, sem os estornados/)).toBeInTheDocument();
+  });
+
+  it("consultor: 'A receber' e 'Já recebido'; sem dado ainda, '—'", () => {
+    render(<CommissionBalanceCards balances={undefined} audience="consultant" />);
+    expect(screen.getByText("A receber")).toBeInTheDocument();
+    expect(screen.getByText("Já recebido")).toBeInTheDocument();
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 });
 

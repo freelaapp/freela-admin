@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { PeriodFilter } from "@/components/commissions/period-filter";
+import { CommissionBalanceCards } from "@/components/commissions/balance-cards";
 import { CommissionStatementView, StatementPager } from "@/components/commissions/statement-view";
-import { formatCents } from "@/lib/money";
 import { resolveCommissionPeriod, type CommissionPeriodSelection } from "@/lib/commissions/period";
 import type { StatementStatus } from "@/lib/commissions/types";
 import { useMyStatement, useMyWallet } from "@/modules/consultant/application/use-consultant-commissions";
@@ -21,20 +21,7 @@ export default function CarteiraPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="Carteira" description="O que você tem a receber e o extrato de cada valor." />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-[#e5e5e5] bg-white p-4">
-          <p className="text-xs text-[#737373]">A receber</p>
-          <p className="mt-1 text-2xl font-bold text-[#1d1d1b]">
-            {wallet.data ? formatCents(wallet.data.openInCents) : "—"}
-          </p>
-        </div>
-        <div className="rounded-lg border border-[#e5e5e5] bg-white p-4">
-          <p className="text-xs text-[#737373]">Já recebido</p>
-          <p className="mt-1 text-2xl font-bold text-[#1d1d1b]">
-            {wallet.data ? formatCents(wallet.data.paidInCents) : "—"}
-          </p>
-        </div>
-      </div>
+      <CommissionBalanceCards balances={wallet.data} audience="consultant" />
       <PeriodFilter
         value={period}
         onChange={(next) => {

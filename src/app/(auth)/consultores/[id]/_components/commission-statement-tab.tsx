@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CommissionBalanceCards } from "@/components/commissions/balance-cards";
 import { PeriodFilter } from "@/components/commissions/period-filter";
 import { CommissionStatementView, StatementPager } from "@/components/commissions/statement-view";
 import { formatCents } from "@/lib/money";
@@ -109,16 +110,7 @@ export function CommissionStatementTab({ consultantId }: { consultantId: string 
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-[#e5e5e5] bg-white p-4">
-          <p className="text-xs text-[#737373]">A pagar</p>
-          <p className="mt-1 text-2xl font-bold text-[#1d1d1b]">{balances ? formatCents(balances.openInCents) : "—"}</p>
-        </div>
-        <div className="rounded-lg border border-[#e5e5e5] bg-white p-4">
-          <p className="text-xs text-[#737373]">Já pago</p>
-          <p className="mt-1 text-2xl font-bold text-[#1d1d1b]">{balances ? formatCents(balances.paidInCents) : "—"}</p>
-        </div>
-      </div>
+      <CommissionBalanceCards balances={balances} audience="admin" />
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button onClick={() => setPayOpen(true)} className="w-full sm:w-auto">
