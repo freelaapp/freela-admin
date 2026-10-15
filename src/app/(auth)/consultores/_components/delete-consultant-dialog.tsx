@@ -41,8 +41,8 @@ export function DeleteConsultantDialog({
   const deleteMutation = useDeleteAdminConsultant();
   // A lista traz o saldo a pagar; o detalhe (`GET /consultants/:id`) não. Sem
   // ele, o saldo vem do extrato da comissão (o mesmo "A pagar" da aba Extrato).
-  const needsBalance = !!consultant && consultant.openBalanceInCents == null;
-  const statement = useCommissionStatement(needsBalance ? consultant.id : "", { page: 1 });
+  const balanceLookupId = consultant && consultant.openBalanceInCents == null ? consultant.id : "";
+  const statement = useCommissionStatement(balanceLookupId, { page: 1 });
   const copy = consultant
     ? consultantDeleteCopy({
         ...consultant,

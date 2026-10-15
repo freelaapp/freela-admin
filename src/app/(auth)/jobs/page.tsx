@@ -759,7 +759,7 @@ export default function JobsPage() {
           searchPlaceholder="Buscar por empresa..."
           searchKey="empresa"
           defaultSort={
-            dataDoServicoIndex >= 0 ? { index: dataDoServicoIndex, direction: "desc" } : undefined
+            dataDoServicoIndex >= 0 ? { index: dataDoServicoIndex, direction: "desc" as const } : undefined
           }
           filters={
             <div className="flex flex-col gap-3">
