@@ -134,6 +134,7 @@ describe("VacancyDocumentsCell — NFS-e da vaga faturada (AD2c.3)", () => {
     renderCell({
       documents: { ...ALL_OK, nfse: "NA" },
       detail: { nfse: "NFS-e na fatura: sai depois que a fatura for paga" },
+      paymentMethod: "INVOICE",
       nfseInvoice: null,
     });
 
@@ -153,5 +154,21 @@ describe("VacancyDocumentsCell — NFS-e da vaga faturada (AD2c.3)", () => {
 
     renderCell({ documents: ALL_OK, paymentMethod: "PIX" });
     expect(screen.getAllByRole("button", { name: "Abrir" })).toHaveLength(4);
+  });
+
+  it("pré-pago com nfseInvoice null (como as listas mandam desde 13/10): 'Abrir' e 'Reemitir' na NF-e", () => {
+    const { unmount } = renderCell({ documents: ALL_OK, paymentMethod: "PIX", nfseInvoice: null });
+    expect(within(nfseItem()).getByRole("button", { name: "Abrir" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Abrir" })).toHaveLength(4);
+    unmount();
+
+    renderCell({
+      documents: { ...ALL_OK, nfse: "FAILED" },
+      detail: { nfse: "Inscrição municipal inválida" },
+      paymentMethod: "PIX",
+      nfseInvoice: null,
+    });
+    expect(within(nfseItem()).getByRole("button", { name: /Reemitir/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

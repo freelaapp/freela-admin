@@ -3,6 +3,7 @@ import type { FilterEntry } from "./engagement-filters";
 import {
   INDICATOR_HEAD,
   cityTable,
+  contractorDetailSheets,
   contractorListSheets,
   contractorReportTables,
   freelancerDetailSheets,
@@ -127,7 +128,14 @@ describe("Excel da ficha", () => {
   it("resumo, números com anterior e candidaturas", () => {
     const [, resumo, cands] = freelancerDetailSheets(SAMPLE_FREELANCER_DETAIL, ENTRIES, NOW);
     expect(resumo.rows).toContainEqual(["Status", "Esfriando"]);
-    expect(resumo.rows).toContainEqual(["Candidaturas", 2, 1, 100]);
+    expect(resumo.rows).toContainEqual([
+      "Candidaturas",
+      2,
+      1,
+      100,
+      "Candidaturas que o freelancer fez no período",
+      "Candidaturas do freelancer, pela data da candidatura",
+    ]);
     expect(cands.rows[1]).toEqual([
       "05/09/2026",
       "06/09/2026",
@@ -137,6 +145,28 @@ describe("Excel da ficha", () => {
       "Aceita",
       "Sim",
     ]);
+  });
+});
+
+describe("Excel da ficha da empresa — conta e fonte de cada número", () => {
+  it("'Vagas concluídas' diz que conta pela conclusão, inclusive de vagas publicadas antes", () => {
+    const [, resumo] = contractorDetailSheets(SAMPLE_CONTRACTOR_DETAIL, ENTRIES, NOW);
+    const head = resumo.rows.find((r) => r[0] === "Indicador");
+    expect(head).toEqual(["Indicador", "No período", "Período anterior", "Variação (%)", "Como calcular", "Fonte"]);
+    const concluidas = resumo.rows.find((r) => r[0] === "Vagas concluídas");
+    expect(concluidas?.slice(1, 3)).toEqual([2, 1]);
+    expect(concluidas?.[4]).toMatch(/inclusive de vagas publicadas antes do período/);
+    expect(concluidas?.[5]).toBe("Serviços concluídos da empresa, pela data de conclusão");
+    expect(resumo.rows.find((r) => r[0] === "Vagas publicadas")?.[5]).toBe(
+      "Vagas da empresa nos dois produtos, pela data de publicação, sem as excluídas",
+    );
+    // Valor contratado: o pagamento por fatura nasce confirmado no aceite (API
+    // settle-vacancy-on-invoice), antes de a fatura fechar e ser paga.
+    expect(resumo.rows.find((r) => r[0] === "Valor contratado (R$)")?.[4]).toMatch(
+      /vaga faturada conta como paga no aceite do freelancer, antes de a fatura fechar e ser paga; estornado não entra/,
+    );
+    // Canceladas: status CANCELLED inclui o cancelamento automático (cancelledBySystem na API).
+    expect(resumo.rows.find((r) => r[0] === "Vagas canceladas")?.[4]).toMatch(/cancelamento automático/);
   });
 });
 
@@ -189,6 +219,18 @@ describe("tabelas do PDF", () => {
       "0,67",
       "—",
     ]);
+  });
+
+  it("relatório do cliente: cada número com a conta e a fonte, na ordem da tabela", () => {
+    const { numbers, numberNotes } = contractorReportTables(SAMPLE_CONTRACTOR_DETAIL);
+    expect(numberNotes).toHaveLength(numbers.rows.length);
+    expect(numberNotes[1]).toMatch(
+      /^Vagas concluídas: Serviços terminados no período, pela data de conclusão — inclusive de vagas publicadas antes do período/,
+    );
+    expect(numberNotes[1]).toMatch(/Fonte: Serviços concluídos da empresa, pela data de conclusão\.$/);
+    expect(numberNotes[0]).toBe(
+      "Vagas publicadas: Vagas que a empresa publicou no período. Fonte: Vagas da empresa nos dois produtos, pela data de publicação, sem as excluídas.",
+    );
   });
 
   it("relatório do cliente: números e vagas, sem contato nem documento", () => {

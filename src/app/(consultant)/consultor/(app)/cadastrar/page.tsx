@@ -15,19 +15,32 @@ import type {
   RegistrationPersona,
 } from "@/modules/consultant/domain/types";
 
+/**
+ * Contratante cadastrado pelo consultor é sempre EMPRESA (bar/restaurante).
+ * O Freela em Casa foi encerrado em 08/10/2026: conta só-Casa nasce sem login,
+ * então a opção "Serviços (Freela em Casa)" saiu do formulário.
+ */
+const CONTRACTOR_MODULE: RegistrationModule = "bars-restaurants";
+
 type SuccessInfo = {
   name: string;
   login: string;
-  firstAccessPassword: string;
+  /**
+   * Senha de 1º acesso que a API gerou (aleatória). `null` = a API não
+   * devolveu: o painel NÃO inventa uma (a antiga "Mudar@123" fixa não vale
+   * mais) — diz que ela foi no convite.
+   */
+  firstAccessPassword: string | null;
   channel: string | null;
 };
+
+const PASSWORD_IN_INVITE_NOTICE = "A senha de primeiro acesso foi enviada no convite.";
 
 export default function ConsultorCadastrarPage() {
   const router = useRouter();
   const createMutation = useCreateRegistration();
 
   const [persona, setPersona] = useState<RegistrationPersona>("provider");
-  const [module, setModule] = useState<RegistrationModule>("bars-restaurants");
   const [form, setForm] = useState({ name: "", phone: "", email: "" });
   const [success, setSuccess] = useState<SuccessInfo | null>(null);
 
@@ -55,7 +68,7 @@ export default function ConsultorCadastrarPage() {
     try {
       const result = await createMutation.mutateAsync({
         persona,
-        ...(persona === "contractor" ? { module } : {}),
+        ...(persona === "contractor" ? { module: CONTRACTOR_MODULE } : {}),
         name: form.name.trim(),
         phone: phoneE164,
         ...(form.email.trim() ? { email: form.email.trim() } : {}),
@@ -68,7 +81,7 @@ export default function ConsultorCadastrarPage() {
       setSuccess({
         name: form.name.trim(),
         login: form.email.trim() || phoneE164,
-        firstAccessPassword: result.firstAccessPassword ?? "Mudar@123",
+        firstAccessPassword: result.firstAccessPassword?.trim() || null,
         channel,
       });
       toast.success("Cadastro criado com sucesso!");
@@ -80,7 +93,6 @@ export default function ConsultorCadastrarPage() {
   function handleNewRegistration() {
     setForm({ name: "", phone: "", email: "" });
     setPersona("provider");
-    setModule("bars-restaurants");
     setSuccess(null);
   }
 
@@ -99,7 +111,11 @@ export default function ConsultorCadastrarPage() {
 
           <div className="rounded-lg border border-[#eca826]/40 bg-[#eca826]/10 p-4 space-y-3">
             <CredentialRow label="Login" value={success.login} />
-            <CredentialRow label="Senha de 1º acesso" value={success.firstAccessPassword} mono />
+            {success.firstAccessPassword ? (
+              <CredentialRow label="Senha de 1º acesso" value={success.firstAccessPassword} mono />
+            ) : (
+              <p className="text-sm text-[#1d1d1b]">{PASSWORD_IN_INVITE_NOTICE}</p>
+            )}
             <p className="text-xs text-[#a8670a]">
               No primeiro acesso a pessoa troca a senha e completa o perfil.
             </p>
@@ -108,7 +124,9 @@ export default function ConsultorCadastrarPage() {
           <p className="text-sm text-[#737373]">
             {success.channel
               ? `Também enviamos um convite por ${success.channel} com um link para definir a senha.`
-              : "Não foi possível enviar o convite automaticamente — passe a senha acima manualmente."}
+              : success.firstAccessPassword
+                ? "Não foi possível enviar o convite automaticamente — passe a senha acima manualmente."
+                : "Não foi possível confirmar o envio do convite. Se a pessoa não receber, peça ao suporte para reenviar o acesso."}
           </p>
 
           <div className="flex gap-2 pt-1">
@@ -137,7 +155,7 @@ export default function ConsultorCadastrarPage() {
     <div>
       <PageHeader
         title="Novo cadastro"
-        description="Cadastro rápido — a pessoa entra com a senha padrão e a troca no primeiro acesso"
+        description="Cadastro rápido — a pessoa recebe uma senha de primeiro acesso e a troca no primeiro login"
       />
 
       <form
@@ -157,18 +175,9 @@ export default function ConsultorCadastrarPage() {
         </div>
 
         {persona === "contractor" && (
-          <div className="space-y-1.5">
-            <Label htmlFor="module">Segmento</Label>
-            <select
-              id="module"
-              value={module}
-              onChange={(e) => setModule(e.target.value as RegistrationModule)}
-              className="h-10 w-full rounded-lg border border-[#e5e5e5] bg-white px-3 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
-            >
-              <option value="bars-restaurants">Bares e Restaurantes</option>
-              <option value="home-services">Serviços (Freela em Casa)</option>
-            </select>
-          </div>
+          <p className="text-xs text-[#737373]">
+            Contratante = empresa (bar ou restaurante) que vai publicar vagas.
+          </p>
         )}
 
         <div className="space-y-1.5">

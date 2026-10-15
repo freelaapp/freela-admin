@@ -160,3 +160,41 @@ describe("indicadores da diretoria", () => {
     expect(indicatorParts(accessed, I, "current")).toBeNull();
   });
 });
+
+describe("conta e fonte que fecham (revisão 15/10)", () => {
+  it("Faturamento diz que soma vaga faturada antes de a fatura ser paga", () => {
+    const def = byLabel(CONTRACTOR_INDICATORS, "Faturamento");
+    // A API cria o pagamento por fatura já confirmado no aceite (settle-vacancy-on-invoice).
+    expect(def.how).toMatch(/inclui vaga faturada .* no aceite do freelancer, antes de a fatura fechar e ser paga/);
+    expect(def.how).not.toMatch(/no fechamento/);
+    expect(def.how).not.toMatch(/o que as empresas pagaram/);
+    expect(def.source).toMatch(/Pix, carteira ou fatura/);
+  });
+
+  it("'Vagas concluídas' (aba Vagas) avisa que entra vaga publicada antes do período", () => {
+    const def = VACANCY_METRICS.find((d) => d.label === "Vagas concluídas");
+    expect(def?.help).toMatch(/inclusive de vagas publicadas antes do período/);
+  });
+
+  it("ficha da empresa: textos batem com o SQL da API (engagement-entity.service)", () => {
+    const by = (key: string) => CONTRACTOR_DETAIL_NUMBERS.find((d) => d.key === key)!;
+    // status CANCELLED inclui o automático; CANCELLED_BY_CONTRACTOR é da empresa.
+    expect(by("cancelled").how).toMatch(/por qualquer motivo \(empresa, Freela ou cancelamento automático\)/);
+    // candidaturas de qualquer data contam: "até hoje".
+    expect(by("noCandidate").how).toMatch(/nenhuma candidatura até hoje/);
+    // cr.status = 'ACCEPTED' (situação de hoje).
+    expect(by("distinctHired").how).toMatch(/candidatura aceita hoje/);
+    // p.status = 'COMPLETED': REFUNDED fica fora; INVOICE nasce COMPLETED no aceite.
+    expect(by("contractedCents").how).toMatch(/no aceite do freelancer/);
+    expect(by("contractedCents").how).toMatch(/estornado não entra/);
+    // vacancyRowsSql: deleted_at IS NULL, os dois produtos.
+    expect(by("published").source).toMatch(/sem as excluídas/);
+  });
+
+  it("todo número da ficha tem a conta e a fonte", () => {
+    for (const def of CONTRACTOR_DETAIL_NUMBERS) {
+      expect(def.how.length, def.key).toBeGreaterThan(10);
+      expect(def.source.length, def.key).toBeGreaterThan(10);
+    }
+  });
+});

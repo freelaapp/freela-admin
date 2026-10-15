@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "./auth.store";
+import { tokenRequiresPasswordChange, useAuthStore } from "./auth.store";
 import { loginApi } from "@/modules/auth/infrastructure/auth.api";
 import { getAdminMe } from "@/modules/auth/infrastructure/admin-session.api";
 import { LoginPayload, AuthUser } from "@/modules/auth/domain/types";
@@ -85,6 +85,9 @@ export function useAuth() {
           role: decodeJwtRole(response.data.accessToken),
           accessToken: response.data.accessToken,
           refreshToken: response.data.refreshToken,
+          // Senha temporária (usuário novo ou "reenviar senha"): o painel pede a
+          // troca antes de liberar.
+          mustChangePassword: tokenRequiresPasswordChange(response.data.accessToken),
         };
         setUser(authUser);
         // Sessão de outra conta que tenha ficado no cache desta aba não pode
@@ -99,6 +102,22 @@ export function useAuth() {
     },
     [setUser, queryClient]
   );
+
+  /** Depois da troca (ou da API antiga sem a rota): libera o painel. */
+  const clearMustChangePassword = useCallback(() => {
+    if (storedUser) setUser({ ...storedUser, mustChangePassword: false });
+  }, [storedUser, setUser]);
+
+  /**
+   * Encerra a sessão local sem recarregar nem avisar "você saiu" — para quem
+   * leva ao login com o próprio aviso (troca de senha: a API invalida o
+   * refresh, então a sessão atual não vale mais). Limpa o cache inteiro: nada
+   * desta sessão sobra para a próxima.
+   */
+  const endSession = useCallback(() => {
+    clear();
+    queryClient.clear();
+  }, [clear, queryClient]);
 
   const logout = useCallback(() => {
     clear();
@@ -135,6 +154,12 @@ export function useAuth() {
     hasPermission,
     /** `true` enquanto a sessão (papel + permissões) ainda não foi resolvida. */
     isSessionLoading,
+    /** `GET /v1/admins/me` falhou: as permissões não puderam ser conferidas. */
+    isSessionError: meQuery.isError,
+    /** Entrou com a senha temporária: precisa trocar antes de usar o painel. */
+    mustChangePassword: !!storedUser?.mustChangePassword,
+    clearMustChangePassword,
+    endSession,
     login,
     logout,
   };

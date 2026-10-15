@@ -213,3 +213,13 @@ describe("Empresas — Editar Empresa, CEP", () => {
     );
   });
 });
+
+describe("Empresas — modal no celular", () => {
+  it("'Detalhes da Empresa' rola por dentro (o X e os botões não somem)", () => {
+    render(<EmpresasPage />);
+    fireEvent.click(within(rowOf("Bar do Zé")).getByTitle("Ver detalhes"));
+
+    const titulo = screen.getByText("Detalhes da Empresa");
+    expect(titulo.closest(".overflow-y-auto")).toHaveClass("max-h-[88vh]");
+  });
+});

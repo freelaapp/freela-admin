@@ -41,6 +41,16 @@ beforeEach(() => {
 });
 
 describe("ficha da empresa", () => {
+  it("cada número tem a conta e a fonte: concluídas contam pela conclusão, inclusive de vagas publicadas antes", () => {
+    render(<ContractorEngagementPage />);
+    expect(screen.getAllByText("Ver a conta").length).toBeGreaterThanOrEqual(9);
+    expect(
+      screen.getByText(/Conta: Serviços terminados no período, pela data de conclusão — inclusive de vagas publicadas antes do período/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Fonte: Serviços concluídos da empresa, pela data de conclusão")).toBeInTheDocument();
+    expect(screen.getByText("Fonte: Vagas da empresa nos dois produtos, pela data de publicação, sem as excluídas")).toBeInTheDocument();
+  });
+
   it("sem COMPANIES não consulta nem mostra a ficha (o guard redireciona)", () => {
     guard.allowed = false;
     render(<ContractorEngagementPage />);

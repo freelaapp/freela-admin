@@ -8,8 +8,10 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
+import { useAuth } from "@/modules/auth/application/use-auth";
 import { NOTIFICATION_EVENTS_KEY, useNotificationEvents, useSetNotificationEvent } from "@/modules/admin/application/use-notification-events";
 import { LegacyCutSection } from "./legacy-cut-section";
+import { SUPER_ADMIN_ONLY_HINT } from "./super-admin-hint";
 import {
   sendNotificationTest,
   submitNotificationTemplate,
@@ -35,7 +37,16 @@ const STATUS_CLASS: Record<TemplateStatus, string> = {
   MISSING: "bg-[#f7f7f7] text-[#737373]",
 };
 
-function EventRow({ row, testPhone }: { row: NotificationEventView; testPhone: string }) {
+function EventRow({
+  row,
+  testPhone,
+  readOnly,
+}: {
+  row: NotificationEventView;
+  testPhone: string;
+  /** Não é super-admin: vê tudo, não muda nada. */
+  readOnly: boolean;
+}) {
   const setEvent = useSetNotificationEvent();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -77,7 +88,8 @@ function EventRow({ row, testPhone }: { row: NotificationEventView; testPhone: s
           <Button
             size="sm"
             variant="outline"
-            disabled={busy}
+            disabled={busy || readOnly}
+            title={readOnly ? SUPER_ADMIN_ONLY_HINT : undefined}
             onClick={() => run(() => submitNotificationTemplate(row.eventKey), "Modelo enviado para aprovação.", "Não foi possível enviar o modelo.", true)}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -88,7 +100,8 @@ function EventRow({ row, testPhone }: { row: NotificationEventView; testPhone: s
           <Button
             size="sm"
             variant="ghost"
-            disabled={busy || testPhone.replace(/\D/g, "").length < 10}
+            disabled={busy || readOnly || testPhone.replace(/\D/g, "").length < 10}
+            title={readOnly ? SUPER_ADMIN_ONLY_HINT : undefined}
             onClick={() => run(() => sendNotificationTest(row.eventKey, testPhone), "Teste enviado.", "O teste não saiu.")}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar teste
@@ -97,7 +110,8 @@ function EventRow({ row, testPhone }: { row: NotificationEventView; testPhone: s
         <Switch
           aria-label={row.label}
           checked={row.metaEnabled}
-          disabled={!approved && !row.metaEnabled}
+          disabled={readOnly || (!approved && !row.metaEnabled)}
+          title={readOnly ? SUPER_ADMIN_ONLY_HINT : undefined}
           onCheckedChange={(enabled) =>
             setEvent.mutate(
               { eventKey: row.eventKey, enabled },
@@ -113,6 +127,10 @@ function EventRow({ row, testPhone }: { row: NotificationEventView; testPhone: s
 export function MetaEventsCard() {
   const { data, isLoading, isError } = useNotificationEvents();
   const [testPhone, setTestPhone] = useState("");
+  // Mesmo critério das outras telas (ajuste da carteira, filtro de consultor):
+  // ligar/desligar aviso, corte, modelo e teste são só de super-admin na API.
+  const { isSuperAdmin } = useAuth();
+  const readOnly = !isSuperAdmin;
 
   return (
     <div className="mb-6 rounded-xl border border-[#e5e5e5] bg-white p-5">
@@ -125,6 +143,11 @@ export function MetaEventsCard() {
           <p className="mt-1 text-xs text-[#737373]">
             Cada aviso ligado sai pelo número oficial com botões, e deixa de sair pela Z-API. Desligar volta ao envio antigo na hora.
           </p>
+          {readOnly && (
+            <p role="note" className="mt-3 rounded-lg bg-[#f7f7f7] px-3 py-2 text-xs text-[#525252]">
+              Só leitura. {SUPER_ADMIN_ONLY_HINT}
+            </p>
+          )}
           <label htmlFor="meta-test-phone" className="mb-1 mt-4 block text-xs font-medium text-[#737373]">
             Seu WhatsApp para os testes
           </label>
@@ -134,6 +157,8 @@ export function MetaEventsCard() {
             placeholder="(11) 98888-7777"
             inputMode="tel"
             value={testPhone}
+            disabled={readOnly}
+            title={readOnly ? SUPER_ADMIN_ONLY_HINT : undefined}
             onChange={(e) => setTestPhone(e.target.value)}
           />
           {isLoading && <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />}
@@ -141,11 +166,11 @@ export function MetaEventsCard() {
           {data && (
             <ul>
               {data.map((row) => (
-                <EventRow key={row.eventKey} row={row} testPhone={testPhone} />
+                <EventRow key={row.eventKey} row={row} testPhone={testPhone} readOnly={readOnly} />
               ))}
             </ul>
           )}
-          <LegacyCutSection />
+          <LegacyCutSection readOnly={readOnly} />
         </div>
       </div>
     </div>

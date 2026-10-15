@@ -161,6 +161,50 @@ describe("CampanhasPage", () => {
     await waitFor(() => expect(api.getCampaignEstimate).toHaveBeenCalledWith("camp-1"));
   });
 
+  it("Encerrar pede confirmação (é definitivo) e só então cancela", async () => {
+    api.getCampaigns.mockResolvedValue({
+      data: [
+        row({
+          id: "camp-4",
+          name: "Campanha rodando",
+          status: "RUNNING",
+          stats: { PENDING: 300, SENT: 125, FAILED: 0, SKIPPED: 0 },
+        }),
+      ],
+      schedulerEnabled: true,
+    });
+    let resolveCancel: (value: unknown) => void = () => {};
+    api.setCampaignState.mockImplementation(
+      () => new Promise((resolve) => (resolveCancel = resolve)),
+    );
+    renderPage();
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Encerrar" }))[0]);
+    // Abrir a confirmação não manda nada para a API.
+    const dialog = screen.getByRole("alertdialog");
+    expect(api.setCampaignState).not.toHaveBeenCalled();
+    expect(dialog).toHaveTextContent("É definitivo");
+    expect(screen.getByTestId("campaign-cancel-counts")).toHaveTextContent(
+      "125 já saíram e 300 ainda estão na fila — esses 300 não recebem mais.",
+    );
+
+    // Voltar fecha sem cancelar.
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(api.setCampaignState).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Encerrar" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Encerrar campanha" }));
+    await waitFor(() => expect(api.setCampaignState).toHaveBeenCalledWith("camp-4", "cancel"));
+    // Durante o envio os botões travam (sem duplo clique).
+    expect(await screen.findByRole("button", { name: /Encerrando/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Voltar" })).toBeDisabled();
+
+    resolveCancel({ campaign: row({ id: "camp-4", status: "CANCELLED" }) });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(api.setCampaignState).toHaveBeenCalledTimes(1);
+  });
+
   it("pausada: mostra o motivo e oferece Retomar", async () => {
     api.getCampaigns.mockResolvedValue({
       data: [row({ id: "camp-3", name: "Campanha pausada", status: "PAUSED", pausedReason: "Qualidade do número caiu na Meta" })],

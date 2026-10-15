@@ -279,8 +279,12 @@ export function buildContractorReportPdf(d: ContractorDetail, generatedAt: Date)
   const title = d.summary.name.includes("@") ? "Relatório da empresa" : d.summary.name;
   w.header(title, `Relatório de vagas · ${range}`);
   w.paragraph(`Período: ${d.period.label}. Comparado com: ${d.period.previousLabel}.`);
-  const { numbers, vacancies } = contractorReportTables(d);
+  const { numbers, numberNotes, vacancies } = contractorReportTables(d);
   w.table(numbers, [102, 40, 40], [false, true, true]);
+  // A conta e a fonte de cada número (regra: todo número diz como é contado).
+  // Sem isso "Vagas concluídas" maior que "Vagas publicadas" parecia erro.
+  w.paragraph("Como cada número é contado:", 8.5);
+  for (const note of numberNotes) w.paragraph(note, 8);
   w.table(vacancies, [22, 50, 34, 22, 30, 24], [false, false, false, true, false, false]);
   w.footer(`Freela · ${title} · ${range} · gerado em ${dateTimeBR(generatedAt)}`);
   return w.doc;

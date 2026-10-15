@@ -294,7 +294,7 @@ export function contractorListSheets(
 
 function numbersRows<D>(defs: DetailNumberDef<D>[], d: D): Cell[][] {
   return [
-    ["Indicador", "No período", "Período anterior", "Variação (%)"],
+    ["Indicador", "No período", "Período anterior", "Variação (%)", "Como calcular", "Fonte"],
     ...defs.map((def): Cell[] => {
       const p = def.pick(d);
       return [
@@ -302,6 +302,8 @@ function numbersRows<D>(defs: DetailNumberDef<D>[], d: D): Cell[][] {
         cellValue(p.current, def.kind),
         cellValue(p.previous, def.kind),
         pctChange(p.current, p.previous),
+        def.how,
+        def.source,
       ];
     }),
   ];
@@ -419,7 +421,12 @@ export function cityTable(o: EngagementOverview, limit = 15): PdfTable {
  * 1º nome de quem trabalhou. NUNCA telefone, e-mail ou documento: este
  * builder não lê `summary.phone/email/document`.
  */
-export function contractorReportTables(d: ContractorDetail): { numbers: PdfTable; vacancies: PdfTable } {
+export function contractorReportTables(d: ContractorDetail): {
+  numbers: PdfTable;
+  /** Como cada número do resumo é contado e de onde vem, na ordem da tabela. */
+  numberNotes: string[];
+  vacancies: PdfTable;
+} {
   return {
     numbers: {
       title: "Resumo do período",
@@ -429,6 +436,7 @@ export function contractorReportTables(d: ContractorDetail): { numbers: PdfTable
         return [def.label, formatValue(p.current, def.kind), formatValue(p.previous, def.kind)];
       }),
     },
+    numberNotes: CLIENT_REPORT_NUMBERS.map((def) => `${def.label}: ${def.how}. Fonte: ${def.source}.`),
     vacancies: {
       title: "Vagas do período",
       head: ["Data", "Cargo", "Cidade", "Candidatos", "Situação", "Quem trabalhou"],

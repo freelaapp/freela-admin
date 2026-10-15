@@ -51,6 +51,7 @@ import {
   TONE_CLASS,
   describeSituation,
   empresaStepIndex,
+  registeredReferralsHint,
 } from "./_lib/referral-labels";
 
 /** Linhas por página nas duas listas. */
@@ -478,7 +479,7 @@ export default function IndicacoesPage() {
         <Kpi
           label="Indicações qualificadas"
           value={s ? String(s.referrals.QUALIFIED ?? 0) : "—"}
-          hint={s ? `${s.referrals.REGISTERED ?? 0} ainda não contrataram` : undefined}
+          hint={s ? registeredReferralsHint(s) : undefined}
         />
         <Kpi
           label="Rejeitadas"

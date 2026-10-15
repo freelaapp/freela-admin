@@ -29,6 +29,7 @@ import {
 } from "@/modules/admin/application/use-admin-referrals";
 import type { Campaign } from "@/modules/admin/infrastructure/referrals-api";
 import { audienceLabel, type WizardAudience } from "./_lib/campaign-wizard";
+import { CampaignCancelDialog } from "./_components/campaign-cancel-dialog";
 import { CampaignDetailDialog } from "./_components/campaign-detail-dialog";
 import { CampaignStatusBadge } from "./_components/campaign-status-badge";
 import { CampaignWizard } from "./_components/campaign-wizard";
@@ -88,6 +89,8 @@ function CampanhasScreen() {
     if (campaignParam) setSelectedId(campaignParam);
   }, [campaignParam]);
   const [wizard, setWizard] = useState<WizardRequest>({ open: false });
+  // "Encerrar" é definitivo: pede confirmação antes de mandar o cancel.
+  const [cancelTarget, setCancelTarget] = useState<Campaign | null>(null);
 
   const openWizard = (request: Omit<WizardRequest, "open">) => setWizard({ open: true, ...request });
 
@@ -100,10 +103,17 @@ function CampanhasScreen() {
   const handleState = async (id: string, action: "start" | "pause" | "cancel") => {
     try {
       await setState.mutateAsync({ id, action });
-      toast.success(action === "start" ? "Disparo retomado." : action === "pause" ? "Pausada." : "Cancelada.");
+      toast.success(action === "start" ? "Disparo retomado." : action === "pause" ? "Pausada." : "Campanha encerrada.");
+      return true;
     } catch (error) {
       toast.error(getAxiosErrorMessage(error, "Não foi possível mudar a campanha."));
+      return false;
     }
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    if (await handleState(cancelTarget.id, "cancel")) setCancelTarget(null);
   };
 
   const handleUnschedule = async (id: string) => {
@@ -254,7 +264,13 @@ function CampanhasScreen() {
             </Button>
           )}
           {row.status !== "COMPLETED" && row.status !== "CANCELLED" && (
-            <Button size="sm" variant="outline" className="min-h-11" onClick={() => handleState(row.id, "cancel")}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-11"
+              disabled={setState.isPending}
+              onClick={() => setCancelTarget(row)}
+            >
               <Square className="mr-1 h-3.5 w-3.5" /> Encerrar
             </Button>
           )}
@@ -342,6 +358,13 @@ function CampanhasScreen() {
       )}
 
       <CampaignDetailDialog campaignId={selectedId} onClose={closeDetail} />
+
+      <CampaignCancelDialog
+        campaign={cancelTarget}
+        pending={setState.isPending}
+        onCancel={() => setCancelTarget(null)}
+        onConfirm={() => void confirmCancel()}
+      />
     </div>
   );
 }

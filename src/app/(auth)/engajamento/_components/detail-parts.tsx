@@ -61,7 +61,12 @@ export function SummaryCard({
   );
 }
 
-/** Números da ficha com o período anterior (mesma regra de cor dos cartões do painel). */
+/**
+ * Números da ficha com o período anterior (mesma regra de cor dos cartões do
+ * painel). Cada um com a conta e a fonte em "Ver a conta" — publicadas contam
+ * pela data de publicação e concluídas pela de conclusão, e sem isso os dois
+ * números pareciam não fechar.
+ */
 export function NumbersGrid<D>({ defs, detail }: { defs: DetailNumberDef<D>[]; detail: D }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -76,6 +81,7 @@ export function NumbersGrid<D>({ defs, detail }: { defs: DetailNumberDef<D>[]; d
             icon={def.icon}
             meta={delta.text}
             metaColor={delta.color}
+            details={{ calc: def.how, source: def.source }}
           />
         );
       })}

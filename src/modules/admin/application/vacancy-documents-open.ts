@@ -69,12 +69,17 @@ export async function openVacancyDocument(vacancyId: string, key: DocumentKey): 
   }
 }
 
-/** Vaga faturada (API-3g): o meio do pagamento é a fatura, ou a API já mandou a fatura da nota. */
+/**
+ * Vaga faturada (API-3g): o meio do pagamento é a fatura, ou a API já mandou a
+ * fatura da nota. `nfseInvoice: null` NÃO marca faturada: desde 13/10/2026 as
+ * listas mandam `null` para TODA vaga (pré-paga inclusive), e tratar `null`
+ * como faturada sumia com "Abrir" e "Reemitir" da NFS-e da vaga paga por Pix.
+ */
 export function isInvoicedVacancy(
   paymentMethod: string | null | undefined,
   nfseInvoice: VacancyNfseInvoice | null | undefined,
 ): boolean {
-  return (paymentMethod ?? "").toUpperCase() === "INVOICE" || nfseInvoice !== undefined;
+  return (paymentMethod ?? "").toUpperCase() === "INVOICE" || nfseInvoice != null;
 }
 
 const INVOICE_NUMBER = /\bFAT-\d{4}-\d+\b/;

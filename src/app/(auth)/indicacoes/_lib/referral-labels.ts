@@ -1,6 +1,7 @@
 import type {
   ReferralItem,
   ReferralPendingReason,
+  ReferralSummary,
   ReferredAccountKind,
   ReferredStage,
 } from "@/modules/admin/infrastructure/referrals-api";
@@ -144,6 +145,29 @@ export const PENDING_REASON_ORDER: ReferralPendingReason[] = [
   "PRAZO_ENCERRADO",
   "CONTA_EXCLUIDA",
 ];
+
+/**
+ * Legenda do cartão "Indicações qualificadas": das cadastradas sem recompensa,
+ * quantas ainda podem qualificar e quantas não contam mais (conta excluída,
+ * não é empresa, prazo encerrado…). Antes dizia "N ainda não contrataram"
+ * com TODAS as cadastradas, inclusive as que nunca mais vão contar.
+ * Fonte: motivos do quadro "por que ainda não viraram recompensa".
+ */
+export function registeredReferralsHint(
+  summary: Pick<ReferralSummary, "referrals" | "pendingByReason">,
+): string {
+  const registered = summary.referrals.REGISTERED ?? 0;
+  const reasons = summary.pendingByReason;
+  if (!reasons) return `${registered} cadastradas ainda sem qualificar`;
+  let open = 0;
+  let dead = 0;
+  for (const [reason, count] of Object.entries(reasons) as [ReferralPendingReason, number | undefined][]) {
+    if (!count) continue;
+    if (PENDING_REASON[reason]?.tone === "dead") dead += count;
+    else open += count;
+  }
+  return `De ${registered} cadastradas sem recompensa: ${open} ainda podem qualificar, ${dead} não contam mais (motivos abaixo)`;
+}
 
 const REJECTION_LABEL: Record<string, string> = {
   AUTO_INDICACAO: "Indicou a si mesmo",

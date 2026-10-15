@@ -9,9 +9,11 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isHydrated } = useAuthGuard(true);
+  const { isHydrated, mustChangePassword } = useAuthGuard(true);
 
-  if (!isHydrated) {
+  // Com a senha temporária o guard leva para /trocar-senha: nada do painel
+  // aparece (nem pisca) antes da troca.
+  if (!isHydrated || mustChangePassword) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#f7f7f7]">
         <div className="space-y-4 w-64">

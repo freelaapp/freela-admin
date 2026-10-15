@@ -7,12 +7,31 @@ import type { CommissionDashboard } from "@/lib/commissions/types";
 
 const num = (value: number) => value.toLocaleString("pt-BR");
 
+/** "2026-10-01" → "01/10/2026" (o período vem como dia, sem hora). */
+function dayBR(day: string): string {
+  const [y, m, d] = day.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+
+/** O recorte do filtro em texto: "de 01/10/2026 a 31/10/2026", "desde o início"… */
+export function commissionPeriodText(period: { from: string | null; to: string | null }): string {
+  if (period.from && period.to) return `de ${dayBR(period.from)} a ${dayBR(period.to)}`;
+  if (period.from) return `desde ${dayBR(period.from)}`;
+  if (period.to) return `até ${dayBR(period.to)}`;
+  return "desde o início";
+}
+
 export function CommissionDashboardView({
   data,
   isLoading,
+  isError = false,
+  onRetry,
 }: {
   data: CommissionDashboard | undefined;
   isLoading: boolean;
+  /** A consulta falhou: sem isso a área ficava em branco, sem dizer nada. */
+  isError?: boolean;
+  onRetry?: () => void;
 }) {
   if (isLoading && !data) {
     return (
@@ -21,8 +40,25 @@ export function CommissionDashboardView({
       </div>
     );
   }
-  if (!data) return null;
+  if (!data) {
+    if (!isError) return null;
+    return (
+      <div role="alert" className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800">
+        <p>Não foi possível carregar o painel de comissão. Tente de novo.</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-2 min-h-10 rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-100"
+          >
+            Tentar de novo
+          </button>
+        )}
+      </div>
+    );
+  }
   const r = data.registrations;
+  const periodo = commissionPeriodText(data.period);
 
   return (
     <div className="space-y-4">
@@ -53,13 +89,19 @@ export function CommissionDashboardView({
         />
         <KpiCard title="Serviços concluídos" value={num(data.vacancies.completed)} icon={CheckCircle2} />
         <KpiCard
-          title="Comissão gerada"
+          title="Comissão gerada no período"
           value={formatCents(data.commission.generatedInCents)}
           icon={Wallet}
+          // Três recortes diferentes no mesmo cartão: gerada e paga seguem o
+          // filtro; o "a receber" é o saldo de hoje, desde o início.
           breakdown={[
             { label: "Pago no período", value: formatCents(data.commission.paidInCents) },
-            { label: "A receber (hoje)", value: formatCents(data.commission.openInCents) },
+            { label: "A receber (desde o início)", value: formatCents(data.commission.openInCents) },
           ]}
+          details={{
+            calc: `Gerada = soma dos lançamentos de comissão (inclui ajustes) com data ${periodo}. Pago no período = soma dos pagamentos registrados ${periodo}, sem os estornados. A receber = soma de todos os lançamentos ainda sem pagamento, desde o início — não muda com o filtro.`,
+            source: "livro de comissão do consultor (lançamentos e pagamentos)",
+          }}
         />
       </div>
 

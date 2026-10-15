@@ -108,6 +108,11 @@ describe("IndicacoesPage — aba Indicações", () => {
     expect(within(panel).getByText("Parou no 1º passo do cadastro")).toBeInTheDocument();
     expect(within(panel).getByText("21")).toBeInTheDocument();
     expect(within(panel).getByText(/336 recusadas pelo erro de cadastro/)).toBeInTheDocument();
+    // O cartão não diz mais "25 ainda não contrataram": 4 nem são empresa.
+    expect(
+      screen.getByText("De 25 cadastradas sem recompensa: 21 ainda podem qualificar, 4 não contam mais (motivos abaixo)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/ainda não contrataram/)).not.toBeInTheDocument();
   });
 
   it("lista o tipo de conta e a etapa, e filtra por tipo de conta no servidor", async () => {

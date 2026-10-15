@@ -155,7 +155,9 @@ export interface CoverageFilters {
   status?: string;
   module?: string;
   search?: string;
+  /** Dia inicial, "AAAA-MM-DD" (do `<input type="date">`), contado em Brasília. */
   from?: string;
+  /** Dia final, "AAAA-MM-DD", inclusive (até 23:59:59.999 de Brasília). */
   to?: string;
   page?: number;
   pageSize?: number;
@@ -178,6 +180,8 @@ export async function getInsuranceHealthChecks(limit = 30): Promise<HealthCheck[
   return res.data.data;
 }
 
+const DAY_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function getInsuranceCoverages(
   filters: CoverageFilters,
 ): Promise<{ items: Coverage[]; total: number; page: number; pageSize: number }> {
@@ -186,6 +190,15 @@ export async function getInsuranceCoverages(
   const params: Record<string, string | number> = {};
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== null && value !== "") params[key] = value;
+  }
+  // A API faz `new Date(valor)`: "2026-10-15" cru vira meia-noite UTC (21h do
+  // dia 14 em Brasília), e o filtro saía 3 h deslocado — "Até 15/10" perdia
+  // quase o dia 15 inteiro. Os limites vão com o fuso de Brasília.
+  if (typeof params.from === "string" && DAY_ONLY.test(params.from)) {
+    params.from = `${params.from}T00:00:00-03:00`;
+  }
+  if (typeof params.to === "string" && DAY_ONLY.test(params.to)) {
+    params.to = `${params.to}T23:59:59.999-03:00`;
   }
 
   const res = await insuranceApi.get("/coverages", { params });
