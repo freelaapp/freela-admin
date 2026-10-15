@@ -76,6 +76,21 @@ describe("CommissionDashboardView", () => {
   });
 });
 
+describe("CommissionDashboardView — erro", () => {
+  it("falhou: diz que não carregou e oferece tentar de novo (antes ficava em branco)", () => {
+    const onRetry = vi.fn();
+    render(<CommissionDashboardView data={undefined} isLoading={false} isError onRetry={onRetry} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível carregar o painel de comissão");
+    fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
+    expect(onRetry).toHaveBeenCalled();
+  });
+
+  it("sem dado e sem erro: nada (ainda não pediu)", () => {
+    const { container } = render(<CommissionDashboardView data={undefined} isLoading={false} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
 describe("CommissionBalanceCards", () => {
   it("admin: 'A pagar' e 'Já pago' rotulados desde o início, com a conta e a fonte", () => {
     render(<CommissionBalanceCards balances={{ openInCents: 4200, paidInCents: 31500 }} audience="admin" />);

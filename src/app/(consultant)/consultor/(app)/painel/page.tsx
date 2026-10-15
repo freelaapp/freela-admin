@@ -21,7 +21,12 @@ export default function PainelPage() {
         </p>
       )}
       <PeriodFilter value={period} onChange={setPeriod} />
-      <CommissionDashboardView data={dashboard.data} isLoading={dashboard.isLoading} />
+      <CommissionDashboardView
+        data={dashboard.data}
+        isLoading={dashboard.isLoading}
+        isError={dashboard.isError}
+        onRetry={() => void dashboard.refetch()}
+      />
     </div>
   );
 }

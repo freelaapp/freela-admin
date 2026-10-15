@@ -24,9 +24,14 @@ export function commissionPeriodText(period: { from: string | null; to: string |
 export function CommissionDashboardView({
   data,
   isLoading,
+  isError = false,
+  onRetry,
 }: {
   data: CommissionDashboard | undefined;
   isLoading: boolean;
+  /** A consulta falhou: sem isso a área ficava em branco, sem dizer nada. */
+  isError?: boolean;
+  onRetry?: () => void;
 }) {
   if (isLoading && !data) {
     return (
@@ -35,7 +40,23 @@ export function CommissionDashboardView({
       </div>
     );
   }
-  if (!data) return null;
+  if (!data) {
+    if (!isError) return null;
+    return (
+      <div role="alert" className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800">
+        <p>Não foi possível carregar o painel de comissão. Tente de novo.</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-2 min-h-10 rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-100"
+          >
+            Tentar de novo
+          </button>
+        )}
+      </div>
+    );
+  }
   const r = data.registrations;
   const periodo = commissionPeriodText(data.period);
 

@@ -13,7 +13,12 @@ export function CommissionDashboardTab({ consultantId }: { consultantId: string 
   return (
     <div>
       <PeriodFilter value={period} onChange={setPeriod} />
-      <CommissionDashboardView data={dashboard.data} isLoading={dashboard.isLoading} />
+      <CommissionDashboardView
+        data={dashboard.data}
+        isLoading={dashboard.isLoading}
+        isError={dashboard.isError}
+        onRetry={() => void dashboard.refetch()}
+      />
     </div>
   );
 }
