@@ -12,6 +12,7 @@ import {
   closeInvoiceNow,
   createBillingAdjustment,
   getAdminInvoice,
+  getBillingCompanies,
   getBillingSummary,
   issueSecondCopy,
   listAdminInvoices,
@@ -32,6 +33,7 @@ export const billingKeys = {
   detail: (id: string) => ["admin", "billing", "invoice", id] as const,
   summary: (params: { period?: SummaryPeriod; from?: DateKey; to?: DateKey }) =>
     ["admin", "billing", "summary", params] as const,
+  companies: ["admin", "billing", "companies"] as const,
 };
 
 /** 4xx não muda tentando de novo (403 sem FINANCE, 404 rota fora do ar ou fatura). */
@@ -69,6 +71,22 @@ export function useBillingSummary(
     queryFn: () => getBillingSummary(params),
     placeholderData: keepPreviousData,
     staleTime: 15000,
+    retry: retryUnlessClientError,
+  });
+}
+
+/**
+ * Aba "Empresas faturadas". Sob o prefixo `admin/billing`: toda ação de fatura
+ * e a troca do modo de cobrança a recarregam. Recarrega sozinha a cada minuto
+ * (o painel não recarrega ao voltar para a aba do navegador).
+ */
+export function useBillingCompanies(options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: billingKeys.companies,
+    queryFn: getBillingCompanies,
+    enabled: options.enabled ?? true,
+    staleTime: 15000,
+    refetchInterval: 60000,
     retry: retryUnlessClientError,
   });
 }

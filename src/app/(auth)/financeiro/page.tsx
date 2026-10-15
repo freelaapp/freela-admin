@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
-import { DataTable } from "@/components/shared/data-table";
+import { DataTable, type Column } from "@/components/shared/data-table";
 import {
   DollarSign, TrendingDown, TrendingUp, RotateCcw,
-  Loader2, Wallet, Landmark, PiggyBank, X, HelpCircle, FileClock,
+  Loader2, Wallet, Landmark, PiggyBank, X, HelpCircle, FileClock, Receipt,
 } from "lucide-react";
 import {
   Dialog,
@@ -26,6 +26,10 @@ import type {
 } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
+import {
+  BillingCompaniesView,
+  type InvoiceCompanyFilter,
+} from "./_components/billing-companies-view";
 import { InvoicesView } from "./_components/invoices-view";
 
 const tabs = [
@@ -33,6 +37,7 @@ const tabs = [
   "Transações",
   "Pagamentos",
   "Repasses",
+  "Empresas faturadas",
   "Faturas",
   "Estornos & Cancelamentos",
 ] as const;
@@ -43,8 +48,11 @@ type Tab = typeof tabs[number];
 // abre em "Este mês", esconderia as vencidas fechadas no mês anterior.
 const FINANCE_TABS: Tab[] = ["Visão Geral", "Transações", "Estornos & Cancelamentos"];
 
-/** `?aba=faturas` (volta do detalhe da fatura) → a aba Faturas. */
-const TAB_BY_QUERY: Record<string, Tab> = { faturas: "Faturas" };
+/** `?aba=faturas` (volta do detalhe da fatura) → a aba Faturas; `?aba=empresas-faturadas` → a lista das empresas. */
+const TAB_BY_QUERY: Record<string, Tab> = {
+  faturas: "Faturas",
+  "empresas-faturadas": "Empresas faturadas",
+};
 
 const INVOICED_LABEL = "Faturado (não é entrada de caixa)";
 
@@ -179,6 +187,8 @@ function providerLabel(provider: string | null) {
   if (!provider) return "—";
   if (provider === "openpix") return "Woovi";
   if (provider === "asaas") return "Asaas";
+  // O faturado não passa por gateway: a vaga é liquidada na fatura.
+  if (provider === "internal") return "Faturado";
   return provider;
 }
 
@@ -267,7 +277,7 @@ function TransactionsView({
    * originou — parecia dinheiro saindo do nada. Quem pede uma vaga específica
    * quer a história inteira dela, não o pedaço que cabe no mês.
    */
-  const { data, isLoading, isFetching } = useFinanceTransactions({
+  const { data, isLoading, isFetching, isError, refetch } = useFinanceTransactions({
     from: filtrandoPorVaga ? undefined : range.from,
     to: filtrandoPorVaga ? undefined : range.to,
     type: fixedType ?? type,
@@ -279,16 +289,40 @@ function TransactionsView({
   // A lista traz TODAS as situações (inclusive cobrança pendente/expirada e
   // repasse falho — importante para operação), mas o rodapé soma só o que
   // LIQUIDOU, senão os totais estouram e contradizem a Visão Geral (que usa
-  // COMPLETED/REFUNDED para entradas e COMPLETED/PAID para saídas).
+  // COMPLETED/REFUNDED para entradas e COMPLETED/PAID para saídas). A fatura
+  // paga entra como `PAID`. O faturado (`isCash === false`) não é caixa: fica
+  // fora das somas e aparece à parte, como na Visão Geral.
   const totals = useMemo(() => {
     const settled = (it: FinanceTransaction) =>
       it.type === "entrada"
-        ? it.status === "COMPLETED" || it.status === "REFUNDED"
+        ? it.status === "COMPLETED" ||
+          it.status === "REFUNDED" ||
+          (it.kind === "invoice_payment" && it.status === "PAID")
         : it.type === "saida"
           ? it.status === "COMPLETED" || it.status === "PAID"
           : true; // estornos são registros de estorno já decididos
-    const t = { entrada: 0, saida: 0, estorno: 0, foraDaSoma: 0 };
+    const t = {
+      entrada: 0,
+      saida: 0,
+      estorno: 0,
+      foraDaSoma: 0,
+      faturado: 0,
+      faturadoCount: 0,
+      creditoFatura: 0,
+      creditoFaturaCount: 0,
+    };
     for (const it of data?.items ?? []) {
+      // `isCash` é opcional (API anterior): só o `false` explícito é faturado.
+      if (it.isCash === false) {
+        if (it.type === "estorno") {
+          t.creditoFatura += it.amountInCents;
+          t.creditoFaturaCount += 1;
+        } else if (it.status === "COMPLETED") {
+          t.faturado += it.amountInCents;
+          t.faturadoCount += 1;
+        }
+        continue;
+      }
       if (settled(it)) t[it.type] += it.amountInCents;
       else t.foraDaSoma += 1;
     }
@@ -446,12 +480,33 @@ function TransactionsView({
     );
   }
 
+  // Erro não vira lista vazia nem rodapé com R$ 0,00.
+  if (isError && !data) {
+    return <LoadError what="as transações" onRetry={() => refetch()} />;
+  }
+
   const footer = (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-[#737373]">
       <span>{rows.length} transações{data?.truncated ? " (limitado a 1000)" : ""}</span>
       <span className="text-green-600 font-medium">Entradas liquidadas {formatCurrency(totals.entrada)}</span>
       <span className="text-red-600 font-medium">Saídas liquidadas {formatCurrency(totals.saida)}</span>
       <span className="text-[#eca826] font-medium">Estornos {formatCurrency(totals.estorno)}</span>
+      {totals.faturadoCount > 0 && (
+        <span
+          className="text-[#525252] font-medium"
+          title="Vagas aceitas por empresas no faturado: venda, não caixa. O dinheiro entra quando a fatura é paga (linha 'Fatura … paga')."
+        >
+          Faturado (não é caixa) {formatCurrency(totals.faturado)}
+        </span>
+      )}
+      {totals.creditoFaturaCount > 0 && (
+        <span
+          className="text-[#525252] font-medium"
+          title="Estorno de vaga faturada: vira crédito na próxima fatura, não sai dinheiro."
+        >
+          Crédito em fatura (não é caixa) {formatCurrency(totals.creditoFatura)}
+        </span>
+      )}
       {totals.foraDaSoma > 0 && (
         <span>
           {totals.foraDaSoma} não liquidada{totals.foraDaSoma > 1 ? "s" : ""} (pendente/expirada/falha) fora da soma
@@ -527,7 +582,7 @@ function TransacaoVagaDialog({
 
   return (
     <Dialog open={Boolean(tx)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogClose onClick={onClose} />
         <DialogHeader>
           <DialogTitle>{v?.serviceType ?? "Vaga"}</DialogTitle>
@@ -551,7 +606,7 @@ function TransacaoVagaDialog({
               </p>
               <Linha rotulo="Movimento" valor={<TypeBadge type={tx.type} />} />
               <Linha rotulo="Valor" valor={formatCurrency(tx.amountInCents)} />
-              <Linha rotulo="Gateway" valor={tx.provider ?? "—"} />
+              <Linha rotulo="Gateway" valor={providerLabel(tx.provider)} />
               <Linha rotulo="Data" valor={formatInstantDate(tx.createdAt)} />
               {tx.party && <Linha rotulo={PARTY_LABEL[tx.type]} valor={tx.party} />}
             </div>
@@ -716,6 +771,16 @@ const LEGACY_PAYMENT_STATUS: Record<string, string> = {
   FAILED: "Falhou",
 };
 
+/** Meio do pagamento, em português. "Fatura" = liquidado na fatura (não é caixa). */
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  PIX: "Pix",
+  INVOICE: "Fatura",
+  WALLET: "Carteira",
+  CREDIT_CARD: "Cartão de crédito",
+  DEBIT_CARD: "Cartão de débito",
+  BOLETO: "Boleto",
+};
+
 function mapPaymentToRow(p: PaymentItem) {
   const hasBreakdown = (p.serviceAmountInCents ?? 0) > 0;
   // Faturado: a vaga foi liquidada na fatura, o dinheiro entra quando ela for paga.
@@ -723,6 +788,9 @@ function mapPaymentToRow(p: PaymentItem) {
   return {
     id: p.id,
     freelancer: p.correlationId.slice(0, 12),
+    empresa: p.companyName ?? "—",
+    meio: p.method ? (PAYMENT_METHOD_LABEL[p.method] ?? p.method) : "—",
+    busca: `${p.companyName ?? ""} ${p.correlationId} ${p.vacancyId ?? ""}`,
     valor: formatCurrency(p.value),
     valorServico: hasBreakdown ? formatCurrency(p.serviceAmountInCents) : "—",
     taxa: hasBreakdown ? formatCurrency(p.value - p.serviceAmountInCents) : "—",
@@ -746,6 +814,122 @@ function mapRepasseToRow(r: RepasseItem) {
     status: r.status,
     raw: r,
   };
+}
+
+/** Erro de leitura: nunca vira tabela vazia nem R$ 0,00. */
+function LoadError({ what, onRetry }: { what: string; onRetry: () => void }) {
+  return (
+    <div role="alert" className="rounded-xl border border-[#e5e5e5] p-4 text-sm text-[#1d1d1b]">
+      <p>{`Não conseguimos carregar ${what}.`}</p>
+      <Button variant="outline" size="sm" onClick={onRetry} className="mt-3">
+        Tentar de novo
+      </Button>
+    </div>
+  );
+}
+
+/** "Atualizar" das abas Pagamentos e Repasses (lidas inteiras, sem recarga periódica). */
+function RefreshButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
+  return (
+    <Button variant="outline" size="sm" onClick={onClick} disabled={busy}>
+      <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${busy ? "animate-spin" : ""}`} aria-hidden="true" />
+      Atualizar
+    </Button>
+  );
+}
+
+/**
+ * Aba Pagamentos. O hook mora aqui (não na página): a lista só é lida com a aba
+ * aberta, de novo a cada vez que a aba abre e no "Atualizar" (`useAdminPayments`).
+ */
+function PaymentsTab() {
+  const { data: payments, isLoading, isFetching, isError, refetch } = useAdminPayments();
+  if (isLoading && !payments) {
+    return (
+      <div className="flex items-center justify-center h-[40vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
+  if (isError && !payments) return <LoadError what="os pagamentos" onRetry={() => refetch()} />;
+
+  const rows = (payments ?? []).map(mapPaymentToRow);
+  type PaymentRow = (typeof rows)[number];
+  const columns: Column<PaymentRow>[] = [
+    { header: "Empresa", accessor: "empresa", mobile: "title" },
+    { header: "Meio", accessor: "meio" },
+    { header: "Valor", accessor: "valor" },
+    { header: "Valor do serviço", accessor: "valorServico", className: "hidden lg:table-cell" },
+    { header: "Taxa", accessor: "taxa", className: "hidden lg:table-cell" },
+    { header: "Tipo", accessor: "tipo", className: "hidden lg:table-cell" },
+    { header: "Data", accessor: "data", className: "hidden md:table-cell" },
+    {
+      header: "Status",
+      accessor: (row) => (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+          row.status === "Pago"
+            ? "bg-green-500/10 text-green-500"
+            : row.status === "Faturado"
+              ? "bg-[#f7f7f7] text-[#525252]"
+              : "bg-[#eca826]/10 text-[#eca826]"
+        }`}>
+          {row.status}
+        </span>
+      ),
+    },
+    { header: "ID", accessor: "freelancer", className: "hidden lg:table-cell" },
+  ];
+  return (
+    <DataTable
+      columns={columns}
+      data={rows}
+      searchPlaceholder="Buscar por empresa, vaga ou ID…"
+      searchKey="busca"
+      filters={<RefreshButton onClick={() => refetch()} busy={isFetching} />}
+      isFetching={isFetching}
+    />
+  );
+}
+
+/** Aba Repasses: o hook mora aqui; recarrega ao abrir a aba e no "Atualizar". */
+function RepassesTab() {
+  const { data: repasses, isLoading, isFetching, isError, refetch } = useAdminRepasses();
+  if (isLoading && !repasses) {
+    return (
+      <div className="flex items-center justify-center h-[40vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#eca826]" />
+      </div>
+    );
+  }
+  if (isError && !repasses) return <LoadError what="os repasses" onRetry={() => refetch()} />;
+
+  const rows = (repasses ?? []).map(mapRepasseToRow);
+  type RepasseRow = (typeof rows)[number];
+  const columns: Column<RepasseRow>[] = [
+    { header: "Freelancer (id)", accessor: "freelancer", mobile: "title" },
+    { header: "Valor", accessor: "valor" },
+    { header: "Data", accessor: "data", className: "hidden md:table-cell" },
+    {
+      header: "Status",
+      accessor: (row) => (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+          row.status === "COMPLETED" ? "bg-green-500/10 text-green-500" : "bg-[#eca826]/10 text-[#eca826]"
+        }`}>
+          {TX_STATUS[row.status]?.label ?? row.status}
+        </span>
+      ),
+    },
+  ];
+  return (
+    <DataTable
+      columns={columns}
+      data={rows}
+      searchPlaceholder="Buscar..."
+      searchKey="freelancer"
+      filters={<RefreshButton onClick={() => refetch()} busy={isFetching} />}
+      isFetching={isFetching}
+    />
+  );
 }
 
 // ─── Página ──────────────────────────────────────────────────────────────────
@@ -781,7 +965,11 @@ function FinanceGuideDialog({ open, onClose }: { open: boolean; onClose: () => v
     },
     {
       title: "Aba Transações",
-      text: "Lista TODAS as movimentações, inclusive cobranças que expiraram sem pagamento e repasses que falharam (importante para operação). O rodapé soma só o que liquidou de verdade.",
+      text: "Lista TODAS as movimentações, inclusive cobranças que expiraram sem pagamento e repasses que falharam (importante para operação). O rodapé soma só o que liquidou de verdade; o faturado aparece à parte.",
+    },
+    {
+      title: "Faturado no período (não é caixa)",
+      text: "Vagas aceitas por empresas no faturado: é venda, não dinheiro em conta. O dinheiro entra quando a fatura é paga. A aba Empresas faturadas mostra cada empresa, o próximo fechamento e o que já foi aceito; a aba Faturas, as faturas fechadas.",
     },
   ];
   return (
@@ -827,52 +1015,16 @@ export default function FinanceiroPage() {
     () => (PRESETS.find((p) => p.label === "Este mês") ?? PRESETS[PRESETS.length - 1]).compute(),
   );
 
-  const { data: summary, isLoading: loadingSummary, isFetching: fetchingSummary } =
-    useFinanceSummary({ from: range.from, to: range.to });
-  const { data: payments, isLoading: loadingPayments } = useAdminPayments();
-  const { data: repasses, isLoading: loadingRepasses } = useAdminRepasses();
+  // "Ver faturas" da aba Empresas faturadas: a aba Faturas abre filtrada pela empresa.
+  const [invoiceCompany, setInvoiceCompany] = useState<InvoiceCompanyFilter | null>(null);
 
-  const paymentRows = payments?.map(mapPaymentToRow) ?? [];
-  const repasseRows = repasses?.map(mapRepasseToRow) ?? [];
-
-  const pagamentoColumns = [
-    { header: "ID", accessor: "freelancer" as const },
-    { header: "Valor do serviço", accessor: "valorServico" as const, className: "hidden lg:table-cell" },
-    { header: "Taxa", accessor: "taxa" as const, className: "hidden lg:table-cell" },
-    { header: "Valor", accessor: "valor" as const },
-    { header: "Tipo", accessor: "tipo" as const, className: "hidden lg:table-cell" },
-    { header: "Data", accessor: "data" as const, className: "hidden md:table-cell" },
-    {
-      header: "Status",
-      accessor: (row: typeof paymentRows[0]) => (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          row.status === "Pago"
-            ? "bg-green-500/10 text-green-500"
-            : row.status === "Faturado"
-              ? "bg-[#f7f7f7] text-[#525252]"
-              : "bg-[#eca826]/10 text-[#eca826]"
-        }`}>
-          {row.status}
-        </span>
-      ),
-    },
-  ];
-
-  const repasseColumns = [
-    { header: "Provider", accessor: "freelancer" as const },
-    { header: "Valor", accessor: "valor" as const },
-    { header: "Data", accessor: "data" as const, className: "hidden md:table-cell" },
-    {
-      header: "Status",
-      accessor: (row: typeof repasseRows[0]) => (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          row.status === "COMPLETED" ? "bg-green-500/10 text-green-500" : "bg-[#eca826]/10 text-[#eca826]"
-        }`}>
-          {row.status}
-        </span>
-      ),
-    },
-  ];
+  const {
+    data: summary,
+    isLoading: loadingSummary,
+    isFetching: fetchingSummary,
+    isError: summaryError,
+    refetch: refetchSummary,
+  } = useFinanceSummary({ from: range.from, to: range.to });
 
   const usesDateRange = FINANCE_TABS.includes(tab);
   const periodLabel =
@@ -931,6 +1083,9 @@ export default function FinanceiroPage() {
             <div className="flex items-center justify-center h-[40vh]">
               <Loader2 className="h-10 w-10 animate-spin text-[#eca826]" />
             </div>
+          ) : summaryError && !summary ? (
+            // Erro não vira R$ 0,00 nos cards.
+            <LoadError what="o resumo financeiro" onRetry={() => refetchSummary()} />
           ) : (
             <>
               {/* Saldo AO VIVO dos gateways */}
@@ -986,7 +1141,7 @@ export default function FinanceiroPage() {
                   <span className="text-xs text-[#737373]">{periodLabel}</span>
                   {fetchingSummary && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#eca826]" />}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <KpiCard
                     title="Entradas (bruto transacionado)"
                     value={formatCurrency(summary?.entradasCents ?? 0)}
@@ -1010,6 +1165,12 @@ export default function FinanceiroPage() {
                     iconColor="text-red-600"
                     meta={`${summary?.saidasCount ?? 0} transações`}
                     help="Dinheiro que saiu para freelancers no período: repasses pagos + bônus. Não inclui estornos (card próprio)."
+                    details={{
+                      calc:
+                        summary?.calc?.saidas ??
+                        `repasses + bônus pagos no período = ${formatCurrency(summary?.saidasCents ?? 0)} (${summary?.saidasCount ?? 0} transações)`,
+                      source: "Repasses concluídos aos freelancers e bônus de avaliação pagos no período.",
+                    }}
                   />
                   <KpiCard
                     title="Estornos"
@@ -1045,6 +1206,38 @@ export default function FinanceiroPage() {
                     }
                     meta="entradas − saídas − estornos"
                     help="O que sobrou no caixa das operações do período: entrou, menos o que foi para freelancers, menos o que foi devolvido. Ainda não desconta a tarifa do gateway (~R$ 0,85 por PIX) — esta já está abatida no Lucro."
+                    details={{
+                      calc:
+                        summary?.calc?.liquido ??
+                        `entradas ${formatCurrency(summary?.entradasCents ?? 0)} − saídas ${formatCurrency(summary?.saidasCents ?? 0)} − estornos ${formatCurrency(summary?.estornosCents ?? 0)} = ${formatCurrency(
+                          (summary?.entradasCents ?? 0) -
+                            (summary?.saidasCents ?? 0) -
+                            (summary?.estornosCents ?? 0),
+                        )}`,
+                      source: "Os cards Entradas, Saídas e Estornos deste período.",
+                    }}
+                  />
+                  <KpiCard
+                    title="Faturado no período (não é caixa)"
+                    value={
+                      summary?.invoicedCents === undefined
+                        ? "Indisponível"
+                        : formatCurrency(summary.invoicedCents)
+                    }
+                    icon={Receipt}
+                    iconColor="text-[#525252]"
+                    meta={`${summary?.invoicedCount ?? 0} vagas aceitas no faturado · entra no caixa quando a fatura é paga`}
+                    help="Vagas aceitas por empresas no faturado no período: é venda, não dinheiro em conta. Fica fora das Entradas; quando a fatura é paga, o valor pago entra nas Entradas. As empresas estão na aba Empresas faturadas."
+                    details={
+                      summary?.invoicedCents === undefined
+                        ? undefined
+                        : {
+                            calc:
+                              summary.calc?.invoiced ??
+                              `soma de ${summary.invoicedCount ?? 0} vagas aceitas no faturado no período = ${formatCurrency(summary.invoicedCents)}`,
+                            source: "Pagamentos faturados (INVOICE) concluídos no aceite, pela data de criação no período.",
+                          }
+                    }
                   />
                   <KpiCard
                     title={summary?.lucroLabel ?? "Lucro (taxa da plataforma)"}
@@ -1071,27 +1264,22 @@ export default function FinanceiroPage() {
 
       {tab === "Transações" && <TransactionsView range={range} />}
 
-      {tab === "Pagamentos" && (
-        <DataTable
-          columns={pagamentoColumns}
-          data={paymentRows}
-          searchPlaceholder="Buscar..."
-          searchKey="freelancer"
-          isFetching={loadingPayments}
+      {tab === "Pagamentos" && <PaymentsTab />}
+
+      {tab === "Repasses" && <RepassesTab />}
+
+      {tab === "Empresas faturadas" && (
+        <BillingCompaniesView
+          onSeeInvoices={(company) => {
+            setInvoiceCompany(company);
+            setTab("Faturas");
+          }}
         />
       )}
 
-      {tab === "Repasses" && (
-        <DataTable
-          columns={repasseColumns}
-          data={repasseRows}
-          searchPlaceholder="Buscar..."
-          searchKey="freelancer"
-          isFetching={loadingRepasses}
-        />
+      {tab === "Faturas" && (
+        <InvoicesView company={invoiceCompany} onClearCompany={() => setInvoiceCompany(null)} />
       )}
-
-      {tab === "Faturas" && <InvoicesView />}
 
       {tab === "Estornos & Cancelamentos" && (
         <TransactionsView range={range} fixedType="estorno" />

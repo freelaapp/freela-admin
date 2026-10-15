@@ -1,6 +1,8 @@
 import type {
   AdminInvoiceDetail,
   AdminInvoiceListItem,
+  BillingCompanies,
+  BillingCompanyItem,
   BillingSummary,
   SummaryCard,
 } from "../infrastructure/billing-api";
@@ -320,4 +322,107 @@ export const DETAIL: AdminInvoiceDetail = {
     pdfRoute: "/v1/admin/billing/invoices/inv-123/pdf",
     contractorWebUrl: "https://freelaservicos.com.br/contractor/faturas/inv-123",
   },
+};
+
+/** Aba "Empresas faturadas" no dia do relato (qui 15/10/2026): o caso de produção. */
+export const VALINHOS: BillingCompanyItem = {
+  contractorUserId: "dono-valinhos",
+  name: "Chopp e Espeto Valinhos",
+  document: "12345678000190",
+  mode: "INVOICED_7",
+  modeLabel: "Faturado semanal",
+  modeSince: "2026-10-15T13:30:00.000Z",
+  nextClose: {
+    closeDate: "2026-10-16",
+    dueDate: "2026-10-19",
+    label: "sex 16/10, 08:00 · vence seg 19/10",
+    note: "Por enquanto nada realizado e confirmado até qui 15/10: se continuar assim, não sai fatura neste fechamento.",
+    calc: "semanal: fecha sex 16/10 às 08:00 com os serviços realizados e confirmados até qui 15/10 ainda sem fatura (período sex 09/10 a qui 15/10); vence seg 19/10 = fechamento + 3 dias",
+    source: "Ciclo do modo de cobrança da empresa.",
+  },
+  openPeriod: {
+    valueInCents: 0,
+    count: 0,
+    debitsInCents: 0,
+    creditsInCents: 0,
+    label: "Nada a faturar",
+    calc: "nenhuma linha sem fatura = R$ 0,00",
+    source: "Livro do faturado.",
+  },
+  acceptedUpcoming: {
+    valueInCents: 24962,
+    count: 2,
+    nextServiceDate: "2026-10-17",
+    label: "2 vagas · R$ 249,62",
+    calc: "soma do valor de 2 vagas aceitas no faturado cujo serviço ainda não aconteceu = R$ 249,62; o próximo (sáb 17/10) entra na fatura que fecha sex 23/10, depois da conferência de presença",
+    source: "Pagamentos faturados (INVOICE) concluídos no aceite.",
+  },
+  inReview: {
+    valueInCents: 0,
+    count: 0,
+    label: "Nenhuma",
+    calc: "nenhum serviço terminado esperando a conferência de presença",
+    source: "Pagamentos faturados (INVOICE) concluídos no aceite.",
+  },
+  openInvoices: {
+    valueInCents: 0,
+    count: 0,
+    nextDueDate: null,
+    label: "Nenhuma",
+    calc: "nenhuma fatura emitida e não paga = R$ 0,00",
+    source: "Faturas emitidas (ISSUED) da empresa, ainda não pagas.",
+  },
+  standing: { code: "EM_DIA", label: "Em dia", overdueDays: 0, calc: null },
+};
+
+export const COMPANIES: BillingCompanies = {
+  generatedAt: "2026-10-15T20:40:00.000Z",
+  invoicingEnabled: true,
+  blockEnabled: true,
+  cards: {
+    companies: {
+      ...card({
+        label: "Empresas no faturado",
+        count: 2,
+        calc: "semanal 2 + quinzenal 0 + mensal 0 = 2",
+        source: "Modo de cobrança de cada empresa (Empresas > Documentos e cobrança > Cobrança).",
+        meta: "semanal 2 · quinzenal 0 · mensal 0",
+        help: "Empresas com cobrança faturada.",
+      }),
+      weekly: 2,
+      biweekly: 0,
+      monthly: 0,
+      prepaidWithPending: 0,
+    },
+    unbilled: card({
+      label: "Serviços realizados a faturar",
+      calc: "nenhuma linha sem fatura = R$ 0,00",
+      source: "Livro do faturado.",
+      meta: "0 serviços realizados, aguardando o fechamento",
+      help: "Serviços realizados e confirmados ainda sem fatura.",
+    }),
+    accepted: {
+      ...card({
+        label: "Aceitos a realizar",
+        valueInCents: 24962,
+        count: 2,
+        calc: "Chopp e Espeto Valinhos R$ 249,62 = R$ 249,62; à parte, em conferência de presença: 0 vagas = R$ 0,00",
+        source: "Pagamentos faturados (INVOICE) concluídos no aceite.",
+        meta: "2 vagas · + 0 em conferência de presença (R$ 0,00)",
+        help: "Vagas aceitas por empresas faturadas cujo serviço ainda não aconteceu.",
+      }),
+      inReviewCount: 0,
+      inReviewInCents: 0,
+    },
+  },
+  items: [
+    VALINHOS,
+    {
+      ...VALINHOS,
+      contractorUserId: "dono-jundiai",
+      name: "Coco Bambu Jundiaí",
+      document: "98765432000110",
+      acceptedUpcoming: { ...VALINHOS.acceptedUpcoming, valueInCents: 0, count: 0, nextServiceDate: null, label: "Nenhuma" },
+    },
+  ],
 };

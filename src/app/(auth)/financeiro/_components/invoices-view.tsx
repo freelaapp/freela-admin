@@ -12,6 +12,7 @@ import {
   HandCoins,
   Info,
   Lock,
+  X,
 } from "lucide-react";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { KpiCard } from "@/components/shared/kpi-card";
@@ -27,7 +28,11 @@ import {
   SITUATION_CHIPS,
   tableCaption,
 } from "@/modules/admin/application/invoice-presentation";
-import { useAdminInvoices, useBillingSummary } from "@/modules/admin/application/use-admin-billing";
+import {
+  useAdminInvoices,
+  useBillingCompanies,
+  useBillingSummary,
+} from "@/modules/admin/application/use-admin-billing";
 import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import type {
   AdminInvoiceListItem,
@@ -36,6 +41,7 @@ import type {
   SummaryCard,
 } from "@/modules/admin/infrastructure/billing-api";
 import type { BillingMode } from "@/modules/admin/infrastructure/billing-mode-api";
+import type { InvoiceCompanyFilter } from "./billing-companies-view";
 import { InvoiceSituationBadge } from "./invoice-situation-badge";
 
 /** Situações em aberto: a API ordena pelo vencimento (a mais atrasada primeiro). */
@@ -77,8 +83,17 @@ function useDebounced<T>(value: T, ms: number): T {
  * Aba "Faturas" do Financeiro (UX 7.3–7.4, Fase 3). Indicadores com a conta e a
  * fonte de cada número, filtros (situação, ciclo, empresa, fechamento) e a
  * lista paginada no servidor. O detalhe é uma página própria.
+ *
+ * `company` vem do "Ver faturas" da aba Empresas faturadas: o filtro mora na
+ * página (trocar de aba desmonta esta), e o chip "Empresa: X" o desfaz.
  */
-export function InvoicesView() {
+export function InvoicesView({
+  company = null,
+  onClearCompany,
+}: {
+  company?: InvoiceCompanyFilter | null;
+  onClearCompany?: () => void;
+} = {}) {
   const baseId = useId();
   const [situation, setSituation] = useState<AdminInvoiceSituationCode | null>(null);
   const [mode, setMode] = useState<BillingMode | "">("");
@@ -91,12 +106,18 @@ export function InvoicesView() {
   const summary = useBillingSummary();
   const list = useAdminInvoices({
     situation: situation ?? undefined,
+    contractorUserId: company?.contractorUserId,
     mode: mode || undefined,
     search: search || undefined,
     closedFrom: closedFrom || undefined,
     closedTo: closedTo || undefined,
     page,
   });
+  const filtersActive = !!(situation || mode || search || closedFrom || closedTo || company);
+  const emptyTotal = !filtersActive && list.data && !list.isPlaceholderData && list.data.total === 0;
+  // Só para o texto da lista vazia (há empresa no faturado, mas nenhuma fatura
+  // fechada ainda): a lista das empresas só é lida quando a de faturas vem vazia.
+  const companies = useBillingCompanies({ enabled: !!emptyTotal });
 
   // Rota fora do ar (rollback da API-3e): aviso calmo, não erro (runbook).
   const unavailable = [list.error, summary.error].some((e) => apiErrorOf(e).status === 404);
@@ -117,8 +138,8 @@ export function InvoicesView() {
     );
   }
 
-  const filtersActive = !!(situation || mode || search || closedFrom || closedTo);
   const clearFilters = () => {
+    onClearCompany?.();
     setSituation(null);
     setMode("");
     setSearchInput("");
@@ -217,7 +238,7 @@ export function InvoicesView() {
   ];
 
   const totalPages = list.data ? Math.max(1, Math.ceil(list.data.total / list.data.pageSize)) : 1;
-  const emptyTotal = !filtersActive && list.data && !list.isPlaceholderData && list.data.total === 0;
+  const hasInvoicedCompanies = (companies.data?.items.length ?? 0) > 0;
 
   return (
     <div className="space-y-6">
@@ -262,7 +283,7 @@ export function InvoicesView() {
         })}
       </div>
 
-      {list.isLoading ? (
+      {list.isLoading || (emptyTotal && companies.isLoading) ? (
         <TableSkeleton />
       ) : list.isError ? (
         <div className="rounded-xl border border-[#e5e5e5] p-4 text-sm text-[#1d1d1b]">
@@ -273,7 +294,9 @@ export function InvoicesView() {
         </div>
       ) : emptyTotal ? (
         <div className="rounded-xl border border-dashed border-[#e5e5e5] p-6 text-center text-sm text-[#525252]">
-          Nenhuma empresa no faturado ainda. Ligue em Empresas &gt; Documentos e cobrança.
+          {hasInvoicedCompanies
+            ? "Nenhuma fatura fechada ainda. A primeira fecha às 08:00 do dia do fechamento (semanal: sexta) com os serviços realizados e confirmados até a véspera. As empresas no faturado estão em 'Empresas faturadas'."
+            : "Nenhuma empresa no faturado ainda. Ligue em Empresas > Documentos e cobrança."}
         </div>
       ) : (
         <DataTable
@@ -291,7 +314,11 @@ export function InvoicesView() {
           }}
           emptyMessage={
             <div className="space-y-2">
-              <p>Nenhuma fatura nesta situação.</p>
+              <p>
+                {company && !(situation || mode || search || closedFrom || closedTo)
+                  ? `Nenhuma fatura fechada para ${company.name} ainda. A primeira sai no fechamento que tiver serviço realizado e confirmado (veja o próximo em 'Empresas faturadas').`
+                  : "Nenhuma fatura nesta situação."}
+              </p>
               <Button variant="outline" size="sm" onClick={clearFilters}>
                 Limpar filtros
               </Button>
@@ -299,6 +326,20 @@ export function InvoicesView() {
           }
           filters={
             <div className="flex flex-wrap items-end gap-2">
+              {company && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClearCompany?.();
+                    setPage(1);
+                  }}
+                  aria-label={`Tirar o filtro da empresa ${company.name}`}
+                  className="inline-flex h-9 items-center gap-1 rounded-lg bg-[#eca826]/10 px-3 text-xs font-medium text-[#b07708] hover:bg-[#eca826]/20"
+                >
+                  {`Empresa: ${company.name}`}
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
               <div className="flex flex-col gap-1">
                 <label htmlFor={`${baseId}-mode`} className="text-xs font-medium text-[#737373]">
                   Ciclo
