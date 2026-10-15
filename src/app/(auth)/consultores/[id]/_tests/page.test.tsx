@@ -42,6 +42,10 @@ vi.mock("@/modules/admin/application/use-admin-consultants", () => ({
   useDeleteAdminConsultant: mutation,
 }));
 vi.mock("@/modules/admin/application/use-admin-whatsapp-groups", () => ({ useCreateWhatsappGroup: mutation }));
+// O diálogo de exclusão lê o saldo a pagar do extrato (o detalhe não traz).
+vi.mock("@/modules/admin/application/use-admin-consultant-commissions", () => ({
+  useCommissionStatement: () => ({ data: undefined }),
+}));
 vi.mock("../_components/commission-rule-tab", () => ({ CommissionRuleTab: () => <p>aba-comissao</p> }));
 vi.mock("../_components/commission-dashboard-tab", () => ({ CommissionDashboardTab: () => <p>aba-painel</p> }));
 vi.mock("../_components/commission-statement-tab", () => ({ CommissionStatementTab: () => <p>aba-extrato</p> }));

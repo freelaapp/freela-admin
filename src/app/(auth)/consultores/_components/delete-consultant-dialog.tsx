@@ -13,6 +13,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { useDeleteAdminConsultant } from "@/modules/admin/application/use-admin-consultants";
+import { useCommissionStatement } from "@/modules/admin/application/use-admin-consultant-commissions";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import type {
   ConsultantItem,
@@ -28,8 +29,9 @@ interface DeleteConsultantDialogProps {
 
 /**
  * Qualquer consultor pode ser excluído (pedido do dono, 29/09/2026). Sem
- * indicações a API apaga; com indicações faz exclusão lógica — o texto diz qual
- * dos dois vai acontecer ANTES de confirmar.
+ * indicações nem comissão a API apaga; com histórico faz exclusão lógica — o
+ * texto diz qual dos dois vai acontecer ANTES de confirmar, e avisa o saldo de
+ * comissão a pagar.
  */
 export function DeleteConsultantDialog({
   consultant,
@@ -37,7 +39,17 @@ export function DeleteConsultantDialog({
   onDeleted,
 }: DeleteConsultantDialogProps) {
   const deleteMutation = useDeleteAdminConsultant();
-  const copy = consultant ? consultantDeleteCopy(consultant) : null;
+  // A lista traz o saldo a pagar; o detalhe (`GET /consultants/:id`) não. Sem
+  // ele, o saldo vem do extrato da comissão (o mesmo "A pagar" da aba Extrato).
+  const needsBalance = !!consultant && consultant.openBalanceInCents == null;
+  const statement = useCommissionStatement(needsBalance ? consultant.id : "", { page: 1 });
+  const copy = consultant
+    ? consultantDeleteCopy({
+        ...consultant,
+        openBalanceInCents:
+          consultant.openBalanceInCents ?? statement.data?.balances?.openInCents,
+      })
+    : null;
   const tone =
     copy?.mode === "SOFT"
       ? "bg-amber-50 border-amber-100 text-amber-800"

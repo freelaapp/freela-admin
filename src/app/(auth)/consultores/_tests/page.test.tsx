@@ -37,6 +37,8 @@ vi.mock("@/modules/admin/application/use-admin-consultants", () => ({
 }));
 vi.mock("@/modules/admin/application/use-admin-consultant-commissions", () => ({
   useCommissionsSummary: () => ({ data: { openInCents: 315, paidThisMonthInCents: 1000 } }),
+  // O diálogo de exclusão lê o saldo do extrato quando a linha não traz.
+  useCommissionStatement: () => ({ data: undefined }),
 }));
 
 describe("Consultores — comissão na lista", () => {
