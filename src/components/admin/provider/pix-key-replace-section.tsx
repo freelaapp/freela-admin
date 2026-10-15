@@ -28,6 +28,10 @@ const TIPOS: { value: PixKeyKind; label: string; placeholder: string }[] = [
  * cima. A API grava a chave nos dois módulos e já tenta criar a subconta na
  * Woovi: o resultado mostra na hora se o Pix aceitou a chave — é a checagem que
  * antes só acontecia no dia do repasse.
+ *
+ * Gravar é em dois passos: "Trocar chave" mostra o tipo e a chave digitada
+ * para conferir, e só "Confirmar troca" grava. A chave errada manda o próximo
+ * repasse para outra pessoa — um dígito trocado não pode passar direto.
  */
 export function PixKeyReplaceSection({ providerGlobalId }: { providerGlobalId: string }) {
   const [aberto, setAberto] = useState(false);
@@ -35,12 +39,22 @@ export function PixKeyReplaceSection({ providerGlobalId }: { providerGlobalId: s
   const [valor, setValor] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<ReplacePixKeyResult | null>(null);
+  // Passo de conferência: tipo + chave na tela antes de gravar.
+  const [conferindo, setConferindo] = useState(false);
 
-  const placeholder = TIPOS.find((t) => t.value === tipo)?.placeholder ?? "";
+  const tipoAtual = TIPOS.find((t) => t.value === tipo);
+  const placeholder = tipoAtual?.placeholder ?? "";
   const podeEnviar = valor.trim().length >= 3 && !enviando;
+
+  function conferir() {
+    if (!podeEnviar) return;
+    setResultado(null);
+    setConferindo(true);
+  }
 
   async function salvar() {
     if (!podeEnviar) return;
+    setConferindo(false);
     setEnviando(true);
     setResultado(null);
     try {
@@ -84,6 +98,7 @@ export function PixKeyReplaceSection({ providerGlobalId }: { providerGlobalId: s
           onChange={(e) => {
             setTipo(e.target.value as PixKeyKind);
             setResultado(null);
+            setConferindo(false);
           }}
           disabled={enviando}
           className="sm:w-36"
@@ -100,9 +115,11 @@ export function PixKeyReplaceSection({ providerGlobalId }: { providerGlobalId: s
           onChange={(e) => {
             setValor(e.target.value);
             setResultado(null);
+            setConferindo(false);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") void salvar();
+            // Enter só leva à conferência; gravar é sempre o "Confirmar troca".
+            if (e.key === "Enter") conferir();
           }}
           placeholder={placeholder}
           disabled={enviando}
@@ -136,28 +153,63 @@ export function PixKeyReplaceSection({ providerGlobalId }: { providerGlobalId: s
         </div>
       )}
 
-      <div className="flex justify-end gap-2">
+      {conferindo && (
+        <div
+          role="alert"
+          aria-label="Confira a chave antes de gravar"
+          className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900"
+        >
+          <p className="font-medium">Confira antes de gravar:</p>
+          <p>
+            Tipo: <strong>{tipoAtual?.label ?? tipo}</strong>
+          </p>
+          <p className="break-all">
+            Chave: <strong className="font-mono">{valor.trim()}</strong>
+          </p>
+          <p className="text-xs">
+            Esta chave passa a receber os próximos repasses do freelancer (Empresa e Casa), no lugar
+            da atual.
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-wrap justify-end gap-2">
         <button
           type="button"
           onClick={() => {
+            if (conferindo) {
+              setConferindo(false);
+              return;
+            }
             setAberto(false);
             setResultado(null);
             setValor("");
           }}
           disabled={enviando}
-          className="rounded-md px-3 py-1.5 text-sm text-[#737373] hover:bg-[#f7f7f7] cursor-pointer disabled:opacity-40"
+          className="min-h-9 rounded-md px-3 py-1.5 text-sm text-[#737373] hover:bg-[#f7f7f7] cursor-pointer disabled:opacity-40"
         >
-          Fechar
+          {conferindo ? "Corrigir" : "Fechar"}
         </button>
-        <button
-          type="button"
-          onClick={() => void salvar()}
-          disabled={!podeEnviar}
-          className="inline-flex items-center gap-1.5 rounded-md bg-[#eca826] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#d9961c] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {enviando && <Loader2 className="w-4 h-4 animate-spin" />}
-          Trocar chave
-        </button>
+        {conferindo ? (
+          <button
+            type="button"
+            onClick={() => void salvar()}
+            disabled={!podeEnviar}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#eca826] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#d9961c] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Confirmar troca
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={conferir}
+            disabled={!podeEnviar}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#eca826] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#d9961c] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {enviando && <Loader2 className="w-4 h-4 animate-spin" />}
+            Trocar chave
+          </button>
+        )}
       </div>
     </div>
   );
