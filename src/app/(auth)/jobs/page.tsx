@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, Bot } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
@@ -177,17 +177,16 @@ export default function JobsPage() {
   /** Dia do serviço, "YYYY-MM-DD" vindo do `<input type="date">`. "" = todas. */
   const [dataFiltro, setDataFiltro] = useState("");
 
-  const [modalDetalhes, setModalDetalhes] = useState<Row | null>(null);
+  // Só o id: a linha do modal é relida da lista a cada render (ver `modalDetalhes`).
+  const [modalDetalhesId, setModalDetalhesId] = useState<string | null>(null);
   const [modalBuscarId, setModalBuscarId] = useState(false);
   const [buscaIdInput, setBuscaIdInput] = useState("");
 
-  const { data: candidacies, isLoading: loadingCandidacies } = useVacancyCandidacies(
-    modalDetalhes?.raw.id ?? null,
-  );
-  const confirmCandidacy = useConfirmCandidacy(modalDetalhes?.raw.id ?? null);
-  const reinstateCandidacy = useReinstateCandidacy(modalDetalhes?.raw.id ?? null);
-  const acceptCandidacy = useAcceptCandidacy(modalDetalhes?.raw.id ?? null);
-  const restoreCandidacy = useRestoreCandidacy(modalDetalhes?.raw.id ?? null);
+  const { data: candidacies, isLoading: loadingCandidacies } = useVacancyCandidacies(modalDetalhesId);
+  const confirmCandidacy = useConfirmCandidacy(modalDetalhesId);
+  const reinstateCandidacy = useReinstateCandidacy(modalDetalhesId);
+  const acceptCandidacy = useAcceptCandidacy(modalDetalhesId);
+  const restoreCandidacy = useRestoreCandidacy(modalDetalhesId);
 
   /**
    * Coloca na vaga um candidato PENDENTE, no lugar do contratante. É o mesmo
@@ -272,9 +271,7 @@ export default function JobsPage() {
   }
 
 
-  const { data: feedbacks, isLoading: loadingFeedbacks } = useVacancyFeedbacks(
-    modalDetalhes?.raw.id ?? null,
-  );
+  const { data: feedbacks, isLoading: loadingFeedbacks } = useVacancyFeedbacks(modalDetalhesId);
 
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -292,6 +289,20 @@ export default function JobsPage() {
   const removeCandidacyMutation = useAdminRemoveCandidacy();
 
   const allRows: Row[] = vacancies?.map(mapVacancyToRow) ?? [];
+
+  // O modal "Detalhes da vaga" mostra a linha ATUAL da lista, não uma cópia de
+  // quando abriu: depois de desvincular A e colocar B, a lista recarrega e o
+  // modal passa a mostrar B (e a chave Pix de B). Guardar a linha inteira no
+  // estado deixava o modal mostrando A até fechar e abrir de novo.
+  const modalDetalhes = modalDetalhesId
+    ? (allRows.find((r) => r.id === modalDetalhesId) ?? null)
+    : null;
+  // A vaga saiu da lista (ex.: trocou o filtro de consultor): fecha o modal em
+  // vez de deixá-lo reabrir sozinho quando ela voltar.
+  const vagaDoModalSumiu = !!modalDetalhesId && !!vacancies && !modalDetalhes;
+  useEffect(() => {
+    if (vagaDoModalSumiu) setModalDetalhesId(null);
+  }, [vagaDoModalSumiu]);
 
   // Recorte por DIA DO SERVIÇO. Vem antes do filtro de etapa de propósito: com
   // uma data escolhida, os contadores dos chips passam a ser os daquele dia —
@@ -323,7 +334,7 @@ export default function JobsPage() {
   const openVacancyById = (vacancyId: string) => {
     const row = allRows.find((r) => r.raw.id === vacancyId);
     if (row) {
-      setModalDetalhes(row);
+      setModalDetalhesId(row.id);
       return;
     }
     // Vaga fora da lista carregada (outro consultor/período): cai na busca por ID.
@@ -353,7 +364,7 @@ export default function JobsPage() {
       );
       setCancelTarget(null);
       setCancelReason("");
-      setModalDetalhes(null);
+      setModalDetalhesId(null);
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Falha ao cancelar a vaga."));
     }
@@ -374,7 +385,7 @@ export default function JobsPage() {
         reason: "Freelancer nao compareceu/desistiu (no-show) — reabrir para substituto",
       });
       toast.success("Vaga reaberta. Aceite um novo freelancer (sem nova cobrança).");
-      setModalDetalhes(null);
+      setModalDetalhesId(null);
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Falha ao reabrir a vaga."));
     }
@@ -401,7 +412,7 @@ export default function JobsPage() {
       } else {
         toast.success("Vaga finalizada. O repasse ainda não foi processado.");
       }
-      setModalDetalhes(null);
+      setModalDetalhesId(null);
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Falha ao finalizar a vaga."));
     }
@@ -445,7 +456,7 @@ export default function JobsPage() {
       toast.error("Vaga não encontrada com este ID.");
       return;
     }
-    setModalDetalhes(found);
+    setModalDetalhesId(found.id);
     setModalBuscarId(false);
     setBuscaIdInput("");
   };
@@ -593,7 +604,7 @@ export default function JobsPage() {
       accessor: (row: Row) => (
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setModalDetalhes(row)}
+            onClick={() => setModalDetalhesId(row.id)}
             className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors"
             title="Ver"
           >
@@ -711,9 +722,7 @@ export default function JobsPage() {
           }}
           // Mesmo modal da tabela: o quadro devolve só o id e a página resolve
           // a linha, para não haver duas telas de detalhe da vaga.
-          onSelect={(vacancyId) =>
-            setModalDetalhes(allRows.find((r) => r.id === vacancyId) ?? null)
-          }
+          onSelect={(vacancyId) => setModalDetalhesId(vacancyId)}
           avisados={avisosEnviados}
           avisando={avisandoId}
           onAvisar={async (vacancyId, stage) => {
@@ -863,9 +872,9 @@ export default function JobsPage() {
       )}
 
       {/* Modal Detalhes da Vaga */}
-      <Dialog open={!!modalDetalhes} onOpenChange={(open) => !open && setModalDetalhes(null)}>
+      <Dialog open={!!modalDetalhes} onOpenChange={(open) => !open && setModalDetalhesId(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogClose onClick={() => setModalDetalhes(null)} />
+          <DialogClose onClick={() => setModalDetalhesId(null)} />
           <DialogHeader>
             <DialogTitle>Detalhes da Vaga</DialogTitle>
             <DialogDescription>Informações completas da vaga selecionada.</DialogDescription>
@@ -875,7 +884,7 @@ export default function JobsPage() {
               <IssueReportResolution
                 vacancy={modalDetalhes.raw}
                 report={openReportForVacancy(modalDetalhes.raw.id)}
-                onResolved={() => setModalDetalhes(null)}
+                onResolved={() => setModalDetalhesId(null)}
                 onRequestCancel={() => {
                   setCancelTarget(modalDetalhes);
                   setCancelReason("");
@@ -1228,7 +1237,7 @@ export default function JobsPage() {
                 Reiniciar (no-show)
               </Button>
             )}
-            <Button variant="outline" onClick={() => setModalDetalhes(null)} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">
+            <Button variant="outline" onClick={() => setModalDetalhesId(null)} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">
               Fechar
             </Button>
           </DialogFooter>
