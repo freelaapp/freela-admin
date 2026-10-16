@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatInstantDate } from "@/lib/date.utils";
 import { cn } from "@/lib/utils";
 import {
+  chipCountLine,
   chipCountSource,
   deadlineDistance,
   heldCardsOf,
@@ -39,6 +40,7 @@ import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import type { RepasseItem } from "@/modules/admin/infrastructure/admin-api";
 import {
   advancedBreakdownOf,
+  heldSummaryCardOf,
   type HeldRepasseItem,
   type HeldSituationFilter,
 } from "@/modules/admin/infrastructure/held-repasses-api";
@@ -61,17 +63,21 @@ const CARD_ICON: Record<string, { icon: React.ElementType; color: string }> = {
  * lá o pagamento fica retido, e a Freela paga no teto se a empresa não pagar.
  *
  * - "Aguardando fatura": os cards e a lista dos retidos (API #603), do teto mais
- *   próximo para o mais longe, com o "Pagar agora". Antes do deploy da API a
- *   rota dá 404: aviso calmo, sem erro.
+ *   próximo para o mais longe, com o "Pagar agora".
  * - "Todos os repasses": a lista de sempre (já no ar), com o status traduzido.
+ *
+ * Antes do deploy da API a rota dos retidos dá 404: a aba abre direto em "Todos
+ * os repasses", e o aviso calmo só aparece se a pessoa escolher "Aguardando fatura".
  */
 export function FreelancerPayoutsView() {
-  const [view, setView] = useState<View>("held");
+  // `null` = a pessoa ainda não escolheu: abre nos retidos, ou na lista de sempre com a rota fora do ar.
+  const [chosenView, setChosenView] = useState<View | null>(null);
   const [situation, setSituation] = useState<HeldSituationFilter>("all");
   const [page, setPage] = useState(1);
   const held = useHeldRepasses({ situation, page, pageSize: PAGE_SIZE });
   const summary = useBillingSummary();
   const unavailable = apiErrorOf(held.error).status === 404;
+  const view: View = chosenView ?? (unavailable ? "all" : "held");
   const totals = held.data?.totals ?? null;
 
   const views: Array<{ key: View; label: string; count: number | null }> = [
@@ -90,7 +96,7 @@ export function FreelancerPayoutsView() {
             type="button"
             aria-pressed={view === key}
             aria-label={count !== null ? `${label}, ${count}` : label}
-            onClick={() => setView(key)}
+            onClick={() => setChosenView(key)}
             className={cn(
               "inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
               view === key ? "bg-[#1d1d1b] text-white" : "bg-[#f7f7f7] text-[#525252] hover:text-[#1d1d1b]",
@@ -171,8 +177,10 @@ function PayoutCards({
   }
   const cards: CardText[] = [];
   const totals = held.data?.totals;
+  // A ajuda do card dos retidos é a da API (com a regra do teto), quando vem.
+  const apiHeldHelp = heldSummaryCardOf(summary.data?.cards.held)?.help ?? null;
   // "Agora" da conta das 48 h = quando a lista foi lida (a API usa o mesmo instante).
-  if (totals) cards.push(...heldCardsOf(totals, new Date(held.dataUpdatedAt || Date.now())));
+  if (totals) cards.push(...heldCardsOf(totals, new Date(held.dataUpdatedAt || Date.now()), apiHeldHelp));
   const advanced = summary.data?.cards.advanced;
   const breakdown = advancedBreakdownOf(advanced?.breakdown);
   if (advanced && breakdown) cards.push(paidByFreelaCardOf(breakdown, advanced.source));
@@ -205,8 +213,9 @@ type HeldRow = HeldRepasseItem & { id: string; busca: string };
 const VALUE_HELP = "O que o freelancer recebe (o valor retido). Fonte: o repasse retido da vaga.";
 const EXPECTED_HELP =
   "Previsto = vencimento da fatura emitida; sem fatura, o vencimento previsto do período do serviço.";
+// A regra do teto não é escrita aqui: a conta de cada linha vem da API ("Ver a conta").
 const DEADLINE_HELP =
-  "Garantido até = o teto: 00:00 do 4º dia depois do vencimento (ou o início do bloqueio da fatura, o que vier antes). Se a empresa não pagar até lá, a Freela paga.";
+  "Garantido até = o teto: se a empresa não pagar a fatura até lá, a Freela paga. A conta de cada teto está em \"Ver a conta\", na linha.";
 
 function HeldList({
   held,
@@ -277,7 +286,7 @@ function HeldList({
       accessor: (row) => (
         <div className="min-w-0">
           <p className="text-[#1d1d1b]">{row.freelancer.name ?? "Sem nome"}</p>
-          {!row.freelancer.hasPixKey && (
+          {row.freelancer.hasPixKey === false && (
             <p className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-[#b91c1c]">
               <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
               sem chave Pix
@@ -416,6 +425,21 @@ function HeldList({
           );
         })}
       </div>
+      {totals && (
+        // A conta e a fonte das contagens também no celular (o `title` dos chips só aparece no hover).
+        <details className="-mt-2 text-xs text-[#525252]">
+          <summary className="cursor-pointer select-none font-medium text-[#737373] hover:text-[#1d1d1b]">
+            Ver a conta das contagens
+          </summary>
+          <ul className="mt-1 space-y-0.5">
+            {HELD_SITUATION_CHIPS.map(({ filter, label, totalsKey }) => (
+              <li key={filter}>{`${label}: ${chipCountLine(totals[totalsKey])}`}</li>
+            ))}
+          </ul>
+          <p className="mt-1">{`Conta: ${totals.calc}`}</p>
+          <p className="mt-0.5">{`Fonte: ${totals.source}`}</p>
+        </details>
+      )}
 
       {emptyTotal ? (
         <div className="rounded-xl border border-dashed border-[#e5e5e5] p-6 text-center text-sm text-[#525252]">

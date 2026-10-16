@@ -36,7 +36,12 @@ export interface HeldRepasseItem {
   vacancyTitle: string | null;
   /** Dia de Brasília do serviço. */
   serviceDate: DateKey | null;
-  freelancer: { providerGlobalId: string; name: string | null; hasPixKey: boolean };
+  /**
+   * `hasPixKey`: `true`/`false` = o que a API sabe da chave Pix do freelancer;
+   * `null` = a API não mandou o campo (não sabemos: o "Pagar agora" fica
+   * disponível e a API valida).
+   */
+  freelancer: { providerGlobalId: string; name: string | null; hasPixKey: boolean | null };
   company: { contractorUserId: string | null; name: string | null };
   /** O que o freelancer recebe (o valor retido). */
   amountInCents: number;
@@ -153,8 +158,8 @@ export function heldRepasseItemOf(raw: unknown): HeldRepasseItem | null {
     freelancer: {
       providerGlobalId: textOr(freelancer.providerGlobalId, ""),
       name: text(freelancer.name),
-      // Só o `true` explícito: sem o campo, a tela não promete que o Pix sai.
-      hasPixKey: freelancer.hasPixKey === true,
+      // Ausente ≠ `false`: só o `false` explícito diz "sem chave Pix".
+      hasPixKey: typeof freelancer.hasPixKey === "boolean" ? freelancer.hasPixKey : null,
     },
     company: { contractorUserId: text(company.contractorUserId), name: text(company.name) },
     amountInCents,

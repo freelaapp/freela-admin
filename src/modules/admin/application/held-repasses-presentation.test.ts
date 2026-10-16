@@ -91,14 +91,23 @@ describe("botão 'Pagar agora' da linha", () => {
       enabled: true,
     });
   });
-  it("sem chave Pix: indisponível (o Pix falharia e o pagamento deixaria de aguardar a fatura)", () => {
+  it("`hasPixKey` ausente (null): o botão aparece e a API valida", () => {
+    expect(
+      releaseAvailability({
+        situation: "invoice_open",
+        releaseAuthorized: false,
+        freelancer: { ...freelancer, hasPixKey: null },
+      }),
+    ).toEqual({ enabled: true });
+  });
+  it("sem chave Pix (false): indisponível (o Pix falharia e o pagamento deixaria de aguardar a fatura)", () => {
     const result = releaseAvailability({
       situation: "invoice_open",
       releaseAuthorized: false,
       freelancer: { ...freelancer, hasPixKey: false },
     });
     expect(result).toMatchObject({ enabled: false });
-    expect(!result.enabled && result.reason).toContain("Ana não tinha chave Pix");
+    expect(!result.enabled && result.reason).toContain("Ana não tem chave Pix cadastrada");
   });
   it("já autorizado ou liberando: indisponível", () => {
     expect(releaseAvailability({ situation: "releasing", releaseAuthorized: false, freelancer }).enabled).toBe(false);
@@ -123,6 +132,15 @@ describe("cards (cada número com a conta e a fonte)", () => {
       calc: "soma dos pagamentos retidos com teto até qui 22/10 às 10:00 = R$ 95,00 (1 pagamento)",
     });
     expect(due.source).toContain(TOTALS.source);
+    // A regra do teto não é fixada na tela: vem da API.
+    for (const card of [held, due]) {
+      expect(`${card.help} ${card.source}`).not.toMatch(/4º dia|00:00/);
+    }
+  });
+
+  it("a ajuda do card dos retidos é a da API quando ela manda", () => {
+    const [held] = heldCardsOf(TOTALS, NOW, "Ajuda da API com a regra do teto.");
+    expect(held.help).toBe("Ajuda da API com a regra do teto.");
   });
 
   it("pagos pela Freela antes da fatura = teto + Pagar agora + fatura cancelada (sem os do encerramento)", () => {

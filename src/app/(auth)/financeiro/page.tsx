@@ -58,6 +58,8 @@ const TAB_BY_QUERY: Record<string, Tab> = {
   faturas: "Faturas",
   "empresas-faturadas": "Empresas faturadas",
   "pagamentos-aos-freelancers": "Pagamentos aos freelancers",
+  // Nome antigo da aba (links e favoritos de antes).
+  repasses: "Pagamentos aos freelancers",
 };
 
 const INVOICED_LABEL = "Faturado (não é entrada de caixa)";
@@ -926,7 +928,7 @@ function FinanceGuideDialog({ open, onClose }: { open: boolean; onClose: () => v
     },
     {
       title: "Retido aguardando fatura",
-      text: "Em empresa faturada, o freelancer recebe quando a fatura é paga. Este é o dinheiro que está esperando. A Freela paga no 4º dia depois do vencimento se a empresa não pagar: o card 'A Freela paga em até 2 dias…' da aba Pagamentos aos freelancers mostra quanto vai sair nas próximas 48 horas.",
+      text: "Em empresa faturada, o freelancer recebe quando a fatura é paga. Este é o dinheiro que está esperando. Se a empresa não pagar, a Freela paga no teto de cada pagamento (a data e a conta estão na lista da aba Pagamentos aos freelancers): o card 'A Freela paga em até 2 dias…' da aba Pagamentos aos freelancers mostra quanto vai sair nas próximas 48 horas.",
     },
     {
       title: "Faturado no período (não é caixa)",

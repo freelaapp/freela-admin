@@ -22,16 +22,22 @@ function retryUnlessClientError(failureCount: number, error: unknown): boolean {
 }
 
 /**
- * Lista "Aguardando fatura" (ADR-017). Recarrega a cada minuto: o teto passa e a
- * varredura paga sozinha (o painel não recarrega ao voltar para a aba do navegador).
+ * Recarga periódica da lista: a cada minuto (o teto passa e a varredura paga
+ * sozinha), MENOS quando a rota dá 404 (API ainda sem o #603): aí para, em vez
+ * de pedir uma rota que não existe a cada minuto.
  */
+export function heldRefetchInterval(error: unknown): number | false {
+  return apiErrorOf(error).status === 404 ? false : 60000;
+}
+
+/** Lista "Aguardando fatura" (ADR-017). O painel não recarrega ao voltar para a aba do navegador. */
 export function useHeldRepasses(params: HeldRepassesParams) {
   return useQuery({
     queryKey: heldRepassesKey(params),
     queryFn: () => listHeldRepasses(params),
     placeholderData: keepPreviousData,
     staleTime: 15000,
-    refetchInterval: 60000,
+    refetchInterval: (query) => heldRefetchInterval(query.state.error),
     retry: retryUnlessClientError,
   });
 }

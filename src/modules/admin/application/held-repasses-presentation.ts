@@ -62,9 +62,14 @@ export const HELD_SITUATION_CHIPS: ReadonlyArray<{
   { filter: "deadline_48h", label: "Teto em até 2 dias", totalsKey: "deadline48h" },
 ];
 
+/** "2 pagamentos = R$ 215,00": a contagem de um chip com o valor. */
+export function chipCountLine(totals: HeldTotals): string {
+  return `${plural(totals.count, "pagamento", "pagamentos")} = ${formatBrl(totals.totalInCents)}`;
+}
+
 /** O que é a contagem de cada chip e de onde vem (regra: todo número com a conta e a fonte). */
 export function chipCountSource(label: string, totals: HeldTotals): string {
-  return `${plural(totals.count, "pagamento", "pagamentos")} = ${formatBrl(totals.totalInCents)} (${label}). Fonte: lista de pagamentos retidos aguardando a fatura.`;
+  return `${chipCountLine(totals)} (${label}). Fonte: lista de pagamentos retidos aguardando a fatura.`;
 }
 
 // ─── Linha da lista ──────────────────────────────────────────────────────────
@@ -122,13 +127,14 @@ export function releaseAvailability(
   if (item.releaseAuthorized || item.situation === "releasing") {
     return { enabled: false, reason: "Pagamento já autorizado: o Pix sai em até 10 min." };
   }
-  if (!item.freelancer.hasPixKey) {
-    // Com o "Pagar agora" sem chave, o Pix falha e o pagamento deixa de aguardar
-    // a fatura (vira "Falhou"). Sem o botão, ele continua retido e sai sozinho
-    // quando a fatura for paga, com a chave que o freelancer tiver cadastrado.
+  // Só o `false` explícito esconde o botão. Com o "Pagar agora" sem chave, o Pix
+  // falha e o pagamento deixa de aguardar a fatura (vira "Falhou"); sem o botão,
+  // ele continua retido e sai quando a fatura for paga. Campo ausente (`null`):
+  // o botão aparece e a API valida.
+  if (item.freelancer.hasPixKey === false) {
     return {
       enabled: false,
-      reason: `${firstName(item.freelancer.name)} não tinha chave Pix quando o serviço terminou. Peça para cadastrar no app: o pagamento continua aguardando e sai quando a fatura for paga.`,
+      reason: `${firstName(item.freelancer.name)} não tem chave Pix cadastrada. Peça para cadastrar no app: o pagamento continua aguardando e sai quando a fatura for paga.`,
     };
   }
   return { enabled: true };
@@ -146,13 +152,20 @@ export interface CardText {
   source: string;
 }
 
-/** Fim da janela do card "em até 2 dias": agora + 48 h (a mesma conta da API). */
+/**
+ * Fim da janela do card "em até 2 dias": agora + 48 h. É a definição do filtro
+ * `deadline_48h` da API (`HOURS_48` em `admin-held-repasses.query.ts`).
+ */
 export function window48hLabel(now: Date): string {
   return instantWithWeekday(new Date(now.getTime() + 48 * 3_600_000).toISOString());
 }
 
-/** Os dois cards dos retidos, das somas da própria lista (todos os retidos, não o filtro). */
-export function heldCardsOf(totals: HeldRepassesTotals, now: Date): CardText[] {
+/**
+ * Os dois cards dos retidos, das somas da própria lista (todos os retidos, não o
+ * filtro). A regra do teto não é escrita aqui: vem da API (`apiHelp`, do card
+ * `held` do resumo, e o `calc` de cada linha); sem ela, a ajuda só aponta a conta.
+ */
+export function heldCardsOf(totals: HeldRepassesTotals, now: Date, apiHelp?: string | null): CardText[] {
   const limit = window48hLabel(now);
   const due = totals.deadline48h;
   return [
@@ -165,7 +178,9 @@ export function heldCardsOf(totals: HeldRepassesTotals, now: Date): CardText[] {
         "com fatura vencida",
         "com fatura vencida",
       )} (${formatBrl(totals.invoiceOverdue.totalInCents)})`,
-      help: "Pagamentos de serviços de empresas faturadas, já concluídos, que esperam a empresa pagar a fatura. Se ela não pagar, a Freela paga no teto (00:00 do 4º dia depois do vencimento).",
+      help:
+        apiHelp ||
+        "Pagamentos de serviços de empresas faturadas, já concluídos, que esperam a empresa pagar a fatura. Se ela não pagar, a Freela paga no teto de cada um (a data e a conta estão na lista, em \"Garantido até\").",
       calc: totals.calc,
       source: totals.source,
     },
@@ -180,7 +195,7 @@ export function heldCardsOf(totals: HeldRepassesTotals, now: Date): CardText[] {
         "pagamento",
         "pagamentos",
       )})`,
-      source: `${totals.source} Teto = 00:00 do 4º dia depois do vencimento, ou o início do bloqueio da fatura, o que vier antes.`,
+      source: `${totals.source} O teto de cada pagamento, com a conta, está na lista, em "Garantido até".`.trim(),
     },
   ];
 }

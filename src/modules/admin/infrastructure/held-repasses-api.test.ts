@@ -106,7 +106,7 @@ describe("held-repasses-api", () => {
     expect(result.total).toBe(1);
   });
 
-  it("item: campos opcionais nulos não quebram; sem `hasPixKey` não promete chave", () => {
+  it("item: campos opcionais nulos não quebram; `hasPixKey` ausente = não sabemos (null), não `false`", () => {
     const item = heldRepasseItemOf({
       ...RAW_ITEM,
       vacancyTitle: null,
@@ -119,11 +119,19 @@ describe("held-repasses-api", () => {
     expect(item).toMatchObject({
       vacancyTitle: null,
       serviceDate: null,
-      freelancer: { name: null, hasPixKey: false },
+      freelancer: { name: null, hasPixKey: null },
       company: { name: null },
       invoice: null,
       situation: "awaiting_close",
     });
+  });
+
+  it("item: `hasPixKey` false explícito continua false", () => {
+    const item = heldRepasseItemOf({
+      ...RAW_ITEM,
+      freelancer: { providerGlobalId: "pg-1", name: "Ana Souza", hasPixKey: false },
+    });
+    expect(item?.freelancer.hasPixKey).toBe(false);
   });
 
   it("totais: falta uma parte → null (os cards somem, nunca R$ 0,00 inventado)", () => {

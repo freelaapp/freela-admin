@@ -176,11 +176,34 @@ describe("Pagamentos aos freelancers — aguardando fatura", () => {
     // Sem chave Pix: sem botão, com o porquê.
     expect(within(table).getByText("sem chave Pix")).toBeInTheDocument();
     expect(within(table).queryByRole("button", { name: /para João Lima/ })).not.toBeInTheDocument();
-    expect(within(table).getByText(/João não tinha chave Pix quando o serviço terminou/)).toBeInTheDocument();
+    expect(within(table).getByText(/João não tem chave Pix cadastrada/)).toBeInTheDocument();
     expect(within(table).getByText("Fatura ainda aberta: o serviço entra no próximo fechamento")).toBeInTheDocument();
     expect(screen.getByText("Mostrando 2 de 2 · R$ 215,00 nesta página")).toBeInTheDocument();
     // No celular, um cartão por pagamento.
     expect(within(screen.getByTestId("data-table-cards")).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("`hasPixKey` ausente: 'Pagar agora' visível (a API valida) e sem o alerta 'sem chave Pix'", async () => {
+    const semCampo = {
+      ...ANA,
+      freelancer: { providerGlobalId: "pg-1", name: "Ana Souza", hasPixKey: null },
+    };
+    vi.mocked(listHeldRepasses).mockResolvedValue(list([semCampo]));
+    renderView();
+    const table = await screen.findByTestId("data-table-desktop");
+    expect(
+      await within(table).findByRole("button", { name: "Pagar agora R$ 95,00 para Ana Souza" }),
+    ).toBeInTheDocument();
+    expect(within(table).queryByText("sem chave Pix")).not.toBeInTheDocument();
+  });
+
+  it("a conta e a fonte das contagens dos chips também fora do hover (celular)", async () => {
+    renderView();
+    const summary = await screen.findByText("Ver a conta das contagens");
+    const details = summary.closest("details") as HTMLElement;
+    expect(within(details).getByText("Vencida: 1 pagamento = R$ 95,00")).toBeInTheDocument();
+    expect(within(details).getByText(`Conta: ${TOTALS.calc}`)).toBeInTheDocument();
+    expect(within(details).getByText(`Fonte: ${TOTALS.source}`)).toBeInTheDocument();
   });
 
   it("chips com a contagem no nome; trocar de chip pede a situação à API", async () => {
@@ -218,7 +241,7 @@ describe("Pagamentos aos freelancers — aguardando fatura", () => {
     expect(screen.queryByTestId("kpi-paidByFreela")).not.toBeInTheDocument();
   });
 
-  it("rota fora do ar (404): aviso calmo, sem erro; 'Todos os repasses' continua", async () => {
+  it("rota fora do ar (404): abre direto em 'Todos os repasses', sem aviso na frente nem erro", async () => {
     vi.mocked(listHeldRepasses).mockRejectedValue(notFound());
     repasses.data = [
       {
@@ -247,16 +270,23 @@ describe("Pagamentos aos freelancers — aguardando fatura", () => {
       },
     ];
     renderView();
-    expect(
-      await screen.findByText("Os pagamentos aguardando fatura ainda não estão disponíveis neste ambiente."),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("kpi-held")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Todos os repasses" }));
-    const table = screen.getByTestId("data-table-desktop");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Todos os repasses" })).toHaveAttribute("aria-pressed", "true"),
+    );
+    const table = await screen.findByTestId("data-table-desktop");
     expect(within(table).getByText("Aguardando a fatura")).toBeInTheDocument();
     expect(within(table).getByText("Em verificação")).toBeInTheDocument();
     expect(within(table).getByText("R$ 95,00")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Os pagamentos aguardando fatura ainda não estão disponíveis neste ambiente."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("kpi-held")).not.toBeInTheDocument();
+
+    // O aviso calmo só se a pessoa escolher "Aguardando fatura".
+    fireEvent.click(screen.getByRole("button", { name: "Aguardando fatura" }));
+    expect(
+      screen.getByText("Os pagamentos aguardando fatura ainda não estão disponíveis neste ambiente."),
+    ).toBeInTheDocument();
   });
 });

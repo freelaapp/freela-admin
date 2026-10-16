@@ -175,6 +175,13 @@ describe("Financeiro — aba Faturas", () => {
     expect(await section("Pagamentos aos freelancers")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("?aba=repasses (nome antigo) abre os pagamentos aos freelancers", async () => {
+    window.history.replaceState(null, "", "/financeiro?aba=repasses");
+    renderPage();
+
+    expect(await section("Pagamentos aos freelancers")).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("?aba=empresas-faturadas abre direto na lista das empresas", async () => {
     window.history.replaceState(null, "", "/financeiro?aba=empresas-faturadas");
     renderPage();
