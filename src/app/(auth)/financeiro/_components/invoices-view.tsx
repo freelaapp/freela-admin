@@ -10,6 +10,7 @@ import {
   ChevronRight,
   FileClock,
   HandCoins,
+  Hourglass,
   Info,
   Lock,
   X,
@@ -29,11 +30,19 @@ import {
   tableCaption,
 } from "@/modules/admin/application/invoice-presentation";
 import {
+  advancedCompositionCalc,
+  advancedSlices,
+} from "@/modules/admin/application/held-repasses-presentation";
+import {
   useAdminInvoices,
   useBillingCompanies,
   useBillingSummary,
 } from "@/modules/admin/application/use-admin-billing";
 import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
+import {
+  advancedBreakdownOf,
+  heldSummaryCardOf,
+} from "@/modules/admin/infrastructure/held-repasses-api";
 import type {
   AdminInvoiceListItem,
   AdminInvoiceSituationCode,
@@ -54,7 +63,8 @@ const CYCLES: Array<{ value: BillingMode | ""; label: string }> = [
   { value: "INVOICED_30", label: "Mensal" },
 ];
 
-type CardKey = keyof BillingSummary["cards"];
+/** Os seis cards fixos; o `held` (API #603) é opcional e entra à parte. */
+type CardKey = Exclude<keyof BillingSummary["cards"], "held">;
 
 /** O que é o número da coluna Total, e de onde vem. */
 const TOTAL_HELP = "Total da fatura = débitos − créditos. Fonte: a fatura fechada.";
@@ -90,9 +100,12 @@ function useDebounced<T>(value: T, ms: number): T {
 export function InvoicesView({
   company = null,
   onClearCompany,
+  onSeeHeld,
 }: {
   company?: InvoiceCompanyFilter | null;
   onClearCompany?: () => void;
+  /** "Ver lista" do card "Retido aguardando a fatura": abre a aba Pagamentos aos freelancers. */
+  onSeeHeld?: () => void;
 } = {}) {
   const baseId = useId();
   const [situation, setSituation] = useState<AdminInvoiceSituationCode | null>(null);
@@ -244,7 +257,7 @@ export function InvoicesView({
     <div className="space-y-6">
       {summary.data?.doublePayments.count ? <DoublePaymentAlert summary={summary.data} /> : null}
 
-      <SummaryCards summary={summary} />
+      <SummaryCards summary={summary} onSeeHeld={onSeeHeld} />
 
       <div role="group" aria-label="Situação" className="flex flex-wrap gap-1.5">
         {SITUATION_CHIPS.map(({ code, label }) => {
@@ -420,7 +433,13 @@ export function InvoicesView({
   );
 }
 
-function SummaryCards({ summary }: { summary: ReturnType<typeof useBillingSummary> }) {
+function SummaryCards({
+  summary,
+  onSeeHeld,
+}: {
+  summary: ReturnType<typeof useBillingSummary>;
+  onSeeHeld?: () => void;
+}) {
   if (summary.isLoading) {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Carregando">
@@ -441,11 +460,16 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof useBillingSummar
     );
   }
   const data = summary.data;
+  // ADR-017 (API #603), aditivos: a composição do "Adiantado" e o card dos
+  // retidos. Ausentes (API de antes) → o card fica como era e o novo não aparece.
+  const breakdown = advancedBreakdownOf(data.cards.advanced.breakdown);
+  const held = heldSummaryCardOf(data.cards.held);
   return (
     <section aria-label="Indicadores das faturas" className="space-y-3">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {CARDS.map(({ key, icon, iconColor, money }) => {
           const card: SummaryCard = data.cards[key];
+          const composition = key === "advanced" && breakdown ? breakdown : null;
           return (
             <div key={key} data-testid={`kpi-${key}`}>
               <KpiCard
@@ -456,11 +480,36 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof useBillingSummar
                 iconColor={iconColor}
                 meta={card.meta}
                 help={card.help}
-                details={{ calc: card.calc, source: card.source }}
+                breakdown={composition ? advancedSlices(composition) : undefined}
+                details={{
+                  calc: composition
+                    ? `${card.calc}. Por motivo de ter saído antes da fatura: ${advancedCompositionCalc(composition)}`
+                    : card.calc,
+                  source: card.source,
+                }}
               />
             </div>
           );
         })}
+        {held && (
+          <div data-testid="kpi-held" className="flex flex-col gap-2">
+            <KpiCard
+              className="h-full"
+              title={held.label}
+              value={formatBrl(held.valueInCents)}
+              icon={Hourglass}
+              iconColor="text-[#0369a1]"
+              meta={held.meta}
+              help={held.help}
+              details={{ calc: held.calc, source: held.source }}
+            />
+            {onSeeHeld && (
+              <Button variant="outline" size="sm" onClick={onSeeHeld} className="self-start">
+                Ver lista
+              </Button>
+            )}
+          </div>
+        )}
       </div>
       <div className="rounded-lg bg-[#f7f7f7] px-3 py-2 text-sm">
         <p className="font-medium text-[#1d1d1b]">{`${data.receivableTotal.label} = ${data.receivableTotal.calc}.`}</p>

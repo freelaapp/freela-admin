@@ -40,6 +40,18 @@ vi.mock("@/modules/admin/application/use-admin-payments", () => ({
 vi.mock("@/modules/admin/application/use-admin-repasses", () => ({
   useAdminRepasses: () => ({ data: [], isLoading: false }),
 }));
+// A lista dos retidos (API #603) sem rede; os leitores do resumo ficam os de verdade.
+vi.mock("@/modules/admin/infrastructure/held-repasses-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules/admin/infrastructure/held-repasses-api")>()),
+  listHeldRepasses: vi.fn().mockResolvedValue({
+    items: [],
+    page: 1,
+    pageSize: 200,
+    total: 0,
+    hasMore: false,
+    totals: null,
+  }),
+}));
 
 import {
   COMPANIES,
@@ -118,7 +130,7 @@ afterEach(() => {
 });
 
 describe("Financeiro — aba Faturas", () => {
-  it("aba Faturas (entre Repasses e Estornos) renderiza a InvoicesView", async () => {
+  it("aba Faturas (entre Pagamentos aos freelancers e Estornos) renderiza a InvoicesView", async () => {
     renderPage();
 
     const sections = screen.getByRole("group", { name: "Seções do Financeiro" });
@@ -127,7 +139,7 @@ describe("Financeiro — aba Faturas", () => {
       "Visão Geral",
       "Transações",
       "Pagamentos",
-      "Repasses",
+      "Pagamentos aos freelancers",
       "Empresas faturadas",
       "Faturas",
       "Estornos & Cancelamentos",
@@ -154,6 +166,13 @@ describe("Financeiro — aba Faturas", () => {
     renderPage();
 
     expect(await section("Faturas")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("?aba=pagamentos-aos-freelancers abre direto nos pagamentos aos freelancers", async () => {
+    window.history.replaceState(null, "", "/financeiro?aba=pagamentos-aos-freelancers");
+    renderPage();
+
+    expect(await section("Pagamentos aos freelancers")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("?aba=empresas-faturadas abre direto na lista das empresas", async () => {

@@ -91,6 +91,59 @@ describe("InvoicesView — indicadores", () => {
     expect(screen.queryByText(/profissiona/)).not.toBeInTheDocument();
   });
 
+  it("API #603: 'Adiantado' mostra a composição por motivo e o card 'Retido aguardando a fatura' abre a lista", async () => {
+    const onSeeHeld = vi.fn();
+    vi.mocked(getBillingSummary).mockResolvedValue({
+      ...SUMMARY,
+      cards: {
+        ...SUMMARY.cards,
+        advanced: {
+          ...SUMMARY.cards.advanced,
+          breakdown: {
+            onCompletion: { count: 28, valueInCents: 504170 },
+            deadline: { count: 1, valueInCents: 9500 },
+            admin: { count: 1, valueInCents: 9500 },
+            invoiceCancelled: { count: 0, valueInCents: 0 },
+          },
+        },
+        held: {
+          label: "Retido aguardando a fatura",
+          valueInCents: 285000,
+          count: 30,
+          calc: "fatura ainda aberta R$ 1.140,00 (12) + a vencer R$ 1.235,00 (13) + vencida R$ 475,00 (5) + liberando R$ 0,00 (0) = R$ 2.850,00 (30 retidos)",
+          source: "Repasse retido (shared.repasses com status AWAITING_INVOICE).",
+          meta: "30 pagamentos retidos · teto mais próximo sex 23/10 · R$ 475,00 com fatura vencida",
+          help: "Pagamentos que esperam a empresa pagar a fatura.",
+          dueIn48hInCents: 47500,
+          dueIn48hCount: 5,
+          overdueInCents: 47500,
+          overdueCount: 5,
+          nextDeadlineAt: "2026-10-23T03:00:00.000Z",
+        },
+      },
+    });
+    renderView({ onSeeHeld });
+
+    const advanced = await screen.findByTestId("kpi-advanced");
+    expect(within(advanced).getByText("no teto")).toBeInTheDocument();
+    expect(advanced).toHaveTextContent(
+      "Por motivo de ter saído antes da fatura: no encerramento (antes da regra) R$ 5.041,70 (28) + no teto R$ 95,00 (1) + Pagar agora R$ 95,00 (1) + fatura cancelada R$ 0,00 (0) = R$ 5.231,70",
+    );
+
+    const held = screen.getByTestId("kpi-held");
+    expect(within(held).getByText("R$ 2.850,00")).toBeInTheDocument();
+    expect(held).toHaveTextContent("Conta: fatura ainda aberta R$ 1.140,00 (12)");
+    fireEvent.click(within(held).getByRole("button", { name: "Ver lista" }));
+    expect(onSeeHeld).toHaveBeenCalled();
+  });
+
+  it("API de antes: sem o card dos retidos e sem a composição do 'Adiantado'", async () => {
+    renderView();
+    await screen.findByTestId("kpi-advanced");
+    expect(screen.queryByTestId("kpi-held")).not.toBeInTheDocument();
+    expect(screen.getByTestId("kpi-advanced")).not.toHaveTextContent("Por motivo");
+  });
+
   it("linha 'A receber no total = a vencer + vencido + ainda não faturado = …'", async () => {
     renderView();
 

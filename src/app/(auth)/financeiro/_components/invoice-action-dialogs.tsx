@@ -146,34 +146,52 @@ const companyOf = (detail: AdminInvoiceDetail) => detail.invoice.company.name ??
 
 // ─── Casca comum ──────────────────────────────────────────────────────────────
 
-function useReason() {
+export function useReason() {
   const [reason, setReason] = useState("");
   return { reason, setReason, valid: reason.trim().length >= REASON_MIN };
 }
 
-function ReasonField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/**
+ * Campo do motivo (obrigatório, 5+ caracteres). `label` e `savedHint` mudam o
+ * texto para outras ações de dinheiro (ex.: "Pagar agora" fica no histórico do
+ * pagamento, não da fatura).
+ */
+export function ReasonField({
+  value,
+  onChange,
+  label = "Motivo (obrigatório)",
+  savedHint = "Fica na trilha da fatura, com o seu nome.",
+  autoFocus,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label?: string;
+  savedHint?: string;
+  autoFocus?: boolean;
+}) {
   const id = useId();
   const valid = value.trim().length >= REASON_MIN;
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>Motivo (obrigatório)</Label>
+      <Label htmlFor={id}>{label}</Label>
       <textarea
         id={id}
         value={value}
         rows={2}
         maxLength={500}
+        autoFocus={autoFocus}
         aria-describedby={`${id}-help`}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-[#e5e5e5] px-3 py-2 text-sm text-[#1d1d1b] focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"
       />
       <p id={`${id}-help`} className={cn("text-xs", valid ? "text-[#737373]" : "text-[#b45309]")}>
-        {valid ? "Fica na trilha da fatura, com o seu nome." : REASON_HINT}
+        {valid ? savedHint : REASON_HINT}
       </p>
     </div>
   );
 }
 
-function ActionDialog({
+export function ActionDialog({
   title,
   description,
   children,

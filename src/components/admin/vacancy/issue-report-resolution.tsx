@@ -10,6 +10,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { repasseHeldOrReviewNotice } from "@/modules/admin/application/repasse-status-presentation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -216,6 +217,13 @@ export function IssueReportResolution({
             res.repasseFailureReason ?? "motivo desconhecido"
           }. Use "pagar repasse".`,
         );
+      } else if (repasseHeldOrReviewNotice(res.repasseStatus)) {
+        // Faturado (ADR-017): o Pix espera a fatura; ou o crédito ficou em verificação.
+        toast.info(
+          `Vaga encerrada e ${formatCents(
+            res.refundedToContractorInCents,
+          )} na carteira; ${repasseHeldOrReviewNotice(res.repasseStatus)}`,
+        );
       } else {
         toast.success(
           `Vaga encerrada. ${formatCents(
@@ -233,7 +241,7 @@ export function IssueReportResolution({
   async function finalizarCheio() {
     if (
       !window.confirm(
-        "Finalizar esta vaga e pagar o freelancer 100%?\n\nMarca o serviço como concluído e dispara o repasse cheio (PIX) + documentos fiscais. Use quando, apesar do relato, o serviço foi cumprido. Não paga em dobro.",
+        "Finalizar esta vaga e pagar o freelancer 100%?\n\nMarca o serviço como concluído e dispara o repasse cheio (PIX) + documentos fiscais. Use quando, apesar do relato, o serviço foi cumprido. Não paga em dobro.\n\nEm vaga de empresa faturada, o Pix pode esperar a fatura da empresa: sai quando ela pagar, ou no teto garantido pela Freela.",
       )
     ) {
       return;
@@ -248,6 +256,8 @@ export function IssueReportResolution({
             res.failureReason ?? "motivo desconhecido"
           }. Use "pagar repasse".`,
         );
+      } else if (repasseHeldOrReviewNotice(res.repasseStatus)) {
+        toast.info(`Vaga finalizada: ${repasseHeldOrReviewNotice(res.repasseStatus)}`);
       } else {
         toast.success("Vaga finalizada. O repasse ainda não foi processado.");
       }

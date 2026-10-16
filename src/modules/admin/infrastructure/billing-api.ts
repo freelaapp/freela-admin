@@ -340,6 +340,34 @@ export interface SummaryCard {
   help: string;
 }
 
+/** Uma fatia de um número: quantos e quanto. */
+export interface CountAndValue {
+  count: number;
+  valueInCents: number;
+}
+
+/**
+ * O "Adiantado aos freelancers" separado pelo motivo de o Pix ter saído antes da
+ * fatura paga (ADR-017, API #603): no encerramento (vaga de antes da regra ou
+ * troca de modo), no teto, pelo "Pagar agora" do admin, ou com a fatura
+ * cancelada. A soma das quatro é o valor do card.
+ */
+export interface AdvancedBreakdown {
+  onCompletion: CountAndValue;
+  deadline: CountAndValue;
+  admin: CountAndValue;
+  invoiceCancelled: CountAndValue;
+}
+
+/** Card "Retido aguardando a fatura" do resumo (ADR-017, API #603). */
+export interface HeldSummaryCard extends SummaryCard {
+  dueIn48hInCents: number;
+  dueIn48hCount: number;
+  overdueInCents: number;
+  overdueCount: number;
+  nextDeadlineAt: string | null;
+}
+
 export interface BillingSummary {
   period: { preset: string; start: string; end: string; label: string };
   generatedAt: string;
@@ -357,7 +385,11 @@ export interface BillingSummary {
       frontedCount: number;
       coveredInCents: number;
       coveredCount: number;
+      /** Aditivo (API #603). Ausente na API de antes: a composição não aparece. */
+      breakdown?: AdvancedBreakdown;
     };
+    /** Aditivo (API #603). Ausente na API de antes: o card não aparece. */
+    held?: HeldSummaryCard;
   };
   receivableTotal: { label: string; valueInCents: number; calc: string; source: string };
   doublePayments: {

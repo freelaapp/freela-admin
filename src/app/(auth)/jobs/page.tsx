@@ -35,6 +35,7 @@ import { avisarErroDoReenvio } from "@/modules/admin/application/use-vacancy-gro
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { repasseHeldOrReviewNotice } from "@/modules/admin/application/repasse-status-presentation";
 import {
   Dialog,
   DialogContent,
@@ -396,7 +397,7 @@ export default function JobsPage() {
     if (!modalDetalhes) return;
     if (
       !window.confirm(
-        "Finalizar esta vaga e pagar o freelancer?\n\nMarca o serviço como concluído e dispara o repasse (PIX) ao freelancer, junto dos documentos fiscais. Use quando o serviço foi realizado e está tudo certo. Não paga em dobro se já foi pago.",
+        "Finalizar esta vaga e pagar o freelancer?\n\nMarca o serviço como concluído e dispara o repasse (PIX) ao freelancer, junto dos documentos fiscais. Use quando o serviço foi realizado e está tudo certo. Não paga em dobro se já foi pago.\n\nEm vaga de empresa faturada, o Pix pode esperar a fatura da empresa: sai quando ela pagar, ou no teto garantido pela Freela.",
       )
     ) {
       return;
@@ -409,6 +410,9 @@ export default function JobsPage() {
         toast.warning(
           `Vaga finalizada, mas o repasse falhou: ${res.failureReason ?? "motivo desconhecido"}. Corrija e use "pagar repasse".`,
         );
+      } else if (repasseHeldOrReviewNotice(res.repasseStatus)) {
+        // Faturado (ADR-017): o Pix espera a fatura; ou o crédito ficou em verificação.
+        toast.info(`Vaga finalizada: ${repasseHeldOrReviewNotice(res.repasseStatus)}`);
       } else {
         toast.success("Vaga finalizada. O repasse ainda não foi processado.");
       }

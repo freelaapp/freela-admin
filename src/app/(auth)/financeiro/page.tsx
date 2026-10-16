@@ -19,10 +19,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useAdminPayments } from "@/modules/admin/application/use-admin-payments";
-import { useAdminRepasses } from "@/modules/admin/application/use-admin-repasses";
 import { useFinanceSummary, useFinanceTransactions } from "@/modules/admin/application/use-admin-finance";
+import { REPASSE_STATUS_BADGES } from "@/modules/admin/application/repasse-status-presentation";
 import type {
-  PaymentItem, RepasseItem, FinanceTransaction,
+  PaymentItem, FinanceTransaction,
 } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
@@ -30,13 +30,14 @@ import {
   BillingCompaniesView,
   type InvoiceCompanyFilter,
 } from "./_components/billing-companies-view";
+import { FreelancerPayoutsView } from "./_components/freelancer-payouts-view";
 import { InvoicesView } from "./_components/invoices-view";
 
 const tabs = [
   "Visão Geral",
   "Transações",
   "Pagamentos",
-  "Repasses",
+  "Pagamentos aos freelancers",
   "Empresas faturadas",
   "Faturas",
   "Estornos & Cancelamentos",
@@ -48,10 +49,15 @@ type Tab = typeof tabs[number];
 // abre em "Este mês", esconderia as vencidas fechadas no mês anterior.
 const FINANCE_TABS: Tab[] = ["Visão Geral", "Transações", "Estornos & Cancelamentos"];
 
-/** `?aba=faturas` (volta do detalhe da fatura) → a aba Faturas; `?aba=empresas-faturadas` → a lista das empresas. */
+/**
+ * `?aba=faturas` (volta do detalhe da fatura) → a aba Faturas; `?aba=empresas-faturadas`
+ * → a lista das empresas; `?aba=pagamentos-aos-freelancers` → os pagamentos aos
+ * freelancers (retidos aguardando a fatura e todos os repasses).
+ */
 const TAB_BY_QUERY: Record<string, Tab> = {
   faturas: "Faturas",
   "empresas-faturadas": "Empresas faturadas",
+  "pagamentos-aos-freelancers": "Pagamentos aos freelancers",
 };
 
 const INVOICED_LABEL = "Faturado (não é entrada de caixa)";
@@ -509,7 +515,7 @@ function TransactionsView({
       )}
       {totals.foraDaSoma > 0 && (
         <span>
-          {totals.foraDaSoma} não liquidada{totals.foraDaSoma > 1 ? "s" : ""} (pendente/expirada/falha) fora da soma
+          {totals.foraDaSoma} não liquidada{totals.foraDaSoma > 1 ? "s" : ""} (pendente, aguardando a fatura, em verificação, expirada ou falha) fora da soma
         </span>
       )}
     </div>
@@ -746,8 +752,12 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
 }
 
 // Tradução dos status crus da API. Nos ESTORNOS o campo status carrega o TIPO
-// de estorno (FULL/PARTIAL_50/NONE) — rotulado de acordo.
+// de estorno (FULL/PARTIAL_50/NONE) — rotulado de acordo. Os status só de
+// repasse (retido aguardando a fatura, crédito em verificação) vêm do módulo
+// único dos status de repasse.
 const TX_STATUS: Record<string, { label: string; cls: string }> = {
+  AWAITING_INVOICE: REPASSE_STATUS_BADGES.AWAITING_INVOICE,
+  CREDIT_UNKNOWN: REPASSE_STATUS_BADGES.CREDIT_UNKNOWN,
   COMPLETED: { label: "Concluído", cls: "bg-green-50 text-green-700" },
   PAID: { label: "Pago", cls: "bg-green-50 text-green-700" },
   PENDING: { label: "Pendente", cls: "bg-amber-50 text-amber-700" },
@@ -761,7 +771,7 @@ const TX_STATUS: Record<string, { label: string; cls: string }> = {
   NONE: { label: "Sem estorno", cls: "bg-[#f7f7f7] text-[#737373]" },
 };
 
-// ─── Legado: Pagamentos / Repasses (endpoints antigos, sem filtro de data) ────
+// ─── Legado: Pagamentos (endpoint antigo, sem filtro de data) ────────────────
 
 const LEGACY_PAYMENT_STATUS: Record<string, string> = {
   COMPLETED: "Pago",
@@ -804,18 +814,6 @@ function mapPaymentToRow(p: PaymentItem) {
   };
 }
 
-function mapRepasseToRow(r: RepasseItem) {
-  return {
-    id: r.id,
-    freelancer: r.providerGlobalId.slice(0, 12),
-    valor: formatCurrency(r.amountInCents),
-    tipo: "Repasse",
-    data: formatDate(r.createdAt),
-    status: r.status,
-    raw: r,
-  };
-}
-
 /** Erro de leitura: nunca vira tabela vazia nem R$ 0,00. */
 function LoadError({ what, onRetry }: { what: string; onRetry: () => void }) {
   return (
@@ -828,7 +826,7 @@ function LoadError({ what, onRetry }: { what: string; onRetry: () => void }) {
   );
 }
 
-/** "Atualizar" das abas Pagamentos e Repasses (lidas inteiras, sem recarga periódica). */
+/** "Atualizar" da aba Pagamentos (lida inteira, sem recarga periódica). */
 function RefreshButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
   return (
     <Button variant="outline" size="sm" onClick={onClick} disabled={busy}>
@@ -891,47 +889,6 @@ function PaymentsTab() {
   );
 }
 
-/** Aba Repasses: o hook mora aqui; recarrega ao abrir a aba e no "Atualizar". */
-function RepassesTab() {
-  const { data: repasses, isLoading, isFetching, isError, refetch } = useAdminRepasses();
-  if (isLoading && !repasses) {
-    return (
-      <div className="flex items-center justify-center h-[40vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#eca826]" />
-      </div>
-    );
-  }
-  if (isError && !repasses) return <LoadError what="os repasses" onRetry={() => refetch()} />;
-
-  const rows = (repasses ?? []).map(mapRepasseToRow);
-  type RepasseRow = (typeof rows)[number];
-  const columns: Column<RepasseRow>[] = [
-    { header: "Freelancer (id)", accessor: "freelancer", mobile: "title" },
-    { header: "Valor", accessor: "valor" },
-    { header: "Data", accessor: "data", className: "hidden md:table-cell" },
-    {
-      header: "Status",
-      accessor: (row) => (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          row.status === "COMPLETED" ? "bg-green-500/10 text-green-500" : "bg-[#eca826]/10 text-[#eca826]"
-        }`}>
-          {TX_STATUS[row.status]?.label ?? row.status}
-        </span>
-      ),
-    },
-  ];
-  return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      searchPlaceholder="Buscar..."
-      searchKey="freelancer"
-      filters={<RefreshButton onClick={() => refetch()} busy={isFetching} />}
-      isFetching={isFetching}
-    />
-  );
-}
-
 // ─── Página ──────────────────────────────────────────────────────────────────
 
 
@@ -966,6 +923,10 @@ function FinanceGuideDialog({ open, onClose }: { open: boolean; onClose: () => v
     {
       title: "Aba Transações",
       text: "Lista TODAS as movimentações, inclusive cobranças que expiraram sem pagamento e repasses que falharam (importante para operação). O rodapé soma só o que liquidou de verdade; o faturado aparece à parte.",
+    },
+    {
+      title: "Retido aguardando fatura",
+      text: "Em empresa faturada, o freelancer recebe quando a fatura é paga. Este é o dinheiro que está esperando. A Freela paga no 4º dia depois do vencimento se a empresa não pagar: o card 'A Freela paga em até 2 dias…' da aba Pagamentos aos freelancers mostra quanto vai sair nas próximas 48 horas.",
     },
     {
       title: "Faturado no período (não é caixa)",
@@ -1164,7 +1125,7 @@ export default function FinanceiroPage() {
                     icon={TrendingDown}
                     iconColor="text-red-600"
                     meta={`${summary?.saidasCount ?? 0} transações`}
-                    help="Dinheiro que saiu para freelancers no período: repasses pagos + bônus. Não inclui estornos (card próprio)."
+                    help="Dinheiro que saiu para freelancers no período: repasses pagos + bônus. Não inclui estornos (card próprio). Pagamentos aguardando a fatura da empresa só entram quando saem."
                     details={{
                       calc:
                         summary?.calc?.saidas ??
@@ -1266,7 +1227,7 @@ export default function FinanceiroPage() {
 
       {tab === "Pagamentos" && <PaymentsTab />}
 
-      {tab === "Repasses" && <RepassesTab />}
+      {tab === "Pagamentos aos freelancers" && <FreelancerPayoutsView />}
 
       {tab === "Empresas faturadas" && (
         <BillingCompaniesView
@@ -1278,7 +1239,11 @@ export default function FinanceiroPage() {
       )}
 
       {tab === "Faturas" && (
-        <InvoicesView company={invoiceCompany} onClearCompany={() => setInvoiceCompany(null)} />
+        <InvoicesView
+          company={invoiceCompany}
+          onClearCompany={() => setInvoiceCompany(null)}
+          onSeeHeld={() => setTab("Pagamentos aos freelancers")}
+        />
       )}
 
       {tab === "Estornos & Cancelamentos" && (
