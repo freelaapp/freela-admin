@@ -3,8 +3,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiErrorOf } from "../infrastructure/api-error";
 import {
+  listFailedWithdrawals,
   listHeldRepasses,
   releaseHeldRepasse,
+  retryWithdrawal,
   type HeldRepassesParams,
 } from "../infrastructure/held-repasses-api";
 import { releaseErrorOf } from "./held-repasses-presentation";
@@ -62,5 +64,32 @@ export function useReleaseHeldRepasse() {
     onError: (error) => {
       if (releaseErrorOf(error).refresh) return refresh();
     },
+  });
+}
+
+/** Saques parados: a fila do "Reenviar saque". 404 (API sem a rota) não tenta de novo nem recarrega. */
+export function useFailedWithdrawals() {
+  return useQuery({
+    queryKey: ["admin", "repasses", "failed-withdrawals"] as const,
+    queryFn: listFailedWithdrawals,
+    staleTime: 30000,
+    refetchInterval: (query) => (apiErrorOf(query.state.error).status === 404 ? false : 120000),
+    retry: retryUnlessClientError,
+  });
+}
+
+/** "Reenviar saque": depois (deu certo ou a lista estava velha), recarrega a fila e os repasses. */
+export function useRetryWithdrawal() {
+  const qc = useQueryClient();
+  const refresh = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ["admin", "repasses"] }),
+      qc.invalidateQueries({ queryKey: ["admin", "finance"] }),
+    ]);
+  return useMutation({
+    mutationFn: (input: { repasseId: string; reason: string }) =>
+      retryWithdrawal(input.repasseId, { reason: input.reason }),
+    onSuccess: refresh,
+    onError: refresh,
   });
 }

@@ -293,3 +293,64 @@ export async function releaseHeldRepasse(
     failureReason: text(raw.failureReason),
   };
 }
+
+/**
+ * Saques parados (19/10/2026): o crédito na subconta do freelancer saiu, mas o saque
+ * para o banco foi recusado pela Woovi (FAILED) — o dinheiro está na subconta.
+ * - `GET /v1/admin/repasses/failed-withdrawals`: a fila;
+ * - `POST /v1/admin/repasses/:repasseId/retry-withdrawal { reason }`: "Reenviar saque".
+ * Antes do deploy da API as rotas dão 404: quem chama esconde o painel.
+ */
+export interface FailedWithdrawalItem {
+  repasseId: string;
+  vacancyId: string;
+  amountInCents: number;
+  freelancerName: string | null;
+  failureReason: string | null;
+  failedAt: string | null;
+}
+
+export function failedWithdrawalOf(raw: unknown): FailedWithdrawalItem | null {
+  if (!isObj(raw)) return null;
+  const repasseId = text(raw.repasseId);
+  const amountInCents = cents(raw.amountInCents);
+  if (!repasseId || amountInCents === null) return null;
+  return {
+    repasseId,
+    vacancyId: textOr(raw.vacancyId, ""),
+    amountInCents,
+    freelancerName: text(raw.freelancerName),
+    failureReason: text(raw.failureReason),
+    failedAt: instant(raw.failedAt),
+  };
+}
+
+export async function listFailedWithdrawals(): Promise<FailedWithdrawalItem[]> {
+  const res = await adminApi.get("/repasses/failed-withdrawals");
+  const raw: unknown[] = Array.isArray(res.data?.data) ? res.data.data : [];
+  return raw.map(failedWithdrawalOf).filter((item): item is FailedWithdrawalItem => item !== null);
+}
+
+export interface RetryWithdrawalResult {
+  repasseId: string;
+  vacancyId: string;
+  /** `PENDING` = a Woovi aceitou (o Pix cai em minutos); `FAILED` = recusou de novo. */
+  withdrawalStatus: string | null;
+  failureReason: string | null;
+}
+
+export async function retryWithdrawal(
+  repasseId: string,
+  input: { reason: string },
+): Promise<RetryWithdrawalResult> {
+  const res = await adminApi.post(`/repasses/${encodeURIComponent(repasseId)}/retry-withdrawal`, {
+    reason: input.reason.trim(),
+  });
+  const raw = isObj(res.data?.data) ? res.data.data : {};
+  return {
+    repasseId: textOr(raw.repasseId, repasseId),
+    vacancyId: textOr(raw.vacancyId, ""),
+    withdrawalStatus: text(raw.withdrawalStatus),
+    failureReason: text(raw.failureReason),
+  };
+}

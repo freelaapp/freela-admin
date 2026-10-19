@@ -327,3 +327,35 @@ export function releaseOutcomeOf(
       };
   }
 }
+
+/** Erro do "Reenviar saque" em português, com o que aconteceu com o dinheiro. */
+export function retryWithdrawalErrorOf(err: unknown): { text: string; refresh: boolean } {
+  const { status, code } = apiErrorOf(err);
+  switch (code) {
+    case "REASON_REQUIRED":
+      return { text: RELEASE_REASON_HINT, refresh: false };
+    case "WITHDRAWAL_NOT_FAILED":
+      return {
+        text: "Este saque já foi enviado ou pago. Nada foi enviado de novo. A lista foi atualizada.",
+        refresh: true,
+      };
+    case "SUBACCOUNT_BALANCE_MISSING":
+      return {
+        text: "A subconta do freelancer não tem mais este valor (pode ter sido sacado por fora). Nada foi enviado. Confira na Woovi.",
+        refresh: false,
+      };
+    case "REPASSE_NOT_FOUND":
+      return { text: "Não achamos este pagamento. Nada foi enviado. A lista foi atualizada.", refresh: true };
+  }
+  if (status === 403) return { text: "Só quem tem acesso ao Financeiro pode reenviar o saque.", refresh: false };
+  if (status === 404) {
+    return { text: "O \"Reenviar saque\" ainda não está disponível neste ambiente. Nada foi enviado.", refresh: false };
+  }
+  if (status !== null && status >= 400 && status < 500) {
+    return { text: "Não foi possível reenviar. Nada foi enviado. Recarregue a lista e tente de novo.", refresh: true };
+  }
+  return {
+    text: "Não conseguimos confirmar se o saque foi pedido. Recarregue a lista antes de tentar de novo, para não sacar duas vezes.",
+    refresh: true,
+  };
+}

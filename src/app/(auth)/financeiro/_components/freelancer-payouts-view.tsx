@@ -44,6 +44,7 @@ import {
   type HeldRepasseItem,
   type HeldSituationFilter,
 } from "@/modules/admin/infrastructure/held-repasses-api";
+import { FailedWithdrawalsPanel } from "./failed-withdrawals-panel";
 import { ReleasePayoutDialog } from "./release-payout-dialog";
 
 /** A lista é pequena (dezenas): uma página grande deixa a busca valer para todos. */
@@ -87,6 +88,7 @@ export function FreelancerPayoutsView() {
 
   return (
     <div className="space-y-6">
+      <FailedWithdrawalsPanel />
       {!unavailable && <PayoutCards held={held} summary={summary} />}
 
       <div role="group" aria-label="Pagamentos aos freelancers" className="flex flex-wrap gap-1.5">
