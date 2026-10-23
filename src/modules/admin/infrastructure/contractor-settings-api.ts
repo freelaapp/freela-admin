@@ -42,6 +42,12 @@ export interface ContractorSettingsView extends PaperworkPrefs {
   updatedAt: string | null;
   updatedBy: SettingsActorKind | null;
   options: PaperworkOption[];
+  /**
+   * Documentos da empresa que a API emite (plano 2026-10-22 §2.16, AD-D): Nota
+   * de Débito e comprovante, cada um com a sua chave. Ausente (API de hoje) =
+   * o texto de hoje.
+   */
+  companyDocuments?: { debitNote: boolean; paymentProof: boolean };
 }
 
 /** Uma linha da trilha: uma por campo alterado, do mais novo para o mais velho. */

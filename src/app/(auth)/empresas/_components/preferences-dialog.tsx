@@ -279,8 +279,10 @@ function PaperworkForm({
     <div>
       <div className="max-h-[55vh] overflow-y-auto pr-1">
         <p className="text-sm text-[#737373]">
-          Valem para as vagas publicadas depois da mudança. Recibo, recibo do freelancer e nota
-          fiscal da taxa sempre saem.
+          {/* AD-D: com a Nota de Débito ligada na API, ela é o documento da empresa. */}
+          {view.companyDocuments?.debitNote === true
+            ? "Valem para as vagas publicadas depois da mudança. Nota de Débito, recibo do freelancer e nota fiscal da taxa sempre saem."
+            : "Valem para as vagas publicadas depois da mudança. Recibo, recibo do freelancer e nota fiscal da taxa sempre saem."}
         </p>
         <ul className="mt-4 divide-y divide-[#e5e5e5]">
           {paperworkOptions(view.options).map(({ key, title, summary }) => {
