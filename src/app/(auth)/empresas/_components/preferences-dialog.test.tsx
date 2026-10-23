@@ -128,6 +128,20 @@ describe("PreferencesDialog — aba Burocracias", () => {
     ).toBeInTheDocument();
   });
 
+  it("com a Nota de Débito ligada na API: 'Nota de Débito, recibo do freelancer e nota fiscal da taxa sempre saem.'", async () => {
+    vi.mocked(getContractorSettings).mockResolvedValue({
+      ...VIEW,
+      companyDocuments: { debitNote: true, paymentProof: true },
+    });
+    renderDialog();
+
+    expect(
+      await screen.findByText(
+        "Valem para as vagas publicadas depois da mudança. Nota de Débito, recibo do freelancer e nota fiscal da taxa sempre saem.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("'Salvar burocracias' desabilitado sem mudança ou com motivo < 5", async () => {
     renderDialog();
     const contract = await contractSwitch();

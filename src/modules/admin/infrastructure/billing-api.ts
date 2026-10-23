@@ -326,7 +326,17 @@ export interface AdminInvoiceDetail {
    * paga cuja nota ainda não foi pedida, ou com a API anterior ao campo.
    */
   nfse: AdminInvoiceNfse | null;
-  links: { pdfRoute: string; contractorWebUrl: string };
+  /**
+   * `chargePdfRoute` e `debitNotePdfRoute` só com `INVOICE_DOCUMENTS_V2_ENABLED`
+   * (api #629, plano 2026-10-22 TD3.5); com eles, `pdfRoute` é o Fechamento
+   * financeiro. A tela usa a presença como sinal e monta a URL com `invoicePath`.
+   */
+  links: {
+    pdfRoute: string;
+    contractorWebUrl: string;
+    chargePdfRoute?: string;
+    debitNotePdfRoute?: string;
+  };
 }
 
 /** Um número do topo: valor, a conta (`calc`/`meta`) e a fonte (`source`/`help`). */
@@ -594,6 +604,18 @@ export async function getAdminInvoice(id: string): Promise<AdminInvoiceDetail> {
 /** O PDF precisa do token: baixa como blob pelo cliente autenticado. */
 export async function downloadAdminInvoicePdf(id: string): Promise<Blob> {
   const res = await billingApi.get(`${invoicePath(id)}/pdf`, { responseType: "blob" });
+  return res.data;
+}
+
+/** Cobrança (Pix) da fatura em PDF, a mesma da empresa (api #629). */
+export async function downloadAdminInvoiceChargePdf(id: string): Promise<Blob> {
+  const res = await billingApi.get(`${invoicePath(id)}/charge.pdf`, { responseType: "blob" });
+  return res.data;
+}
+
+/** Nota de Débito da fatura em PDF (api #629). Sem ND, 404 `DEBIT_NOTE_NOT_FOUND`. */
+export async function downloadAdminInvoiceDebitNotePdf(id: string): Promise<Blob> {
+  const res = await billingApi.get(`${invoicePath(id)}/debit-note.pdf`, { responseType: "blob" });
   return res.data;
 }
 

@@ -4,6 +4,7 @@ import {
   DOCUMENT_KEYS,
   channelLabel,
   documentBadge,
+  documentKeysFor,
   formatAgo,
   statusLabel,
   statusTone,
@@ -123,5 +124,45 @@ describe("formatAgo", () => {
 
   it("valor negativo (relógio adiantado) não vira texto estranho", () => {
     expect(formatAgo(-5)).toBe("agora");
+  });
+});
+
+// Plano 2026-10-22 §2.16 (AD-D): pastilhas da empresa (Nota de Débito e
+// comprovante de pagamento) só quando a API manda a chave em `documents`
+// (DEBIT_NOTE_ENABLED / PAYMENT_PROOF_ENABLED). Sem elas, as quatro de hoje.
+describe("documentKeysFor", () => {
+  const TODAY = { contract: "OK", receipt: "OK", rpa: "OK", nfse: "OK" };
+
+  it("sem os documentos da empresa (chaves desligadas ou API antiga): as quatro de hoje", () => {
+    expect(documentKeysFor(TODAY)).toEqual(DOCUMENT_KEYS);
+    expect(documentKeysFor(null)).toEqual(DOCUMENT_KEYS);
+    expect(documentKeysFor(undefined)).toEqual(DOCUMENT_KEYS);
+  });
+
+  it("pastilha ND: a Nota de Débito entra no fim e o 'Recibo' vira 'Recibo do freelancer'", () => {
+    const keys = documentKeysFor({ ...TODAY, debitNote: "OK" });
+
+    expect(keys.map((d) => d.short)).toEqual(["C", "R", "RPA", "NF", "ND"]);
+    expect(keys.find((d) => d.key === "debitNote")?.label).toBe("Nota de Débito");
+    expect(keys.find((d) => d.key === "receipt")?.label).toBe("Recibo do freelancer");
+  });
+
+  it("comprovante: pastilha PG no fim; sem a ND, o 'Recibo' fica como hoje", () => {
+    const keys = documentKeysFor({ ...TODAY, paymentProof: "NA" });
+
+    expect(keys.map((d) => d.short)).toEqual(["C", "R", "RPA", "NF", "PG"]);
+    expect(keys.find((d) => d.key === "paymentProof")?.label).toBe("Comprovante de pagamento");
+    expect(keys.find((d) => d.key === "receipt")?.label).toBe("Recibo");
+  });
+
+  it("as duas: ND e PG, nessa ordem, sem mexer nas posições de hoje", () => {
+    expect(documentKeysFor({ ...TODAY, paymentProof: "OK", debitNote: "NA" }).map((d) => d.short)).toEqual([
+      "C",
+      "R",
+      "RPA",
+      "NF",
+      "ND",
+      "PG",
+    ]);
   });
 });

@@ -624,6 +624,13 @@ export interface VacancyDocuments {
   receipt: VacancyDocumentState;
   rpa: VacancyDocumentState;
   nfse: VacancyDocumentState;
+  /**
+   * Documentos da EMPRESA (api #626, plano 2026-10-22 TD2.3): só com
+   * `DEBIT_NOTE_ENABLED` / `PAYMENT_PROOF_ENABLED`; ausentes = a resposta de hoje.
+   * Sem linha, `NA` com o motivo em `documentsDetail` (nunca `MISSING`).
+   */
+  debitNote?: VacancyDocumentState;
+  paymentProof?: VacancyDocumentState;
 }
 
 export type VacancyDocumentsDetail = Partial<Record<keyof VacancyDocuments, string>>;

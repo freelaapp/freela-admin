@@ -11,6 +11,8 @@ import {
   billingErrorOf,
   closeInvoiceNow,
   createBillingAdjustment,
+  downloadAdminInvoiceChargePdf,
+  downloadAdminInvoiceDebitNotePdf,
   downloadAdminInvoicePdf,
   getAdminInvoice,
   getBillingSummary,
@@ -82,6 +84,14 @@ describe("billing-api", () => {
     get.mockResolvedValueOnce({ data: pdf });
     await expect(downloadAdminInvoicePdf("inv-1")).resolves.toBe(pdf);
     expect(get).toHaveBeenLastCalledWith("/billing/invoices/inv-1/pdf", { responseType: "blob" });
+
+    // AD-D (api #629): Cobrança e Nota de Débito da fatura, com o token.
+    get.mockResolvedValueOnce({ data: pdf });
+    await expect(downloadAdminInvoiceChargePdf("inv-1")).resolves.toBe(pdf);
+    expect(get).toHaveBeenLastCalledWith("/billing/invoices/inv-1/charge.pdf", { responseType: "blob" });
+    get.mockResolvedValueOnce({ data: pdf });
+    await expect(downloadAdminInvoiceDebitNotePdf("inv-1")).resolves.toBe(pdf);
+    expect(get).toHaveBeenLastCalledWith("/billing/invoices/inv-1/debit-note.pdf", { responseType: "blob" });
 
     await resendInvoice("inv-1", { reason: " Cliente pediu ", channels: ["email"] });
     expect(post).toHaveBeenLastCalledWith("/billing/invoices/inv-1/resend", {

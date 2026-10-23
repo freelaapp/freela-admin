@@ -35,6 +35,15 @@ describe("canOpenDocument", () => {
   it("aceita estado em minúsculas", () => {
     expect(canOpenDocument("receipt", "ok")).toBe(true);
   });
+
+  it("Nota de Débito e comprovante (AD-D): só abrem emitidos", () => {
+    for (const key of ["debitNote", "paymentProof"] as const) {
+      expect(canOpenDocument(key, "OK")).toBe(true);
+      for (const state of ["PENDING", "FAILED", "NA"]) {
+        expect(canOpenDocument(key, state)).toBe(false);
+      }
+    }
+  });
 });
 
 describe("withNoScriptPolicy", () => {

@@ -15,6 +15,8 @@ vi.mock("@/modules/auth/application/use-area-guard", () => ({
 vi.mock("@/modules/admin/infrastructure/billing-api", () => ({
   getAdminInvoice: vi.fn(),
   downloadAdminInvoicePdf: vi.fn(),
+  downloadAdminInvoiceChargePdf: vi.fn(),
+  downloadAdminInvoiceDebitNotePdf: vi.fn(),
   getBillingSummary: vi.fn(),
   reissueInvoiceNfse: vi.fn(),
 }));
@@ -22,6 +24,8 @@ vi.mock("@/modules/admin/infrastructure/billing-api", () => ({
 import { toast } from "sonner";
 import { DETAIL, SUMMARY } from "@/modules/admin/application/billing.test-fixtures";
 import {
+  downloadAdminInvoiceChargePdf,
+  downloadAdminInvoiceDebitNotePdf,
   downloadAdminInvoicePdf,
   getAdminInvoice,
   getBillingSummary,
@@ -800,5 +804,109 @@ describe("Detalhe da fatura — Reemitir nota", () => {
     resolveFirst({ status: "PENDING", number: null, failureReason: null });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(reissueInvoiceNfse).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Plano 2026-10-22 §2.16 (AD-D), api #629: com INVOICE_DOCUMENTS_V2_ENABLED, os
+// `links` trazem a Cobrança e a Nota de Débito e o PDF de hoje é o Fechamento
+// financeiro. Sem os links novos, o "Baixar PDF" de hoje.
+describe("Detalhe da fatura — documentos (AD-D)", () => {
+  const V2_LINKS = {
+    ...DETAIL.links,
+    chargePdfRoute: "/v1/admin/billing/invoices/inv-123/charge.pdf",
+    debitNotePdfRoute: "/v1/admin/billing/invoices/inv-123/debit-note.pdf",
+  };
+
+  function stubDownload() {
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:doc"), revokeObjectURL: vi.fn() });
+    return vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  }
+
+  it("com os links novos: Fechamento financeiro, Cobrança e Nota de Débito no lugar de 'Baixar PDF'", async () => {
+    vi.mocked(getAdminInvoice).mockResolvedValue({ ...DETAIL, links: V2_LINKS });
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Fechamento financeiro (PDF)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cobrança (PDF)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nota de Débito (PDF)" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Baixar PDF" })).not.toBeInTheDocument();
+  });
+
+  it("sem os links novos (chave desligada ou API antiga): só o 'Baixar PDF' de hoje", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Baixar PDF" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Nota de Débito/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cobrança \(PDF\)/ })).not.toBeInTheDocument();
+  });
+
+  it("sem o link da Nota de Débito: Fechamento e Cobrança, sem a ND", async () => {
+    vi.mocked(getAdminInvoice).mockResolvedValue({
+      ...DETAIL,
+      links: { ...V2_LINKS, debitNotePdfRoute: undefined },
+    });
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Cobrança (PDF)" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Nota de Débito (PDF)" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["Fechamento financeiro (PDF)", downloadAdminInvoicePdf, "fechamento-financeiro-FAT-2026-000123.pdf"],
+    ["Cobrança (PDF)", downloadAdminInvoiceChargePdf, "cobranca-FAT-2026-000123.pdf"],
+    ["Nota de Débito (PDF)", downloadAdminInvoiceDebitNotePdf, "nota-de-debito-FAT-2026-000123.pdf"],
+  ])("%s baixa com o token e o nome do arquivo", async (name, download, filename) => {
+    vi.mocked(getAdminInvoice).mockResolvedValue({ ...DETAIL, links: V2_LINKS });
+    vi.mocked(download).mockResolvedValue(new Blob(["%PDF"]));
+    let saved = "";
+    const click = stubDownload();
+    click.mockImplementation(function (this: HTMLAnchorElement) {
+      saved = this.download;
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name }));
+
+    await waitFor(() => expect(download).toHaveBeenCalledWith("inv-123"));
+    await waitFor(() => expect(saved).toBe(filename));
+    click.mockRestore();
+  });
+
+  it("Nota de Débito que não saiu (404): aviso neutro, não erro", async () => {
+    vi.mocked(getAdminInvoice).mockResolvedValue({ ...DETAIL, links: V2_LINKS });
+    vi.mocked(downloadAdminInvoiceDebitNotePdf).mockRejectedValue(
+      apiError(404, "DEBIT_NOTE_NOT_FOUND", "Nota de Débito não encontrada para esta fatura."),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Nota de Débito (PDF)" }));
+
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith(
+        "Esta fatura não tem Nota de Débito (a conta não fechou no fechamento ou a chave está desligada).",
+      ),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  // O PDF vem como blob: no 404 o corpo também é blob e o código não chega.
+  it("404 com o corpo em blob (sem código): o mesmo aviso neutro", async () => {
+    vi.mocked(getAdminInvoice).mockResolvedValue({ ...DETAIL, links: V2_LINKS });
+    const config = { headers: new AxiosHeaders() };
+    vi.mocked(downloadAdminInvoiceDebitNotePdf).mockRejectedValue(
+      new AxiosError("falhou", "404", config, null, {
+        status: 404,
+        statusText: "",
+        headers: {},
+        config,
+        data: new Blob(['{"error":{"code":"DEBIT_NOTE_NOT_FOUND"}}']),
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Nota de Débito (PDF)" }));
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalled());
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

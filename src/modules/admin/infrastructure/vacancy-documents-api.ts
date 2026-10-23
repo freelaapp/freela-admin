@@ -4,6 +4,9 @@ import { createAuthedClient } from "@/modules/shared/infrastructure/authed-clien
 // Documentos da vaga vivem sob /v1/admins (shared kernel), não sob a base de
 // bares-restaurantes do `adminApi` — mesmo esquema do consultants-api.
 const adminsRootApi = createAuthedClient("/v1/admins");
+// Nota de Débito e comprovante da empresa (api #625/#626): rotas do fiscal, que
+// aceitam o admin além da empresa dona da vaga. Não há rota em /v1/admins.
+const fiscalApi = createAuthedClient("/v1/fiscal");
 
 /** Documentos que a API devolve como HTML pronto para imprimir. */
 export type HtmlVacancyDocument = "contract" | "receipt" | "rpa";
@@ -44,6 +47,40 @@ export async function getVacancyDocumentHtml(
   try {
     const res = await adminsRootApi.get<string>(
       `/vacancies/${vacancyId}/documents/${document}`,
+      { responseType: "text" },
+    );
+    return res.data;
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response && typeof err.response.data === "string") {
+      try {
+        err.response.data = JSON.parse(err.response.data);
+      } catch {
+        // corpo não-JSON: mantém como veio
+      }
+    }
+    throw err;
+  }
+}
+
+/** Documentos da EMPRESA servidos como HTML pelo fiscal. */
+export type CompanyVacancyDocument = "debitNote" | "paymentProof";
+
+const COMPANY_DOCUMENT_PATH: Record<CompanyVacancyDocument, string> = {
+  debitNote: "debit-notes",
+  paymentProof: "payment-proofs",
+};
+
+/**
+ * HTML da Nota de Débito ou do comprovante de pagamento da vaga. 404
+ * (`DEBIT_NOTE_NOT_FOUND`/`PAYMENT_PROOF_NOT_FOUND`) quando não foi emitido.
+ */
+export async function getCompanyDocumentHtml(
+  vacancyId: string,
+  document: CompanyVacancyDocument,
+): Promise<string> {
+  try {
+    const res = await fiscalApi.get<string>(
+      `/${COMPANY_DOCUMENT_PATH[document]}/${vacancyId}/html`,
       { responseType: "text" },
     );
     return res.data;

@@ -98,7 +98,7 @@ export function channelLabel(channel: string): string {
 
 // ─── Documentos por vaga ────────────────────────────────────────────────────
 
-export type DocumentKey = "contract" | "receipt" | "rpa" | "nfse";
+export type DocumentKey = "contract" | "receipt" | "rpa" | "nfse" | "debitNote" | "paymentProof";
 
 export interface DocumentBadge {
   label: string;
@@ -125,13 +125,46 @@ export function documentBadge(state: string | null | undefined): DocumentBadge {
   return { label: key ?? "—", tone: "idle", symbol: "?" };
 }
 
+export interface DocumentKeyLabel {
+  key: DocumentKey;
+  short: string;
+  label: string;
+}
+
 /** Ordem fixa dos quatro documentos, com sigla (listagem) e nome (detalhe). */
-export const DOCUMENT_KEYS: readonly { key: DocumentKey; short: string; label: string }[] = [
+export const DOCUMENT_KEYS: readonly DocumentKeyLabel[] = [
   { key: "contract", short: "C", label: "Contrato" },
   { key: "receipt", short: "R", label: "Recibo" },
   { key: "rpa", short: "RPA", label: "RPA" },
   { key: "nfse", short: "NF", label: "NF-e" },
 ];
+
+/**
+ * Documentos da EMPRESA (plano 2026-10-22 §2.16, AD-D; UX §1.5): a Nota de
+ * Débito (ND) e o comprovante de pagamento (PG, o prefixo do número dele).
+ * Entram no FIM, para as quatro pastilhas de hoje não mudarem de lugar.
+ */
+const COMPANY_DOCUMENT_KEYS: readonly DocumentKeyLabel[] = [
+  { key: "debitNote", short: "ND", label: "Nota de Débito" },
+  { key: "paymentProof", short: "PG", label: "Comprovante de pagamento" },
+];
+
+/**
+ * As pastilhas de uma vaga. A API só manda `debitNote`/`paymentProof` com a
+ * chave de cada um ligada; sem elas, as quatro de hoje. Com a ND, o "Recibo"
+ * passa a "Recibo do freelancer": o documento da empresa é a ND.
+ */
+export function documentKeysFor(
+  documents: Partial<Record<DocumentKey, unknown>> | null | undefined,
+): readonly DocumentKeyLabel[] {
+  const company = COMPANY_DOCUMENT_KEYS.filter(({ key }) => documents?.[key] !== undefined);
+  if (company.length === 0) return DOCUMENT_KEYS;
+  const withDebitNote = company.some(({ key }) => key === "debitNote");
+  const base = DOCUMENT_KEYS.map((doc) =>
+    withDebitNote && doc.key === "receipt" ? { ...doc, label: "Recibo do freelancer" } : doc,
+  );
+  return [...base, ...company];
+}
 
 // ─── Auto-refresh ───────────────────────────────────────────────────────────
 
