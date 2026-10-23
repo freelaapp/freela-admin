@@ -40,11 +40,14 @@ export const BILLING_MODE_OPTION: Record<BillingMode, string> = {
   INVOICED_30: 'Faturado mensal ("boleto 30")',
 };
 
-/** O ciclo de cada modo. O horário do fechamento (08:00) é fixo na API. */
+/**
+ * O ciclo de cada modo, como o `billing-cycle.ts` da API calcula. O horário do
+ * fechamento (08:00) é fixo na API.
+ */
 export const CYCLE_DESCRIPTION: Record<BillingMode, string> = {
   PREPAID: "A empresa paga o Pix de cada contratação na hora do aceite.",
   INVOICED_7:
-    "Serviços de sexta a quinta. Fecha sexta às 08:00 e vence segunda (ou no próximo dia útil).",
+    "Serviços de segunda a domingo. Fecha segunda às 08:00 e vence quinta (ou no próximo dia útil).",
   INVOICED_15:
     "Serviços de 1 a 15 e de 16 ao fim do mês. Fecha nos dias 16 e 1 e vence 3 dias depois (ou no próximo dia útil).",
   INVOICED_30:

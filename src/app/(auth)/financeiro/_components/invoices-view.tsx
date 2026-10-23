@@ -308,7 +308,7 @@ export function InvoicesView({
       ) : emptyTotal ? (
         <div className="rounded-xl border border-dashed border-[#e5e5e5] p-6 text-center text-sm text-[#525252]">
           {hasInvoicedCompanies
-            ? "Nenhuma fatura fechada ainda. A primeira fecha às 08:00 do dia do fechamento (semanal: sexta) com os serviços realizados e confirmados até a véspera. As empresas no faturado estão em 'Empresas faturadas'."
+            ? "Nenhuma fatura fechada ainda. A primeira fecha às 08:00 do dia do fechamento (semanal: segunda) com os serviços realizados e confirmados até a véspera. As empresas no faturado estão em 'Empresas faturadas'."
             : "Nenhuma empresa no faturado ainda. Ligue em Empresas > Documentos e cobrança."}
         </div>
       ) : (

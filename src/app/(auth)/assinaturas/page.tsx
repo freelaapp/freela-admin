@@ -34,10 +34,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  useActivePlanCodes,
   useSubscriptionDetail,
   useSubscriptionMutations,
   useSubscriptions,
 } from "@/modules/admin/application/use-admin-subscriptions";
+import { PLAN_LABEL, assignablePlanOptions } from "@/modules/admin/domain/assignable-plans";
 import type {
   AdminActionType,
   PlanCode,
@@ -46,18 +48,6 @@ import type {
 import { trialListBadge } from "@/modules/admin/domain/fixed-job-trial";
 import { FixedJobTrialSection } from "./_components/fixed-job-trial-section";
 
-const PLAN_LABEL: Record<PlanCode, string> = {
-  FREE: "Grátis",
-  BASIC: "Básico",
-  VIP: "Vip",
-  ENTERPRISE: "Grandes Redes",
-};
-
-/** Pílulas de plano (mesma ordem do PLAN_LABEL). */
-const PLAN_OPTIONS = (Object.keys(PLAN_LABEL) as PlanCode[]).map((code) => ({
-  value: code,
-  label: PLAN_LABEL[code],
-}));
 
 
 const ACTION_LABEL: Record<AdminActionType, string> = {
@@ -290,6 +280,10 @@ export default function AssinaturasPage() {
 
 /** Painel de gestão de uma empresa: plano, cortesia, ciclo, cota e histórico. */
 function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: () => void }) {
+  // Só planos ativos para atribuir (o Básico ficou inativo em 22/10/2026). O
+  // rótulo do plano atual e a trilha continuam mostrando o Básico.
+  const activePlans = useActivePlanCodes();
+  const planOptions = assignablePlanOptions(activePlans.data);
   const storeId = row?.storeId ?? null;
   const { data: detail, isLoading } = useSubscriptionDetail(storeId);
   const { changePlan, courtesy, endCourtesy, extend, quota } = useSubscriptionMutations(storeId);
@@ -399,7 +393,7 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
                   <ChoicePills<PlanCode | "">
                     aria-label="Plano da cortesia"
                     className="mt-1"
-                    options={[{ value: "", label: "Manter o atual" }, ...PLAN_OPTIONS]}
+                    options={[{ value: "", label: "Manter o atual" }, ...planOptions]}
                     value={courtesyPlan}
                     onChange={setCourtesyPlan}
                   />
@@ -463,7 +457,7 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
                 <p className="text-sm text-neutral-600">Vale na hora, sem cobrança.</p>
                 <ChoicePills<PlanCode>
                   aria-label="Trocar de plano"
-                  options={PLAN_OPTIONS}
+                  options={planOptions}
                   value={pendingPlan ?? detail.plan.code}
                   disabled={busy}
                   onChange={(planCode) => {

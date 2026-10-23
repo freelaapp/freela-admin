@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BillingModeSettings } from "@/modules/admin/infrastructure/billing-mode-api";
 import {
+  CYCLE_DESCRIPTION,
   appUsageHint,
   billingChangeSummary,
   confirmCopy,
@@ -149,6 +150,16 @@ describe("billing-presentation — chave do bloqueio desconhecida", () => {
   it("bloqueio desligado (false): diz que está desligado", () => {
     expect(confirmCopy(VIEW, "INVOICED_7", "Bar do Zé", false).items[2]).toBe(
       "Sem multa e sem juros. O bloqueio por atraso (4º dia depois do vencimento) ainda está desligado.",
+    );
+  });
+});
+
+describe("CYCLE_DESCRIPTION — ciclo de cada modo", () => {
+  it("semanal: segunda a domingo, fecha segunda", () => {
+    // billing-cycle.ts da API (PR #611): segunda a domingo, fecha na segunda e
+    // vence 3 dias depois (quinta), ou no próximo dia útil.
+    expect(CYCLE_DESCRIPTION.INVOICED_7).toBe(
+      "Serviços de segunda a domingo. Fecha segunda às 08:00 e vence quinta (ou no próximo dia útil).",
     );
   });
 });

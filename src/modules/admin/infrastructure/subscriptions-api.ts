@@ -2,6 +2,8 @@ import { createAuthedClient } from "@/modules/shared/infrastructure/authed-clien
 import type { FixedJobTrialAdmin, FixedJobTrialSummary } from "../domain/fixed-job-trial";
 
 const subscriptionsApi = createAuthedClient("/v1/admin/subscriptions");
+/** Catálogo público (`/v1/plans`): só os planos ativos. */
+const plansApi = createAuthedClient("/v1/plans");
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -111,6 +113,16 @@ export interface ListParams {
 export async function listSubscriptions(params: ListParams): Promise<SubscriptionListResult> {
   const res = await subscriptionsApi.get("", { params });
   return { rows: res.data.data, meta: res.data.meta };
+}
+
+/**
+ * Códigos dos planos ativos, para os seletores de atribuir plano. O `/v1/plans`
+ * já devolve só os ativos; o filtro por `isActive` é para quando o campo vier.
+ */
+export async function listActivePlanCodes(): Promise<PlanCode[]> {
+  const res = await plansApi.get("");
+  const plans: { code: PlanCode; isActive?: boolean }[] = res.data?.data ?? [];
+  return plans.filter((plan) => plan.isActive !== false).map((plan) => plan.code);
 }
 
 export async function getSubscription(storeId: string): Promise<SubscriptionDetail> {
