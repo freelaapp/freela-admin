@@ -72,6 +72,62 @@ describe("computeVacancyMoney", () => {
     expect(m.reconciles).toBe(true);
   });
 
+  it("taxa 41,21 com extra 10,00 → intermediação 31,21 + vaga extra 10,00; o total não muda", () => {
+    // Coco Bambu Osasco (22/10), garçom no Grátis depois da cota: a API soma a vaga
+    // extra dentro da taxa (31,21 + 10,00 = 41,21) e do valor (156,06 + 10,00).
+    const m = computeVacancyMoney({
+      payment: 16606,
+      fixedFeeInCents: 185,
+      repasseLiquidoInCents: 12000,
+      taxaServicoInCents: 4121,
+      seguroInCents: 300,
+      inssInCents: 1320,
+      providerTakeInCents: 12000,
+      platformMarginInCents: 4121,
+      subscriptionDiscountInCents: 0,
+      extraJobFeeInCents: 1000,
+    });
+    expect(m.extraJobFeeCents).toBe(1000);
+    expect(m.intermediationCents).toBe(3121);
+    expect(m.taxaServicoCents).toBe(4121); // o campo da API segue igual
+    expect(m.contractorPaidCents).toBe(16606);
+    expect(m.residuoCents).toBe(4121 + 185); // intermediação + vaga extra + Pix
+    expect(m.reconciles).toBe(true);
+    expect(
+      m.intermediationCents! + m.extraJobFeeCents + m.pixCents! + m.seguroCents! + m.repasseCents,
+    ).toBe(16606);
+  });
+
+  it("sem vaga extra (ou API sem o campo): intermediação = taxa e extra 0", () => {
+    const m = computeVacancyMoney({
+      payment: 15606,
+      fixedFeeInCents: 185,
+      repasseLiquidoInCents: 12000,
+      taxaServicoInCents: 3121,
+      seguroInCents: 300,
+    });
+    expect(m.extraJobFeeCents).toBe(0);
+    expect(m.intermediationCents).toBe(3121);
+  });
+
+  it("legado: a margem antiga não inclui a vaga extra, então não desconta", () => {
+    const m = computeVacancyMoney({
+      payment: 16185,
+      freelancerAmountInCents: 12000,
+      platformFeeInCents: 3000,
+      fixedFeeInCents: 185,
+      extraJobFeeInCents: 1000,
+    });
+    expect(m.extraJobFeeCents).toBe(1000);
+    expect(m.intermediationCents).toBe(3000);
+    expect(m.residuoCents).toBe(3000 + 185); // conta legada intacta
+  });
+
+  it("sem taxa conhecida: intermediação null", () => {
+    const m = computeVacancyMoney({ payment: 10000, extraJobFeeInCents: 1000 });
+    expect(m.intermediationCents).toBeNull();
+  });
+
   it("decomposto que NÃO fecha: sinaliza para o painel alertar", () => {
     const m = computeVacancyMoney({
       payment: 15000,

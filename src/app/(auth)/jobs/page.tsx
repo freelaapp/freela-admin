@@ -66,6 +66,7 @@ import {
 } from "@/components/shared/refund-type-selector";
 import type { VacancyItem, RefundType } from "@/modules/admin/infrastructure/admin-api";
 import { computeVacancyMoney } from "@/modules/admin/domain/vacancy-money";
+import { isInvoicedVacancy } from "@/modules/admin/application/vacancy-documents-open";
 import { formatCents } from "@/lib/money";
 import { IssueReportQueue } from "@/components/admin/vacancy/issue-report-queue";
 import { IssueReportResolution } from "@/components/admin/vacancy/issue-report-resolution";
@@ -95,6 +96,21 @@ function mapVacancyStatus(status: string) {
   }
 }
 
+/**
+ * Título do valor no detalhe da vaga (AD-0b; textos da UX 2026-10-22 §7). "Pagou"
+ * só com o pagamento concluído: em 22/10 uma vaga Aberta da Coco Bambu Osasco, sem
+ * pagamento, aparecia como "Contratante pagou à plataforma R$ 141,06".
+ */
+function contractorPaymentHeading(v: VacancyItem): string {
+  if (isInvoicedVacancy(v.paymentMethod, v.nfseInvoice)) return "Entra na fatura da empresa";
+  if (v.paymentStatus === "PAID") return "Contratante pagou à plataforma";
+  if (v.paymentStatus === "PENDING" || v.paymentStatus === "NONE") {
+    return "Contratante vai pagar (quando escolher o freelancer)";
+  }
+  // API anterior ao campo: não afirma nem que pagou nem que vai pagar.
+  return "Contratante paga à plataforma";
+}
+
 function mapVacancyToRow(v: VacancyItem) {
   const start = formatTime(v.startTime);
   const end = formatTime(v.endTime);
@@ -112,6 +128,7 @@ function mapVacancyToRow(v: VacancyItem) {
     // "Valor" = o que o contratante paga à plataforma (só o serviço; INSS é recolhido
     // à parte, fora da plataforma). Decomposta ou legado, é sempre o serviço (= base).
     valor: formatCents(money.contractorPaidCents),
+    valorTitulo: contractorPaymentHeading(v),
     data: formatDate(v.date),
     // Quando a vaga foi PUBLICADA (≠ `data`, que é o dia do serviço).
     abertaEm: v.createdAt ? formatInstantDateTime(v.createdAt) : "—",
@@ -884,7 +901,12 @@ export default function JobsPage() {
 
       {/* Modal Detalhes da Vaga */}
       <Dialog open={!!modalDetalhes} onOpenChange={(open) => !open && setModalDetalhesId(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent
+          className="max-h-[85vh] overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Detalhes da Vaga"
+        >
           <DialogClose onClick={() => setModalDetalhesId(null)} />
           <DialogHeader>
             <DialogTitle>Detalhes da Vaga</DialogTitle>
@@ -924,13 +946,14 @@ export default function JobsPage() {
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.preenchidas}</p>
                 </div>
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
-                  <p className="text-[#737373]">Contratante pagou à plataforma</p>
+                  <p className="text-[#737373]">{modalDetalhes.valorTitulo}</p>
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.valor}</p>
                   {/* Discriminação (épico INSS por fora, 09/09): o que compõe o pago.
-                     Taxa de serviço já líquida do desconto do plano; Pix e seguro
-                     são fixos; o repasse fecha a conta. Legado: taxa − desconto + Pix. */}
+                     Taxa de serviço já líquida do desconto do plano; a vaga extra da
+                     cota do plano em linha própria (AD-0b); Pix e seguro são fixos;
+                     o repasse fecha a conta. Legado: taxa − desconto + Pix. */}
                   <dl className="mt-1.5 space-y-0.5 text-[10px] text-[#737373]">
-                    {modalDetalhes.money.taxaServicoCents != null && (
+                    {modalDetalhes.money.intermediationCents != null && (
                       <div className="flex justify-between gap-2">
                         <dt>
                           Taxa de serviço
@@ -941,7 +964,13 @@ export default function JobsPage() {
                             </span>
                           )}
                         </dt>
-                        <dd className="tabular-nums">{formatCents(modalDetalhes.money.taxaServicoCents)}</dd>
+                        <dd className="tabular-nums">{formatCents(modalDetalhes.money.intermediationCents)}</dd>
+                      </div>
+                    )}
+                    {modalDetalhes.money.extraJobFeeCents > 0 && (
+                      <div className="flex justify-between gap-2">
+                        <dt>Vaga extra do mês</dt>
+                        <dd className="tabular-nums">{formatCents(modalDetalhes.money.extraJobFeeCents)}</dd>
                       </div>
                     )}
                     {modalDetalhes.money.pixCents != null && (
@@ -961,7 +990,11 @@ export default function JobsPage() {
                       <dd className="tabular-nums">{formatCents(modalDetalhes.money.repasseCents)}</dd>
                     </div>
                     <div className="flex justify-between gap-2 border-t border-[#e5e5e5] pt-0.5 font-medium text-[#1d1d1b]">
-                      <dt>Nosso resíduo (taxa + Pix)</dt>
+                      <dt>
+                        {modalDetalhes.money.decomposed && modalDetalhes.money.extraJobFeeCents > 0
+                          ? "Nosso resíduo (taxa + vaga extra + Pix)"
+                          : "Nosso resíduo (taxa + Pix)"}
+                      </dt>
                       <dd className="tabular-nums">{formatCents(modalDetalhes.money.residuoCents)}</dd>
                     </div>
                   </dl>
