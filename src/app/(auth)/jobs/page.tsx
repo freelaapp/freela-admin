@@ -949,14 +949,15 @@ export default function JobsPage() {
                   <p className="text-[#737373]">{modalDetalhes.valorTitulo}</p>
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.valor}</p>
                   {/* Discriminação (épico INSS por fora, 09/09): o que compõe o pago.
-                     Taxa de serviço já líquida do desconto do plano; a vaga extra da
+                     Taxa de serviço já líquida do desconto do plano (na fórmula v2,
+                     "10% do valor do freelancer", sem desconto); a vaga extra da
                      cota do plano em linha própria (AD-0b); Pix e seguro são fixos;
                      o repasse fecha a conta. Legado: taxa − desconto + Pix. */}
                   <dl className="mt-1.5 space-y-0.5 text-[10px] text-[#737373]">
                     {modalDetalhes.money.intermediationCents != null && (
                       <div className="flex justify-between gap-2">
                         <dt>
-                          Taxa de serviço
+                          {modalDetalhes.money.intermediationLabel}
                           {modalDetalhes.money.discountCents > 0 && (
                             <span className="text-green-700">
                               {" "}

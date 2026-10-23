@@ -602,6 +602,14 @@ export interface VacancyItem {
    */
   extraJobFeeInCents?: number | null;
   /**
+   * Fórmula da taxa congelada na publicação (api #614/#619, planos 2026-10-22
+   * §1.9): `NET` = % do plano sobre o valor do freelancer, por fora; `GROSS` = a
+   * conta de antes (20% do bruto menos o desconto do plano). Ausente = API anterior.
+   */
+  feeBasis?: "GROSS" | "NET";
+  /** Taxa do plano congelada na vaga (`locked_plan_fee_percent`; vaga antiga = 20). */
+  lockedPlanFeePercent?: number | null;
+  /**
    * Vaga faturada: a fatura da NFS-e (API-3g, N11). Ausente no pré-pago e em
    * API que ainda não manda o campo; `null` antes de a vaga entrar numa fatura.
    */

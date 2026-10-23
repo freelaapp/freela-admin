@@ -353,7 +353,7 @@ export function IssueReportResolution({
               </p>
               <dl className="space-y-0.5 text-xs text-[#737373]">
                 {money.taxaServicoCents != null && (
-                  <LinhaValor rotulo="Taxa de serviço" valor={formatCents(money.taxaServicoCents)} />
+                  <LinhaValor rotulo={money.intermediationLabel} valor={formatCents(money.taxaServicoCents)} />
                 )}
                 {money.pixCents != null && (
                   <LinhaValor rotulo="Taxa Pix" valor={formatCents(money.pixCents)} />
