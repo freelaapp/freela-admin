@@ -250,6 +250,53 @@ describe("Vagas Empresa — detalhes: 'pagou' × 'vai pagar' e vaga extra (AD-0b
   });
 });
 
+describe("Vagas Empresa — detalhes: fórmula v2 (AD-V2)", () => {
+  // Vaga NET: o freelancer recebe 100,00, Grátis a 10% → 100,00 + 10,00 + 1,85 + 3,00 = 114,85.
+  const netVaga = (over: Partial<VacancyItem> = {}) =>
+    vaga({
+      status: "CLOSED",
+      payment: 11485,
+      fixedFeeInCents: 185,
+      repasseLiquidoInCents: 10000,
+      providerTakeInCents: 10000,
+      taxaServicoInCents: 1000,
+      platformMarginInCents: 1000,
+      seguroInCents: 300,
+      inssInCents: 1100,
+      subscriptionDiscountInCents: 0,
+      extraJobFeeInCents: 0,
+      paymentStatus: "PAID",
+      paymentMethod: "PIX",
+      feeBasis: "NET",
+      lockedPlanFeePercent: 10,
+      ...over,
+    });
+
+  function abrirDetalhes() {
+    render(ui());
+    fireEvent.click(screen.getAllByTitle("Ver")[0]);
+    return screen.getByRole("dialog");
+  }
+
+  it('vaga NET: "Taxa de serviço (10% do valor do freelancer)" 10,00, sem "(plano: −…)"', () => {
+    state.vacancies = [netVaga({ subscriptionDiscountInCents: 500 })];
+    const dialog = abrirDetalhes();
+
+    const fee = within(dialog).getByText("Taxa de serviço (10% do valor do freelancer)").closest("div") as HTMLElement;
+    expect(fee).toHaveTextContent(formatCents(1000));
+    expect(within(dialog).queryByText(/plano: −/)).not.toBeInTheDocument();
+    expect(within(dialog).getAllByText(formatCents(11485)).length).toBeGreaterThan(0);
+  });
+
+  it('vaga GROSS com plano: o rótulo de hoje e o "(plano: −…)"', () => {
+    state.vacancies = [netVaga({ feeBasis: "GROSS", lockedPlanFeePercent: 10, subscriptionDiscountInCents: 500 })];
+    const dialog = abrirDetalhes();
+
+    expect(within(dialog).queryByText("Taxa de serviço (10% do valor do freelancer)")).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/plano: −/)).toBeInTheDocument();
+  });
+});
+
 describe("Vagas Empresa — 'Cancelar Vaga' no celular", () => {
   it("o diálogo rola por dentro (motivo, estorno e botões não somem)", () => {
     render(ui());

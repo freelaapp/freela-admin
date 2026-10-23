@@ -182,3 +182,55 @@ describe("computeVacancyMoney", () => {
     expect(INSS_RATE_PERCENT).toBe(11);
   });
 });
+
+/**
+ * Fórmula v2 (decisão de 23/10/2026, arquitetura §1.9): a taxa é o % do plano sobre
+ * o valor do freelancer, por fora. R$ 100,00 a 10% → 100,00 + 10,00 + 1,85 + 3,00
+ * = R$ 114,85. A API manda `feeBasis` e `lockedPlanFeePercent` na lista (PR #614).
+ */
+describe("computeVacancyMoney — fórmula v2 (taxa sobre o valor do freelancer)", () => {
+  const net = {
+    payment: 11485,
+    fixedFeeInCents: 185,
+    repasseLiquidoInCents: 10000,
+    providerTakeInCents: 10000,
+    taxaServicoInCents: 1000,
+    platformMarginInCents: 1000,
+    seguroInCents: 300,
+    inssInCents: 1100,
+    subscriptionDiscountInCents: 0,
+    feeBasis: "NET" as const,
+    lockedPlanFeePercent: 10,
+  };
+
+  it("NET: taxa 10,00, sem desconto, reconcilia 114,85", () => {
+    const m = computeVacancyMoney(net);
+    expect(m.feeBasis).toBe("NET");
+    expect(m.intermediationLabel).toBe("Taxa de serviço (10% do valor do freelancer)");
+    expect(m.intermediationCents).toBe(1000);
+    expect(m.discountCents).toBe(0);
+    expect(m.residuoCents).toBe(1000 + 185);
+    expect(m.reconciles).toBe(true);
+    expect(m.intermediationCents! + m.pixCents! + m.seguroCents! + m.repasseCents).toBe(11485);
+  });
+
+  it('NET com desconto vindo por engano: sem "(plano: −…)" (a v2 não tem desconto)', () => {
+    expect(computeVacancyMoney({ ...net, subscriptionDiscountInCents: 500 }).discountCents).toBe(0);
+  });
+
+  it("NET sem o percentual: o rótulo diz a base, sem inventar número", () => {
+    expect(computeVacancyMoney({ ...net, lockedPlanFeePercent: null }).intermediationLabel).toBe(
+      "Taxa de serviço (sobre o valor do freelancer)",
+    );
+  });
+
+  it("GROSS ou API sem o campo: o rótulo de hoje, com o desconto do plano", () => {
+    const gross = computeVacancyMoney({ ...net, feeBasis: "GROSS", subscriptionDiscountInCents: 500 });
+    expect(gross.feeBasis).toBe("GROSS");
+    expect(gross.intermediationLabel).toBe("Taxa de serviço");
+    expect(gross.discountCents).toBe(500);
+    const old = computeVacancyMoney({ payment: 15000, platformFeeInCents: 3000 });
+    expect(old.feeBasis).toBe("GROSS");
+    expect(old.intermediationLabel).toBe("Taxa de serviço");
+  });
+});

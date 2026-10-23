@@ -23,6 +23,11 @@
  * Modelo legado (Casa / flag OFF / vaga antiga): net de 80%, sem INSS, resíduo =
  * taxa % + taxa fixa — byte-idêntico ao que o painel mostrava antes (só o rótulo
  * "lucro" vira "resíduo").
+ *
+ * Fórmula v2 (`feeBasis: 'NET'`, decisão de 23/10/2026, arquitetura §1.9): a taxa
+ * é o % do plano sobre o valor do freelancer, por fora (R$ 100,00 a 10% → 10,00;
+ * pago 114,85). Os números são os mesmos campos decompostos; muda só o rótulo
+ * ("Taxa de serviço (10% do valor do freelancer)") e não existe desconto do plano.
  */
 
 /** Alíquota do INSS provisionado. Espelha INSS_RATE_PERCENT do backend/web/app. */
@@ -49,9 +54,20 @@ export type VacancyMoneyInput = {
    * mostrar em linha própria.
    */
   extraJobFeeInCents?: number | null;
+  /** Fórmula da taxa congelada na vaga (api #614). Ausente = `GROSS`. */
+  feeBasis?: "GROSS" | "NET" | null;
+  /** Taxa do plano congelada na vaga, em %; na `NET`, sobre o valor do freelancer. */
+  lockedPlanFeePercent?: number | null;
 };
 
 export type VacancyMoney = {
+  /** Fórmula da taxa: `NET` (v2) ou `GROSS` (a conta de antes; também sem o campo). */
+  feeBasis: "GROSS" | "NET";
+  /**
+   * Rótulo da linha da taxa: "Taxa de serviço" (GROSS) ou "Taxa de serviço (10% do
+   * valor do freelancer)" (NET).
+   */
+  intermediationLabel: string;
   /** true quando a vaga é decomposta (empresa + flag): repasse imutável + INSS à parte. */
   decomposed: boolean;
   /** O que o freelancer REALMENTE recebe (repasse decomposto, ou net legado). */
@@ -86,7 +102,7 @@ export type VacancyMoney = {
   pixCents: number | null;
   /** Seguro (repassado à seguradora). Só decomposta. */
   seguroCents: number | null;
-  /** Desconto do plano já abatido da taxa (0 = sem plano). */
+  /** Desconto do plano já abatido da taxa (0 = sem plano). Sempre 0 na `NET`. */
   discountCents: number;
   /**
    * A conta fecha? Decomposta: taxa + pix + seguro + repasse === pago. Legado
@@ -95,10 +111,23 @@ export type VacancyMoney = {
   reconciles: boolean;
 };
 
+/** Rótulo da taxa pela fórmula da vaga. */
+function intermediationLabelFor(feeBasis: "GROSS" | "NET", lockedPlanFeePercent: number | null | undefined): string {
+  if (feeBasis !== "NET") return "Taxa de serviço";
+  if (typeof lockedPlanFeePercent !== "number" || !Number.isFinite(lockedPlanFeePercent)) {
+    return "Taxa de serviço (sobre o valor do freelancer)";
+  }
+  const percent = lockedPlanFeePercent.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  return `Taxa de serviço (${percent}% do valor do freelancer)`;
+}
+
 export function computeVacancyMoney(v: VacancyMoneyInput): VacancyMoney {
   const payment = Math.max(0, Math.trunc(v.payment ?? 0));
   const decomposedRepasse = v.repasseLiquidoInCents;
-  const discountCents = Math.max(0, Math.trunc(v.subscriptionDiscountInCents ?? 0));
+  const feeBasis = v.feeBasis === "NET" ? "NET" : "GROSS";
+  const intermediationLabel = intermediationLabelFor(feeBasis, v.lockedPlanFeePercent);
+  // A v2 não tem desconto do plano: a taxa já é o % do plano sobre o valor do freelancer.
+  const discountCents = feeBasis === "NET" ? 0 : Math.max(0, Math.trunc(v.subscriptionDiscountInCents ?? 0));
   const pixCents = v.fixedFeeInCents ?? null;
   const extraJobFeeCents = Math.max(0, Math.trunc(v.extraJobFeeInCents ?? 0));
 
@@ -113,6 +142,8 @@ export function computeVacancyMoney(v: VacancyMoneyInput): VacancyMoney {
     const seguroCents = v.seguroInCents ?? null;
     const hasBreakdown = taxaServicoCents != null && pixCents != null && seguroCents != null;
     return {
+      feeBasis,
+      intermediationLabel,
       decomposed: true,
       repasseCents,
       inssCents,
@@ -137,6 +168,8 @@ export function computeVacancyMoney(v: VacancyMoneyInput): VacancyMoney {
     v.platformMarginInCents ??
     (v.platformFeeInCents != null ? Math.max(0, v.platformFeeInCents - discountCents) : null);
   return {
+    feeBasis,
+    intermediationLabel,
     decomposed: false,
     repasseCents: Math.max(0, Math.trunc(v.providerTakeInCents ?? v.freelancerAmountInCents ?? 0)),
     inssCents: 0,
