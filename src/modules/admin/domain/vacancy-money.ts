@@ -43,6 +43,12 @@ export type VacancyMoneyInput = {
   inssInCents?: number | null;
   providerTakeInCents?: number | null;
   platformMarginInCents?: number | null;
+  /**
+   * Vaga extra da cota do plano (API-0b, 22/10/2026). Na vaga decomposta a API
+   * já a soma em `taxaServicoInCents` e em `payment`; vem à parte para a tela
+   * mostrar em linha própria.
+   */
+  extraJobFeeInCents?: number | null;
 };
 
 export type VacancyMoney = {
@@ -64,8 +70,18 @@ export type VacancyMoney = {
    * no decomposto; taxa % + taxa fixa no legado).
    */
   residuoCents: number;
-  /** Taxa de serviço (margem real, já líquida do desconto do plano). null = API sem o campo. */
+  /** Taxa de serviço (margem real, já líquida do desconto do plano). null = API sem o campo.
+   *  Na vaga decomposta inclui a vaga extra; para mostrar, use `intermediationCents`. */
   taxaServicoCents: number | null;
+  /** Vaga extra da cota do plano (0 = sem vaga extra). */
+  extraJobFeeCents: number;
+  /**
+   * A taxa de serviço sem a vaga extra: o que a tela chama de "Taxa de serviço",
+   * com a vaga extra em linha própria embaixo. Decomposta: taxa − vaga extra
+   * (a API soma as duas). Legado: a margem antiga, que não inclui a vaga extra.
+   * null = taxa desconhecida.
+   */
+  intermediationCents: number | null;
   /** Taxa Pix (fixa por vaga). */
   pixCents: number | null;
   /** Seguro (repassado à seguradora). Só decomposta. */
@@ -84,6 +100,7 @@ export function computeVacancyMoney(v: VacancyMoneyInput): VacancyMoney {
   const decomposedRepasse = v.repasseLiquidoInCents;
   const discountCents = Math.max(0, Math.trunc(v.subscriptionDiscountInCents ?? 0));
   const pixCents = v.fixedFeeInCents ?? null;
+  const extraJobFeeCents = Math.max(0, Math.trunc(v.extraJobFeeInCents ?? 0));
 
   if (decomposedRepasse != null) {
     const repasseCents = Math.max(0, Math.trunc(v.providerTakeInCents ?? decomposedRepasse));
@@ -102,6 +119,8 @@ export function computeVacancyMoney(v: VacancyMoneyInput): VacancyMoney {
       contractorPaidCents: payment, // a plataforma cobra só o serviço; INSS é à parte, fora da plataforma
       residuoCents: hasBreakdown ? taxaServicoCents + pixCents : payment - repasseCents,
       taxaServicoCents,
+      extraJobFeeCents,
+      intermediationCents: taxaServicoCents == null ? null : taxaServicoCents - extraJobFeeCents,
       pixCents,
       seguroCents,
       discountCents,
@@ -124,6 +143,8 @@ export function computeVacancyMoney(v: VacancyMoneyInput): VacancyMoney {
     contractorPaidCents: payment,
     residuoCents: (margin ?? 0) + (pixCents ?? 0),
     taxaServicoCents: margin,
+    extraJobFeeCents,
+    intermediationCents: margin,
     pixCents,
     seguroCents: null,
     discountCents,

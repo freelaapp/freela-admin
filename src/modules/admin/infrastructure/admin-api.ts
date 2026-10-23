@@ -591,6 +591,17 @@ export interface VacancyItem {
    */
   paymentMethod?: string | null;
   /**
+   * Situação do pagamento da vaga (api API-0b): `PAID` pagou (inclusive o
+   * faturado), `PENDING` cobrança esperando o contratante, `NONE` nada pago nem
+   * esperando. Ausente = API anterior ao campo (a tela não afirma "pagou").
+   */
+  paymentStatus?: "PAID" | "PENDING" | "NONE";
+  /**
+   * Vaga extra da cota do plano (api API-0b): R$ 10,00 da vaga além da cota do
+   * mês. Na vaga decomposta já vem somada em `taxaServicoInCents` e em `payment`.
+   */
+  extraJobFeeInCents?: number | null;
+  /**
    * Vaga faturada: a fatura da NFS-e (API-3g, N11). Ausente no pré-pago e em
    * API que ainda não manda o campo; `null` antes de a vaga entrar numa fatura.
    */

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { VacancyItem } from "@/modules/admin/infrastructure/admin-api";
+import { formatCents } from "@/lib/money";
 
 const state = vi.hoisted(() => ({
   vacancies: undefined as VacancyItem[] | undefined,
@@ -144,6 +145,108 @@ describe("Vagas Empresa — modal 'Detalhes da vaga'", () => {
     state.vacancies = [vaga()];
     rerender(ui());
     expect(screen.queryByText("Detalhes da Vaga")).not.toBeInTheDocument();
+  });
+});
+
+describe("Vagas Empresa — detalhes: 'pagou' × 'vai pagar' e vaga extra (AD-0b)", () => {
+  // Coco Bambu Osasco (22/10): vaga Aberta, sem pagamento, R$ 100,00 ao freelancer,
+  // aparecia como "Contratante pagou à plataforma R$ 141,06", com a vaga extra de
+  // R$ 10,00 escondida na "Taxa de serviço" (36,21 = 26,21 + 10,00).
+  const cocoBambu = (over: Partial<VacancyItem> = {}) =>
+    vaga({
+      status: "OPEN",
+      providerId: null,
+      providerName: null,
+      providerPixKeys: [],
+      payment: 14106,
+      fixedFeeInCents: 185,
+      repasseLiquidoInCents: 10000,
+      providerTakeInCents: 10000,
+      taxaServicoInCents: 3621,
+      platformMarginInCents: 3621,
+      seguroInCents: 300,
+      inssInCents: 1100,
+      subscriptionDiscountInCents: 0,
+      extraJobFeeInCents: 1000,
+      paymentStatus: "NONE",
+      paymentMethod: null,
+      ...over,
+    });
+
+  function abrirDetalhes() {
+    render(ui());
+    fireEvent.click(screen.getAllByTitle("Ver")[0]);
+    return screen.getByRole("dialog");
+  }
+
+  function linha(dialog: HTMLElement, rotulo: string) {
+    return within(dialog).getByText(rotulo).closest("div") as HTMLElement;
+  }
+
+  it('vaga aberta sem pagamento diz "vai pagar"', () => {
+    state.vacancies = [cocoBambu()];
+    const dialog = abrirDetalhes();
+
+    expect(within(dialog).getByText("Contratante vai pagar (quando escolher o freelancer)")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Contratante pagou à plataforma")).not.toBeInTheDocument();
+  });
+
+  it('Pix gerado e não pago (PENDING) também diz "vai pagar"', () => {
+    state.vacancies = [cocoBambu({ paymentStatus: "PENDING", paymentMethod: "PIX" })];
+    const dialog = abrirDetalhes();
+
+    expect(within(dialog).getByText("Contratante vai pagar (quando escolher o freelancer)")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Contratante pagou à plataforma")).not.toBeInTheDocument();
+  });
+
+  it('só diz "pagou" com o pagamento concluído', () => {
+    state.vacancies = [cocoBambu({ status: "CLOSED", paymentStatus: "PAID", paymentMethod: "PIX" })];
+    const dialog = abrirDetalhes();
+
+    expect(within(dialog).getByText("Contratante pagou à plataforma")).toBeInTheDocument();
+  });
+
+  it('faturado: "Entra na fatura da empresa"', () => {
+    state.vacancies = [cocoBambu({ status: "CLOSED", paymentStatus: "PAID", paymentMethod: "INVOICE" })];
+    const dialog = abrirDetalhes();
+
+    expect(within(dialog).getByText("Entra na fatura da empresa")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Contratante pagou à plataforma")).not.toBeInTheDocument();
+  });
+
+  it("API sem a situação do pagamento: não afirma que pagou nem que vai pagar", () => {
+    state.vacancies = [cocoBambu({ paymentStatus: undefined })];
+    const dialog = abrirDetalhes();
+
+    expect(within(dialog).getByText("Contratante paga à plataforma")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Contratante pagou à plataforma")).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByText("Contratante vai pagar (quando escolher o freelancer)"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("mostra Vaga extra 10,00 em linha própria", () => {
+    state.vacancies = [cocoBambu()];
+    const dialog = abrirDetalhes();
+
+    expect(linha(dialog, "Vaga extra do mês")).toHaveTextContent(formatCents(1000));
+    // A "Taxa de serviço" passa a ser só a intermediação (36,21 − 10,00).
+    expect(linha(dialog, "Taxa de serviço")).toHaveTextContent(formatCents(2621));
+    expect(linha(dialog, "Taxa de serviço")).not.toHaveTextContent(formatCents(3621));
+    // O total não muda, e o resíduo diz que leva a vaga extra.
+    expect(within(dialog).getAllByText(formatCents(14106)).length).toBeGreaterThan(0);
+    expect(linha(dialog, "Nosso resíduo (taxa + vaga extra + Pix)")).toHaveTextContent(
+      formatCents(2621 + 1000 + 185),
+    );
+  });
+
+  it("sem vaga extra: nenhuma linha de vaga extra", () => {
+    state.vacancies = [cocoBambu({ extraJobFeeInCents: 0, payment: 13106, taxaServicoInCents: 2621 })];
+    const dialog = abrirDetalhes();
+
+    expect(within(dialog).queryByText("Vaga extra do mês")).not.toBeInTheDocument();
+    expect(linha(dialog, "Taxa de serviço")).toHaveTextContent(formatCents(2621));
+    expect(within(dialog).getByText("Nosso resíduo (taxa + Pix)")).toBeInTheDocument();
   });
 });
 
