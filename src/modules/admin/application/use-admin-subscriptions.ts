@@ -10,6 +10,7 @@ import {
   getSubscription,
   grantCourtesy,
   grantFixedJobTrial,
+  listActivePlanCodes,
   listSubscriptions,
   revokeCourtesy,
   revokeFixedJobTrial,
@@ -26,6 +27,15 @@ export function useSubscriptions(params: ListParams) {
     queryKey: [...LIST_KEY, params],
     queryFn: () => listSubscriptions(params),
     staleTime: 30_000,
+  });
+}
+
+/** Planos ativos (para os seletores de atribuir). O catálogo muda raramente. */
+export function useActivePlanCodes() {
+  return useQuery({
+    queryKey: ["admin", "plans", "active"],
+    queryFn: listActivePlanCodes,
+    staleTime: 10 * 60_000,
   });
 }
 
