@@ -18,6 +18,8 @@ import {
 import { useAdminInvoice, useBillingSummary } from "@/modules/admin/application/use-admin-billing";
 import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import {
+  downloadAdminInvoiceChargePdf,
+  downloadAdminInvoiceDebitNotePdf,
   downloadAdminInvoicePdf,
   type AdminInvoiceDetail,
   type InvoiceReportItem,
@@ -28,6 +30,37 @@ import { InvoiceNfseBlock } from "../../_components/invoice-nfse-block";
 import { InvoiceSituationBadge } from "../../_components/invoice-situation-badge";
 
 const BACK_HREF = "/financeiro?aba=faturas";
+
+type InvoicePdfKind = "closing" | "charge" | "debitNote";
+
+/**
+ * Documentos da fatura com `INVOICE_DOCUMENTS_V2_ENABLED` (api #629, plano
+ * 2026-10-22 §2.16 AD-D): os mesmos PDFs que a empresa recebe. O Fechamento
+ * financeiro sai da rota do PDF de hoje.
+ */
+const INVOICE_PDFS: Record<
+  InvoicePdfKind,
+  { label: string; filePrefix: string; failure: string; download: (id: string) => Promise<Blob> }
+> = {
+  closing: {
+    label: "Fechamento financeiro",
+    filePrefix: "fechamento-financeiro",
+    failure: "Não foi possível baixar o Fechamento financeiro.",
+    download: downloadAdminInvoicePdf,
+  },
+  charge: {
+    label: "Cobrança",
+    filePrefix: "cobranca",
+    failure: "Não foi possível baixar a Cobrança.",
+    download: downloadAdminInvoiceChargePdf,
+  },
+  debitNote: {
+    label: "Nota de Débito",
+    filePrefix: "nota-de-debito",
+    failure: "Não foi possível baixar a Nota de Débito.",
+    download: downloadAdminInvoiceDebitNotePdf,
+  },
+};
 
 /**
  * Detalhe de uma fatura no admin (UX 7.5): cabeçalho com as datas, total com a
@@ -128,7 +161,14 @@ function Section({
 
 function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
   const { invoice, report } = detail;
-  const [downloading, setDownloading] = useState(false);
+  // `legacy` = o "Baixar PDF" de hoje (sem os links novos).
+  const [downloading, setDownloading] = useState<InvoicePdfKind | "legacy" | null>(null);
+  // AD-D: os links da Cobrança e da Nota de Débito só vêm com a chave ligada.
+  const pdfKinds: InvoicePdfKind[] = detail.links.chargePdfRoute
+    ? detail.links.debitNotePdfRoute
+      ? ["closing", "charge", "debitNote"]
+      : ["closing", "charge"]
+    : [];
   const lines: InvoiceReportItem[] = [
     ...report.services,
     ...report.additionalHours,
@@ -145,23 +185,24 @@ function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
       ? `${report.header.due} · ${blockLine(instantWithWeekday(invoice.blockFrom), blockEnabled)}`
       : report.header.due;
 
-  const downloadPdf = async () => {
-    setDownloading(true);
+  const downloadPdf = async (kind: InvoicePdfKind | "legacy") => {
+    const doc = kind === "legacy" ? null : INVOICE_PDFS[kind];
+    setDownloading(kind);
     try {
-      const blob = await downloadAdminInvoicePdf(invoice.id);
+      const blob = await (doc ? doc.download(invoice.id) : downloadAdminInvoicePdf(invoice.id));
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${invoice.number}.pdf`;
+      link.download = doc ? `${doc.filePrefix}-${invoice.number}.pdf` : `${invoice.number}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       // Liberar a URL no mesmo tique pode cancelar o download em alguns navegadores.
       setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch (err) {
-      toast.error(apiErrorOf(err).message ?? "Não foi possível baixar o PDF da fatura.");
+      toast.error(apiErrorOf(err).message ?? doc?.failure ?? "Não foi possível baixar o PDF da fatura.");
     } finally {
-      setDownloading(false);
+      setDownloading(null);
     }
   };
 
@@ -187,14 +228,34 @@ function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
             </h1>
             <InvoiceSituationBadge situation={detail.situation} />
           </div>
-          <Button variant="outline" onClick={downloadPdf} disabled={downloading}>
-            {downloading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-            )}
-            Baixar PDF
-          </Button>
+          {pdfKinds.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {pdfKinds.map((kind) => (
+                <Button
+                  key={kind}
+                  variant="outline"
+                  onClick={() => downloadPdf(kind)}
+                  disabled={downloading !== null}
+                >
+                  {downloading === kind ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  {`${INVOICE_PDFS[kind].label} (PDF)`}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <Button variant="outline" onClick={() => downloadPdf("legacy")} disabled={downloading !== null}>
+              {downloading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Baixar PDF
+            </Button>
+          )}
         </div>
         <p className="text-sm text-[#525252]">
           {`${report.header.mode} · ${report.header.period} · ${report.header.closed}`}
