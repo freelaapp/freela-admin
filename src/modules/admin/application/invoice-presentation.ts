@@ -63,6 +63,14 @@ const SKIP_TEXT: Record<string, string> = {
   "skipped:no_recipients": "não enviado (ninguém com o app)",
   // O admin não marcou o canal no reenvio: como ausente (UX 7.5).
   "skipped:not_selected": "—",
+  // Aviso partido (BILLING_EARLY_CLOSE_ENABLED, plano 2026-10-22 §2.7): o e-mail
+  // sai no fechamento das 06:00; push e WhatsApp, às 09:00 (passo ISSUED_MOBILE).
+  "skipped:sent_at_close": "já enviado no fechamento",
+};
+
+/** Canal do aviso das 06:00 que fica para a régua das 09:00. */
+const DEFERRED_TEXT: Record<string, string> = {
+  "deferred:09h": "adiado para as 09:00",
 };
 
 /** `sent` → "enviado"; `failed:*` → "falhou"; `skipped:*` → "não enviado (…)"; ausente → "—". */
@@ -71,6 +79,7 @@ export function channelText(value: string | null | undefined): string {
   if (value === "sent") return "enviado";
   if (value === "failed" || value.startsWith("failed:")) return "falhou";
   if (value in SKIP_TEXT) return SKIP_TEXT[value];
+  if (value in DEFERRED_TEXT) return DEFERRED_TEXT[value];
   if (value.startsWith("skipped")) return "não enviado";
   return value;
 }
@@ -87,6 +96,21 @@ export function channelsLine(channels: ChannelResults | null | undefined): strin
   return CHANNEL_NAMES.filter(([key]) => key in channels)
     .map(([key, name]) => `${name} ${channelText(channels[key])}`)
     .join(" · ");
+}
+
+// ─── Hora do fechamento ───────────────────────────────────────────────────────
+
+/** O fechamento de sempre, antes de a API mandar `closeHourLabel`. */
+export const DEFAULT_CLOSE_HOUR_LABEL = "08:00";
+
+/**
+ * "06:00" ou "08:00": a hora do fechamento que a API manda (plano 2026-10-22
+ * §2.8, `BILLING_EARLY_CLOSE_ENABLED`). Sem o campo (API antiga), "08:00".
+ */
+export function closeHourLabelOf(
+  source: { closeHourLabel?: string } | null | undefined,
+): string {
+  return source?.closeHourLabel || DEFAULT_CLOSE_HOUR_LABEL;
 }
 
 // ─── Datas e dinheiro ─────────────────────────────────────────────────────────

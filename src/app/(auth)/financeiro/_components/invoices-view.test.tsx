@@ -316,10 +316,20 @@ describe("InvoicesView — estados", () => {
 
     expect(
       await screen.findByText(
-        "Nenhuma fatura fechada ainda. A primeira fecha às 08:00 do dia do fechamento (semanal: sexta) com os serviços realizados e confirmados até a véspera. As empresas no faturado estão em 'Empresas faturadas'.",
+        "Nenhuma fatura fechada ainda. A primeira fecha às 08:00 do dia do fechamento (semanal: segunda) com os serviços realizados e confirmados até a véspera. As empresas no faturado estão em 'Empresas faturadas'.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Nenhuma empresa no faturado ainda/)).not.toBeInTheDocument();
+  });
+
+  it("vazio com empresas no faturado: mostra o horário que a API devolve", async () => {
+    vi.mocked(listAdminInvoices).mockResolvedValue(page([]));
+    vi.mocked(getBillingCompanies).mockResolvedValue({ ...COMPANIES, closeHourLabel: "06:00" });
+    renderView();
+
+    expect(
+      await screen.findByText(/A primeira fecha às 06:00 do dia do fechamento \(semanal: segunda\)/),
+    ).toBeInTheDocument();
   });
 
   it("com faturas na lista, a lista das empresas nem é lida (ela só decide o texto do vazio)", async () => {

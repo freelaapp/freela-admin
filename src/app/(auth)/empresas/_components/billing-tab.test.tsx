@@ -91,7 +91,7 @@ describe("BillingTab — modos e pré-requisitos", () => {
     expect(
       within(group).getByRole("radio", { name: 'Faturado semanal ("boleto 7")' }),
     ).toHaveAccessibleDescription(
-      "Serviços de sexta a quinta. Fecha sexta às 08:00 e vence segunda (ou no próximo dia útil).",
+      "Serviços de segunda a domingo. Fecha segunda às 08:00 e vence quinta (ou no próximo dia útil).",
     );
     expect(
       within(group).getByRole("radio", { name: 'Faturado quinzenal ("boleto 15")' }),
@@ -151,6 +151,20 @@ describe("BillingTab — modos e pré-requisitos", () => {
     expect(email).toHaveValue("");
     expect(email).toHaveAccessibleDescription(
       "As faturas vão para este e-mail. Vazio: vão para o e-mail de contato (contato@bardoze.com.br).",
+    );
+  });
+
+  it("mostra o horário que a API devolve (descrição do semanal e 1ª fatura)", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({ ...BILLING_VIEW, closeHourLabel: "06:00" });
+    renderTab({ blockEnabled: true });
+
+    const weekly = await screen.findByRole("radio", { name: 'Faturado semanal ("boleto 7")' });
+    expect(weekly).toHaveAccessibleDescription(
+      "Serviços de segunda a domingo. Fecha segunda às 06:00 e vence quinta (ou no próximo dia útil).",
+    );
+    fireEvent.click(weekly);
+    expect(screen.getByRole("region", { name: "O que muda" })).toHaveTextContent(
+      "1ª fatura: fecha sex 16/10 às 06:00 com os serviços realizados até qui 15/10; vence seg 19/10.",
     );
   });
 

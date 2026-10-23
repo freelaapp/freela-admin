@@ -456,6 +456,8 @@ export interface BillingCompanies {
   /** `false` com a chave do faturamento desligada (lista vazia). */
   invoicingEnabled: boolean;
   blockEnabled?: boolean;
+  /** "06:00" ou "08:00" (plano 2026-10-22 §2.8). Ausente na API de antes: vale "08:00". */
+  closeHourLabel?: string;
   cards: {
     companies: SummaryCard & {
       weekly: number;

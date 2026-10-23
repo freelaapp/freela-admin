@@ -15,6 +15,7 @@ import {
   useUpdateAdminBillingMode,
 } from "@/modules/admin/application/use-admin-billing-mode";
 import { useAdminContractorSettings } from "@/modules/admin/application/use-admin-contractor-settings";
+import { closeHourLabelOf } from "@/modules/admin/application/invoice-presentation";
 import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import type {
   BillingMode,
@@ -26,7 +27,7 @@ import {
   appUsageHint,
   BILLING_MODE_OPTION,
   BILLING_MODES,
-  CYCLE_DESCRIPTION,
+  cycleDescription,
   currentModeLabel,
   billingChangeSummary,
   isInvoicedMode,
@@ -152,7 +153,7 @@ function ReadOnlyBilling({
                       {BILLING_MODE_OPTION[option]}
                     </label>
                     <p id={`${optionId}-description`} className="mt-0.5 text-xs text-[#737373]">
-                      {CYCLE_DESCRIPTION[option]}
+                      {cycleDescription(option)}
                     </p>
                   </div>
                 </div>
@@ -308,7 +309,7 @@ function BillingForm({
                       {BILLING_MODE_OPTION[mode]}
                     </label>
                     <p id={descriptionId} className="mt-0.5 text-xs text-[#737373]">
-                      {CYCLE_DESCRIPTION[mode]}
+                      {cycleDescription(mode, closeHourLabelOf(view))}
                     </p>
                     {blocked && (
                       <p

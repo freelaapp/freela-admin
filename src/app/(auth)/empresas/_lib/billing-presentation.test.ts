@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { BillingModeSettings } from "@/modules/admin/infrastructure/billing-mode-api";
 import {
-  CYCLE_DESCRIPTION,
   appUsageHint,
   billingChangeSummary,
   confirmCopy,
+  cycleDescription,
   dayLabel,
   missingPhrase,
   requirementRows,
@@ -154,12 +154,29 @@ describe("billing-presentation — chave do bloqueio desconhecida", () => {
   });
 });
 
-describe("CYCLE_DESCRIPTION — ciclo de cada modo", () => {
-  it("semanal: segunda a domingo, fecha segunda", () => {
+describe("cycleDescription — ciclo de cada modo", () => {
+  it("semanal: segunda a domingo, fecha segunda (08:00 sem o horário da API)", () => {
     // billing-cycle.ts da API (PR #611): segunda a domingo, fecha na segunda e
     // vence 3 dias depois (quinta), ou no próximo dia útil.
-    expect(CYCLE_DESCRIPTION.INVOICED_7).toBe(
+    expect(cycleDescription("INVOICED_7")).toBe(
       "Serviços de segunda a domingo. Fecha segunda às 08:00 e vence quinta (ou no próximo dia útil).",
+    );
+  });
+
+  it("mostra o horário que a API devolve", () => {
+    expect(cycleDescription("INVOICED_7", "06:00")).toBe(
+      "Serviços de segunda a domingo. Fecha segunda às 06:00 e vence quinta (ou no próximo dia útil).",
+    );
+    expect(cycleDescription("PREPAID", "06:00")).toBe(
+      "A empresa paga o Pix de cada contratação na hora do aceite.",
+    );
+  });
+});
+
+describe("whatChanges — hora do fechamento vinda da API", () => {
+  it("mostra o horário que a API devolve na 1ª fatura", () => {
+    expect(whatChanges({ ...VIEW, closeHourLabel: "06:00" }, "INVOICED_7", undefined)).toContain(
+      "1ª fatura: fecha sex 16/10 às 06:00 com os serviços realizados até qui 15/10",
     );
   });
 });
