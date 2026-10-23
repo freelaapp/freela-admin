@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -9,13 +9,17 @@ vi.mock("@/modules/admin/infrastructure/vacancy-documents-api", async (importOri
   reissueVacancyNfse: vi.fn(),
   getVacancyNfse: vi.fn(),
   getVacancyDocumentHtml: vi.fn(),
+  getCompanyDocumentHtml: vi.fn(),
 }));
 
 import type {
   VacancyDocuments,
   VacancyDocumentsDetail,
 } from "@/modules/admin/infrastructure/admin-api";
-import type { VacancyNfseInvoice } from "@/modules/admin/infrastructure/vacancy-documents-api";
+import {
+  getCompanyDocumentHtml,
+  type VacancyNfseInvoice,
+} from "@/modules/admin/infrastructure/vacancy-documents-api";
 import { VacancyDocumentsCell } from "./vacancy-documents-cell";
 
 const ALL_OK: VacancyDocuments = { contract: "OK", receipt: "OK", rpa: "OK", nfse: "OK" };
@@ -170,5 +174,72 @@ describe("VacancyDocumentsCell — NFS-e da vaga faturada (AD2c.3)", () => {
     });
     expect(within(nfseItem()).getByRole("button", { name: /Reemitir/ })).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+});
+
+// Plano 2026-10-22 §2.16 (AD-D): Nota de Débito (ND) e comprovante de pagamento
+// (PG) da empresa, só quando a API manda a chave em `documents`.
+describe("VacancyDocumentsCell — documentos da empresa (AD-D)", () => {
+  function renderCompact(documents: VacancyDocuments) {
+    const qc = new QueryClient();
+    return render(
+      <QueryClientProvider client={qc}>
+        <VacancyDocumentsCell documents={documents} />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("pastilha ND na coluna da listagem, com o nome inteiro no title", () => {
+    const { container } = renderCompact({ ...ALL_OK, debitNote: "OK", paymentProof: "NA" });
+
+    const pills = Array.from(container.querySelectorAll("span[title]"));
+    // A sigla é o primeiro nó de texto da pastilha (depois vêm o símbolo e o rótulo do leitor de tela).
+    expect(pills.map((pill) => pill.childNodes[0]?.textContent)).toEqual(["C", "R", "RPA", "NF", "ND", "PG"]);
+    expect(pills[4]).toHaveAttribute("title", "Nota de Débito: Emitido");
+    expect(pills[5]).toHaveAttribute("title", "Comprovante de pagamento: Não se aplica");
+    expect(pills[1]).toHaveAttribute("title", "Recibo do freelancer: Emitido");
+  });
+
+  it("sem os campos novos (chaves desligadas ou API antiga): as quatro pastilhas de hoje", () => {
+    const { container } = renderCompact(ALL_OK);
+
+    const pills = Array.from(container.querySelectorAll("span[title]"));
+    expect(pills.map((pill) => pill.childNodes[0]?.textContent)).toEqual(["C", "R", "RPA", "NF"]);
+    expect(pills[1]).toHaveAttribute("title", "Recibo: Emitido");
+  });
+
+  it("detalhe: 'Abrir' da Nota de Débito emitida busca o HTML da rota da empresa", async () => {
+    vi.mocked(getCompanyDocumentHtml).mockResolvedValue("<html><head></head><body>ND</body></html>");
+    const tab = { document: { write: vi.fn() }, location: { href: "" }, close: vi.fn() };
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:nd"), revokeObjectURL: vi.fn() });
+    renderCell({ documents: { ...ALL_OK, debitNote: "OK" } });
+
+    const item = screen.getAllByRole("listitem").find((li) => li.textContent?.startsWith("Nota de Débito")) as HTMLElement;
+    fireEvent.click(within(item).getByRole("button", { name: /Abrir/ }));
+
+    await waitFor(() => expect(getCompanyDocumentHtml).toHaveBeenCalledWith("vac-1", "debitNote"));
+    await waitFor(() => expect(tab.location.href).toBe("blob:nd"));
+    open.mockRestore();
+  });
+
+  it("detalhe: Nota de Débito ainda não emitida não tem 'Abrir'", () => {
+    renderCell({ documents: { ...ALL_OK, debitNote: "NA" }, detail: { debitNote: "Sai depois do serviço" } });
+
+    const item = screen.getAllByRole("listitem").find((li) => li.textContent?.startsWith("Nota de Débito")) as HTMLElement;
+    expect(within(item).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByText("Sai depois do serviço")).toBeInTheDocument();
+  });
+
+  it("vaga faturada: a Nota de Débito é a da fatura (link), sem 'Abrir'", () => {
+    renderCell({
+      documents: { ...ALL_OK, debitNote: "NA" },
+      detail: { debitNote: "Vaga faturada: os documentos estão na fatura" },
+      paymentMethod: "INVOICE",
+      nfseInvoice: { invoiceId: "inv-140", number: "FAT-2026-000140" },
+    });
+
+    const link = screen.getByRole("link", { name: "Nota de Débito na fatura FAT-2026-000140" });
+    expect(link).toHaveAttribute("href", "/financeiro/faturas/inv-140");
   });
 });

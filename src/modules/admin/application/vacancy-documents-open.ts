@@ -1,4 +1,5 @@
 import {
+  getCompanyDocumentHtml,
   getVacancyDocumentHtml,
   getVacancyNfse,
   type VacancyNfseInvoice,
@@ -55,7 +56,10 @@ export async function openVacancyDocument(vacancyId: string, key: DocumentKey): 
       return;
     }
 
-    const html = await getVacancyDocumentHtml(vacancyId, key);
+    const html =
+      key === "debitNote" || key === "paymentProof"
+        ? await getCompanyDocumentHtml(vacancyId, key)
+        : await getVacancyDocumentHtml(vacancyId, key);
     const url = URL.createObjectURL(
       new Blob([withNoScriptPolicy(html)], { type: "text/html;charset=utf-8" }),
     );

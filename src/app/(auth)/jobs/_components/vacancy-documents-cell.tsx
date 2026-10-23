@@ -13,8 +13,8 @@ import {
 
 import type { VacancyDocuments, VacancyDocumentsDetail } from "@/modules/admin/infrastructure/admin-api";
 import {
-  DOCUMENT_KEYS,
   documentBadge,
+  documentKeysFor,
   toneClasses,
   type DocumentKey,
 } from "@/modules/admin/application/system-health-presentation";
@@ -45,6 +45,11 @@ import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-canc
  * "NFS-e na fatura FAT-…" com link para a fatura, sem "Reemitir" e sem "Abrir"
  * (não existe nota da vaga; a reemissão por vaga responde 404). A nota da
  * fatura é reemitida no detalhe da fatura ("Reemitir nota").
+ *
+ * Documentos da EMPRESA (plano 2026-10-22 §2.16, AD-D): pastilhas "ND" (Nota de
+ * Débito) e "PG" (comprovante de pagamento) no fim, só quando a API manda a
+ * chave em `documents`. Com a ND, o "R" passa a se chamar "Recibo do
+ * freelancer". Na vaga faturada, a ND é a da fatura (link, sem "Abrir").
  */
 export function VacancyDocumentsCell({
   documents,
@@ -122,10 +127,12 @@ export function VacancyDocumentsCell({
     );
   }
 
+  const keys = documentKeysFor(documents);
+
   if (variant === "compact") {
     return (
       <div className="flex items-center gap-1">
-        {DOCUMENT_KEYS.map(({ key, short, label }) => {
+        {keys.map(({ key, short, label }) => {
           const badge = documentBadge(documents[key]);
           const motivo = detail?.[key];
           return (
@@ -150,14 +157,19 @@ export function VacancyDocumentsCell({
   return (
     <DocumentsBox>
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
-        {DOCUMENT_KEYS.map(({ key, label }) => {
+        {keys.map(({ key, label }) => {
           const badge = documentBadge(documents[key]);
           const motivo = detail?.[key];
           // A NFS-e da vaga faturada é a da fatura: nada a abrir nem a reemitir aqui
           // (a reemissão fica no detalhe da fatura).
           const invoicedNfse = key === "nfse" && invoiced;
+          // A Nota de Débito do faturado também é uma por fatura (P6).
+          const invoicedDebitNote = key === "debitNote" && invoiced;
           const openable =
-            Boolean(vacancyId) && !invoicedNfse && canOpenDocument(key, documents[key]);
+            Boolean(vacancyId) &&
+            !invoicedNfse &&
+            !invoicedDebitNote &&
+            canOpenDocument(key, documents[key]);
           return (
             <li
               key={key}
@@ -178,6 +190,15 @@ export function VacancyDocumentsCell({
                 >
                   <ReceiptText className="w-3.5 h-3.5" aria-hidden="true" />
                   {`NFS-e na fatura ${invoiceLink.number}`}
+                </Link>
+              )}
+              {invoicedDebitNote && invoiceLink && (
+                <Link
+                  href={invoiceLink.href}
+                  className="inline-flex min-h-8 items-center gap-1 rounded px-1.5 font-medium text-[#b45309] underline-offset-2 hover:underline"
+                >
+                  <ReceiptText className="w-3.5 h-3.5" aria-hidden="true" />
+                  {`Nota de Débito na fatura ${invoiceLink.number}`}
                 </Link>
               )}
               {key === "nfse" && !invoiced && vacancyId && (documents[key] ?? "").toUpperCase() === "FAILED" && (
@@ -218,9 +239,9 @@ export function VacancyDocumentsCell({
           );
         })}
       </ul>
-      {detail && DOCUMENT_KEYS.some(({ key }) => detail[key]) && (
+      {detail && keys.some(({ key }) => detail[key]) && (
         <ul className="space-y-0.5 text-[11px] text-[#737373]">
-          {DOCUMENT_KEYS.filter(({ key }) => detail[key]).map(({ key, label }) => (
+          {keys.filter(({ key }) => detail[key]).map(({ key, label }) => (
             <li key={key}>
               <span className="font-medium text-[#1d1d1b]">{label}:</span> {detail[key]}
             </li>
