@@ -200,7 +200,17 @@ function InvoiceDetail({ detail }: { detail: AdminInvoiceDetail }) {
       // Liberar a URL no mesmo tique pode cancelar o download em alguns navegadores.
       setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch (err) {
-      toast.error(apiErrorOf(err).message ?? doc?.failure ?? "Não foi possível baixar o PDF da fatura.");
+      const error = apiErrorOf(err);
+      // Pelo status, não pelo código: o PDF vem como blob e, no 404, o corpo
+      // também, então o `DEBIT_NOTE_NOT_FOUND` não chega. A fatura já abriu:
+      // 404 aqui é "não há Nota de Débito" (a API não emite quando a conta não fecha).
+      if (kind === "debitNote" && error.status === 404) {
+        toast.info(
+          "Esta fatura não tem Nota de Débito (a conta não fechou no fechamento ou a chave está desligada).",
+        );
+        return;
+      }
+      toast.error(error.message ?? doc?.failure ?? "Não foi possível baixar o PDF da fatura.");
     } finally {
       setDownloading(null);
     }

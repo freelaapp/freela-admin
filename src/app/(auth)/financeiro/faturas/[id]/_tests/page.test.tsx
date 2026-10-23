@@ -872,7 +872,7 @@ describe("Detalhe da fatura — documentos (AD-D)", () => {
     click.mockRestore();
   });
 
-  it("Nota de Débito que não saiu (404): toast com a mensagem da API", async () => {
+  it("Nota de Débito que não saiu (404): aviso neutro, não erro", async () => {
     vi.mocked(getAdminInvoice).mockResolvedValue({ ...DETAIL, links: V2_LINKS });
     vi.mocked(downloadAdminInvoiceDebitNotePdf).mockRejectedValue(
       apiError(404, "DEBIT_NOTE_NOT_FOUND", "Nota de Débito não encontrada para esta fatura."),
@@ -882,7 +882,31 @@ describe("Detalhe da fatura — documentos (AD-D)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Nota de Débito (PDF)" }));
 
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Nota de Débito não encontrada para esta fatura."),
+      expect(toast.info).toHaveBeenCalledWith(
+        "Esta fatura não tem Nota de Débito (a conta não fechou no fechamento ou a chave está desligada).",
+      ),
     );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  // O PDF vem como blob: no 404 o corpo também é blob e o código não chega.
+  it("404 com o corpo em blob (sem código): o mesmo aviso neutro", async () => {
+    vi.mocked(getAdminInvoice).mockResolvedValue({ ...DETAIL, links: V2_LINKS });
+    const config = { headers: new AxiosHeaders() };
+    vi.mocked(downloadAdminInvoiceDebitNotePdf).mockRejectedValue(
+      new AxiosError("falhou", "404", config, null, {
+        status: 404,
+        statusText: "",
+        headers: {},
+        config,
+        data: new Blob(['{"error":{"code":"DEBIT_NOTE_NOT_FOUND"}}']),
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Nota de Débito (PDF)" }));
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalled());
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });
