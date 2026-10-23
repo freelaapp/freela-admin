@@ -5,6 +5,10 @@ import type {
   DateKey,
   InvoicedMode,
 } from "@/modules/admin/infrastructure/billing-mode-api";
+import {
+  closeHourLabelOf,
+  DEFAULT_CLOSE_HOUR_LABEL,
+} from "@/modules/admin/application/invoice-presentation";
 
 /**
  * Textos da aba "Cobrança" do modal "Documentos e cobrança" (UX 5.3–5.5, Fase
@@ -41,18 +45,25 @@ export const BILLING_MODE_OPTION: Record<BillingMode, string> = {
 };
 
 /**
- * O ciclo de cada modo, como o `billing-cycle.ts` da API calcula. O horário do
- * fechamento (08:00) é fixo na API.
+ * O ciclo de cada modo, como o `billing-cycle.ts` da API calcula. A hora do
+ * fechamento vem da API (`closeHourLabel`: "06:00" com
+ * `BILLING_EARLY_CLOSE_ENABLED`); sem ela, "08:00".
  */
-export const CYCLE_DESCRIPTION: Record<BillingMode, string> = {
-  PREPAID: "A empresa paga o Pix de cada contratação na hora do aceite.",
-  INVOICED_7:
-    "Serviços de segunda a domingo. Fecha segunda às 08:00 e vence quinta (ou no próximo dia útil).",
-  INVOICED_15:
-    "Serviços de 1 a 15 e de 16 ao fim do mês. Fecha nos dias 16 e 1 e vence 3 dias depois (ou no próximo dia útil).",
-  INVOICED_30:
-    "Serviços do mês. Fecha no dia 1 e vence no dia 4 (ou no próximo dia útil).",
-};
+export function cycleDescription(
+  mode: BillingMode,
+  closeHour: string = DEFAULT_CLOSE_HOUR_LABEL,
+): string {
+  switch (mode) {
+    case "PREPAID":
+      return "A empresa paga o Pix de cada contratação na hora do aceite.";
+    case "INVOICED_7":
+      return `Serviços de segunda a domingo. Fecha segunda às ${closeHour} e vence quinta (ou no próximo dia útil).`;
+    case "INVOICED_15":
+      return "Serviços de 1 a 15 e de 16 ao fim do mês. Fecha nos dias 16 e 1 e vence 3 dias depois (ou no próximo dia útil).";
+    case "INVOICED_30":
+      return "Serviços do mês. Fecha no dia 1 e vence no dia 4 (ou no próximo dia útil).";
+  }
+}
 
 const CYCLE_ADJECTIVE: Record<InvoicedMode, string> = {
   INVOICED_7: "semanal",
@@ -230,7 +241,7 @@ export function whatChanges(
   }
   return [
     "A partir do próximo aceite, as contratações desta empresa entram na fatura e a Freela adianta o pagamento dos freelancers.",
-    `1ª fatura: fecha ${dayLabel(preview.closeDate)} às 08:00 com os serviços realizados até ${dayLabel(preview.period.end)}; vence ${dayLabel(preview.dueDate)}.`,
+    `1ª fatura: fecha ${dayLabel(preview.closeDate)} às ${closeHourLabelOf(view)} com os serviços realizados até ${dayLabel(preview.period.end)}; vence ${dayLabel(preview.dueDate)}.`,
     "Sem multa e sem juros.",
     blockSentence(preview.blockFromDate, blockEnabled),
   ]

@@ -22,6 +22,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
+  closeHourLabelOf,
   dayLabel,
   formatBrl,
   lastMessageLines,
@@ -308,7 +309,7 @@ export function InvoicesView({
       ) : emptyTotal ? (
         <div className="rounded-xl border border-dashed border-[#e5e5e5] p-6 text-center text-sm text-[#525252]">
           {hasInvoicedCompanies
-            ? "Nenhuma fatura fechada ainda. A primeira fecha às 08:00 do dia do fechamento (semanal: segunda) com os serviços realizados e confirmados até a véspera. As empresas no faturado estão em 'Empresas faturadas'."
+            ? `Nenhuma fatura fechada ainda. A primeira fecha às ${closeHourLabelOf(companies.data)} do dia do fechamento (semanal: segunda) com os serviços realizados e confirmados até a véspera. As empresas no faturado estão em 'Empresas faturadas'.`
             : "Nenhuma empresa no faturado ainda. Ligue em Empresas > Documentos e cobrança."}
         </div>
       ) : (

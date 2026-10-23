@@ -60,6 +60,8 @@ export interface BillingModeSettings {
   } | null;
   /** Só no faturado: as datas de uma fatura fechada hoje. */
   extraordinaryInvoice: { closeDate: DateKey; dueDate: DateKey; blockFromDate: DateKey } | null;
+  /** "06:00" ou "08:00" (plano 2026-10-22 §2.8). Ausente na API de antes: vale "08:00". */
+  closeHourLabel?: string;
 }
 
 export interface UpdateBillingModeInput {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   chargeStatusLabel,
   channelText,
+  closeHourLabelOf,
   channelsLine,
   dayLabel,
   ddmmyyyy,
@@ -147,5 +148,23 @@ describe("invoice-presentation — nota fiscal", () => {
     expect(retryAtLabel("2026-10-27T02:20:00.000Z")).toBe("26/10, 23:20");
     expect(retryAtLabel(null)).toBe("—");
     expect(retryAtLabel("x")).toBe("—");
+  });
+});
+
+describe("invoice-presentation — hora do fechamento (plano 2026-10-22 §2.8)", () => {
+  it("mostra o horário que a API devolve; sem o campo (API antiga), 08:00", () => {
+    expect(closeHourLabelOf({ closeHourLabel: "06:00" })).toBe("06:00");
+    expect(closeHourLabelOf({})).toBe("08:00");
+    expect(closeHourLabelOf({ closeHourLabel: "" })).toBe("08:00");
+    expect(closeHourLabelOf(null)).toBe("08:00");
+    expect(closeHourLabelOf(undefined)).toBe("08:00");
+  });
+
+  it("canais do aviso partido: push adiado para as 09:00; e-mail já enviado no fechamento", () => {
+    expect(channelText("deferred:09h")).toBe("adiado para as 09:00");
+    expect(channelText("skipped:sent_at_close")).toBe("já enviado no fechamento");
+    expect(
+      channelsLine({ push: "deferred:09h", email: "sent", whatsapp: "deferred:09h" }),
+    ).toBe("push adiado para as 09:00 · e-mail enviado · WhatsApp adiado para as 09:00");
   });
 });
