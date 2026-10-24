@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, Bot } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
+import { WhatsAppIssueNotice } from "@/components/admin/vacancy/whatsapp-issue-notice";
 import { CompatibleInviteSection } from "@/components/admin/vacancy/compatible-invite-section";
 import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feedbacks-section";
 import { VacancyPriceHistorySection } from "@/components/admin/vacancy/vacancy-price-history-section";
@@ -1092,6 +1093,10 @@ export default function JobsPage() {
                       )}
                     </div>
                   )}
+                  {(() => {
+                    const issue = candidacies?.find((c) => c.status === "ACCEPTED")?.whatsappIssue;
+                    return issue ? <WhatsAppIssueNotice issue={issue} /> : null;
+                  })()}
                   <div className="pt-2 border-t border-green-200 space-y-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-green-700 flex items-center gap-1.5">
                       <KeyRound className="w-3.5 h-3.5" />
