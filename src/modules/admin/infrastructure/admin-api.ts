@@ -665,6 +665,14 @@ export interface VacancyCandidacyApprovedBy {
   employeeLabel: string | null;
 }
 
+export interface VacancyCandidacyWhatsAppIssue {
+  code: string | null;
+  /** Motivo em português, pronto para mostrar. */
+  label: string;
+  suspectNumber: boolean;
+  at: string;
+}
+
 export interface VacancyCandidacyItem {
   id: string;
   providerId: string;
@@ -689,6 +697,12 @@ export interface VacancyCandidacyItem {
   confirmationChannel?: string | null;
   /** Prazo do handshake. Vencido + sem confirmedAt = o prazo passou. */
   confirmDeadlineAt?: string | null;
+  /**
+   * O último WhatsApp para esta pessoa (30 dias) não foi entregue. Nulo quando o
+   * último saiu; ausente antes do deploy da API (24/10/2026).
+   * `suspectNumber` = número sem WhatsApp ou que bloqueou a Freela (Meta 131026).
+   */
+  whatsappIssue?: VacancyCandidacyWhatsAppIssue | null;
   /**
    * Nota de compatibilidade (0-100) do candidato com a vaga — mesmo cálculo do
    * painel do contratante, sem IA. Presente só com `FREELA_CANDIDATE_MATCH_ENABLED`

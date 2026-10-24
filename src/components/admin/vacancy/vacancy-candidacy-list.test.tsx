@@ -132,3 +132,42 @@ describe("VacancyCandidacyList — Voltar para candidatos", () => {
     expect(screen.queryByRole("button", { name: /voltar para candidatos/i })).not.toBeInTheDocument();
   });
 });
+
+// Caso de 24/10/2026: os avisos para a freelancer contratada falharam (número sem
+// WhatsApp) e o suporte só descobriu ao tentar falar com ela.
+describe("VacancyCandidacyList — WhatsApp não entregue", () => {
+  it("número sem WhatsApp: avisa e manda ligar ou mandar e-mail", () => {
+    renderList([
+      item({
+        whatsappIssue: {
+          code: "131026",
+          label: "Número sem WhatsApp, ou a pessoa bloqueou a Freela",
+          suspectNumber: true,
+          at: "2026-10-24T12:00:10.000Z",
+        },
+      }),
+    ]);
+    expect(screen.getByText("WhatsApp não chega neste número")).toBeInTheDocument();
+    expect(screen.getByText(/Falhou em 24\/10\/2026, 09:00\. Ligue ou mande e-mail\./)).toBeInTheDocument();
+  });
+
+  it("falha do lado da Meta: avisa sem acusar o número", () => {
+    renderList([
+      item({
+        whatsappIssue: {
+          code: "131049",
+          label: "A Meta segurou a mensagem (limite de mensagens para esta pessoa)",
+          suspectNumber: false,
+          at: "2026-10-24T12:00:10.000Z",
+        },
+      }),
+    ]);
+    expect(screen.getByText("O último WhatsApp não foi entregue")).toBeInTheDocument();
+    expect(screen.queryByText(/Ligue ou mande e-mail/)).not.toBeInTheDocument();
+  });
+
+  it("sem falha (ou API antiga sem o campo): nada aparece", () => {
+    renderList([item({ whatsappIssue: null }), item({ id: "cand-2" })]);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});

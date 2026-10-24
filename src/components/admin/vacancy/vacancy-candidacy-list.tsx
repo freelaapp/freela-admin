@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { VacancyCandidacyItem } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
+import { WhatsAppIssueNotice } from "./whatsapp-issue-notice";
 
 /**
  * Lista de candidatos de uma vaga, no modal de detalhes do painel.
@@ -194,6 +195,11 @@ export function VacancyCandidacyList({
                     </a>
                   )}
                 </div>
+                {c.whatsappIssue && (
+                  <div className="mt-2">
+                    <WhatsAppIssueNotice issue={c.whatsappIssue} />
+                  </div>
+                )}
                 {c.approvedBy && (
                   <div className="mt-2 flex items-start gap-1.5 rounded-md border border-green-200 bg-green-50 px-2 py-1.5">
                     <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-600" />
