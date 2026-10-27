@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   adminAcceptCandidacy,
   adminConfirmCandidacy,
+  adminConfirmPrestartByPhone,
   adminReinstateCandidacy,
   adminRestoreCandidacy,
   getVacancyCandidacies,
@@ -32,6 +33,21 @@ export function useConfirmCandidacy(vacancyId: string | null) {
       queryClient.invalidateQueries({
         queryKey: ["admin", "vacancy-candidacies", vacancyId],
       });
+    },
+  });
+}
+
+/**
+ * "Confirmar por telefone" da confirmação do dia. Recarrega a vaga aberta no
+ * modal (se houver) e o painel "Confirmação do dia".
+ */
+export function useConfirmPrestartByPhone(vacancyId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (candidacyId: string) => adminConfirmPrestartByPhone(candidacyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "vacancy-candidacies", vacancyId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "prestart-checks"] });
     },
   });
 }

@@ -23,6 +23,7 @@ import {
   Store,
   Megaphone,
   MessageCircle,
+  PhoneCall,
   Settings,
   Bell,
   Volume2,
@@ -71,6 +72,8 @@ const navItems: NavItem[] = [
   { label: "Assinaturas", icon: BadgePercent, path: "/assinaturas", permission: "SUBSCRIPTIONS" },
   { label: "Contratantes — Casa", icon: Building, path: "/contratantes-casa" },
   { label: "Vagas Empresa", icon: Briefcase, path: "/jobs", permission: "JOBS" },
+  // Quem não respondeu ao "Você vai mesmo?" (3 h antes): o suporte liga.
+  { label: "Confirmação do dia", icon: PhoneCall, path: "/confirmacao-do-dia", permission: "JOBS" },
   { label: "Vagas — Casa", icon: Home, path: "/vagas-casa", permission: "CASA_VACANCIES" },
   { label: "Vagas Fixas / CLT", icon: ClipboardList, path: "/vagas-fixas", permission: "FIXED_JOBS" },
   {

@@ -690,6 +690,11 @@ export interface VacancyCandidacyItem {
   /** Prazo do handshake. Vencido + sem confirmedAt = o prazo passou. */
   confirmDeadlineAt?: string | null;
   /**
+   * Confirmação do dia ("Você vai mesmo?", 3 h antes) — pergunta diferente do
+   * handshake acima. `null` = ainda não perguntado; ausente = API anterior.
+   */
+  prestartCheck?: VacancyPrestartCheck | null;
+  /**
    * Nota de compatibilidade (0-100) do candidato com a vaga — mesmo cálculo do
    * painel do contratante, sem IA. Presente só com `FREELA_CANDIDATE_MATCH_ENABLED`
    * ligada no backend; `null` quando não há dado da vaga para comparar; ausente
@@ -715,6 +720,65 @@ export async function adminConfirmCandidacy(
   candidacyId: string,
 ): Promise<AdminConfirmCandidacyResult> {
   const res = await adminApi.post(`/candidacies/${candidacyId}/confirm`);
+  return res.data.data;
+}
+
+/** SENT | CONFIRMED | DECLINED | NO_RESPONSE | SKIPPED | VOID */
+export type PrestartCheckStatus =
+  | "SENT"
+  | "CONFIRMED"
+  | "DECLINED"
+  | "NO_RESPONSE"
+  | "SKIPPED"
+  | "VOID";
+
+export interface VacancyPrestartCheck {
+  status: PrestartCheckStatus | string;
+  skipReason: string | null;
+  voidReason: string | null;
+  sentAt: string | null;
+  deadlineAt: string | null;
+  answeredAt: string | null;
+  /** in_app | magic_link | whatsapp_button | admin */
+  answerChannel: string | null;
+  answeredLate: boolean;
+  /** KEEP | RELEASE — o que a empresa decidiu depois do aviso. */
+  contractorDecision: string | null;
+}
+
+/** Uma linha do painel "Confirmação do dia". */
+export interface AdminPrestartCheckItem extends VacancyPrestartCheck {
+  id: string;
+  candidacyId: string;
+  vacancyId: string;
+  vacancyTitle: string;
+  companyName: string | null;
+  startTime: string;
+  contractorAlertedAt: string | null;
+  providerName: string | null;
+  providerPhone: string | null;
+}
+
+/**
+ * Confirmação do dia das vagas de um dia (Brasília). `pending` = só quem ainda
+ * não respondeu, para o suporte ligar.
+ */
+export async function getAdminPrestartChecks(params: {
+  day?: string;
+  filter: "pending" | "all";
+}): Promise<AdminPrestartCheckItem[]> {
+  const res = await adminApi.get("/prestart-checks", { params });
+  return res.data.data;
+}
+
+/**
+ * "Confirmar por telefone" na confirmação do dia: o suporte ligou e o freelancer
+ * disse que vai. Depois do prazo, a empresa recebe o aviso de que ele confirmou.
+ */
+export async function adminConfirmPrestartByPhone(
+  candidacyId: string,
+): Promise<{ status: "confirmed" | "already_confirmed"; late: boolean }> {
+  const res = await adminApi.post(`/candidacies/${candidacyId}/prestart-check/confirm`);
   return res.data.data;
 }
 

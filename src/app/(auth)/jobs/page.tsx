@@ -55,6 +55,7 @@ import {
   useReinstateCandidacy,
   useAcceptCandidacy,
   useRestoreCandidacy,
+  useConfirmPrestartByPhone,
   useVacancyCandidacies,
 } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
@@ -205,6 +206,26 @@ export default function JobsPage() {
   const reinstateCandidacy = useReinstateCandidacy(modalDetalhesId);
   const acceptCandidacy = useAcceptCandidacy(modalDetalhesId);
   const restoreCandidacy = useRestoreCandidacy(modalDetalhesId);
+  const confirmPrestart = useConfirmPrestartByPhone(modalDetalhesId);
+
+  /** "Confirmar por telefone" da confirmação do dia (3 h antes). */
+  async function handleConfirmPrestart(candidacyId: string, nome: string) {
+    if (!window.confirm(`Você ligou para ${nome} e ele(a) disse que vai?`)) return;
+    try {
+      const res = await confirmPrestart.mutateAsync(candidacyId);
+      if (res.status === "already_confirmed") {
+        toast.info(`${nome} já tinha confirmado.`);
+        return;
+      }
+      toast.success(
+        res.late
+          ? `${nome} confirmado(a). A empresa foi avisada de que vai.`
+          : `${nome} confirmado(a) pelo painel.`,
+      );
+    } catch (err) {
+      toast.error(getAxiosErrorMessage(err, "Não foi possível confirmar."));
+    }
+  }
 
   /**
    * Coloca na vaga um candidato PENDENTE, no lugar do contratante. É o mesmo
@@ -1226,6 +1247,8 @@ export default function JobsPage() {
                 accepting={acceptCandidacy.isPending}
                 onRestore={handleRestoreCandidacy}
                 restoring={restoreCandidacy.isPending}
+                onPrestartConfirm={handleConfirmPrestart}
+                prestartConfirming={confirmPrestart.isPending}
                 vacancyOpen={modalDetalhes?.raw.status === "OPEN"}
                 onUnlink={
                   modalDetalhes?.raw.id

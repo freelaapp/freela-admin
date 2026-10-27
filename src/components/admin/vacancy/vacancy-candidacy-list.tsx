@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { VacancyCandidacyItem } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
+import { PrestartCheckStatus } from "./prestart-check-status";
 
 /**
  * Lista de candidatos de uma vaga, no modal de detalhes do painel.
@@ -53,6 +54,12 @@ export interface VacancyCandidacyListProps {
   restoring?: boolean;
   /** Vaga aberta? Só nela dá para voltar alguém para a lista de candidatos. */
   vacancyOpen?: boolean;
+  /**
+   * "Confirmar por telefone" da confirmação do dia (3 h antes).
+   * Ausente ⇒ o botão não aparece (área sem permissão ou vertical sem a pergunta).
+   */
+  onPrestartConfirm?: (candidacyId: string, providerName: string) => void;
+  prestartConfirming?: boolean;
 }
 
 /** Quem o "Recolocar" atende — aprovado e desalocado. */
@@ -109,6 +116,8 @@ export function VacancyCandidacyList({
   onRestore,
   restoring = false,
   vacancyOpen = false,
+  onPrestartConfirm,
+  prestartConfirming = false,
 }: VacancyCandidacyListProps) {
   return (
     <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
@@ -290,6 +299,18 @@ export function VacancyCandidacyList({
                       </p>
                     </div>
                   ))}
+                {/* Confirmação do dia ("Você vai mesmo?", 3 h antes). */}
+                {c.prestartCheck && (
+                  <PrestartCheckStatus
+                    check={c.prestartCheck}
+                    confirming={prestartConfirming}
+                    onConfirm={
+                      onPrestartConfirm && c.status === "ACCEPTED"
+                        ? () => onPrestartConfirm(c.id, c.providerName ?? "O freelancer")
+                        : undefined
+                    }
+                  />
+                )}
                 {/*
                   Desalocado por não confirmar no link. O suporte fala com a
                   pessoa por telefone e precisa de um caminho — antes disto o
