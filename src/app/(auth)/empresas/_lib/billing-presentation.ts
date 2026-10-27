@@ -57,11 +57,11 @@ export function cycleDescription(
     case "PREPAID":
       return "A empresa paga o Pix de cada contratação na hora do aceite.";
     case "INVOICED_7":
-      return `Serviços de segunda a domingo. Fecha segunda às ${closeHour} e vence quinta (ou no próximo dia útil).`;
+      return `Serviços de segunda a domingo. Fecha segunda às ${closeHour} e vence terça (ou no próximo dia útil).`;
     case "INVOICED_15":
-      return "Serviços de 1 a 15 e de 16 ao fim do mês. Fecha nos dias 16 e 1 e vence 3 dias depois (ou no próximo dia útil).";
+      return "Serviços de 1 a 15 e de 16 ao fim do mês. Fecha nos dias 16 e 1 e vence no dia seguinte (ou no próximo dia útil).";
     case "INVOICED_30":
-      return "Serviços do mês. Fecha no dia 1 e vence no dia 4 (ou no próximo dia útil).";
+      return "Serviços do mês. Fecha no dia 1 e vence no dia 2 (ou no próximo dia útil).";
   }
 }
 

@@ -157,15 +157,15 @@ describe("billing-presentation — chave do bloqueio desconhecida", () => {
 describe("cycleDescription — ciclo de cada modo", () => {
   it("semanal: segunda a domingo, fecha segunda (08:00 sem o horário da API)", () => {
     // billing-cycle.ts da API (PR #611): segunda a domingo, fecha na segunda e
-    // vence 3 dias depois (quinta), ou no próximo dia útil.
+    // vence no dia seguinte (terça; 27/10/2026), ou no próximo dia útil.
     expect(cycleDescription("INVOICED_7")).toBe(
-      "Serviços de segunda a domingo. Fecha segunda às 08:00 e vence quinta (ou no próximo dia útil).",
+      "Serviços de segunda a domingo. Fecha segunda às 08:00 e vence terça (ou no próximo dia útil).",
     );
   });
 
   it("mostra o horário que a API devolve", () => {
     expect(cycleDescription("INVOICED_7", "06:00")).toBe(
-      "Serviços de segunda a domingo. Fecha segunda às 06:00 e vence quinta (ou no próximo dia útil).",
+      "Serviços de segunda a domingo. Fecha segunda às 06:00 e vence terça (ou no próximo dia útil).",
     );
     expect(cycleDescription("PREPAID", "06:00")).toBe(
       "A empresa paga o Pix de cada contratação na hora do aceite.",

@@ -91,17 +91,17 @@ describe("BillingTab — modos e pré-requisitos", () => {
     expect(
       within(group).getByRole("radio", { name: 'Faturado semanal ("boleto 7")' }),
     ).toHaveAccessibleDescription(
-      "Serviços de segunda a domingo. Fecha segunda às 08:00 e vence quinta (ou no próximo dia útil).",
+      "Serviços de segunda a domingo. Fecha segunda às 08:00 e vence terça (ou no próximo dia útil).",
     );
     expect(
       within(group).getByRole("radio", { name: 'Faturado quinzenal ("boleto 15")' }),
     ).toHaveAccessibleDescription(
-      "Serviços de 1 a 15 e de 16 ao fim do mês. Fecha nos dias 16 e 1 e vence 3 dias depois (ou no próximo dia útil).",
+      "Serviços de 1 a 15 e de 16 ao fim do mês. Fecha nos dias 16 e 1 e vence no dia seguinte (ou no próximo dia útil).",
     );
     expect(
       within(group).getByRole("radio", { name: 'Faturado mensal ("boleto 30")' }),
     ).toHaveAccessibleDescription(
-      "Serviços do mês. Fecha no dia 1 e vence no dia 4 (ou no próximo dia útil).",
+      "Serviços do mês. Fecha no dia 1 e vence no dia 2 (ou no próximo dia útil).",
     );
   });
 
@@ -160,7 +160,7 @@ describe("BillingTab — modos e pré-requisitos", () => {
 
     const weekly = await screen.findByRole("radio", { name: 'Faturado semanal ("boleto 7")' });
     expect(weekly).toHaveAccessibleDescription(
-      "Serviços de segunda a domingo. Fecha segunda às 06:00 e vence quinta (ou no próximo dia útil).",
+      "Serviços de segunda a domingo. Fecha segunda às 06:00 e vence terça (ou no próximo dia útil).",
     );
     fireEvent.click(weekly);
     expect(screen.getByRole("region", { name: "O que muda" })).toHaveTextContent(
