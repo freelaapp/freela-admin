@@ -62,12 +62,33 @@ export interface BillingModeSettings {
   extraordinaryInvoice: { closeDate: DateKey; dueDate: DateKey; blockFromDate: DateKey } | null;
   /** "06:00" ou "08:00" (plano 2026-10-22 §2.8). Ausente na API de antes: vale "08:00". */
   closeHourLabel?: string;
+  /**
+   * Agenda da fatura da empresa (27/10/2026). Ausente na API de antes: a tela não
+   * mostra os campos. `closeWeekday`/`dueDays` nulos = o padrão.
+   */
+  schedule?: BillingScheduleSettings;
+}
+
+export interface BillingScheduleSettings {
+  /** Dia do fechamento no semanal (0 = domingo … 6 = sábado); nulo = padrão. */
+  closeWeekday: number | null;
+  /** Dias do fechamento ao vencimento; nulo = padrão. */
+  dueDays: number | null;
+  effectiveCloseWeekday: number;
+  effectiveDueDays: number;
+  defaultCloseWeekday: number;
+  defaultDueDays: number;
+  maxDueDays: number;
 }
 
 export interface UpdateBillingModeInput {
   billingMode?: BillingMode;
   /** Vazio ou `null` = usar o e-mail de contato. */
   billingEmail?: string | null;
+  /** Dia do fechamento no semanal; `null` = voltar ao padrão. */
+  closeWeekday?: number | null;
+  /** Dias até o vencimento; `null` = voltar ao padrão. */
+  dueDays?: number | null;
   reason: string;
 }
 

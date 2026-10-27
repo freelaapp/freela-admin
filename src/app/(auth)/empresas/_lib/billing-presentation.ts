@@ -49,20 +49,67 @@ export const BILLING_MODE_OPTION: Record<BillingMode, string> = {
  * fechamento vem da API (`closeHourLabel`: "06:00" com
  * `BILLING_EARLY_CLOSE_ENABLED`); sem ela, "08:00".
  */
+/** Domingo = 0 … sábado = 6, como a API. */
+export const WEEKDAY_NAMES = [
+  "domingo",
+  "segunda",
+  "terça",
+  "quarta",
+  "quinta",
+  "sexta",
+  "sábado",
+] as const;
+
+/** Agenda da empresa; ausente ou campo nulo = padrão (fecha segunda, vence 1 dia depois). */
+export interface CycleSchedule {
+  closeWeekday?: number | null;
+  dueDays?: number | null;
+}
+
+const DEFAULT_CLOSE_WEEKDAY = 1;
+const DEFAULT_DUE_DAYS = 1;
+
 export function cycleDescription(
   mode: BillingMode,
   closeHour: string = DEFAULT_CLOSE_HOUR_LABEL,
+  schedule?: CycleSchedule | null,
 ): string {
+  const close = schedule?.closeWeekday ?? DEFAULT_CLOSE_WEEKDAY;
+  const due = schedule?.dueDays ?? DEFAULT_DUE_DAYS;
+  const afterClose =
+    due === 0 ? "vence no mesmo dia" : due === 1 ? "vence no dia seguinte" : `vence ${due} dias depois`;
   switch (mode) {
     case "PREPAID":
       return "A empresa paga o Pix de cada contratação na hora do aceite.";
-    case "INVOICED_7":
-      return `Serviços de segunda a domingo. Fecha segunda às ${closeHour} e vence terça (ou no próximo dia útil).`;
+    case "INVOICED_7": {
+      const last = WEEKDAY_NAMES[(close + 6) % 7];
+      const weeklyDue =
+        due === 0
+          ? "vence no mesmo dia"
+          : due === 1
+            ? `vence ${WEEKDAY_NAMES[(close + 1) % 7]}`
+            : `vence ${due} dias depois`;
+      return `Serviços de ${WEEKDAY_NAMES[close]} a ${last}. Fecha ${WEEKDAY_NAMES[close]} às ${closeHour} e ${weeklyDue} (ou no próximo dia útil).`;
+    }
     case "INVOICED_15":
-      return "Serviços de 1 a 15 e de 16 ao fim do mês. Fecha nos dias 16 e 1 e vence no dia seguinte (ou no próximo dia útil).";
+      return `Serviços de 1 a 15 e de 16 ao fim do mês. Fecha nos dias 16 e 1 e ${afterClose} (ou no próximo dia útil).`;
     case "INVOICED_30":
-      return "Serviços do mês. Fecha no dia 1 e vence no dia 2 (ou no próximo dia útil).";
+      return `Serviços do mês. Fecha no dia 1 e vence no dia ${1 + due} (ou no próximo dia útil).`;
   }
+}
+
+/** "segunda (padrão)" / "quarta" — para o resumo e o select. */
+export function closeWeekdayLabel(weekday: number | null): string {
+  return weekday === null
+    ? `${WEEKDAY_NAMES[DEFAULT_CLOSE_WEEKDAY]} (padrão)`
+    : WEEKDAY_NAMES[weekday] ?? String(weekday);
+}
+
+/** "1 dia (padrão)" / "no mesmo dia" / "3 dias". */
+export function dueDaysLabel(days: number | null): string {
+  if (days === null) return `${DEFAULT_DUE_DAYS} dia depois (padrão)`;
+  if (days === 0) return "no mesmo dia";
+  return days === 1 ? "1 dia depois" : `${days} dias depois`;
 }
 
 const CYCLE_ADJECTIVE: Record<InvoicedMode, string> = {
@@ -320,11 +367,17 @@ export function appUsageHint(lastAppDay: DateKey | null, today: DateKey): string
 export function billingChangeSummary(patch: {
   billingMode?: BillingMode;
   billingEmail?: string | null;
+  closeWeekday?: number | null;
+  dueDays?: number | null;
 }): string {
   const parts: string[] = [];
   if (patch.billingMode) parts.push(`Modo de cobrança: ${BILLING_MODE_SHORT[patch.billingMode]}`);
   if (patch.billingEmail !== undefined) {
     parts.push(`E-mail do financeiro: ${patch.billingEmail || "vazio (usa o de contato)"}`);
   }
+  if (patch.closeWeekday !== undefined) {
+    parts.push(`Fechamento: ${closeWeekdayLabel(patch.closeWeekday)}`);
+  }
+  if (patch.dueDays !== undefined) parts.push(`Vencimento: ${dueDaysLabel(patch.dueDays)}`);
   return parts.join("; ");
 }

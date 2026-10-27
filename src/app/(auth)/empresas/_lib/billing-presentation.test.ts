@@ -180,3 +180,22 @@ describe("whatChanges — hora do fechamento vinda da API", () => {
     );
   });
 });
+
+describe("cycleDescription com a agenda da empresa (27/10/2026)", () => {
+  it("sem agenda: o texto de sempre", () => {
+    expect(cycleDescription("INVOICED_7", "08:00", { closeWeekday: null, dueDays: null })).toBe(
+      cycleDescription("INVOICED_7", "08:00"),
+    );
+  });
+
+  it("fecha no sábado e vence no mesmo dia", () => {
+    expect(cycleDescription("INVOICED_7", "06:00", { closeWeekday: 6, dueDays: 0 })).toBe(
+      "Serviços de sábado a sexta. Fecha sábado às 06:00 e vence no mesmo dia (ou no próximo dia útil).",
+    );
+  });
+
+  it("mensal com 3 dias vence no dia 4; quinzenal diz os dias", () => {
+    expect(cycleDescription("INVOICED_30", "08:00", { dueDays: 3 })).toContain("vence no dia 4");
+    expect(cycleDescription("INVOICED_15", "08:00", { dueDays: 5 })).toContain("vence 5 dias depois");
+  });
+});

@@ -27,7 +27,10 @@ import {
   appUsageHint,
   BILLING_MODE_OPTION,
   BILLING_MODES,
+  closeWeekdayLabel,
   cycleDescription,
+  dueDaysLabel,
+  WEEKDAY_NAMES,
   currentModeLabel,
   billingChangeSummary,
   isInvoicedMode,
@@ -179,8 +182,13 @@ function BillingForm({
   const baseId = useId();
   const emailId = `${baseId}-email`;
   const reasonId = `${baseId}-reason`;
+  const weekdayId = `${baseId}-weekday`;
+  const dueDaysId = `${baseId}-due-days`;
   const [selected, setSelected] = useState<BillingMode>(view.mode);
   const [email, setEmail] = useState(view.email ?? "");
+  // Agenda da fatura: "" = padrão (null na API).
+  const [closeWeekday, setCloseWeekday] = useState(toField(view.schedule?.closeWeekday));
+  const [dueDays, setDueDays] = useState(toField(view.schedule?.dueDays));
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -192,7 +200,9 @@ function BillingForm({
   const missing = view.requirements.missing;
   const modeChanged = selected !== view.mode;
   const emailChanged = email.trim() !== (view.email ?? "");
-  const hasChanges = modeChanged || emailChanged;
+  const weekdayChanged = closeWeekday !== toField(view.schedule?.closeWeekday);
+  const dueDaysChanged = dueDays !== toField(view.schedule?.dueDays);
+  const hasChanges = modeChanged || emailChanged || weekdayChanged || dueDaysChanged;
   const canSave = hasChanges && isValidReason(reason) && !update.isPending;
   const preview = whatChanges(view, selected, blockEnabled);
   const requirements = requirementRows(missing, {
@@ -205,12 +215,16 @@ function BillingForm({
     const patch: UpdateBillingModeInput = { reason: reason.trim() };
     if (modeChanged) patch.billingMode = selected;
     if (emailChanged) patch.billingEmail = email.trim() || null;
+    if (weekdayChanged) patch.closeWeekday = fromField(closeWeekday);
+    if (dueDaysChanged) patch.dueDays = fromField(dueDays);
     try {
       const saved = await update.mutateAsync(patch);
       toast.success(`Salvo. ${billingChangeSummary(patch)}.`);
       setConfirmOpen(false);
       setSelected(saved.mode);
       setEmail(saved.email ?? "");
+      setCloseWeekday(toField(saved.schedule?.closeWeekday));
+      setDueDays(toField(saved.schedule?.dueDays));
       setReason("");
       setReasonError(null);
       setServerMissing(null);
@@ -309,7 +323,10 @@ function BillingForm({
                       {BILLING_MODE_OPTION[mode]}
                     </label>
                     <p id={descriptionId} className="mt-0.5 text-xs text-[#737373]">
-                      {cycleDescription(mode, closeHourLabelOf(view))}
+                      {cycleDescription(mode, closeHourLabelOf(view), {
+                        closeWeekday: fromField(closeWeekday),
+                        dueDays: fromField(dueDays),
+                      })}
                     </p>
                     {blocked && (
                       <p
@@ -330,6 +347,56 @@ function BillingForm({
             );
           })}
         </fieldset>
+
+        {view.schedule && isInvoicedMode(selected) && (
+          <fieldset className="space-y-3 rounded-lg border border-[#e5e5e5] p-3">
+            <legend className="px-1 text-sm font-semibold text-[#1d1d1b]">
+              Agenda da fatura
+            </legend>
+            <p className="text-xs text-[#737373]">
+              Vale a partir do próximo fechamento. Faturas já emitidas e vagas já publicadas
+              continuam com as datas delas.
+            </p>
+            {selected === "INVOICED_7" && (
+              <div className="space-y-1.5">
+                <Label htmlFor={weekdayId}>Dia do fechamento</Label>
+                <select
+                  id={weekdayId}
+                  value={closeWeekday}
+                  onChange={(e) => setCloseWeekday(e.target.value)}
+                  className="h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-3 text-sm sm:w-64"
+                >
+                  <option value="">{closeWeekdayLabel(null)}</option>
+                  {WEEKDAY_NAMES.map((name, index) => (
+                    <option key={name} value={String(index)}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor={dueDaysId}>Vencimento</Label>
+              <select
+                id={dueDaysId}
+                value={dueDays}
+                onChange={(e) => setDueDays(e.target.value)}
+                aria-describedby={`${dueDaysId}-help`}
+                className="h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-3 text-sm sm:w-64"
+              >
+                <option value="">{dueDaysLabel(null)}</option>
+                {Array.from({ length: view.schedule.maxDueDays + 1 }, (_, days) => (
+                  <option key={days} value={String(days)}>
+                    {dueDaysLabel(days)}
+                  </option>
+                ))}
+              </select>
+              <p id={`${dueDaysId}-help`} className="text-xs text-[#737373]">
+                Dias depois do fechamento. Fim de semana ou feriado passa para o próximo dia útil.
+              </p>
+            </div>
+          </fieldset>
+        )}
 
         <section aria-labelledby={`${baseId}-req`} className="space-y-1.5">
           <h3 id={`${baseId}-req`} className="text-sm font-semibold text-[#1d1d1b]">
@@ -484,6 +551,15 @@ function BillingForm({
       )}
     </div>
   );
+}
+
+/** `null`/ausente ↔ "" (padrão) no select. */
+function toField(value: number | null | undefined): string {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function fromField(value: string): number | null {
+  return value === "" ? null : Number(value);
 }
 
 function RadiosSkeleton() {

@@ -440,3 +440,78 @@ describe("BillingTab — estados", () => {
     expect(await screen.findByText("desde 11/10/2026")).toBeInTheDocument();
   });
 });
+
+describe("BillingTab — agenda da fatura (27/10/2026)", () => {
+  const SCHEDULE = {
+    closeWeekday: null,
+    dueDays: null,
+    effectiveCloseWeekday: 1,
+    effectiveDueDays: 1,
+    defaultCloseWeekday: 1,
+    defaultDueDays: 1,
+    maxDueDays: 15,
+  };
+  const WEEKLY: BillingModeSettings = { ...BILLING_VIEW, mode: "INVOICED_7", schedule: SCHEDULE };
+
+  it("faturado semanal: escolher quarta e 2 dias manda closeWeekday + dueDays, sem confirmação", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue(WEEKLY);
+    vi.mocked(updateBillingMode).mockResolvedValue({
+      ...WEEKLY,
+      schedule: { ...SCHEDULE, closeWeekday: 3, dueDays: 2 },
+    });
+    renderTab();
+
+    fireEvent.change(await screen.findByLabelText("Dia do fechamento"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Vencimento"), { target: { value: "2" } });
+    expect(
+      screen.getByText(
+        "Serviços de quarta a terça. Fecha quarta às 08:00 e vence 2 dias depois (ou no próximo dia útil).",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.change(reasonField(), { target: { value: "Cliente fecha na quarta" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(updateBillingMode).toHaveBeenCalledWith("owner-1", {
+        closeWeekday: 3,
+        dueDays: 2,
+        reason: "Cliente fecha na quarta",
+      }),
+    );
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith("Salvo. Fechamento: quarta; Vencimento: 2 dias depois.");
+  });
+
+  it("voltar ao padrão manda null", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({
+      ...WEEKLY,
+      schedule: { ...SCHEDULE, closeWeekday: 3 },
+    });
+    vi.mocked(updateBillingMode).mockResolvedValue(WEEKLY);
+    renderTab();
+
+    fireEvent.change(await screen.findByLabelText("Dia do fechamento"), { target: { value: "" } });
+    fireEvent.change(reasonField(), { target: { value: "Voltou ao padrão" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(updateBillingMode).toHaveBeenCalledWith("owner-1", {
+        closeWeekday: null,
+        reason: "Voltou ao padrão",
+      }),
+    );
+  });
+
+  it("pré-pago ou API sem a agenda: os campos não aparecem", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({ ...BILLING_VIEW, schedule: SCHEDULE });
+    const { unmount } = renderTab();
+    await screen.findByText("Modo de cobrança");
+    expect(screen.queryByLabelText("Dia do fechamento")).not.toBeInTheDocument();
+    unmount();
+
+    vi.mocked(getBillingModeSettings).mockResolvedValue({ ...BILLING_VIEW, mode: "INVOICED_7" });
+    renderTab();
+    await screen.findByText("Modo de cobrança");
+    expect(screen.queryByLabelText("Vencimento")).not.toBeInTheDocument();
+  });
+});
