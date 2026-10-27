@@ -26,6 +26,8 @@ export interface SubscriptionRow {
   underCourtesy: boolean;
   /** Última concessão de teste de vaga fixa. Ausente = API anterior ao teste. */
   fixedJobTrial?: FixedJobTrialSummary | null;
+  /** Vagas no mês (API de 27/10/2026). Ausente = API anterior. */
+  quota?: QuotaUsage | null;
 }
 
 export interface SubscriptionListResult {
@@ -33,11 +35,19 @@ export interface SubscriptionListResult {
   meta: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
-export interface QuotaBalance {
+/**
+ * Cota do mês. Sem limite (Grátis e Vip desde 26/10/2026): `limit` e `remaining`
+ * nulos. `overQuota`: o que acontece depois da cota (Grandes Redes = comercial).
+ */
+export interface QuotaUsage {
   periodYm: string;
-  limit: number;
+  limit: number | null;
   used: number;
-  remaining: number;
+  remaining: number | null;
+  overQuota?: "EXTRA_CHARGE" | "CONTACT_SALES" | null;
+}
+
+export interface QuotaBalance extends QuotaUsage {
   planCode: string;
   extraJobPriceInCents: number;
 }

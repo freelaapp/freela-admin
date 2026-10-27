@@ -46,6 +46,11 @@ import type {
   SubscriptionRow,
 } from "@/modules/admin/infrastructure/subscriptions-api";
 import { trialListBadge } from "@/modules/admin/domain/fixed-job-trial";
+import {
+  canAdjustQuota,
+  quotaCell,
+  quotaSummary,
+} from "@/modules/admin/application/subscription-quota-presentation";
 import { FixedJobTrialSection } from "./_components/fixed-job-trial-section";
 
 
@@ -90,6 +95,17 @@ function FixedJobTrialCell({ trial }: { trial: SubscriptionRow["fixedJobTrial"] 
     <Badge variant={badge.active ? "warning" : "muted"} className="tabular-nums">
       {badge.label}
     </Badge>
+  );
+}
+
+/** Coluna "Vagas no mês": Grandes Redes com "12 de 30" e selo perto/no limite. */
+function QuotaCellView({ quota }: { quota: SubscriptionRow["quota"] }) {
+  const cell = quotaCell(quota);
+  return (
+    <div className="flex items-center gap-2 tabular-nums text-neutral-600">
+      <span>{cell.text}</span>
+      {cell.flag && <Badge variant={cell.flag.variant}>{cell.flag.label}</Badge>}
+    </div>
   );
 }
 
@@ -185,6 +201,7 @@ export default function AssinaturasPage() {
               <TableHead>Empresa</TableHead>
               <TableHead>CNPJ</TableHead>
               <TableHead>Plano</TableHead>
+              <TableHead>Vagas no mês</TableHead>
               <TableHead>Ciclo até</TableHead>
               <TableHead>Cortesia</TableHead>
               <TableHead>Teste vaga fixa</TableHead>
@@ -194,7 +211,7 @@ export default function AssinaturasPage() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-neutral-500">
+                <TableCell colSpan={8} className="text-center py-10 text-neutral-500">
                   <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
                   Carregando…
                 </TableCell>
@@ -203,7 +220,7 @@ export default function AssinaturasPage() {
 
             {!isLoading && rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-neutral-500">
+                <TableCell colSpan={8} className="text-center py-10 text-neutral-500">
                   Nenhuma empresa encontrada.
                 </TableCell>
               </TableRow>
@@ -222,6 +239,9 @@ export default function AssinaturasPage() {
                       </span>
                     )}
                   </div>
+                </TableCell>
+                <TableCell>
+                  <QuotaCellView quota={row.quota} />
                 </TableCell>
                 <TableCell className="tabular-nums text-neutral-600">
                   {fmtDate(row.currentPeriodEnd)}
@@ -341,9 +361,7 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
               </div>
               <div>
                 <p className="text-xs text-neutral-500">Cota do mês</p>
-                <p className="font-medium tabular-nums">
-                  {detail.quota ? `${detail.quota.remaining} de ${detail.quota.limit}` : "—"}
-                </p>
+                <p className="font-medium tabular-nums">{quotaSummary(detail.quota)}</p>
               </div>
               <div>
                 <p className="text-xs text-neutral-500">Ciclo até</p>
@@ -497,13 +515,16 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
                 </div>
               </div>
 
+              {canAdjustQuota(detail.quota) && (
               <div className="space-y-2 sm:col-span-2">
                 <h3 className="font-medium flex items-center gap-2">
                   <PlusCircle className="w-4 h-4 text-neutral-500" />
                   Ajustar a cota do mês
                 </h3>
                 <p className="text-sm text-neutral-600">
-                  Positivo libera vagas, negativo desconta. Vira lançamento no extrato.
+                  Libera vagas acima das {detail.quota?.limit} do mês, negociadas com o comercial.
+                  Positivo libera, negativo desconta. Vale só para este mês e vira lançamento no
+                  extrato.
                 </p>
                 <div className="flex gap-2 max-w-sm">
                   <Input
@@ -523,6 +544,7 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
                   </Button>
                 </div>
               </div>
+              )}
             </section>
 
             {/* ── Histórico ─────────────────────────────────────── */}

@@ -116,8 +116,9 @@ export function FixedJobTrialSection({
         Teste de vaga fixa (CLT)
       </h3>
       <p className="text-sm text-neutral-600">
-        Libera a publicação de vagas fixas para quem está no Grátis ou no Básico, com quantidade e
-        prazo. Quando acaba, volta a regra do plano — as vagas já publicadas continuam funcionando.
+        Libera a publicação de vagas fixas para quem está no Grátis (o Vip e o Grandes Redes já
+        têm), com quantidade e prazo. Quando acaba, volta a regra do plano — as vagas já
+        publicadas continuam funcionando.
       </p>
       {planIncludesFixedJobs && (
         <p className="text-sm text-amber-800 bg-amber-50 rounded-md px-3 py-2">
