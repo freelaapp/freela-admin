@@ -782,7 +782,7 @@ export async function adminConfirmPrestartByPhone(
   return res.data.data;
 }
 
-/** Quem está na reserva ou topou ser reserva (mesmo cartão da empresa). */
+/** Quem está na lista de reservas ou pode entrar nela (mesmo cartão da empresa). */
 export interface VacancyReservePerson {
   candidacyId: string;
   name: string;
@@ -796,7 +796,7 @@ export interface VacancyReserveItem extends VacancyReservePerson {
   position: number;
   /** HELD | OFFERED */
   status: string;
-  /** SYSTEM | CONTRACTOR */
+  /** CONTRACTOR | ADMIN | SYSTEM (SYSTEM só nas listas de antes de 28/10) */
   designatedBy: string;
 }
 
@@ -846,13 +846,24 @@ export interface VacancyPrincipalChange {
 /**
  * Reservas da vaga (Fase B): quem está guardado, a chamada aberta e o histórico
  * de chamadas e trocas. `enabled=false` = chave `VACANCY_RESERVES_ENABLED` desligada.
+ *
+ * Desde 28/10 (API #662) a empresa escolhe a lista: `chosen` (na ordem de
+ * chamada, mesmo antes de pagar), `candidates`, `canChoose` e `canCall`. Com a
+ * API anterior esses campos não vêm e valem `reserves`/`eligible`.
  */
 export interface VacancyReservesView {
   enabled: boolean;
   max: number;
   holdUntil: string;
   principal: { candidacyId: string; name: string } | null;
+  chosen?: VacancyReserveItem[];
+  candidates?: VacancyReservePerson[];
+  canChoose?: boolean;
+  /** O "Chamar reserva" passa agora: vaga paga, com reserva, sem chamada aberta, com tempo. */
+  canCall?: boolean;
+  /** @deprecated contrato antigo: `chosen` só com a vaga paga. */
   reserves: VacancyReserveItem[];
+  /** @deprecated sempre vazio desde 28/10. */
   eligible: VacancyReservePerson[];
   openCall: VacancyReserveCallView | null;
   history: { calls: VacancyReserveCallHistory[]; principalChanges: VacancyPrincipalChange[] };

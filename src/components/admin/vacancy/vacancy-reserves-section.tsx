@@ -55,6 +55,12 @@ const FIM_CHAMADA: Record<string, string> = {
   SLOT_FILLED: "a vaga foi preenchida por outro caminho",
 };
 
+const ESCOLHIDA_POR: Record<string, string> = {
+  CONTRACTOR: "Escolhida pela empresa",
+  ADMIN: "Escolhida pelo suporte",
+  SYSTEM: "Escolhida pelo sistema",
+};
+
 const RESPOSTA_OFERTA: Record<string, string> = {
   OFFERED: "chamada agora",
   ACCEPTED: "aceitou",
@@ -90,7 +96,12 @@ function montarNomes(
   const nomes = new Map<string, string>();
   for (const c of candidacies ?? [])
     if (c.providerName) nomes.set(c.id, c.providerName);
-  for (const p of [...view.reserves, ...view.eligible])
+  for (const p of [
+    ...view.reserves,
+    ...view.eligible,
+    ...(view.chosen ?? []),
+    ...(view.candidates ?? []),
+  ])
     nomes.set(p.candidacyId, p.name);
   if (view.principal)
     nomes.set(view.principal.candidacyId, view.principal.name);
@@ -160,9 +171,10 @@ function linhaDoTempo(historico: VacancyReservesView["history"]) {
 }
 
 /**
- * Reservas da vaga (Fase B, AD-2), no modal de detalhes: quem está guardado,
- * a chamada aberta com "Cancelar a chamada", o "Chamar reserva" no lugar da
- * empresa e o histórico de chamadas e trocas do escolhido.
+ * Reservas da vaga (Fase B, AD-2), no modal de detalhes: a lista que a empresa
+ * escolheu (desde 28/10 é ela quem monta, e as pessoas não sabem que estão na
+ * lista), a chamada aberta com "Cancelar a chamada", o "Chamar reserva" no
+ * lugar da empresa (só com `canCall`) e o histórico de chamadas e trocas.
  *
  * Some quando não há nada a mostrar (chave desligada e sem histórico, vaga sem
  * escolhido nem reserva, ou a API não reconhece a vaga).
@@ -189,7 +201,10 @@ export function VacancyReservesSection({
   const temHistorico =
     historico.calls.length > 0 || historico.principalChanges.length > 0;
   if (!view.enabled && !temHistorico) return null;
-  const reservas = [...view.reserves].sort((a, b) => a.position - b.position);
+  const reservas = [...(view.chosen ?? view.reserves)].sort(
+    (a, b) => a.position - b.position,
+  );
+  const candidatos = view.candidates ?? view.eligible;
   const chamadaAberta = view.openCall ?? null;
   if (
     !view.principal &&
@@ -203,7 +218,9 @@ export function VacancyReservesSection({
   const nomeEscolhido = primeiroNome(view.principal?.name);
   const naEspera = reservas.filter((r) => r.status === "HELD");
   const proxima = naEspera[0];
-  const podeChamar = view.enabled && !chamadaAberta && !!proxima;
+  // API anterior não manda `canCall`: vale a regra antiga (lista só com a vaga paga).
+  const chamavel = view.canCall ?? true;
+  const podeChamar = view.enabled && !chamadaAberta && !!proxima && chamavel;
   const ocupado = chamar.isPending || cancelar.isPending;
   const faltaNota = motivo === "CONTRACTOR_CHOICE" && !nota.trim();
 
@@ -256,7 +273,7 @@ export function VacancyReservesSection({
         {view.enabled ? (
           reservas.length > 0 && (
             <p className="mt-1 text-xs text-[#737373]">
-              {`De prontidão até ${formatVacancyTime(view.holdUntil)}. Ao chamar, a reserva tem até 15 minutos para aceitar; se não aceitar, chamamos a próxima.`}
+              {`Valem até ${formatVacancyTime(view.holdUntil)}. Elas não sabem que estão na lista: só recebem mensagem se forem chamadas. Ao chamar, a reserva tem até 15 minutos para aceitar; se não aceitar, chamamos a próxima.`}
             </p>
           )
         ) : (
@@ -294,9 +311,9 @@ export function VacancyReservesSection({
       {view.enabled &&
         (reservas.length === 0 ? (
           <p className="text-xs text-[#737373]">
-            {view.eligible.length > 0
-              ? `Ninguém guardado. ${view.eligible.length === 1 ? "1 pessoa topou" : `${view.eligible.length} pessoas toparam`} ser reserva; a empresa escolhe na tela da vaga.`
-              : "Ninguém desta vaga topou ser reserva."}
+            {candidatos.length > 0
+              ? `A empresa não escolheu reservas. ${candidatos.length === 1 ? "1 outro candidato pode entrar" : `${candidatos.length} outros candidatos podem entrar`} na lista; quem escolhe é a empresa, na tela da vaga.`
+              : "A empresa não escolheu reservas."}
           </p>
         ) : (
           <ol className="space-y-1.5">
@@ -319,14 +336,19 @@ export function VacancyReservesSection({
                 <span className="shrink-0 text-[11px] text-[#737373]">
                   {r.status === "OFFERED"
                     ? "Chamada agora"
-                    : r.designatedBy === "CONTRACTOR"
-                      ? "Escolhida pela empresa"
-                      : "Escolhida pelo sistema"}
+                    : (ESCOLHIDA_POR[r.designatedBy] ?? "Escolhida pela empresa")}
                 </span>
               </li>
             ))}
           </ol>
         ))}
+
+      {view.enabled && !chamadaAberta && !!proxima && !chamavel && (
+        <p className="text-xs text-[#737373]">
+          Chamar reserva fica disponível depois que a empresa pagar a vaga e
+          enquanto as reservas valem.
+        </p>
+      )}
 
       {podeChamar && !formAberto && (
         <button
