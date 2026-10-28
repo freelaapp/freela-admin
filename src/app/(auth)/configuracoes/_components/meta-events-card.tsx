@@ -37,6 +37,11 @@ const STATUS_CLASS: Record<TemplateStatus, string> = {
   MISSING: "bg-[#f7f7f7] text-[#737373]",
 };
 
+/** "W13_SUGESTAO_AUMENTO" → "W13": o código que aparece nas conversas e nos documentos. */
+export function eventCode(eventKey: string): string {
+  return eventKey.split("_")[0] ?? eventKey;
+}
+
 function EventRow({
   row,
   testPhone,
@@ -70,7 +75,11 @@ function EventRow({
   return (
     <li className="flex flex-col gap-2 border-b border-[#e5e5e5] py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-[#1d1d1b]">{row.label}</p>
+        <p className="text-sm font-medium text-[#1d1d1b]">
+          <span className="mr-2 rounded bg-[#f0f0f0] px-1.5 py-0.5 font-mono text-xs text-[#525252]">{eventCode(row.eventKey)}</span>
+          <span>{row.label}</span>
+          <span className="ml-2 font-mono text-xs font-normal text-[#a3a3a3]">{row.template.name}</span>
+        </p>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#737373]">
           <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_CLASS[row.template.status]}`}>{STATUS_LABEL[row.template.status]}</span>
           {row.templateCategory === "AUTHENTICATION" && (

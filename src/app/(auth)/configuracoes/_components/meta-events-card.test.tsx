@@ -99,6 +99,9 @@ describe("MetaEventsCard", () => {
     mockEvents([row()]);
     renderCard();
     expect(await screen.findByText("Aprovado na vaga (confirme)")).toBeInTheDocument();
+    // O código (W01) e o nome do modelo na Meta, para achar o aviso quando citado.
+    expect(screen.getByText("W01")).toBeInTheDocument();
+    expect(screen.getByText(row().template.name)).toBeInTheDocument();
     expect(screen.getByText("Aprovado")).toBeInTheDocument();
     expect(screen.getByText(/12 enviados · 11 entregues · 9 lidos · 0 falhas/)).toBeInTheDocument();
   });
