@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, Bot } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
+import { VacancyReservesSection } from "@/components/admin/vacancy/vacancy-reserves-section";
 import { CompatibleInviteSection } from "@/components/admin/vacancy/compatible-invite-section";
 import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feedbacks-section";
 import { VacancyPriceHistorySection } from "@/components/admin/vacancy/vacancy-price-history-section";
@@ -1261,6 +1262,15 @@ export default function JobsPage() {
                     : undefined
                 }
               />
+
+              {/* Reservas: quem está guardado, "Chamar reserva" e o histórico de trocas. */}
+              {modalDetalhes.raw?.id && (
+                <VacancyReservesSection
+                  key={modalDetalhes.raw.id}
+                  vacancyId={modalDetalhes.raw.id}
+                  candidacies={candidacies}
+                />
+              )}
 
               {/* Feedbacks — contratante ↔ freelancer */}
               <VacancyFeedbacksSection feedbacks={feedbacks} loading={loadingFeedbacks} />

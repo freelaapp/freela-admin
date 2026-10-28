@@ -782,6 +782,110 @@ export async function adminConfirmPrestartByPhone(
   return res.data.data;
 }
 
+/** Quem está na reserva ou topou ser reserva (mesmo cartão da empresa). */
+export interface VacancyReservePerson {
+  candidacyId: string;
+  name: string;
+  averageRating?: number | null;
+  city?: string | null;
+  matchScore?: number | null;
+}
+
+export interface VacancyReserveItem extends VacancyReservePerson {
+  reserveId: string;
+  position: number;
+  /** HELD | OFFERED */
+  status: string;
+  /** SYSTEM | CONTRACTOR */
+  designatedBy: string;
+}
+
+export interface VacancyReserveCallView {
+  callId: string;
+  status: string;
+  reason: string;
+  closeReason: string | null;
+  createdAt: string;
+  offeredTo: { candidacyId: string; name: string | null; position: number; expiresAt: string } | null;
+}
+
+export interface VacancyReserveCallHistory {
+  id: string;
+  /** OPEN | FILLED | EXHAUSTED | CANCELLED */
+  status: string;
+  reason: string;
+  note: string | null;
+  closeReason: string | null;
+  /** CONTRACTOR | ADMIN | SYSTEM */
+  requestedByKind: string;
+  replacedCandidacyId: string | null;
+  filledByCandidacyId: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  offers: Array<{
+    candidacyId: string;
+    position: number;
+    status: string;
+    offeredAt: string | null;
+    offerExpiresAt: string | null;
+  }>;
+}
+
+export interface VacancyPrincipalChange {
+  id: string;
+  /** SUBSTITUTED | RELEASED */
+  kind: string;
+  fromCandidacyId: string | null;
+  toCandidacyId: string | null;
+  reason: string;
+  note: string | null;
+  actorKind: string;
+  occurredAt: string;
+}
+
+/**
+ * Reservas da vaga (Fase B): quem está guardado, a chamada aberta e o histórico
+ * de chamadas e trocas. `enabled=false` = chave `VACANCY_RESERVES_ENABLED` desligada.
+ */
+export interface VacancyReservesView {
+  enabled: boolean;
+  max: number;
+  holdUntil: string;
+  principal: { candidacyId: string; name: string } | null;
+  reserves: VacancyReserveItem[];
+  eligible: VacancyReservePerson[];
+  openCall: VacancyReserveCallView | null;
+  history: { calls: VacancyReserveCallHistory[]; principalChanges: VacancyPrincipalChange[] };
+}
+
+export async function getVacancyReserves(vacancyId: string): Promise<VacancyReservesView> {
+  const res = await adminApi.get(`/vacancies/${vacancyId}/reserves`);
+  return res.data.data;
+}
+
+export type AdminReserveCallReason =
+  | "PRESTART_NO_RESPONSE"
+  | "PRESTART_DECLINED"
+  | "PRINCIPAL_UNCONFIRMED"
+  | "CONTRACTOR_CHOICE";
+
+/** "Chamar reserva" pelo suporte, no lugar da empresa (mesma regra dela). */
+export async function adminOpenReserveCall(
+  vacancyId: string,
+  body: { reason: AdminReserveCallReason; note?: string },
+  idempotencyKey: string,
+): Promise<VacancyReserveCallView> {
+  const res = await adminApi.post(`/vacancies/${vacancyId}/reserve-calls`, body, {
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+  return res.data.data;
+}
+
+/** Cancela a chamada aberta: o escolhido continua na vaga. */
+export async function adminCancelReserveCall(vacancyId: string, callId: string): Promise<void> {
+  await adminApi.post(`/vacancies/${vacancyId}/reserve-calls/${callId}/cancel`);
+}
+
 export interface AdminReinstateCandidacyResult {
   candidacyId: string;
   vacancyId: string;
