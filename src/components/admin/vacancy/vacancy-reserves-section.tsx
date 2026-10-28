@@ -1,19 +1,22 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { BellRing, History, Loader2, Users } from "lucide-react";
+import { BellRing, History, ListOrdered, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
   useCancelReserveCall,
   useOpenReserveCall,
+  useReplaceReserves,
   useVacancyReserves,
 } from "@/modules/admin/application/use-vacancy-reserves";
 import type {
   AdminReserveCallReason,
   VacancyCandidacyItem,
   VacancyReserveCallHistory,
+  VacancyReserveChange,
+  VacancyReservePerson,
   VacancyReservesView,
 } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDateTime, formatVacancyTime } from "@/lib/date.utils";
@@ -153,8 +156,124 @@ function LinhaChamada({
   );
 }
 
-/** Chamadas e trocas numa linha só, da mais recente para a mais antiga. */
-function linhaDoTempo(historico: VacancyReservesView["history"]) {
+/** Saída da lista sem ninguém tirar: o que aconteceu com a pessoa. */
+const SAIU_SOZINHA: Record<string, string> = {
+  ACCEPTED_ELSEWHERE: "foi escolhida em outra vaga no mesmo horário",
+  CANDIDACY_GONE: "retirou a candidatura",
+};
+
+/** Fim da lista inteira (cron), por motivo. */
+const RESERVAS_TERMINARAM: Record<string, (prazo: string) => string> = {
+  HOLD_ENDED: (prazo) => `prazo das ${prazo}`,
+  VACANCY_CANCELLED: () => "a vaga foi cancelada",
+  PRINCIPAL_STARTED: () => "o escolhido começou o serviço",
+  POLICY_CHANGED: () => "a regra das reservas mudou (28/10)",
+};
+
+type LinhaDaLista = { id: string; em: string; texto: string };
+
+/**
+ * Trocas na lista de reservas (UX 2026-10-28 §6.6), agrupadas pelo instante: as
+ * linhas de uma mesma troca saem com o mesmo horário. Quem pôs e quem tirou vem
+ * das linhas (`designatedBy`/`releasedBy`); antes de 29/10 só a empresa tirava.
+ * Saídas dentro de uma chamada ficam com a chamada.
+ */
+function linhasDaLista(
+  changes: VacancyReserveChange[],
+  holdUntil: string,
+): LinhaDaLista[] {
+  type Grupo = {
+    postas: VacancyReserveChange[];
+    tiradas: VacancyReserveChange[];
+    reordenadas: VacancyReserveChange[];
+    sozinhas: VacancyReserveChange[];
+  };
+  const grupos = new Map<string, Grupo>();
+  const grupo = (em: string) => {
+    let g = grupos.get(em);
+    if (!g) {
+      g = { postas: [], tiradas: [], reordenadas: [], sozinhas: [] };
+      grupos.set(em, g);
+    }
+    return g;
+  };
+  for (const c of changes) {
+    grupo(c.designatedAt).postas.push(c);
+    if (!c.releasedAt || c.callId) continue;
+    if (c.releaseReason === "REPLACED_BY_CONTRACTOR")
+      grupo(c.releasedAt).tiradas.push(c);
+    else if (c.releaseReason === "REORDERED")
+      grupo(c.releasedAt).reordenadas.push(c);
+    else grupo(c.releasedAt).sozinhas.push(c);
+  }
+
+  const primeiro = (c: VacancyReserveChange) => primeiroNome(c.name);
+  const prazo = formatVacancyTime(holdUntil);
+  const linhas: LinhaDaLista[] = [];
+  for (const [em, g] of grupos) {
+    const mexida = [...g.tiradas, ...g.reordenadas][0];
+    const autor = g.postas[0]
+      ? {
+          quem: g.postas[0].designatedBy,
+          email: g.postas[0].designatedByLabel,
+        }
+      : mexida
+        ? {
+            quem: mexida.releasedBy ?? "CONTRACTOR",
+            email: mexida.releasedByLabel,
+          }
+        : null;
+    if (autor) {
+      const postas = [...g.postas].sort((a, b) => a.position - b.position);
+      const reordenadas = new Set(g.reordenadas.map((c) => c.candidacyId));
+      const novas = postas.filter((c) => !reordenadas.has(c.candidacyId));
+      const partes: string[] = [];
+      if (novas.length > 0)
+        partes.push(
+          `escolheu as reservas: ${postas.map((c) => `${c.position} ${primeiro(c)}`).join(" · ")}`,
+        );
+      else if (postas.length > 0)
+        partes.push(
+          `mudou a ordem: ${postas.map((c) => `${primeiro(c)} passou para ${c.position}`).join(", ")}`,
+        );
+      if (g.tiradas.length > 0)
+        partes.push(
+          `tirou ${g.tiradas.map(primeiro).join(" e ")} das reservas`,
+        );
+      linhas.push({
+        id: `lista-${em}`,
+        em,
+        texto: `${QUEM[autor.quem] ?? autor.quem} ${partes.join("; ")}${autor.email ? ` (${autor.email})` : ""}`,
+      });
+    }
+    const fimDaLista = g.sozinhas.find(
+      (c) => RESERVAS_TERMINARAM[c.releaseReason ?? ""],
+    );
+    if (fimDaLista)
+      linhas.push({
+        id: `fim-${em}`,
+        em,
+        texto: `as reservas terminaram: ${RESERVAS_TERMINARAM[fimDaLista.releaseReason ?? ""](prazo)}`,
+      });
+    for (const c of g.sozinhas.filter(
+      (s) => !RESERVAS_TERMINARAM[s.releaseReason ?? ""],
+    ))
+      linhas.push({
+        id: `saiu-${c.reserveId}`,
+        em,
+        texto: SAIU_SOZINHA[c.releaseReason ?? ""]
+          ? `${primeiro(c)} saiu das reservas: ${SAIU_SOZINHA[c.releaseReason ?? ""]}`
+          : `${primeiro(c)} saiu das reservas`,
+      });
+  }
+  return linhas;
+}
+
+/** Chamadas, trocas e mudanças na lista numa linha só, da mais recente para a mais antiga. */
+function linhaDoTempo(
+  historico: VacancyReservesView["history"],
+  holdUntil: string,
+) {
   const itens = [
     ...historico.calls.map((chamada) => ({
       tipo: "chamada" as const,
@@ -166,6 +285,9 @@ function linhaDoTempo(historico: VacancyReservesView["history"]) {
       em: troca.occurredAt,
       troca,
     })),
+    ...linhasDaLista(historico.reserveChanges ?? [], holdUntil).map(
+      (linha) => ({ tipo: "lista" as const, em: linha.em, linha }),
+    ),
   ];
   return itens.sort((a, b) => Date.parse(b.em) - Date.parse(a.em));
 }
@@ -189,7 +311,10 @@ export function VacancyReservesSection({
   const { data: view, isError } = useVacancyReserves(vacancyId);
   const chamar = useOpenReserveCall(vacancyId);
   const cancelar = useCancelReserveCall(vacancyId);
+  const trocar = useReplaceReserves(vacancyId);
   const [formAberto, setFormAberto] = useState(false);
+  const [escolhendo, setEscolhendo] = useState(false);
+  const [selecao, setSelecao] = useState<string[]>([]);
   const [motivo, setMotivo] = useState<AdminReserveCallReason>(
     "PRESTART_NO_RESPONSE",
   );
@@ -199,7 +324,9 @@ export function VacancyReservesSection({
   if (isError || !view) return null;
   const historico = view.history ?? { calls: [], principalChanges: [] };
   const temHistorico =
-    historico.calls.length > 0 || historico.principalChanges.length > 0;
+    historico.calls.length > 0 ||
+    historico.principalChanges.length > 0 ||
+    (historico.reserveChanges?.length ?? 0) > 0;
   if (!view.enabled && !temHistorico) return null;
   const reservas = [...(view.chosen ?? view.reserves)].sort(
     (a, b) => a.position - b.position,
@@ -221,8 +348,54 @@ export function VacancyReservesSection({
   // API anterior não manda `canCall`: vale a regra antiga (lista só com a vaga paga).
   const chamavel = view.canCall ?? true;
   const podeChamar = view.enabled && !chamadaAberta && !!proxima && chamavel;
-  const ocupado = chamar.isPending || cancelar.isPending;
+  const ocupado = chamar.isPending || cancelar.isPending || trocar.isPending;
   const faltaNota = motivo === "CONTRACTOR_CHOICE" && !nota.trim();
+  // Escolher no lugar da empresa (ponte até o app 1.0.45): só com `canChoose`
+  // explícito — API anterior não manda e não tem a rota.
+  const naLista = reservas.filter((r) => r.status === "HELD");
+  const opcoes: VacancyReservePerson[] = [
+    ...naLista,
+    ...candidatos.filter(
+      (c) => !naLista.some((r) => r.candidacyId === c.candidacyId),
+    ),
+  ];
+  const podeEscolher =
+    view.enabled &&
+    view.canChoose === true &&
+    !chamadaAberta &&
+    opcoes.length > 0;
+  const listaAtual = naLista.map((r) => r.candidacyId);
+  const mudou = selecao.join(",") !== listaAtual.join(",");
+  const maximo = view.max;
+  const cheia = selecao.length >= maximo;
+
+  function alternar(id: string) {
+    setSelecao((atual) =>
+      atual.includes(id)
+        ? atual.filter((s) => s !== id)
+        : atual.length >= maximo
+          ? atual
+          : [...atual, id],
+    );
+  }
+
+  async function guardarReservas() {
+    try {
+      await trocar.mutateAsync(selecao);
+      const nomeDe = (id: string) =>
+        primeiroNome(opcoes.find((o) => o.candidacyId === id)?.name);
+      toast.success(
+        selecao.length > 0
+          ? `Reservas guardadas: ${selecao.map((id, i) => `${i + 1} ${nomeDe(id)}`).join(" · ")}.`
+          : "Reservas tiradas.",
+      );
+      setEscolhendo(false);
+    } catch (e) {
+      toast.error(
+        getAxiosErrorMessage(e, "Não foi possível guardar as reservas."),
+      );
+    }
+  }
 
   async function confirmarChamada() {
     if (!proxima || faltaNota) return;
@@ -336,7 +509,8 @@ export function VacancyReservesSection({
                 <span className="shrink-0 text-[11px] text-[#737373]">
                   {r.status === "OFFERED"
                     ? "Chamada agora"
-                    : (ESCOLHIDA_POR[r.designatedBy] ?? "Escolhida pela empresa")}
+                    : (ESCOLHIDA_POR[r.designatedBy] ??
+                      "Escolhida pela empresa")}
                 </span>
               </li>
             ))}
@@ -350,7 +524,106 @@ export function VacancyReservesSection({
         </p>
       )}
 
-      {podeChamar && !formAberto && (
+      {podeEscolher && !escolhendo && !formAberto && (
+        <button
+          type="button"
+          onClick={() => {
+            setSelecao(listaAtual);
+            setEscolhendo(true);
+          }}
+          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-[#e5e5e5] bg-white px-3 py-2 text-xs font-semibold text-[#1d1d1b] transition-colors hover:bg-[#f0f0f0]"
+        >
+          <ListOrdered className="h-3.5 w-3.5" />
+          {naLista.length > 0
+            ? "Mudar reservas no lugar da empresa"
+            : "Escolher reservas no lugar da empresa"}
+        </button>
+      )}
+
+      {podeEscolher && escolhendo && (
+        <div
+          className="space-y-2 rounded-md border border-[#e5e5e5] bg-[#f7f7f7] p-2.5 text-xs"
+          role="group"
+          aria-label="Escolher reservas no lugar da empresa"
+        >
+          <p className="font-semibold text-[#1d1d1b]">
+            Escolher reservas no lugar da empresa
+          </p>
+          <ul className="list-disc space-y-0.5 pl-4 text-[#737373]">
+            <li>Só quando a empresa pedir (por exemplo, quem usa só o app).</li>
+            <li>{`A ordem em que você marca é a ordem de chamada. Até ${view.max}.`}</li>
+            <li>
+              Ninguém é avisado agora: a reserva só recebe mensagem se for
+              chamada.
+            </li>
+            <li>Fica registrado como &quot;Escolhida pelo suporte&quot;.</li>
+          </ul>
+          <ul className="space-y-1">
+            {opcoes.map((o) => {
+              const posicao = selecao.indexOf(o.candidacyId) + 1;
+              const marcada = posicao > 0;
+              const apagada = cheia && !marcada;
+              return (
+                <li key={o.candidacyId}>
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={marcada}
+                    aria-label={
+                      marcada ? `${o.name}, reserva ${posicao}` : o.name
+                    }
+                    disabled={apagada || ocupado}
+                    onClick={() => alternar(o.candidacyId)}
+                    className={`flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left ${marcada ? "border-amber-300 bg-amber-50" : "border-[#e5e5e5] bg-white"} disabled:opacity-50`}
+                  >
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${marcada ? "border-amber-400 bg-amber-400 text-[#1d1d1b]" : "border-[#d4d4d4]"}`}
+                    >
+                      {marcada ? posicao : ""}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-[#1d1d1b]">
+                        {o.name}
+                      </span>
+                      {linhaPessoa(o) && (
+                        <span className="block text-[11px] text-[#737373]">
+                          {linhaPessoa(o)}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {cheia && opcoes.length > selecao.length && (
+            <p className="text-[#737373]">{`Máximo de ${view.max}. Desmarque uma para trocar.`}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={guardarReservas}
+              disabled={ocupado || !mudou}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#1d1d1b] px-3 py-2 font-semibold text-white transition-colors hover:bg-[#333] disabled:opacity-60"
+            >
+              {trocar.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+              {selecao.length === 0
+                ? "Tirar todas as reservas"
+                : `Guardar ${selecao.length} ${selecao.length === 1 ? "reserva" : "reservas"}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEscolhendo(false)}
+              disabled={ocupado}
+              className="rounded-md border border-[#e5e5e5] bg-white px-3 py-2 font-medium text-[#1d1d1b] hover:bg-[#f0f0f0]"
+            >
+              Voltar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {podeChamar && !formAberto && !escolhendo && (
         <button
           type="button"
           onClick={() => setFormAberto(true)}
@@ -437,8 +710,20 @@ export function VacancyReservesSection({
             Histórico
           </p>
           <ul className="space-y-1.5 rounded-md bg-[#f7f7f7] p-1.5">
-            {linhaDoTempo(historico).map((item) =>
-              item.tipo === "chamada" ? (
+            {linhaDoTempo(historico, view.holdUntil).map((item) =>
+              item.tipo === "lista" ? (
+                <li
+                  key={item.linha.id}
+                  className="rounded-md bg-white px-2.5 py-2 text-xs"
+                >
+                  <p className="text-[#1d1d1b]">
+                    <span className="font-semibold">
+                      {formatInstantDateTime(item.em)}
+                    </span>
+                    {` · ${item.linha.texto}`}
+                  </p>
+                </li>
+              ) : item.tipo === "chamada" ? (
                 <LinhaChamada
                   key={item.chamada.id}
                   chamada={item.chamada}
