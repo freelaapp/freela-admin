@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   adminCancelReserveCall,
   adminOpenReserveCall,
+  adminReplaceReserves,
   getVacancyReserves,
   type AdminReserveCallReason,
 } from "../infrastructure/admin-api";
@@ -51,6 +52,16 @@ export function useOpenReserveCall(vacancyId: string | null) {
         { reason: input.reason, ...(input.note ? { note: input.note } : {}) },
         input.idempotencyKey,
       ),
+    onSuccess: refresh,
+  });
+}
+
+/** O suporte escolhe as reservas no lugar da empresa (a pedido dela). */
+export function useReplaceReserves(vacancyId: string | null) {
+  const refresh = useRefreshReserves(vacancyId);
+  return useMutation({
+    mutationFn: (candidacyIds: string[]) =>
+      adminReplaceReserves(vacancyId as string, candidacyIds),
     onSuccess: refresh,
   });
 }

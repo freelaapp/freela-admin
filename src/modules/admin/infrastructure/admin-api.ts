@@ -866,11 +866,53 @@ export interface VacancyReservesView {
   /** @deprecated sempre vazio desde 28/10. */
   eligible: VacancyReservePerson[];
   openCall: VacancyReserveCallView | null;
-  history: { calls: VacancyReserveCallHistory[]; principalChanges: VacancyPrincipalChange[] };
+  history: {
+    calls: VacancyReserveCallHistory[];
+    principalChanges: VacancyPrincipalChange[];
+    /** Cada linha que já esteve na lista (API #664); a API anterior não manda. */
+    reserveChanges?: VacancyReserveChange[];
+  };
+}
+
+/**
+ * Uma linha da lista de reservas da vaga: quem pôs, quem tirou e por quê. Linhas da
+ * mesma troca têm o mesmo `designatedAt`/`releasedAt`.
+ */
+export interface VacancyReserveChange {
+  reserveId: string;
+  candidacyId: string;
+  name: string;
+  position: number;
+  status: string;
+  /** Virou oferta numa chamada: o desfecho está em `history.calls`. */
+  callId: string | null;
+  /** CONTRACTOR | ADMIN | SYSTEM */
+  designatedBy: string;
+  /** E-mail de quem pôs. */
+  designatedByLabel: string | null;
+  designatedAt: string;
+  /** REPLACED_BY_CONTRACTOR | REORDERED | ACCEPTED_ELSEWHERE | CANDIDACY_GONE | HOLD_ENDED | … */
+  releaseReason: string | null;
+  /** CONTRACTOR | ADMIN quando alguém tirou; nulo nas saídas automáticas e antes de 29/10. */
+  releasedBy: string | null;
+  releasedByLabel: string | null;
+  releasedAt: string | null;
 }
 
 export async function getVacancyReserves(vacancyId: string): Promise<VacancyReservesView> {
   const res = await adminApi.get(`/vacancies/${vacancyId}/reserves`);
+  return res.data.data;
+}
+
+/**
+ * O suporte escolhe as reservas a pedido da empresa (ponte até o app 1.0.45): mesma
+ * regra do PUT da empresa; ordem = ordem de chamada; lista vazia tira todas.
+ */
+export async function adminReplaceReserves(
+  vacancyId: string,
+  candidacyIds: string[],
+): Promise<VacancyReservesView> {
+  const res = await adminApi.put(`/vacancies/${vacancyId}/reserves`, { candidacyIds });
   return res.data.data;
 }
 
