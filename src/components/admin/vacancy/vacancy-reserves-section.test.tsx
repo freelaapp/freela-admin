@@ -32,7 +32,7 @@ const reserva = (id: string, name: string, position: number, status = "HELD") =>
   reserveId: `r-${id}`,
   position,
   status,
-  designatedBy: "SYSTEM",
+  designatedBy: "CONTRACTOR",
 });
 
 const VIEW: VacancyReservesView = {
@@ -40,7 +40,11 @@ const VIEW: VacancyReservesView = {
   max: 2,
   holdUntil: "2026-10-31T20:00:00.000Z", // 17:00 em Brasília
   principal: { candidacyId: "c-ana", name: "Ana Souza" },
-  reserves: [reserva("c-bia", "Bia Lima", 1), reserva("c-cai", "Cai Rocha", 2)],
+  chosen: [reserva("c-bia", "Bia Lima", 1), reserva("c-cai", "Cai Rocha", 2)],
+  candidates: [],
+  canChoose: true,
+  canCall: true,
+  reserves: [],
   eligible: [],
   openCall: null,
   history: { calls: [], principalChanges: [] },
@@ -55,20 +59,64 @@ function renderSection() {
   );
 }
 
-describe("VacancyReservesSection", () => {
+describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
-  it("mostra as reservas na ordem e até quando ficam de prontidão", async () => {
+  it("mostra a lista da empresa na ordem, até quando vale e que elas não sabem", async () => {
     api.getVacancyReserves.mockResolvedValue(VIEW);
     renderSection();
 
     expect(await screen.findByText("Bia Lima")).toBeInTheDocument();
     expect(screen.getByText("Reserva 1")).toBeInTheDocument();
     expect(screen.getByText("Reserva 2")).toBeInTheDocument();
-    expect(screen.getByText(/De prontidão até 17:00/)).toBeInTheDocument();
+    expect(screen.getAllByText("Escolhida pela empresa")).toHaveLength(2);
+    expect(screen.getByText(/Valem até 17:00/)).toBeInTheDocument();
+    expect(screen.getByText(/Elas não sabem que estão na lista/)).toBeInTheDocument();
+  });
+
+  it("lista escolhida e vaga ainda não paga: sem \"Chamar reserva\", com o motivo", async () => {
+    api.getVacancyReserves.mockResolvedValue({ ...VIEW, canCall: false });
+    renderSection();
+
+    expect(await screen.findByText("Bia Lima")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Chamar reserva/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/depois que a empresa pagar a vaga/)).toBeInTheDocument();
+  });
+
+  it("empresa não escolheu: diz isso e quantos outros candidatos poderiam entrar", async () => {
+    api.getVacancyReserves.mockResolvedValue({
+      ...VIEW,
+      chosen: [],
+      canCall: false,
+      candidates: [{ candidacyId: "c-davi", name: "Davi Melo" }],
+    });
+    renderSection();
+
+    expect(
+      await screen.findByText(
+        "A empresa não escolheu reservas. 1 outro candidato pode entrar na lista; quem escolhe é a empresa, na tela da vaga.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Chamar reserva/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/topou/)).not.toBeInTheDocument();
+  });
+
+  it("API anterior (sem chosen/canCall): usa reserves e deixa chamar", async () => {
+    api.getVacancyReserves.mockResolvedValue({
+      ...VIEW,
+      chosen: undefined,
+      candidates: undefined,
+      canChoose: undefined,
+      canCall: undefined,
+      reserves: [reserva("c-bia", "Bia Lima", 1, "HELD")],
+    });
+    renderSection();
+
+    expect(await screen.findByText("Bia Lima")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Chamar reserva/ })).toBeInTheDocument();
   });
 
   it('"Chamar reserva" manda o motivo com a chave de idempotência', async () => {
@@ -112,7 +160,8 @@ describe("VacancyReservesSection", () => {
   it("chamada aberta: mostra quem foi chamada e cancela mantendo o escolhido", async () => {
     api.getVacancyReserves.mockResolvedValue({
       ...VIEW,
-      reserves: [reserva("c-bia", "Bia Lima", 1, "OFFERED"), reserva("c-cai", "Cai Rocha", 2)],
+      chosen: [reserva("c-bia", "Bia Lima", 1, "OFFERED"), reserva("c-cai", "Cai Rocha", 2)],
+      canCall: false,
       openCall: {
         callId: "call-1",
         status: "OPEN",
@@ -136,7 +185,7 @@ describe("VacancyReservesSection", () => {
     api.getVacancyReserves.mockResolvedValue({
       ...VIEW,
       principal: { candidacyId: "c-bia", name: "Bia Lima" },
-      reserves: [reserva("c-cai", "Cai Rocha", 1)],
+      chosen: [reserva("c-cai", "Cai Rocha", 1)],
       history: {
         calls: [
           {
@@ -192,7 +241,7 @@ describe("VacancyReservesSection", () => {
   });
 
   it("chave desligada e sem histórico: não mostra nada", async () => {
-    api.getVacancyReserves.mockResolvedValue({ ...VIEW, enabled: false, reserves: [] });
+    api.getVacancyReserves.mockResolvedValue({ ...VIEW, enabled: false, chosen: [] });
     const { container } = renderSection();
     await waitFor(() => expect(api.getVacancyReserves).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();
