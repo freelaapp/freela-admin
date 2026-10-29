@@ -333,11 +333,16 @@ export function VacancyReservesSection({
   );
   const candidatos = view.candidates ?? view.eligible;
   const chamadaAberta = view.openCall ?? null;
+  // Desde 29/10 (API #669) a lista pode ser montada antes de alguém ser aceito:
+  // a seção aparece sempre que dá para escolher, mesmo sem escolhido.
+  const daParaEscolher =
+    view.enabled && view.canChoose === true && candidatos.length > 0;
   if (
     !view.principal &&
     reservas.length === 0 &&
     !chamadaAberta &&
-    !temHistorico
+    !temHistorico &&
+    !daParaEscolher
   )
     return null;
 
@@ -350,8 +355,8 @@ export function VacancyReservesSection({
   const podeChamar = view.enabled && !chamadaAberta && !!proxima && chamavel;
   const ocupado = chamar.isPending || cancelar.isPending || trocar.isPending;
   const faltaNota = motivo === "CONTRACTOR_CHOICE" && !nota.trim();
-  // Escolher no lugar da empresa (ponte até o app 1.0.45): só com `canChoose`
-  // explícito — API anterior não manda e não tem a rota.
+  // Escolher no lugar da empresa (a pedido dela): só com `canChoose` explícito —
+  // API anterior não manda e não tem a rota. Vale antes ou depois do aceite (29/10).
   const naLista = reservas.filter((r) => r.status === "HELD");
   const opcoes: VacancyReservePerson[] = [
     ...naLista,
@@ -484,9 +489,11 @@ export function VacancyReservesSection({
       {view.enabled &&
         (reservas.length === 0 ? (
           <p className="text-xs text-[#737373]">
-            {candidatos.length > 0
-              ? `A empresa não escolheu reservas. ${candidatos.length === 1 ? "1 outro candidato pode entrar" : `${candidatos.length} outros candidatos podem entrar`} na lista; quem escolhe é a empresa, na tela da vaga.`
-              : "A empresa não escolheu reservas."}
+            {candidatos.length === 0
+              ? "A empresa não escolheu reservas."
+              : view.principal
+                ? `A empresa não escolheu reservas. ${candidatos.length === 1 ? "1 outro candidato pode entrar" : `${candidatos.length} outros candidatos podem entrar`} na lista; a empresa marca no botão Reserva de cada candidato, na tela da vaga.`
+                : `Ninguém aceito ainda e a empresa não escolheu reservas. ${candidatos.length === 1 ? "1 candidato pode entrar" : `${candidatos.length} candidatos podem entrar`} na lista, antes ou depois do aceite; a empresa marca no botão Reserva de cada candidato, na tela da vaga.`}
           </p>
         ) : (
           <ol className="space-y-1.5">
