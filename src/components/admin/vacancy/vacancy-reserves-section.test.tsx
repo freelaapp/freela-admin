@@ -114,7 +114,7 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
     expect(
       await screen.findByText(
-        "A empresa não escolheu reservas. 1 outro candidato pode entrar na lista; quem escolhe é a empresa, na tela da vaga.",
+        "A empresa não escolheu reservas. 1 outro candidato pode entrar na lista; a empresa marca no botão Reserva de cada candidato, na tela da vaga.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -350,6 +350,47 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
           "Reservas guardadas: 1 Cai · 2 Bia.",
         ),
       );
+    });
+
+    it("ninguém aceito ainda (29/10): a seção aparece e o suporte já pode escolher", async () => {
+      const ANTES_DO_ACEITE: VacancyReservesView = {
+        ...SEM_LISTA,
+        principal: null,
+      };
+      api.getVacancyReserves.mockResolvedValue(ANTES_DO_ACEITE);
+      api.adminReplaceReserves.mockResolvedValue(ANTES_DO_ACEITE);
+      renderSection();
+
+      expect(
+        await screen.findByText(
+          /Ninguém aceito ainda e a empresa não escolheu reservas\. 3 candidatos podem entrar na lista, antes ou depois do aceite/,
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Escolher reservas no lugar da empresa",
+        }),
+      );
+      fireEvent.click(screen.getByRole("checkbox", { name: "Bia Lima" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Guardar 1 reserva" }),
+      );
+
+      await waitFor(() =>
+        expect(api.adminReplaceReserves).toHaveBeenCalledWith("v1", ["c-bia"]),
+      );
+    });
+
+    it("ninguém aceito e fora do prazo (canChoose falso): não mostra nada", async () => {
+      api.getVacancyReserves.mockResolvedValue({
+        ...SEM_LISTA,
+        principal: null,
+        canChoose: false,
+        candidates: [],
+      });
+      const { container } = renderSection();
+      await waitFor(() => expect(api.getVacancyReserves).toHaveBeenCalled());
+      expect(container).toBeEmptyDOMElement();
     });
 
     it("lista já escolhida: vem marcada; desmarcar a 1 sobe a 2", async () => {
