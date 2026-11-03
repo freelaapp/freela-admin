@@ -11,6 +11,10 @@ vi.mock("@/modules/admin/infrastructure/billing-api", () => ({
   getBillingSummary: vi.fn(),
   getBillingCompanies: vi.fn(),
 }));
+// A aba Notas fiscais tem testes próprios; aqui só importa abrir pela URL.
+vi.mock("../_components/fiscal-documents-view", () => ({
+  FiscalDocumentsView: () => <div data-testid="fiscal-documents-view" />,
+}));
 
 const finance = vi.hoisted(() => ({
   summary: {} as Record<string, unknown>,
@@ -142,6 +146,7 @@ describe("Financeiro — aba Faturas", () => {
       "Pagamentos aos freelancers",
       "Empresas faturadas",
       "Faturas",
+      "Notas fiscais",
       "Estornos & Cancelamentos",
     ]);
     fireEvent.click(within(sections).getByRole("button", { name: "Faturas" }));
@@ -180,6 +185,14 @@ describe("Financeiro — aba Faturas", () => {
     renderPage();
 
     expect(await section("Pagamentos aos freelancers")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("?aba=notas-fiscais abre direto nas notas fiscais", async () => {
+    window.history.replaceState(null, "", "/financeiro?aba=notas-fiscais");
+    renderPage();
+
+    expect(await section("Notas fiscais")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("fiscal-documents-view")).toBeInTheDocument();
   });
 
   it("?aba=empresas-faturadas abre direto na lista das empresas", async () => {
