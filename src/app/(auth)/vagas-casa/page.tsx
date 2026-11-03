@@ -15,6 +15,7 @@ import { resolveVacancyBucket } from "../jobs/_components/vacancy-bucket";
 import { VacancyRoadmap } from "../jobs/_components/vacancy-roadmap";
 import { VacancyDispatchCell } from "../jobs/_components/vacancy-dispatch-cell";
 import { VacancyDocumentsCell } from "../jobs/_components/vacancy-documents-cell";
+import { shortAddress } from "../jobs/_components/short-address";
 import {
   displayVacancyStatus,
   findGroupBroadcastRecord,
@@ -58,6 +59,7 @@ import { useAdminCancelCasaVacancy } from "@/modules/admin/application/use-admin
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminConsultants } from "@/modules/admin/application/use-admin-consultants";
 import { useCatalogRoles } from "@/modules/admin/application/use-admin-catalog";
+import { formatCargo } from "@/modules/admin/application/use-export-providers";
 import { useAuth } from "@/modules/auth/application/use-auth";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import type { CasaVacancyItem } from "@/modules/admin/infrastructure/casa-vacancies-api";
@@ -134,7 +136,8 @@ export default function VagasCasaPage() {
   const { data: catalogRoles } = useCatalogRoles();
 
   // Rótulo de cargo pelo NOME do catálogo (slug `auxiliar-limpeza` → "Auxiliar
-  // de Limpeza"), e não o slug cru. Inclui aliases. Fallback: o próprio valor.
+  // de Limpeza"), e não o slug cru. Inclui aliases. Fora do catálogo: o slug com
+  // maiúsculas (igual a Vagas Empresa).
   const roleNameBySlug = useMemo(() => {
     const map = new Map<string, string>();
     for (const role of catalogRoles ?? []) {
@@ -143,7 +146,7 @@ export default function VagasCasaPage() {
     }
     return map;
   }, [catalogRoles]);
-  const cargoLabel = (slug: string) => roleNameBySlug.get(slug) ?? slug;
+  const cargoLabel = (slug: string) => roleNameBySlug.get(slug) ?? formatCargo(slug);
   const [statusFilter, setStatusFilter] = useState<StatusKey>("all");
   // Modo Painel: as vagas em colunas por etapa, igual ao de Empresa.
   const [modoPainel, setModoPainel] = useState(false);
@@ -399,24 +402,40 @@ export default function VagasCasaPage() {
   const columns = [
     {
       header: "Empresa",
-      accessor: "empresa" as const,
+      accessor: (row: Row) => (
+        <span className="md:max-w-[200px] md:line-clamp-2 font-medium text-[#1d1d1b]" title={row.empresa}>
+          {row.empresa}
+        </span>
+      ),
       sortable: true,
       sortAccessor: (r: Row) => r.empresa,
     },
     {
       header: "Serviço",
-      accessor: (row: Row) => cargoLabel(row.cargo),
-      sortable: true,
-      sortAccessor: (r: Row) => r.cargo,
-    },
-    {
-      header: "Lugar",
       accessor: (row: Row) => (
-        <span className="block max-w-[200px] truncate" title={row.lugar}>
-          {row.lugar}
+        <span className="max-w-[160px] line-clamp-2" title={row.cargo}>
+          {cargoLabel(row.cargo)}
         </span>
       ),
+      sortable: true,
+      sortAccessor: (r: Row) => cargoLabel(r.cargo),
+    },
+    {
+      // Endereço curto (bairro · cidade/UF e a rua embaixo), igual a Vagas
+      // Empresa: o inteiro quebrava a linha. O completo fica no title e no modal.
+      header: "Lugar",
+      accessor: (row: Row) => {
+        const { place, street } = shortAddress(row.lugar);
+        return (
+          <span className="block max-w-[220px]" title={row.lugar}>
+            <span className="block truncate">{place}</span>
+            {street && <span className="block truncate text-xs text-[#737373]">{street}</span>}
+          </span>
+        );
+      },
       className: "hidden md:table-cell",
+      sortable: true,
+      sortAccessor: (r: Row) => r.lugar,
     },
     ...(isSuperAdmin
       ? [
@@ -442,15 +461,17 @@ export default function VagasCasaPage() {
       sortAccessor: (r: Row) => r.raw.payment,
     },
     {
-      header: "Data",
-      accessor: "data" as const,
+      // Dia e horário juntos (eram 2 colunas): a linha fica mais estreita e o
+      // Status, o "Ver" e o cancelar cabem na tela.
+      header: "Data do serviço",
+      accessor: (row: Row) => (
+        <span className="block whitespace-nowrap">
+          {row.data}
+          <span className="block text-xs text-[#737373]">{row.horario}</span>
+        </span>
+      ),
       sortable: true,
       sortAccessor: (r: Row) => new Date(r.raw.date),
-    },
-    {
-      header: "Horário",
-      accessor: "horario" as const,
-      className: "hidden lg:table-cell",
     },
     {
       // MESMAS pastilhas de Empresa (Contrato · Recibo · RPA · NF-e). A API do
@@ -476,20 +497,53 @@ export default function VagasCasaPage() {
     },
     {
       header: "Status",
+      // Presa na direita da tabela: com a rolagem para o lado, o Status, o "Ver"
+      // e o cancelar continuam à vista (antes ficavam fora da tela).
+      className:
+        "md:sticky md:right-0 md:z-[1] md:bg-white md:group-hover/row:bg-[#f7f7f7] md:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]",
       accessor: (row: Row) => (
-        <div className="flex flex-wrap items-center gap-1">
-          <StatusBadge status={row.statusExibido} />
-          {isRowNotBroadcast(registrosDisparo, row) && <NotBroadcastBadge />}
+        <div className="flex items-start justify-end gap-2 md:justify-between">
+          <div className="flex flex-wrap items-center gap-1">
+            <StatusBadge status={row.statusExibido} />
+            {isRowNotBroadcast(registrosDisparo, row) && <NotBroadcastBadge />}
+          </div>
+          {/* Computador: "Ver" e cancelar junto do Status (a coluna Ações é só do celular). */}
+          <div className="hidden md:flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setDetalhe(row)}
+              className="inline-flex items-center gap-1 rounded-md border border-[#e5e5e5] bg-white px-2 py-1 text-xs font-medium text-[#1d1d1b] hover:border-[#eca826] hover:text-[#eca826] cursor-pointer transition-colors"
+              title="Ver detalhes e o fluxo da vaga"
+              aria-label={`Ver a vaga de ${row.empresa}`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Ver
+            </button>
+            {row.status !== "cancelled" ? (
+              <button
+                type="button"
+                onClick={() => openCancelModal(row)}
+                className="p-1.5 rounded-md text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
+                title="Cancelar vaga"
+                aria-label={`Cancelar a vaga de ${row.empresa}`}
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            ) : null}
+          </div>
         </div>
       ),
     },
     {
       header: "Ações",
+      // Só no cartão do celular: no computador o "Ver" e o cancelar estão na coluna Status.
+      className: "md:hidden",
       accessor: (row: Row) => (
         <div className="flex items-center gap-1">
           {/* O olhinho que faltava: abre o mesmo card de detalhes do painel,
               com o fluxo completo da vaga. */}
           <button
+            type="button"
             onClick={() => setDetalhe(row)}
             className="cursor-pointer rounded-md p-1.5 text-[#737373] transition-colors hover:bg-[#eca826]/10 hover:text-[#eca826]"
             title="Ver detalhes e o fluxo da vaga"
@@ -498,6 +552,7 @@ export default function VagasCasaPage() {
           </button>
           {row.status !== "cancelled" ? (
             <button
+              type="button"
               onClick={() => openCancelModal(row)}
               className="p-1.5 rounded-md text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
               title="Cancelar vaga"
@@ -509,6 +564,10 @@ export default function VagasCasaPage() {
       ),
     },
   ];
+
+  // A tabela abre pela data do serviço, mais recente primeiro. O índice vem do
+  // título (um número fixo apontava para outra coluna quando a lista mudava).
+  const dataDoServicoIndex = columns.findIndex((c) => c.header === "Data do serviço");
 
   return (
     <div>
@@ -581,9 +640,12 @@ export default function VagasCasaPage() {
         <DataTable
           columns={columns}
           data={rows}
+          // Clicar em qualquer ponto da linha abre os detalhes (os botões e as
+          // pastilhas de documento da linha seguem fazendo só o deles).
+          onRowClick={(row) => setDetalhe(row)}
           searchPlaceholder="Buscar por empresa..."
           searchKey="empresa"
-          defaultSort={{ index: isSuperAdmin ? 5 : 4, direction: "desc" }}
+          defaultSort={{ index: dataDoServicoIndex, direction: "desc" }}
           filters={
             <div className="flex flex-col gap-3">
               {isSuperAdmin && (
@@ -645,7 +707,7 @@ export default function VagasCasaPage() {
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogClose onClick={() => setDetalhe(null)} />
           <DialogHeader>
-            <DialogTitle>{detalhe?.cargo ?? "Vaga"}</DialogTitle>
+            <DialogTitle>{detalhe ? cargoLabel(detalhe.cargo) : "Vaga"}</DialogTitle>
             <DialogDescription>
               {detalhe ? `${detalhe.empresa} · ${detalhe.data}` : ""}
             </DialogDescription>
