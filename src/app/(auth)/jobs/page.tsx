@@ -1238,8 +1238,11 @@ export default function JobsPage() {
 
               {/* Para quais grupos de WhatsApp a vaga foi + reenvio (substitui o
                   antigo aviso "Vaga não divulgada": o estado vazio já diz isso). */}
+              {/* Chave com prefixo: as três seções por vaga (divulgação, convite e reservas)
+                  são irmãs; com a mesma chave (o id da vaga), o React deixava cópias na tela
+                  quando o modal mudava de forma aberto ("Divulgação nos grupos" 2, 3 vezes). */}
               <VacancyGroupBroadcastsSection
-                key={modalDetalhes.id}
+                key={`divulgacao-${modalDetalhes.id}`}
                 vacancyId={modalDetalhes.id}
                 record={findGroupBroadcastRecord(registrosDisparo, modalDetalhes.id)}
               />
@@ -1301,7 +1304,7 @@ export default function JobsPage() {
                 modalDetalhes.raw.status === "OPEN" &&
                 Date.parse(modalDetalhes.raw.startTime) > Date.now() && (
                   <CompatibleInviteSection
-                    key={modalDetalhes.raw.id}
+                    key={`convite-${modalDetalhes.raw.id}`}
                     vacancyId={modalDetalhes.raw.id}
                   />
                 )}
@@ -1335,7 +1338,7 @@ export default function JobsPage() {
               {/* Reservas: quem está guardado, "Chamar reserva" e o histórico de trocas. */}
               {modalDetalhes.raw?.id && (
                 <VacancyReservesSection
-                  key={modalDetalhes.raw.id}
+                  key={`reservas-${modalDetalhes.raw.id}`}
                   vacancyId={modalDetalhes.raw.id}
                   candidacies={candidacies}
                 />
