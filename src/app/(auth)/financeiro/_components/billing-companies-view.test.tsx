@@ -308,4 +308,52 @@ describe("BillingCompaniesView — 'Fechar agora' na linha da empresa", () => {
     fireEvent.change(within(dialog).getByLabelText("Motivo (obrigatório)"), { target: { value: "Refaturar" } });
     expect(within(dialog).getByRole("button", { name: "Fechar fatura agora" })).toBeDisabled();
   });
+
+  it("cancelada que terminava hoje não trava: o botão libera e fecha (a API ignora a cancelada desde 03/11)", async () => {
+    // A extraordinária de hoje (ter 03/11) saiu errada e foi cancelada: refaturar no mesmo dia.
+    vi.mocked(listAdminInvoices).mockResolvedValue({
+      items: [
+        { id: "inv-h", number: "FAT-2026-000140", status: "CANCELLED", periodStart: "2026-11-02", periodEnd: "2026-11-03" },
+        { id: "inv-p", number: "FAT-2026-000101", status: "PAID", periodStart: "2026-10-26", periodEnd: "2026-11-01" },
+      ] as never,
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      hasMore: false,
+    });
+    vi.mocked(closeInvoiceNow).mockResolvedValue({
+      id: "inv-new",
+      number: "FAT-2026-000141",
+      total: "R$ 450,00",
+      totalInCents: 45000,
+      dueDate: "2026-11-06",
+    } as never);
+    renderView();
+    const dialog = await openDialog();
+
+    // Espera a lista de faturas: sem ela o diálogo não sabe da cancelada e nada travaria.
+    expect(
+      await within(dialog).findByText(
+        "A fatura FAT-2026-000140 foi cancelada e não conta: os serviços dela voltam e entram nesta.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Período: seg 02/11 até hoje, ter 03/11. Começa no dia seguinte ao fim da FAT-2026-000101 (dom 01/11), a última fatura que vale.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText(/feche amanhã/)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Motivo (obrigatório)"), {
+      target: { value: "Valor errado na FAT-2026-000140, refaturar" },
+    });
+    const submit = within(dialog).getByRole("button", { name: "Fechar fatura agora" });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+
+    await waitFor(() =>
+      expect(closeInvoiceNow).toHaveBeenCalledWith("dono-valinhos", {
+        reason: "Valor errado na FAT-2026-000140, refaturar",
+      }),
+    );
+  });
 });
