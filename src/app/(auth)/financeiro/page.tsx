@@ -30,6 +30,7 @@ import {
   BillingCompaniesView,
   type InvoiceCompanyFilter,
 } from "./_components/billing-companies-view";
+import { AsaasBalanceView } from "./_components/asaas-balance-view";
 import { FiscalDocumentsView } from "./_components/fiscal-documents-view";
 import { FreelancerPayoutsView } from "./_components/freelancer-payouts-view";
 import { InvoicesView } from "./_components/invoices-view";
@@ -42,6 +43,7 @@ const tabs = [
   "Empresas faturadas",
   "Faturas",
   "Notas fiscais",
+  "Saldo Asaas",
   "Estornos & Cancelamentos",
 ] as const;
 type Tab = typeof tabs[number];
@@ -61,6 +63,7 @@ const TAB_BY_QUERY: Record<string, Tab> = {
   "empresas-faturadas": "Empresas faturadas",
   "pagamentos-aos-freelancers": "Pagamentos aos freelancers",
   "notas-fiscais": "Notas fiscais",
+  "saldo-asaas": "Saldo Asaas",
   // Nome antigo da aba (links e favoritos de antes).
   repasses: "Pagamentos aos freelancers",
 };
@@ -1252,6 +1255,8 @@ export default function FinanceiroPage() {
       )}
 
       {tab === "Notas fiscais" && <FiscalDocumentsView />}
+
+      {tab === "Saldo Asaas" && <AsaasBalanceView />}
 
       {tab === "Estornos & Cancelamentos" && (
         <TransactionsView range={range} fixedType="estorno" />
