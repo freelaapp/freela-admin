@@ -241,7 +241,7 @@ export function DataTable<T extends { id?: string | number }>({
               {sortedData.map((row, rowIdx) => (
                 <tr
                   key={rowKey(row, rowIdx)}
-                  className={`group border-b border-[#e5e5e5] last:border-0 hover:bg-[#f7f7f7] transition-colors ${
+                  className={`group/row border-b border-[#e5e5e5] last:border-0 hover:bg-[#f7f7f7] transition-colors ${
                     onRowClick ? "cursor-pointer" : ""
                   }`}
                   onClick={

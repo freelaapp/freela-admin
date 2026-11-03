@@ -548,7 +548,7 @@ export default function JobsPage() {
     {
       header: "Empresa",
       accessor: (row: Row) => (
-        <span className="block md:max-w-[200px] md:line-clamp-2 font-medium text-[#1d1d1b]" title={row.empresa}>
+        <span className="md:max-w-[200px] md:line-clamp-2 font-medium text-[#1d1d1b]" title={row.empresa}>
           {row.empresa}
         </span>
       ),
@@ -573,7 +573,7 @@ export default function JobsPage() {
     {
       header: "Cargo",
       accessor: (row: Row) => (
-        <span className="block max-w-[160px] line-clamp-2" title={row.cargo}>
+        <span className="max-w-[160px] line-clamp-2" title={row.cargo}>
           {cargoLabel(row.cargo)}
         </span>
       ),
@@ -668,7 +668,7 @@ export default function JobsPage() {
       // Presa na direita da tabela: com a rolagem para o lado, o Status e o
       // "Ver" continuam à vista (antes ficavam fora da tela).
       className:
-        "md:sticky md:right-0 md:z-[1] md:bg-white md:group-hover:bg-[#f7f7f7] md:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]",
+        "md:sticky md:right-0 md:z-[1] md:bg-white md:group-hover/row:bg-[#f7f7f7] md:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]",
       accessor: (row: Row) => {
         const naoDivulgada = isRowNotBroadcast(registrosDisparo, row);
         return (
