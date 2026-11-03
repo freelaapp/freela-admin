@@ -31,8 +31,10 @@ vi.mock("@/modules/admin/application/use-vacancy-candidacies", () => ({
   useReinstateCandidacy: mutation,
   useAcceptCandidacy: mutation,
   useRestoreCandidacy: mutation,
+  useConfirmPrestartByPhone: mutation,
   useVacancyCandidacies: () => ({ data: [], isLoading: false }),
 }));
+vi.mock("@/modules/admin/application/use-admin-catalog", () => ({ useCatalogRoles: () => ({ data: [] }) }));
 vi.mock("@/modules/admin/application/use-vacancy-feedbacks", () => ({
   useVacancyFeedbacks: () => ({ data: [], isLoading: false }),
 }));
@@ -334,5 +336,23 @@ describe("Vagas Empresa — ordenação inicial", () => {
     expect(screen.getByRole("columnheader", { name: /Data do serviço/ })).toHaveAttribute("aria-sort", "descending");
     expect(screen.getByRole("columnheader", { name: /Candidatos/ })).not.toHaveAttribute("aria-sort");
     expect(empresasNaOrdem()).toEqual(["Bar Novembro", "Bar Outubro", "Bar Setembro"]);
+  });
+});
+
+describe("Vagas Empresa — lista: abrir a vaga pela linha", () => {
+  it("clicar no nome da empresa (qualquer ponto da linha) abre os Detalhes da Vaga", () => {
+    render(ui());
+    const desktop = within(screen.getByTestId("data-table-desktop"));
+    fireEvent.click(desktop.getByText("Bar do Zé"));
+    expect(screen.getByText("Detalhes da Vaga")).toBeInTheDocument();
+  });
+
+  it("o endereço vem curto: bairro · cidade/UF e a rua embaixo; o completo fica no title", () => {
+    state.vacancies = [vaga({ address: "Rua Prates, 480, Bom Retiro, São Paulo/SP, 01121000" })];
+    render(ui());
+    const desktop = within(screen.getByTestId("data-table-desktop"));
+    expect(desktop.getByText("Bom Retiro · São Paulo/SP")).toBeInTheDocument();
+    expect(desktop.getByText("Rua Prates, 480")).toBeInTheDocument();
+    expect(desktop.getByTitle("Rua Prates, 480, Bom Retiro, São Paulo/SP, 01121000")).toBeInTheDocument();
   });
 });
