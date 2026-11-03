@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, Bot } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
@@ -13,6 +13,7 @@ import { VacancyBoard } from "./_components/vacancy-board";
 import { SupportAutoSettingsDialog } from "./_components/support-auto-settings-dialog";
 import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
 import { VacancyDocumentsCell } from "./_components/vacancy-documents-cell";
+import { shortAddress } from "./_components/short-address";
 import {
   useResendVacancyGroupMessage,
   useSendVacancyStageMessage,
@@ -70,6 +71,8 @@ import type { VacancyItem, RefundType } from "@/modules/admin/infrastructure/adm
 import { computeVacancyMoney } from "@/modules/admin/domain/vacancy-money";
 import { isInvoicedVacancy } from "@/modules/admin/application/vacancy-documents-open";
 import { formatCents } from "@/lib/money";
+import { useCatalogRoles } from "@/modules/admin/application/use-admin-catalog";
+import { formatCargo } from "@/modules/admin/application/use-export-providers";
 import { IssueReportQueue } from "@/components/admin/vacancy/issue-report-queue";
 import { IssueReportResolution } from "@/components/admin/vacancy/issue-report-resolution";
 import { useOpenIssueReports } from "@/modules/admin/application/use-issue-reports";
@@ -147,6 +150,7 @@ function mapVacancyToRow(v: VacancyItem) {
 }
 
 type Row = ReturnType<typeof mapVacancyToRow>;
+
 
 import { VacancyRoadmap, formatStepAt } from "./_components/vacancy-roadmap";
 
@@ -312,6 +316,18 @@ export default function JobsPage() {
 
 
   const { data: feedbacks, isLoading: loadingFeedbacks } = useVacancyFeedbacks(modalDetalhesId);
+  // Cargo pelo NOME do catálogo ("lavagem-de-loucas" → "Lavagem de Louças"),
+  // como em Vagas — Casa; sem catálogo, o slug com maiúsculas.
+  const { data: catalogRoles } = useCatalogRoles();
+  const roleNameBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const role of catalogRoles ?? []) {
+      map.set(role.slug, role.name);
+      for (const alias of role.aliases ?? []) map.set(alias, role.name);
+    }
+    return map;
+  }, [catalogRoles]);
+  const cargoLabel = (slug: string) => roleNameBySlug.get(slug) ?? formatCargo(slug);
 
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -529,9 +545,41 @@ export default function JobsPage() {
   }
 
   const columns = [
-    { header: "Empresa", accessor: "empresa" as const, sortable: true, sortAccessor: (r: Row) => r.empresa },
-    { header: "Lugar", accessor: "cidade" as const, className: "hidden md:table-cell", sortable: true, sortAccessor: (r: Row) => r.cidade },
-    { header: "Cargo", accessor: "cargo" as const, sortable: true, sortAccessor: (r: Row) => r.cargo },
+    {
+      header: "Empresa",
+      accessor: (row: Row) => (
+        <span className="md:max-w-[200px] md:line-clamp-2 font-medium text-[#1d1d1b]" title={row.empresa}>
+          {row.empresa}
+        </span>
+      ),
+      sortable: true,
+      sortAccessor: (r: Row) => r.empresa,
+    },
+    {
+      header: "Lugar",
+      accessor: (row: Row) => {
+        const { place, street } = shortAddress(row.cidade);
+        return (
+          <span className="block max-w-[220px]" title={row.cidade}>
+            <span className="block truncate">{place}</span>
+            {street && <span className="block truncate text-xs text-[#737373]">{street}</span>}
+          </span>
+        );
+      },
+      className: "hidden md:table-cell",
+      sortable: true,
+      sortAccessor: (r: Row) => r.cidade,
+    },
+    {
+      header: "Cargo",
+      accessor: (row: Row) => (
+        <span className="max-w-[160px] line-clamp-2" title={row.cargo}>
+          {cargoLabel(row.cargo)}
+        </span>
+      ),
+      sortable: true,
+      sortAccessor: (r: Row) => cargoLabel(r.cargo),
+    },
     ...(isSuperAdmin
       ? [
           {
@@ -548,7 +596,6 @@ export default function JobsPage() {
           },
         ]
       : []),
-    { header: "Qtd", accessor: "qtd" as const },
     {
       header: "Candidatos",
       accessor: (row: Row) => (
@@ -577,17 +624,17 @@ export default function JobsPage() {
       sortAccessor: (r: Row) => (r.raw.createdAt ? new Date(r.raw.createdAt).getTime() : 0),
     },
     {
+      // Dia e horário juntos (eram 2 colunas): a linha fica mais estreita e o
+      // Status e o "Ver" cabem na tela.
       header: "Data do serviço",
-      accessor: "data" as const,
+      accessor: (row: Row) => (
+        <span className="block whitespace-nowrap">
+          {row.data}
+          <span className="block text-xs text-[#737373]">{row.horario}</span>
+        </span>
+      ),
       sortable: true,
       sortAccessor: (r: Row) => new Date(r.raw.date),
-    },
-    {
-      header: "Horário",
-      accessor: "horario" as const,
-      className: "hidden lg:table-cell",
-      sortable: true,
-      sortAccessor: (r: Row) => new Date(r.raw.startTime),
     },
     {
       header: "Disparo",
@@ -618,32 +665,51 @@ export default function JobsPage() {
     },
     {
       header: "Status",
+      // Presa na direita da tabela: com a rolagem para o lado, o Status e o
+      // "Ver" continuam à vista (antes ficavam fora da tela).
+      className:
+        "md:sticky md:right-0 md:z-[1] md:bg-white md:group-hover/row:bg-[#f7f7f7] md:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]",
       accessor: (row: Row) => {
         const naoDivulgada = isRowNotBroadcast(registrosDisparo, row);
         return (
-          <div className="flex flex-col items-end gap-1 md:items-start">
-            <div className="flex flex-wrap items-center gap-1">
-              <StatusBadge status={row.statusExibido} />
-              {naoDivulgada && <NotBroadcastBadge />}
+          <div className="flex items-start justify-end gap-2 md:justify-between">
+            <div className="flex flex-col items-end gap-1 md:items-start">
+              <div className="flex flex-wrap items-center gap-1">
+                <StatusBadge status={row.statusExibido} />
+                {naoDivulgada && <NotBroadcastBadge />}
+              </div>
+              {/* Celular e tablet: a coluna "Disparo" não aparece, então o selo da
+                  divulgação vem aqui, em 2ª linha (o reenvio fica no modal). Com
+                  "Não divulgada" já ao lado do status, só aparece se houver
+                  rodada (falhou / enviando) — senão repetiria a mesma coisa. */}
+              {(!naoDivulgada ||
+                Boolean(findGroupBroadcastRecord(registrosDisparo, row.id)?.groupBroadcast?.lastRound)) && (
+                <GroupDispatchBadge
+                  record={findGroupBroadcastRecord(registrosDisparo, row.id)}
+                  vacancyBroadcastAt={row.raw.groupBroadcastAt}
+                  className="lg:hidden"
+                />
+              )}
             </div>
-            {/* Celular e tablet: a coluna "Disparo" não aparece, então o selo da
-                divulgação vem aqui, em 2ª linha (o reenvio fica no modal). Com
-                "Não divulgada" já ao lado do status, só aparece se houver
-                rodada (falhou / enviando) — senão repetiria a mesma coisa. */}
-            {(!naoDivulgada ||
-              Boolean(findGroupBroadcastRecord(registrosDisparo, row.id)?.groupBroadcast?.lastRound)) && (
-              <GroupDispatchBadge
-                record={findGroupBroadcastRecord(registrosDisparo, row.id)}
-                vacancyBroadcastAt={row.raw.groupBroadcastAt}
-                className="lg:hidden"
-              />
-            )}
+            {/* Computador: o "Ver" fica junto do Status (a coluna Ações é só do celular). */}
+            <button
+              type="button"
+              onClick={() => setModalDetalhesId(row.id)}
+              className="hidden md:inline-flex shrink-0 items-center gap-1 rounded-md border border-[#e5e5e5] bg-white px-2 py-1 text-xs font-medium text-[#1d1d1b] hover:border-[#eca826] hover:text-[#eca826] cursor-pointer transition-colors"
+              title="Ver"
+              aria-label={`Ver a vaga de ${row.empresa}`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Ver
+            </button>
           </div>
         );
       },
     },
     {
       header: "Ações",
+      // Só no cartão do celular: no computador o "Ver" está na coluna Status.
+      className: "md:hidden",
       accessor: (row: Row) => (
         <div className="flex items-center gap-1">
           <button
@@ -799,6 +865,9 @@ export default function JobsPage() {
       <DataTable
           columns={columns}
           data={rows}
+          // Clicar em qualquer ponto da linha abre os detalhes (os botões da
+          // linha, como "Reenviar" e as pastilhas de documento, seguem iguais).
+          onRowClick={(row) => setModalDetalhesId(row.id)}
           searchPlaceholder="Buscar por empresa..."
           searchKey="empresa"
           defaultSort={

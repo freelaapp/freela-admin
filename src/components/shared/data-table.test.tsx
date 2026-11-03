@@ -173,3 +173,30 @@ describe("DataTable — o que é a coluna", () => {
     expect(cards().getAllByText("Valor")[0]).toHaveAttribute("title", "Valor = soma. Fonte: x.");
   });
 });
+
+describe("DataTable — linha clicável (computador)", () => {
+  const desktop = () => within(screen.getByTestId("data-table-desktop"));
+
+  it("clicar numa célula comum chama onRowClick com a linha", () => {
+    const onRowClick = vi.fn();
+    render(<DataTable columns={columns()} data={ROWS} onRowClick={onRowClick} />);
+    fireEvent.click(desktop().getByText("Natal"));
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+    expect(onRowClick).toHaveBeenCalledWith(ROWS[0]);
+  });
+
+  it("botão dentro da linha faz só o dele: não abre a linha", () => {
+    const onRowClick = vi.fn();
+    const onVer = vi.fn();
+    render(<DataTable columns={columns(onVer)} data={ROWS} onRowClick={onRowClick} />);
+    fireEvent.click(desktop().getByRole("button", { name: "Ver Ana" }));
+    expect(onVer).toHaveBeenCalledWith("2");
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("sem onRowClick a linha não vira clicável", () => {
+    render(<DataTable columns={columns()} data={ROWS} />);
+    const row = desktop().getByText("Natal").closest("tr");
+    expect(row).not.toHaveClass("cursor-pointer");
+  });
+});

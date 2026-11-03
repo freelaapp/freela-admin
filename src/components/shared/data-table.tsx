@@ -37,6 +37,30 @@ interface DataTableProps<T> {
   caption?: string;
   /** O que mostrar com a lista vazia (padrão: "Nenhum resultado encontrado."). */
   emptyMessage?: React.ReactNode;
+  /**
+   * Clique em qualquer lugar da linha (tabela do computador). Botões, links e
+   * campos dentro da linha continuam fazendo só o que fazem, e arrastar para
+   * selecionar texto não abre nada. É atalho do mouse: a linha precisa ter
+   * também o botão de abrir (teclado e leitor de tela vão por ele).
+   */
+  onRowClick?: (row: T) => void;
+}
+
+/** O que, dentro da linha, já tem o próprio clique: não abre a linha. */
+const OWN_CLICK =
+  'button, a, input, select, textarea, label, summary, [role="button"], [role="menuitem"], [role="checkbox"], [data-row-click-ignore]';
+
+/**
+ * O clique veio da própria linha? Não se veio de um botão/link dela, de um
+ * diálogo aberto por ela (o React passa o clique do portal para a linha) ou de
+ * uma seleção de texto.
+ */
+export function isRowOwnClick(target: EventTarget | null, row: Element): boolean {
+  if (!(target instanceof Element) || !row.contains(target)) return false;
+  const own = target.closest(OWN_CLICK);
+  if (own && row.contains(own)) return false;
+  const selected = typeof window !== "undefined" ? window.getSelection?.()?.toString() : "";
+  return !selected;
 }
 
 type SortState = { index: number; direction: "asc" | "desc" };
@@ -96,6 +120,7 @@ export function DataTable<T extends { id?: string | number }>({
   isFetching = false,
   caption,
   emptyMessage = "Nenhum resultado encontrado.",
+  onRowClick,
 }: DataTableProps<T>) {
   const [internalSearch, setInternalSearch] = useState("");
   const [sort, setSort] = useState<SortState | null>(defaultSort ?? null);
@@ -216,7 +241,16 @@ export function DataTable<T extends { id?: string | number }>({
               {sortedData.map((row, rowIdx) => (
                 <tr
                   key={rowKey(row, rowIdx)}
-                  className="border-b border-[#e5e5e5] last:border-0 hover:bg-[#f7f7f7] transition-colors"
+                  className={`group/row border-b border-[#e5e5e5] last:border-0 hover:bg-[#f7f7f7] transition-colors ${
+                    onRowClick ? "cursor-pointer" : ""
+                  }`}
+                  onClick={
+                    onRowClick
+                      ? (e: React.MouseEvent<HTMLTableRowElement>) => {
+                          if (isRowOwnClick(e.target, e.currentTarget)) onRowClick(row);
+                        }
+                      : undefined
+                  }
                 >
                   {columns.map((col, colIdx) => (
                     <td
