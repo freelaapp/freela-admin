@@ -19,6 +19,7 @@ import {
 } from "@/modules/admin/application/invoice-presentation";
 import {
   CLOSE_NOW_PERIOD_RULE,
+  closeNowBlockedToday,
   closeNowPeriod,
   closeNowPeriodText,
 } from "@/modules/admin/application/close-now-period";
@@ -694,7 +695,10 @@ export function CloseNowDialog({
       }, ${formatBrl(open.totalInCents)})?${due ? ` Vence em ${dayLabel(due)}.` : ""}`
     : `Fechar agora uma fatura com os lançamentos ainda não faturados de ${company}?`;
   const items = invoices.data?.items;
-  const periodLines = items ? closeNowPeriodText(closeNowPeriod(items, today)) : [CLOSE_NOW_PERIOD_RULE];
+  const period = items ? closeNowPeriod(items, today) : null;
+  const periodLines = period ? closeNowPeriodText(period) : [CLOSE_NOW_PERIOD_RULE];
+  // A API responderia 409 ALREADY_CLOSED_TODAY: o texto do período já diz por quê.
+  const blockedToday = period ? closeNowBlockedToday(period) : false;
 
   const submit = async () => {
     setError(null);
@@ -724,7 +728,10 @@ export function CloseNowDialog({
             </p>
           )}
           {periodLines.map((line) => (
-            <p key={line} className="text-xs text-[#525252]">
+            <p
+              key={line}
+              className={cn("text-xs", blockedToday ? "font-medium text-[#b45309]" : "text-[#525252]")}
+            >
               {line}
             </p>
           ))}
@@ -740,7 +747,7 @@ export function CloseNowDialog({
         </div>
       }
       submitLabel="Fechar fatura agora"
-      canSubmit={valid && !nothingOpen}
+      canSubmit={valid && !nothingOpen && !blockedToday}
       pending={mutation.isPending}
       error={error}
       onSubmit={submit}

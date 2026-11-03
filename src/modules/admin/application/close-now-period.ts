@@ -19,6 +19,12 @@ export interface CloseNowPeriod {
   cancelledAfter: string[];
   /** A última fatura já termina hoje (ou depois): hoje não sai outra. */
   alreadyUpToToday: boolean;
+  /**
+   * Canceladas que terminam hoje: o banco aceita uma fatura só por empresa e
+   * último dia (UNIQUE contractor + period_end, a cancelada conta), então a
+   * extraordinária de hoje bate nela (409 ALREADY_CLOSED_TODAY). Só amanhã.
+   */
+  cancelledEndingToday: string[];
 }
 
 type InvoiceLike = Pick<AdminInvoiceListItem, "number" | "status" | "periodEnd">;
@@ -45,12 +51,26 @@ export function closeNowPeriod(invoices: InvoiceLike[], todayKey: DateKey): Clos
     lastInvoice: last ? { number: last.number, periodEnd: last.periodEnd } : null,
     cancelledAfter,
     alreadyUpToToday: Boolean(last && last.periodEnd >= todayKey),
+    cancelledEndingToday: invoices
+      .filter((i) => i.status === "CANCELLED" && i.periodEnd >= todayKey)
+      .map((i) => i.number),
   };
+}
+
+/** Hoje não dá para fechar (a API responderia 409): o diálogo não deixa enviar. */
+export function closeNowBlockedToday(period: CloseNowPeriod): boolean {
+  return period.alreadyUpToToday || period.cancelledEndingToday.length > 0;
 }
 
 /** O texto do período no diálogo: a data, de onde ela vem e o que acontece com as canceladas. */
 export function closeNowPeriodText(period: CloseNowPeriod): string[] {
   const lines: string[] = [];
+  if (period.cancelledEndingToday.length > 0 && !period.alreadyUpToToday) {
+    lines.push(
+      `A fatura cancelada ${period.cancelledEndingToday.join(", ")} terminava hoje, ${dayLabel(period.end)}. O sistema guarda uma fatura só por empresa com o mesmo último dia (a cancelada conta), então a fatura de agora não sai hoje: feche amanhã — os serviços dela entram nessa.`,
+    );
+    return lines;
+  }
   if (period.alreadyUpToToday && period.lastInvoice) {
     lines.push(
       `A fatura ${period.lastInvoice.number} já vai até ${dayLabel(period.lastInvoice.periodEnd)}: hoje não sai outra. Os serviços novos entram no próximo fechamento.`,

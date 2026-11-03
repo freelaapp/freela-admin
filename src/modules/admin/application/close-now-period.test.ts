@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { closeNowPeriod, closeNowPeriodText, nextDayKey } from "./close-now-period";
+import { closeNowBlockedToday, closeNowPeriod, closeNowPeriodText, nextDayKey } from "./close-now-period";
 
 const inv = (number: string, periodEnd: string, status: "ISSUED" | "PAID" | "CANCELLED" = "PAID") => ({
   number,
@@ -49,6 +49,20 @@ describe("closeNowPeriod — o período do 'Fechar agora' (mesma regra da API)",
     expect(closeNowPeriodText(p)).toEqual([
       "A fatura FAT-2026-000030 já vai até ter 03/11: hoje não sai outra. Os serviços novos entram no próximo fechamento.",
     ]);
+  });
+
+  it("cancelada que terminava hoje: avisa que só dá amanhã (a trava do banco conta a cancelada)", () => {
+    const p = closeNowPeriod(
+      [inv("FAT-2026-000140", "2026-11-03", "CANCELLED"), inv("FAT-2026-000130", "2026-10-27")],
+      "2026-11-03",
+    );
+    expect(p.cancelledEndingToday).toEqual(["FAT-2026-000140"]);
+    expect(closeNowBlockedToday(p)).toBe(true);
+    expect(closeNowPeriodText(p)).toEqual([
+      "A fatura cancelada FAT-2026-000140 terminava hoje, ter 03/11. O sistema guarda uma fatura só por empresa com o mesmo último dia (a cancelada conta), então a fatura de agora não sai hoje: feche amanhã — os serviços dela entram nessa.",
+    ]);
+    // Cancelada de outro dia não trava.
+    expect(closeNowBlockedToday(closeNowPeriod([inv("FAT-2026-000140", "2026-11-01", "CANCELLED")], "2026-11-03"))).toBe(false);
   });
 
   it("nextDayKey vira mês e ano", () => {
