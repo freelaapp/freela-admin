@@ -19,6 +19,7 @@ import type {
   CompanyFigure,
 } from "@/modules/admin/infrastructure/billing-api";
 import { PreferencesDialog } from "../../empresas/_components/preferences-dialog";
+import { CloseNowDialog } from "./invoice-action-dialogs";
 
 /** A empresa escolhida em "Ver faturas" (a aba Faturas abre filtrada por ela). */
 export type InvoiceCompanyFilter = { contractorUserId: string; name: string };
@@ -57,6 +58,9 @@ export function BillingCompaniesView({
 }) {
   const companies = useBillingCompanies();
   const [billingOf, setBillingOf] = useState<BillingCompanyItem | null>(null);
+  // "Fechar agora" da linha: a empresa cuja fatura aberta foi cancelada não tem
+  // fatura para abrir, e sem isto o suporte fechava pelo console do navegador.
+  const [closeNowOf, setCloseNowOf] = useState<BillingCompanyItem | null>(null);
 
   if (companies.isLoading) {
     return (
@@ -228,6 +232,15 @@ export function BillingCompaniesView({
           <Button variant="outline" size="sm" onClick={() => setBillingOf(row)}>
             Cobrança
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCloseNowOf(row)}
+            title="Fecha hoje uma fatura com os serviços ainda sem fatura desta empresa"
+            aria-label={`Fechar agora a fatura de ${row.name ?? "Sem nome"}`}
+          >
+            Fechar agora
+          </Button>
         </div>
       ),
     },
@@ -286,6 +299,15 @@ export function BillingCompaniesView({
           )}
         </DialogContent>
       </Dialog>
+
+      {closeNowOf && (
+        <CloseNowDialog
+          key={closeNowOf.contractorUserId}
+          contractorUserId={closeNowOf.contractorUserId}
+          companyName={closeNowOf.name}
+          onClose={() => setCloseNowOf(null)}
+        />
+      )}
     </div>
   );
 }

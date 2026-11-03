@@ -18,6 +18,12 @@ import {
   parseBrlToCents,
 } from "@/modules/admin/application/invoice-presentation";
 import {
+  CLOSE_NOW_PERIOD_RULE,
+  closeNowPeriod,
+  closeNowPeriodText,
+} from "@/modules/admin/application/close-now-period";
+import {
+  useAdminInvoices,
   useBillingAdjustment,
   useCloseInvoiceNow,
   useIssueSecondCopy,
@@ -135,7 +141,15 @@ export function InvoiceActions({ detail }: { detail: AdminInvoiceDetail }) {
       {open === "markPaid" && <MarkPaidDialog key={opening} {...props} />}
       {open === "waiveBlock" && <WaiveBlockDialog key={opening} {...props} />}
       {open === "adjust" && <AdjustmentDialog key={opening} {...props} />}
-      {open === "closeNow" && <CloseNowDialog key={opening} {...props} />}
+      {open === "closeNow" && (
+        <CloseNowDialog
+          key={opening}
+          contractorUserId={detail.invoice.company.contractorUserId}
+          companyName={companyOf(detail)}
+          onClose={close}
+          openInvoiceOnSuccess
+        />
+      )}
     </div>
   );
 }
@@ -642,30 +656,57 @@ function AdjustmentDialog({ detail, onClose }: DialogProps) {
 
 // ─── Fechar agora (fatura extraordinária) ─────────────────────────────────────
 
-function CloseNowDialog({ detail, onClose }: DialogProps) {
+/**
+ * "Fechar agora": fecha hoje uma fatura extraordinária com os lançamentos ainda
+ * sem fatura da empresa (`POST …/contractors/:id/close-now`). Abre da fatura e da
+ * linha da empresa em Financeiro > Empresas faturadas — inclusive quando a fatura
+ * aberta foi cancelada e a empresa ficou sem fatura para abrir.
+ */
+export function CloseNowDialog({
+  contractorUserId,
+  companyName,
+  onClose,
+  openInvoiceOnSuccess = false,
+}: {
+  /** User.id do dono da empresa. */
+  contractorUserId: string;
+  companyName: string | null;
+  onClose: () => void;
+  /** Da fatura: abre a nova direto. Da lista de empresas: o link vai no aviso. */
+  openInvoiceOnSuccess?: boolean;
+}) {
   const router = useRouter();
-  const contractorUserId = detail.invoice.company.contractorUserId;
   const mutation = useCloseInvoiceNow(contractorUserId);
   // Prévia do que está aberto e do vencimento (o mesmo GET da aba Cobrança).
   const billing = useAdminBillingMode(contractorUserId);
+  // As faturas da empresa (as mais novas primeiro): de onde sai o início do período.
+  const invoices = useAdminInvoices({ contractorUserId });
   const { reason, setReason, valid } = useReason();
   const [error, setError] = useState<string | null>(null);
-  const company = companyOf(detail);
+  const company = companyName ?? "a empresa";
   const open = billing.data?.openPreview ?? null;
   const due = billing.data?.extraordinaryInvoice?.dueDate ?? null;
+  const today = billing.data?.extraordinaryInvoice?.closeDate ?? todayKey();
+  const nothingOpen = open !== null && open.lineCount === 0;
   const description = open
     ? `Fechar agora uma fatura com os lançamentos ainda não faturados de ${company} (${open.lineCount} ${
         open.lineCount === 1 ? "lançamento" : "lançamentos"
       }, ${formatBrl(open.totalInCents)})?${due ? ` Vence em ${dayLabel(due)}.` : ""}`
     : `Fechar agora uma fatura com os lançamentos ainda não faturados de ${company}?`;
+  const items = invoices.data?.items;
+  const periodLines = items ? closeNowPeriodText(closeNowPeriod(items, today)) : [CLOSE_NOW_PERIOD_RULE];
 
   const submit = async () => {
     setError(null);
     try {
       const invoice = await mutation.mutateAsync({ reason: reason.trim() });
-      toast.success(`Fatura ${invoice.number} fechada. Vence ${dayLabel(invoice.dueDate)}.`);
+      const href = `/financeiro/faturas/${encodeURIComponent(invoice.id)}`;
+      toast.success(
+        `Fatura ${invoice.number} fechada para ${company}: ${invoice.total || formatBrl(invoice.totalInCents)}, vence ${dayLabel(invoice.dueDate)}.`,
+        { action: { label: "Abrir fatura", onClick: () => router.push(href) }, duration: 15000 },
+      );
       onClose();
-      router.push(`/financeiro/faturas/${encodeURIComponent(invoice.id)}`);
+      if (openInvoiceOnSuccess) router.push(href);
     } catch (err) {
       setError(actionErrorMessage(err));
     }
@@ -675,17 +716,31 @@ function CloseNowDialog({ detail, onClose }: DialogProps) {
     <ActionDialog
       title="Fechar agora"
       description={
-        <>
+        <div className="space-y-1">
           <p>{description}</p>
           {open && open.lineCount > 0 && (
-            <p className="mt-1 text-xs text-[#737373]">
+            <p className="text-xs text-[#737373]">
               {`Conta (débitos − créditos): ${open.calc}. Fonte: lançamentos do faturado ainda sem fatura.`}
             </p>
           )}
-        </>
+          {periodLines.map((line) => (
+            <p key={line} className="text-xs text-[#525252]">
+              {line}
+            </p>
+          ))}
+          <p className="text-xs text-[#737373]">
+            A fatura sai hoje, com o Pix e o aviso para a empresa, como num fechamento normal. O
+            próximo fechamento do ciclo começa no dia seguinte a ela.
+          </p>
+          {nothingOpen && (
+            <p className="text-xs font-medium text-[#b45309]">
+              Não há lançamentos sem fatura: não há o que fechar agora.
+            </p>
+          )}
+        </div>
       }
       submitLabel="Fechar fatura agora"
-      canSubmit={valid}
+      canSubmit={valid && !nothingOpen}
       pending={mutation.isPending}
       error={error}
       onSubmit={submit}
@@ -694,6 +749,11 @@ function CloseNowDialog({ detail, onClose }: DialogProps) {
       <ReasonField value={reason} onChange={setReason} />
     </ActionDialog>
   );
+}
+
+/** Hoje em Brasília (`AAAA-MM-DD`), enquanto a API não manda o dia. */
+function todayKey(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 }
 
 // ─── Reemitir a nota fiscal (NFS-e recusada) ─────────────────────────────────

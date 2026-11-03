@@ -1,11 +1,22 @@
 import "@testing-library/jest-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { AxiosError, AxiosHeaders } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+}));
 vi.mock("@/modules/admin/infrastructure/billing-api", () => ({
   getBillingCompanies: vi.fn(),
+  closeInvoiceNow: vi.fn(),
+  listAdminInvoices: vi.fn(),
+}));
+vi.mock("@/modules/admin/infrastructure/billing-mode-api", () => ({
+  getBillingModeSettings: vi.fn(),
+  updateBillingMode: vi.fn(),
 }));
 // A aba Cobrança tem testes próprios; aqui só importa abrir na aba certa, da empresa certa.
 vi.mock("../../empresas/_components/preferences-dialog", () => ({
@@ -15,7 +26,13 @@ vi.mock("../../empresas/_components/preferences-dialog", () => ({
 }));
 
 import { COMPANIES, VALINHOS } from "@/modules/admin/application/billing.test-fixtures";
-import { getBillingCompanies } from "@/modules/admin/infrastructure/billing-api";
+import { toast } from "sonner";
+import {
+  closeInvoiceNow,
+  getBillingCompanies,
+  listAdminInvoices,
+} from "@/modules/admin/infrastructure/billing-api";
+import { getBillingModeSettings } from "@/modules/admin/infrastructure/billing-mode-api";
 import { BillingCompaniesView } from "./billing-companies-view";
 
 function apiError(status: number, code: string): AxiosError {
@@ -183,5 +200,112 @@ describe("BillingCompaniesView — estados", () => {
     expect(
       await screen.findByText("As empresas faturadas ainda não estão disponíveis neste ambiente."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("BillingCompaniesView — 'Fechar agora' na linha da empresa", () => {
+  const openDialog = async () => {
+    await screen.findAllByText("Chopp e Espeto Valinhos");
+    const row = within(screen.getByRole("table"))
+      .getByText("Chopp e Espeto Valinhos")
+      .closest("tr") as HTMLElement;
+    fireEvent.click(within(row).getByRole("button", { name: "Fechar agora a fatura de Chopp e Espeto Valinhos" }));
+    return screen.getByRole("dialog");
+  };
+
+  beforeEach(() => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({
+      openPreview: {
+        lineCount: 3,
+        debitsInCents: 45000,
+        creditsInCents: 0,
+        totalInCents: 45000,
+        calc: "R$ 450,00 − R$ 0,00 = R$ 450,00",
+      },
+      extraordinaryInvoice: { closeDate: "2026-11-03", dueDate: "2026-11-06", blockFromDate: "2026-11-10" },
+    } as never);
+    // A fatura aberta foi cancelada: o período volta para depois da última que vale.
+    vi.mocked(listAdminInvoices).mockResolvedValue({
+      items: [
+        { id: "inv-c", number: "FAT-2026-000120", status: "CANCELLED", periodStart: "2026-10-26", periodEnd: "2026-11-01" },
+        { id: "inv-p", number: "FAT-2026-000101", status: "PAID", periodStart: "2026-10-19", periodEnd: "2026-10-25" },
+      ] as never,
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      hasMore: false,
+    });
+  });
+
+  it("o diálogo diz o que fecha: valor, vencimento, período e a cancelada que não conta", async () => {
+    renderView();
+    const dialog = await openDialog();
+
+    expect(
+      await within(dialog).findByText(
+        "Fechar agora uma fatura com os lançamentos ainda não faturados de Chopp e Espeto Valinhos (3 lançamentos, R$ 450,00)? Vence em sex 06/11.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText(
+        "Período: seg 26/10 até hoje, ter 03/11. Começa no dia seguinte ao fim da FAT-2026-000101 (dom 25/10), a última fatura que vale.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "A fatura FAT-2026-000120 foi cancelada e não conta: os serviços dela voltam e entram nesta.",
+      ),
+    ).toBeInTheDocument();
+    expect(listAdminInvoices).toHaveBeenCalledWith({ contractorUserId: "dono-valinhos" });
+  });
+
+  it("motivo com menos de 5 letras não deixa fechar", async () => {
+    renderView();
+    const dialog = await openDialog();
+    fireEvent.change(within(dialog).getByLabelText("Motivo (obrigatório)"), { target: { value: "ok" } });
+    expect(within(dialog).getByRole("button", { name: "Fechar fatura agora" })).toBeDisabled();
+  });
+
+  it("fecha com o motivo e avisa o número da fatura, com o link para abrir", async () => {
+    vi.mocked(closeInvoiceNow).mockResolvedValue({
+      id: "inv-new",
+      number: "FAT-2026-000130",
+      total: "R$ 450,00",
+      totalInCents: 45000,
+      dueDate: "2026-11-06",
+    } as never);
+    renderView();
+    const dialog = await openDialog();
+    fireEvent.change(within(dialog).getByLabelText("Motivo (obrigatório)"), {
+      target: { value: "Fatura cancelada, refaturar" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar fatura agora" }));
+
+    await waitFor(() =>
+      expect(closeInvoiceNow).toHaveBeenCalledWith("dono-valinhos", { reason: "Fatura cancelada, refaturar" }),
+    );
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const [message, options] = vi.mocked(toast.success).mock.calls[0] as [string, { action: { label: string; onClick: () => void } }];
+    expect(message).toBe("Fatura FAT-2026-000130 fechada para Chopp e Espeto Valinhos: R$ 450,00, vence sex 06/11.");
+    expect(options.action.label).toBe("Abrir fatura");
+    // Da lista, não sai da tela: o link do aviso é que abre a fatura.
+    expect(push).not.toHaveBeenCalled();
+    options.action.onClick();
+    expect(push).toHaveBeenCalledWith("/financeiro/faturas/inv-new");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("sem lançamento sem fatura: diz que não há o que fechar e não deixa enviar", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({
+      openPreview: { lineCount: 0, debitsInCents: 0, creditsInCents: 0, totalInCents: 0, calc: "R$ 0,00" },
+      extraordinaryInvoice: { closeDate: "2026-11-03", dueDate: "2026-11-06", blockFromDate: "2026-11-10" },
+    } as never);
+    renderView();
+    const dialog = await openDialog();
+    expect(
+      await within(dialog).findByText("Não há lançamentos sem fatura: não há o que fechar agora."),
+    ).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Motivo (obrigatório)"), { target: { value: "Refaturar" } });
+    expect(within(dialog).getByRole("button", { name: "Fechar fatura agora" })).toBeDisabled();
   });
 });
