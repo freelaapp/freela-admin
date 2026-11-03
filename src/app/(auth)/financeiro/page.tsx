@@ -30,6 +30,7 @@ import {
   BillingCompaniesView,
   type InvoiceCompanyFilter,
 } from "./_components/billing-companies-view";
+import { FiscalDocumentsView } from "./_components/fiscal-documents-view";
 import { FreelancerPayoutsView } from "./_components/freelancer-payouts-view";
 import { InvoicesView } from "./_components/invoices-view";
 
@@ -40,6 +41,7 @@ const tabs = [
   "Pagamentos aos freelancers",
   "Empresas faturadas",
   "Faturas",
+  "Notas fiscais",
   "Estornos & Cancelamentos",
 ] as const;
 type Tab = typeof tabs[number];
@@ -58,6 +60,7 @@ const TAB_BY_QUERY: Record<string, Tab> = {
   faturas: "Faturas",
   "empresas-faturadas": "Empresas faturadas",
   "pagamentos-aos-freelancers": "Pagamentos aos freelancers",
+  "notas-fiscais": "Notas fiscais",
   // Nome antigo da aba (links e favoritos de antes).
   repasses: "Pagamentos aos freelancers",
 };
@@ -1247,6 +1250,8 @@ export default function FinanceiroPage() {
           onSeeHeld={() => setTab("Pagamentos aos freelancers")}
         />
       )}
+
+      {tab === "Notas fiscais" && <FiscalDocumentsView />}
 
       {tab === "Estornos & Cancelamentos" && (
         <TransactionsView range={range} fixedType="estorno" />
