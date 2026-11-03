@@ -542,6 +542,66 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     ).toBeInTheDocument();
   });
 
+  it("fluxo v2 (B1/C1): o sistema escolheu, a empresa removeu com 1 toque e o suplente saiu pela prontidão", async () => {
+    const linha = (over: Record<string, unknown>) => ({
+      reserveId: `r-${over.candidacyId}-${over.designatedAt}`,
+      position: 1,
+      status: "RELEASED",
+      callId: null,
+      designatedBy: "SYSTEM",
+      designatedByLabel: null,
+      releaseReason: null,
+      releasedBy: null,
+      releasedByLabel: null,
+      releasedAt: null,
+      ...over,
+    });
+    const T1 = "2026-11-04T14:05:00.000Z";
+    const T2 = "2026-11-04T14:20:00.000Z";
+    const T3 = "2026-11-04T18:00:00.000Z";
+    api.getVacancyReserves.mockResolvedValue({
+      ...VIEW,
+      chosen: [reserva("c-cai", "Cai Rocha", 1)],
+      history: {
+        calls: [],
+        principalChanges: [],
+        reserveChanges: [
+          linha({
+            candidacyId: "c-davi",
+            name: "Davi Melo",
+            position: 2,
+            designatedAt: T1,
+            releaseReason: "REMOVED_BY_CONTRACTOR",
+            releasedBy: "CONTRACTOR",
+            releasedByLabel: "rafael@bardoze.com",
+            releasedAt: T2,
+          }),
+          linha({
+            candidacyId: "c-bia",
+            name: "Bia Lima",
+            designatedAt: T1,
+            status: "LEFT",
+            releaseReason: "NOT_READY",
+            releasedAt: T3,
+          }),
+        ],
+      },
+    });
+    renderSection();
+
+    expect(
+      await screen.findByText(/o sistema escolheu as reservas: 1 Bia · 2 Davi/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/tirou Davi das reservas \(rafael@bardoze.com\)/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Bia saiu das reservas: disse que não pode ficar de prontidão/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("histórico da lista: mudar a ordem e o fim pelo prazo", async () => {
     const T = "2026-10-31T14:30:00.000Z";
     const base = {

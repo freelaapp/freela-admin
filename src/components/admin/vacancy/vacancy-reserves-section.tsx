@@ -160,6 +160,8 @@ function LinhaChamada({
 const SAIU_SOZINHA: Record<string, string> = {
   ACCEPTED_ELSEWHERE: "foi escolhida em outra vaga no mesmo horário",
   CANDIDACY_GONE: "retirou a candidatura",
+  // Fluxo v2, fatia C1: "Não posso" na prontidão (sem pontos).
+  NOT_READY: "disse que não pode ficar de prontidão",
 };
 
 /** Fim da lista inteira (cron), por motivo. */
@@ -200,7 +202,11 @@ function linhasDaLista(
   for (const c of changes) {
     grupo(c.designatedAt).postas.push(c);
     if (!c.releasedAt || c.callId) continue;
-    if (c.releaseReason === "REPLACED_BY_CONTRACTOR")
+    // REMOVED_BY_CONTRACTOR: "Remover" de 1 toque (fluxo v2, fatia B1).
+    if (
+      c.releaseReason === "REPLACED_BY_CONTRACTOR" ||
+      c.releaseReason === "REMOVED_BY_CONTRACTOR"
+    )
       grupo(c.releasedAt).tiradas.push(c);
     else if (c.releaseReason === "REORDERED")
       grupo(c.releasedAt).reordenadas.push(c);
