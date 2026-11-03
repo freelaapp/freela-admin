@@ -18,12 +18,15 @@ vi.mock("@/modules/auth/application/use-area-guard", () => ({
 vi.mock("@/modules/admin/infrastructure/billing-api", () => ({
   getAdminInvoice: vi.fn(),
   downloadAdminInvoicePdf: vi.fn(),
+  downloadAdminInvoiceChargePdf: vi.fn(),
+  downloadAdminInvoiceDebitNotePdf: vi.fn(),
   resendInvoice: vi.fn(),
   issueSecondCopy: vi.fn(),
   markInvoicePaid: vi.fn(),
   waiveInvoiceBlock: vi.fn(),
   createBillingAdjustment: vi.fn(),
   closeInvoiceNow: vi.fn(),
+  listAdminInvoices: vi.fn(),
   getBillingSummary: vi.fn(),
   reissueInvoiceNfse: vi.fn(),
 }));
@@ -38,6 +41,7 @@ import {
   closeInvoiceNow,
   createBillingAdjustment,
   getAdminInvoice,
+  listAdminInvoices,
   issueSecondCopy,
   markInvoicePaid,
   resendInvoice,
@@ -75,6 +79,7 @@ const reason = () => within(dialog()).getByLabelText("Motivo (obrigatório)");
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getAdminInvoice).mockResolvedValue(DETAIL);
+  vi.mocked(listAdminInvoices).mockResolvedValue({ items: [], page: 1, pageSize: 20, total: 0, hasMore: false });
 });
 
 describe("Ações da fatura", () => {
@@ -436,5 +441,30 @@ describe("Diálogos das ações — acessibilidade", () => {
     });
     expect(panel).toHaveClass("rounded-xl");
     expect(panel).toHaveAttribute("aria-modal", "true");
+  });
+});
+
+describe("Fechar agora — da fatura", () => {
+  it("fecha, avisa o número e abre a fatura nova", async () => {
+    vi.mocked(getBillingModeSettings).mockResolvedValue({
+      openPreview: { lineCount: 2, debitsInCents: 30000, creditsInCents: 0, totalInCents: 30000, calc: "R$ 300,00" },
+      extraordinaryInvoice: { closeDate: "2026-10-20", dueDate: "2026-10-23", blockFromDate: "2026-10-27" },
+    } as never);
+    vi.mocked(closeInvoiceNow).mockResolvedValue({
+      id: "inv-novo",
+      number: "FAT-2026-000200",
+      total: "R$ 300,00",
+      totalInCents: 30000,
+      dueDate: "2026-10-23",
+    } as never);
+    renderActions();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar agora" }));
+    fireEvent.change(reason(), { target: { value: "Fim do contrato" } });
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Fechar fatura agora" }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/financeiro/faturas/inv-novo"));
+    expect(vi.mocked(toast.success).mock.calls[0][0]).toBe(
+      "Fatura FAT-2026-000200 fechada para Bar do Zé: R$ 300,00, vence sex 23/10.",
+    );
   });
 });
