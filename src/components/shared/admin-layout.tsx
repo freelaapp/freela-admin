@@ -45,6 +45,7 @@ import {
   MapPin,
   Crown,
   LifeBuoy,
+  UserX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNewVacancyChime } from "@/modules/admin/application/use-new-vacancy-chime";
@@ -66,6 +67,8 @@ const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { label: "Engajamento", icon: Activity, path: "/engajamento" },
   { label: "Freelancers", icon: Users, path: "/freelancers", permission: "FREELANCERS" },
+  // Fluxo v2, fatia G: quem não pode se candidatar (mesma chave das infrações, FREELANCERS).
+  { label: "Suspensões", icon: UserX, path: "/suspensoes", permission: "FREELANCERS" },
   { label: "Empresas", icon: Building2, path: "/empresas", permission: "COMPANIES" },
   // Nasce só para SUPER_ADMIN: a chave SUBSCRIPTIONS não existe em nenhum admin
   // até ser concedida em /usuarios-painel. É o default certo — conceder cortesia

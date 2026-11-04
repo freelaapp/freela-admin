@@ -68,3 +68,32 @@ describe("menu do painel: Fila do suporte (fluxo v2, fatia C2)", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("menu do painel: Suspensões (fluxo v2, fatia G)", () => {
+  beforeEach(() => {
+    auth.permissions = [];
+  });
+
+  it("aparece para quem tem a permissão de Freelancers, logo depois de Freelancers", () => {
+    auth.permissions = ["FREELANCERS"];
+    render(
+      <AdminLayout>
+        <div />
+      </AdminLayout>,
+    );
+    const link = screen.getAllByRole("link", { name: /Suspensões/ })[0];
+    expect(link).toHaveAttribute("href", "/suspensoes");
+    const labels = menuLinks();
+    expect(labels.indexOf("Suspensões")).toBe(labels.indexOf("Freelancers") + 1);
+  });
+
+  it("some para quem não tem a permissão de Freelancers", () => {
+    auth.permissions = ["JOBS"];
+    render(
+      <AdminLayout>
+        <div />
+      </AdminLayout>,
+    );
+    expect(screen.queryByRole("link", { name: /Suspensões/ })).not.toBeInTheDocument();
+  });
+});
