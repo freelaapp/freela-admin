@@ -325,6 +325,62 @@ describe("Fila do suporte (admin)", () => {
     );
   });
 
+  it("ações da vaga: a mesma candidatura como escolhido e como suplente não repete a chave do React", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    vi.mocked(listSupportCases).mockResolvedValue(supportCaseList());
+    vi.mocked(getSupportCase).mockResolvedValue(
+      supportCaseDetail({
+        people: [
+          {
+            candidacyId: "c-ana",
+            name: "Ana",
+            phone: "5511911112222",
+            role: "PRINCIPAL",
+            position: null,
+            confirmed: true,
+          },
+          {
+            candidacyId: "c-ana",
+            name: "Ana",
+            phone: "5511911112222",
+            role: "RESERVE",
+            position: 1,
+            confirmed: false,
+          },
+        ],
+      }),
+    );
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Ações da vaga" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Ações da vaga" });
+    expect(
+      await within(dialog).findByRole("link", { name: /Ana \(escolhido\)/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("link", { name: /Ana \(suplente 1\)/ }),
+    ).toBeInTheDocument();
+    const repetida = consoleError.mock.calls.some((args) =>
+      args.some((a) => typeof a === "string" && a.includes("same key")),
+    );
+    consoleError.mockRestore();
+    expect(repetida).toBe(false);
+  });
+
+  it("a página usa os minutos da notícia que vêm da API, sem 30 fixo", async () => {
+    vi.mocked(listSupportCases).mockResolvedValue({
+      ...supportCaseList(),
+      firstNewsMinutes: 45,
+    });
+    renderPage();
+    expect(
+      await screen.findByText(/nunca fica mais de 45 min sem notícia/),
+    ).toBeInTheDocument();
+  });
+
   it("caso fechado: como terminou, sem as ações", async () => {
     vi.mocked(listSupportCases).mockResolvedValue(
       supportCaseList({

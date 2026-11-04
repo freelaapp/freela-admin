@@ -80,10 +80,11 @@ export default function FilaDoSuportePage() {
     );
   }
 
+  const firstNewsMinutes = cases.data?.firstNewsMinutes ?? 30;
   const header = (
     <PageHeader
       title="Fila do suporte"
-      description="Vagas que o sistema não resolveu sozinho. A de início mais próximo fica em cima. A empresa nunca fica mais de 30 min sem notícia."
+      description={`Vagas que o sistema não resolveu sozinho. A de início mais próximo fica em cima. A empresa nunca fica mais de ${firstNewsMinutes} min sem notícia.`}
       action={
         <Button
           variant="outline"
@@ -245,7 +246,12 @@ export default function FilaDoSuportePage() {
         />
       )}
       {dialog?.kind === "tools" && (
-        <CaseToolsDialog item={dialog.item} onClose={() => setDialog(null)} />
+        <CaseToolsDialog
+          // Depois de cada atualização da lista (60 s), o diálogo mostra o caso atual; o
+          // retrato do clique só vale se o caso saiu da aba (ex.: fechado por outra pessoa).
+          item={items.find((i) => i.id === dialog.item.id) ?? dialog.item}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   );

@@ -69,7 +69,9 @@ export function CaseToolsDialog({
                 .filter((p) => p.phone)
                 .map((p) => (
                   <Button
-                    key={p.candidacyId}
+                    // A mesma candidatura pode estar como escolhido e como suplente: a chave
+                    // leva o papel, senão o React repete/deixa botões órfãos (bug de 03/11 no modal).
+                    key={`${p.role}-${p.candidacyId}`}
                     size="sm"
                     variant="outline"
                     asChild
