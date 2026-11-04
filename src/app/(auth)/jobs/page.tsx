@@ -14,6 +14,7 @@ import { SupportAutoSettingsDialog } from "./_components/support-auto-settings-d
 import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
 import { VacancyDocumentsCell } from "./_components/vacancy-documents-cell";
 import { shortAddress } from "./_components/short-address";
+import { vacancyIdFromSearch } from "./_components/vacancy-deep-link";
 import {
   useResendVacancyGroupMessage,
   useSendVacancyStageMessage,
@@ -397,6 +398,25 @@ export default function JobsPage() {
     setBuscaIdInput(vacancyId);
     setModalBuscarId(true);
   };
+
+  // "Abrir a vaga" da fila do suporte: `/jobs?vaga=<id>` abre o modal da vaga quando a lista
+  // carrega (fora da lista, cai na busca por ID, como acima). Lido de `window.location`, e não
+  // de `useSearchParams`, que pediria um <Suspense> em volta da página.
+  const [vagaDoLink, setVagaDoLink] = useState<string | null>(null);
+  useEffect(() => {
+    setVagaDoLink(vacancyIdFromSearch(window.location.search));
+  }, []);
+  useEffect(() => {
+    if (!vagaDoLink || !vacancies) return;
+    setVagaDoLink(null);
+    window.history.replaceState(null, "", window.location.pathname);
+    if (vacancies.some((v) => v.id === vagaDoLink)) {
+      setModalDetalhesId(vagaDoLink);
+      return;
+    }
+    setBuscaIdInput(vagaDoLink);
+    setModalBuscarId(true);
+  }, [vagaDoLink, vacancies]);
 
   const handleConfirmCancel = async () => {
     if (!cancelTarget) return;

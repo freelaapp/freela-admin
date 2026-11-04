@@ -44,6 +44,7 @@ import {
   Activity,
   MapPin,
   Crown,
+  LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNewVacancyChime } from "@/modules/admin/application/use-new-vacancy-chime";
@@ -74,6 +75,8 @@ const navItems: NavItem[] = [
   { label: "Vagas Empresa", icon: Briefcase, path: "/jobs", permission: "JOBS" },
   // Quem não respondeu ao "Você vai mesmo?" (3 h antes): o suporte liga.
   { label: "Confirmação do dia", icon: PhoneCall, path: "/confirmacao-do-dia", permission: "JOBS" },
+  // Fluxo v2, fatia C2: as vagas que o sistema não resolveu sozinho (mesma chave de Vagas).
+  { label: "Fila do suporte", icon: LifeBuoy, path: "/fila-do-suporte", permission: "JOBS" },
   { label: "Vagas — Casa", icon: Home, path: "/vagas-casa", permission: "CASA_VACANCIES" },
   { label: "Vagas Fixas / CLT", icon: ClipboardList, path: "/vagas-fixas", permission: "FIXED_JOBS" },
   {

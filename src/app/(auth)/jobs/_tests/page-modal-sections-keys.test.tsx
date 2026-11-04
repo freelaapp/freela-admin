@@ -165,3 +165,22 @@ describe("Vagas Empresa — modal 'Detalhes da vaga': seções por vaga não se 
     expect(chavesRepetidas()).toEqual([]);
   });
 });
+
+// Fluxo v2, fatia C2: o "Abrir a vaga" da fila do suporte chega como /jobs?vaga=<id>.
+describe("Vagas Empresa — link /jobs?vaga=<id> (Abrir a vaga da fila do suporte)", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("abre o modal da vaga sozinho e limpa o endereço", () => {
+    window.history.replaceState(null, "", "/jobs?vaga=vac-1");
+    render(ui());
+    expect(screen.getByText("Detalhes da Vaga")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("vaga fora da lista carregada: abre a busca por ID já preenchida", () => {
+    window.history.replaceState(null, "", "/jobs?vaga=vac-outra");
+    render(ui());
+    expect(screen.getByText("Buscar vaga por ID")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Cole aqui o ID da vaga")).toHaveValue("vac-outra");
+  });
+});
