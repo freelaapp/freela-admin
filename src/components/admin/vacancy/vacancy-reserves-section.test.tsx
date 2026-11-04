@@ -81,22 +81,22 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     renderSection();
 
     expect(await screen.findByText("Bia Lima")).toBeInTheDocument();
-    expect(screen.getByText("Reserva 1")).toBeInTheDocument();
-    expect(screen.getByText("Reserva 2")).toBeInTheDocument();
-    expect(screen.getAllByText("Escolhida pela empresa")).toHaveLength(2);
+    expect(screen.getByText("Suplente 1")).toBeInTheDocument();
+    expect(screen.getByText("Suplente 2")).toBeInTheDocument();
+    expect(screen.getAllByText("Escolhido pela empresa")).toHaveLength(2);
     expect(screen.getByText(/Valem até 17:00/)).toBeInTheDocument();
     expect(
-      screen.getByText(/Elas não sabem que estão na lista/),
+      screen.getByText(/Os suplentes não sabem que estão na lista/),
     ).toBeInTheDocument();
   });
 
-  it('lista escolhida e vaga ainda não paga: sem "Chamar reserva", com o motivo', async () => {
+  it('lista escolhida e vaga ainda não paga: sem "Chamar suplente", com o motivo', async () => {
     api.getVacancyReserves.mockResolvedValue({ ...VIEW, canCall: false });
     renderSection();
 
     expect(await screen.findByText("Bia Lima")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Chamar reserva/ }),
+      screen.queryByRole("button", { name: /Chamar suplente/ }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByText(/depois que a empresa pagar a vaga/),
@@ -114,11 +114,11 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
     expect(
       await screen.findByText(
-        "A empresa não escolheu reservas. 1 outro candidato pode entrar na lista; a empresa marca no botão Reserva de cada candidato, na tela da vaga.",
+        "A empresa não escolheu suplentes. 1 outro candidato pode entrar na lista; a empresa marca no botão Escolher como suplente de cada candidato, na tela da vaga.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Chamar reserva/ }),
+      screen.queryByRole("button", { name: /Chamar suplente/ }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/topou/)).not.toBeInTheDocument();
   });
@@ -136,20 +136,20 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
     expect(await screen.findByText("Bia Lima")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Chamar reserva/ }),
+      screen.getByRole("button", { name: /Chamar suplente/ }),
     ).toBeInTheDocument();
   });
 
-  it('"Chamar reserva" manda o motivo com a chave de idempotência', async () => {
+  it('"Chamar suplente" manda o motivo com a chave de idempotência', async () => {
     api.getVacancyReserves.mockResolvedValue(VIEW);
     api.adminOpenReserveCall.mockResolvedValue({});
     renderSection();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /Chamar reserva/ }),
+      await screen.findByRole("button", { name: /Chamar suplente/ }),
     );
     expect(
-      screen.getByText("Chamar Bia (reserva 1) no lugar da empresa?"),
+      screen.getByText("Chamar Bia (suplente 1) no lugar da empresa?"),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Chamar Bia" }));
 
@@ -168,7 +168,7 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     renderSection();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /Chamar reserva/ }),
+      await screen.findByRole("button", { name: /Chamar suplente/ }),
     );
     fireEvent.click(screen.getByLabelText("Outro motivo"));
     expect(screen.getByRole("button", { name: "Chamar Bia" })).toBeDisabled();
@@ -213,11 +213,11 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
     expect(
       await screen.findByText(
-        /Chamada aberta: Bia \(reserva 1\) tem até 15:45/,
+        /Chamada aberta: Bia \(suplente 1\) tem até 15:45/,
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Chamar reserva/ }),
+      screen.queryByRole("button", { name: /Chamar suplente/ }),
     ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Cancelar a chamada (manter Ana)" }),
@@ -287,13 +287,13 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
       await screen.findByText(/Ana Souza saiu e Bia Lima entrou/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/o sistema chamou a reserva no lugar de Ana Souza/),
+      screen.getByText(/o sistema chamou o suplente no lugar de Ana Souza/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Bia Lima \(reserva 1\): aceitou/),
+      screen.getByText(/Bia Lima \(suplente 1\): aceitou/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Uma reserva aceitou: Bia Lima entrou/),
+      screen.getByText(/Um suplente aceitou: Bia Lima entrou/),
     ).toBeInTheDocument();
   });
 
@@ -317,16 +317,16 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
       fireEvent.click(
         await screen.findByRole("button", {
-          name: "Escolher reservas no lugar da empresa",
+          name: "Escolher suplentes no lugar da empresa",
         }),
       );
       expect(screen.getByText(/Só quando a empresa pedir/)).toBeInTheDocument();
       expect(screen.getByText(/Ninguém é avisado agora/)).toBeInTheDocument();
-      expect(screen.getByText(/Escolhida pelo suporte/)).toBeInTheDocument();
+      expect(screen.getByText(/Escolhido pelo suporte/)).toBeInTheDocument();
       fireEvent.click(screen.getByRole("checkbox", { name: "Cai Rocha" }));
       fireEvent.click(screen.getByRole("checkbox", { name: "Bia Lima" }));
       expect(
-        screen.getByRole("checkbox", { name: "Cai Rocha, reserva 1" }),
+        screen.getByRole("checkbox", { name: "Cai Rocha, suplente 1" }),
       ).toBeChecked();
       expect(
         screen.getByRole("checkbox", { name: "Davi Melo" }),
@@ -336,7 +336,7 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
       ).toBeInTheDocument();
 
       fireEvent.click(
-        screen.getByRole("button", { name: "Guardar 2 reservas" }),
+        screen.getByRole("button", { name: "Guardar 2 suplentes" }),
       );
 
       await waitFor(() =>
@@ -347,7 +347,7 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
       );
       await waitFor(() =>
         expect(toast.success).toHaveBeenCalledWith(
-          "Reservas guardadas: 1 Cai · 2 Bia.",
+          "Suplentes guardados: 1 Cai · 2 Bia.",
         ),
       );
     });
@@ -363,17 +363,17 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
       expect(
         await screen.findByText(
-          /Ninguém aceito ainda e a empresa não escolheu reservas\. 3 candidatos podem entrar na lista, antes ou depois do aceite/,
+          /Ninguém aceito ainda e a empresa não escolheu suplentes\. 3 candidatos podem entrar na lista, antes ou depois do aceite/,
         ),
       ).toBeInTheDocument();
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Escolher reservas no lugar da empresa",
+          name: "Escolher suplentes no lugar da empresa",
         }),
       );
       fireEvent.click(screen.getByRole("checkbox", { name: "Bia Lima" }));
       fireEvent.click(
-        screen.getByRole("button", { name: "Guardar 1 reserva" }),
+        screen.getByRole("button", { name: "Guardar 1 suplente" }),
       );
 
       await waitFor(() =>
@@ -403,21 +403,21 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
       fireEvent.click(
         await screen.findByRole("button", {
-          name: "Mudar reservas no lugar da empresa",
+          name: "Mudar suplentes no lugar da empresa",
         }),
       );
       expect(
-        screen.getByRole("button", { name: "Guardar 2 reservas" }),
+        screen.getByRole("button", { name: "Guardar 2 suplentes" }),
       ).toBeDisabled();
       fireEvent.click(
-        screen.getByRole("checkbox", { name: "Bia Lima, reserva 1" }),
+        screen.getByRole("checkbox", { name: "Bia Lima, suplente 1" }),
       );
       expect(
-        screen.getByRole("checkbox", { name: "Cai Rocha, reserva 1" }),
+        screen.getByRole("checkbox", { name: "Cai Rocha, suplente 1" }),
       ).toBeChecked();
       fireEvent.click(screen.getByRole("checkbox", { name: "Davi Melo" }));
       fireEvent.click(
-        screen.getByRole("button", { name: "Guardar 2 reservas" }),
+        screen.getByRole("button", { name: "Guardar 2 suplentes" }),
       );
 
       await waitFor(() =>
@@ -440,18 +440,18 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
       fireEvent.click(
         await screen.findByRole("button", {
-          name: "Escolher reservas no lugar da empresa",
+          name: "Escolher suplentes no lugar da empresa",
         }),
       );
       fireEvent.click(screen.getByRole("checkbox", { name: "Bia Lima" }));
       fireEvent.click(
-        screen.getByRole("button", { name: "Guardar 1 reserva" }),
+        screen.getByRole("button", { name: "Guardar 1 suplente" }),
       );
 
       await waitFor(() => expect(toast.error).toHaveBeenCalled());
       expect(
         screen.getByRole("group", {
-          name: "Escolher reservas no lugar da empresa",
+          name: "Escolher suplentes no lugar da empresa",
         }),
       ).toBeInTheDocument();
     });
@@ -463,10 +463,10 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
       });
       renderSection();
       expect(
-        await screen.findByText(/A empresa não escolheu reservas/),
+        await screen.findByText(/A empresa não escolheu suplentes/),
       ).toBeInTheDocument();
       expect(
-        screen.queryByRole("button", { name: /reservas no lugar da empresa/ }),
+        screen.queryByRole("button", { name: /suplentes no lugar da empresa/ }),
       ).not.toBeInTheDocument();
     });
   });
@@ -527,17 +527,17 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
     expect(
       await screen.findByText(
-        /a empresa escolheu as reservas: 1 Bia · 2 Davi \(rafael@bardoze.com\)/,
+        /a empresa escolheu os suplentes: 1 Bia · 2 Davi \(rafael@bardoze.com\)/,
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /o suporte escolheu as reservas: 2 Cai; tirou Davi das reservas \(suporte@freela.com\)/,
+        /o suporte escolheu os suplentes: 2 Cai; tirou Davi da lista de suplentes \(suporte@freela.com\)/,
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Bia saiu das reservas: foi escolhida em outra vaga no mesmo horário/,
+        /Bia saiu da lista de suplentes: foi escolhido em outra vaga no mesmo horário/,
       ),
     ).toBeInTheDocument();
   });
@@ -590,14 +590,14 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     renderSection();
 
     expect(
-      await screen.findByText(/o sistema escolheu as reservas: 1 Bia · 2 Davi/),
+      await screen.findByText(/o sistema escolheu os suplentes: 1 Bia · 2 Davi/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/tirou Davi das reservas \(rafael@bardoze.com\)/),
+      screen.getByText(/tirou Davi da lista de suplentes \(rafael@bardoze.com\)/),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Bia saiu das reservas: disse que não pode ficar de prontidão/,
+        /Bia saiu da lista de suplentes: disse que não pode ficar de prontidão/,
       ),
     ).toBeInTheDocument();
   });
@@ -639,7 +639,7 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     renderSection();
 
     expect(
-      await screen.findByText(/Bia saiu das reservas: tocou em "Sair da fila"/),
+      await screen.findByText(/Bia saiu da lista de suplentes: tocou em "Sair da fila"/),
     ).toBeInTheDocument();
   });
 
@@ -690,7 +690,7 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
       await screen.findByText(/a empresa mudou a ordem: Cai passou para 1/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/as reservas terminaram: prazo das 17:00/),
+      screen.getByText(/a lista de suplentes terminou: prazo das 17:00/),
     ).toBeInTheDocument();
   });
 

@@ -45,8 +45,8 @@ const QUEM: Record<string, string> = {
 
 const SITUACAO_CHAMADA: Record<string, string> = {
   OPEN: "Em andamento",
-  FILLED: "Uma reserva aceitou",
-  EXHAUSTED: "Nenhuma reserva aceitou",
+  FILLED: "Um suplente aceitou",
+  EXHAUSTED: "Nenhum suplente aceitou",
   CANCELLED: "Cancelada",
 };
 
@@ -54,23 +54,23 @@ const FIM_CHAMADA: Record<string, string> = {
   CONTRACTOR_CANCELLED: "o escolhido foi mantido",
   PRINCIPAL_STARTED: "o escolhido começou o serviço",
   VACANCY_CANCELLED: "a vaga foi cancelada",
-  NO_RESERVE_LEFT: "acabaram as reservas",
+  NO_RESERVE_LEFT: "acabaram os suplentes",
   SLOT_FILLED: "a vaga foi preenchida por outro caminho",
 };
 
 const ESCOLHIDA_POR: Record<string, string> = {
-  CONTRACTOR: "Escolhida pela empresa",
-  ADMIN: "Escolhida pelo suporte",
-  SYSTEM: "Escolhida pelo sistema",
+  CONTRACTOR: "Escolhido pela empresa",
+  ADMIN: "Escolhido pelo suporte",
+  SYSTEM: "Escolhido pelo sistema",
 };
 
 const RESPOSTA_OFERTA: Record<string, string> = {
-  OFFERED: "chamada agora",
+  OFFERED: "chamado agora",
   ACCEPTED: "aceitou",
   DECLINED: "não pôde",
   EXPIRED: "não respondeu a tempo",
-  RELEASED: "liberada",
-  LEFT: "saiu da reserva",
+  RELEASED: "liberado",
+  LEFT: "saiu da lista de suplentes",
   HELD: "na espera",
 };
 
@@ -127,7 +127,7 @@ function LinhaChamada({
         <span className="font-semibold">
           {formatInstantDateTime(chamada.createdAt)}
         </span>
-        {` · ${QUEM[chamada.requestedByKind] ?? chamada.requestedByKind} chamou a reserva`}
+        {` · ${QUEM[chamada.requestedByKind] ?? chamada.requestedByKind} chamou o suplente`}
         {chamada.replacedCandidacyId &&
           ` no lugar de ${nome(chamada.replacedCandidacyId)}`}
       </p>
@@ -140,7 +140,7 @@ function LinhaChamada({
           {ofertas
             .map(
               (o) =>
-                `${nome(o.candidacyId)} (reserva ${o.position}): ${RESPOSTA_OFERTA[o.status] ?? o.status}`,
+                `${nome(o.candidacyId)} (suplente ${o.position}): ${RESPOSTA_OFERTA[o.status] ?? o.status}`,
             )
             .join(" · ")}
         </p>
@@ -158,7 +158,7 @@ function LinhaChamada({
 
 /** Saída da lista sem ninguém tirar: o que aconteceu com a pessoa. */
 const SAIU_SOZINHA: Record<string, string> = {
-  ACCEPTED_ELSEWHERE: "foi escolhida em outra vaga no mesmo horário",
+  ACCEPTED_ELSEWHERE: "foi escolhido em outra vaga no mesmo horário",
   CANDIDACY_GONE: "retirou a candidatura",
   // Fluxo v2, fatia C1: "Não posso" na prontidão (sem pontos).
   NOT_READY: "disse que não pode ficar de prontidão",
@@ -171,7 +171,7 @@ const RESERVAS_TERMINARAM: Record<string, (prazo: string) => string> = {
   HOLD_ENDED: (prazo) => `prazo das ${prazo}`,
   VACANCY_CANCELLED: () => "a vaga foi cancelada",
   PRINCIPAL_STARTED: () => "o escolhido começou o serviço",
-  POLICY_CHANGED: () => "a regra das reservas mudou (28/10)",
+  POLICY_CHANGED: () => "a regra dos suplentes mudou (28/10)",
 };
 
 type LinhaDaLista = { id: string; em: string; texto: string };
@@ -238,7 +238,7 @@ function linhasDaLista(
       const partes: string[] = [];
       if (novas.length > 0)
         partes.push(
-          `escolheu as reservas: ${postas.map((c) => `${c.position} ${primeiro(c)}`).join(" · ")}`,
+          `escolheu os suplentes: ${postas.map((c) => `${c.position} ${primeiro(c)}`).join(" · ")}`,
         );
       else if (postas.length > 0)
         partes.push(
@@ -246,7 +246,7 @@ function linhasDaLista(
         );
       if (g.tiradas.length > 0)
         partes.push(
-          `tirou ${g.tiradas.map(primeiro).join(" e ")} das reservas`,
+          `tirou ${g.tiradas.map(primeiro).join(" e ")} da lista de suplentes`,
         );
       linhas.push({
         id: `lista-${em}`,
@@ -261,7 +261,7 @@ function linhasDaLista(
       linhas.push({
         id: `fim-${em}`,
         em,
-        texto: `as reservas terminaram: ${RESERVAS_TERMINARAM[fimDaLista.releaseReason ?? ""](prazo)}`,
+        texto: `a lista de suplentes terminou: ${RESERVAS_TERMINARAM[fimDaLista.releaseReason ?? ""](prazo)}`,
       });
     for (const c of g.sozinhas.filter(
       (s) => !RESERVAS_TERMINARAM[s.releaseReason ?? ""],
@@ -270,8 +270,8 @@ function linhasDaLista(
         id: `saiu-${c.reserveId}`,
         em,
         texto: SAIU_SOZINHA[c.releaseReason ?? ""]
-          ? `${primeiro(c)} saiu das reservas: ${SAIU_SOZINHA[c.releaseReason ?? ""]}`
-          : `${primeiro(c)} saiu das reservas`,
+          ? `${primeiro(c)} saiu da lista de suplentes: ${SAIU_SOZINHA[c.releaseReason ?? ""]}`
+          : `${primeiro(c)} saiu da lista de suplentes`,
       });
   }
   return linhas;
@@ -399,13 +399,13 @@ export function VacancyReservesSection({
         primeiroNome(opcoes.find((o) => o.candidacyId === id)?.name);
       toast.success(
         selecao.length > 0
-          ? `Reservas guardadas: ${selecao.map((id, i) => `${i + 1} ${nomeDe(id)}`).join(" · ")}.`
-          : "Reservas tiradas.",
+          ? `Suplentes guardados: ${selecao.map((id, i) => `${i + 1} ${nomeDe(id)}`).join(" · ")}.`
+          : "Suplentes tirados.",
       );
       setEscolhendo(false);
     } catch (e) {
       toast.error(
-        getAxiosErrorMessage(e, "Não foi possível guardar as reservas."),
+        getAxiosErrorMessage(e, "Não foi possível guardar os suplentes."),
       );
     }
   }
@@ -419,14 +419,14 @@ export function VacancyReservesSection({
         idempotencyKey: chave.current,
       });
       toast.success(
-        `Chamamos ${primeiroNome(proxima.name)} (reserva ${proxima.position}).`,
+        `Chamamos ${primeiroNome(proxima.name)} (suplente ${proxima.position}).`,
       );
       chave.current = `admin-reserve-${vacancyId}-${Date.now()}`;
       setFormAberto(false);
       setNota("");
     } catch (e) {
       toast.error(
-        getAxiosErrorMessage(e, "Não foi possível chamar a reserva."),
+        getAxiosErrorMessage(e, "Não foi possível chamar o suplente."),
       );
     }
   }
@@ -434,7 +434,7 @@ export function VacancyReservesSection({
   async function cancelarChamada(callId: string) {
     const texto = view?.principal
       ? `Cancelar a chamada? ${nomeEscolhido} continua na vaga.`
-      : "Cancelar a chamada da reserva?";
+      : "Cancelar a chamada do suplente?";
     if (!window.confirm(texto)) return;
     try {
       await cancelar.mutateAsync(callId);
@@ -449,22 +449,22 @@ export function VacancyReservesSection({
   return (
     <section
       className="space-y-3 rounded-lg border border-[#e5e5e5] p-3"
-      aria-label="Reservas"
+      aria-label="Suplentes"
     >
       <div>
         <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-[#737373]">
           <Users className="h-3.5 w-3.5" />
-          Reservas
+          Suplentes
         </p>
         {view.enabled ? (
           reservas.length > 0 && (
             <p className="mt-1 text-xs text-[#737373]">
-              {`Valem até ${formatVacancyTime(view.holdUntil)}. Elas não sabem que estão na lista: só recebem mensagem se forem chamadas. Ao chamar, a reserva tem até 15 minutos para aceitar; se não aceitar, chamamos a próxima.`}
+              {`Valem até ${formatVacancyTime(view.holdUntil)}. Os suplentes não sabem que estão na lista: só recebem mensagem se forem chamados. Ao chamar, o suplente tem até 15 minutos para aceitar; se não aceitar, chamamos o próximo.`}
             </p>
           )
         ) : (
           <p className="mt-1 text-xs text-[#737373]">
-            Reservas desligadas agora. Abaixo, só o histórico.
+            Suplentes desligados agora. Abaixo, só o histórico.
           </p>
         )}
       </div>
@@ -473,12 +473,12 @@ export function VacancyReservesSection({
         <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
           <p className="flex items-center gap-1.5 font-semibold">
             <BellRing className="h-3.5 w-3.5" />
-            {`Chamada aberta: ${primeiroNome(chamadaAberta.offeredTo.name)} (reserva ${chamadaAberta.offeredTo.position}) tem até ${formatVacancyTime(chamadaAberta.offeredTo.expiresAt)} para aceitar`}
+            {`Chamada aberta: ${primeiroNome(chamadaAberta.offeredTo.name)} (suplente ${chamadaAberta.offeredTo.position}) tem até ${formatVacancyTime(chamadaAberta.offeredTo.expiresAt)} para aceitar`}
           </p>
           <p className="mt-0.5 opacity-80">
             {`Motivo: ${MOTIVO[chamadaAberta.reason] ?? chamadaAberta.reason}.`}
             {view.principal &&
-              ` ${nomeEscolhido} continua na vaga até uma reserva aceitar.`}
+              ` ${nomeEscolhido} continua na vaga até um suplente aceitar.`}
           </p>
           <button
             type="button"
@@ -498,10 +498,10 @@ export function VacancyReservesSection({
         (reservas.length === 0 ? (
           <p className="text-xs text-[#737373]">
             {candidatos.length === 0
-              ? "A empresa não escolheu reservas."
+              ? "A empresa não escolheu suplentes."
               : view.principal
-                ? `A empresa não escolheu reservas. ${candidatos.length === 1 ? "1 outro candidato pode entrar" : `${candidatos.length} outros candidatos podem entrar`} na lista; a empresa marca no botão Reserva de cada candidato, na tela da vaga.`
-                : `Ninguém aceito ainda e a empresa não escolheu reservas. ${candidatos.length === 1 ? "1 candidato pode entrar" : `${candidatos.length} candidatos podem entrar`} na lista, antes ou depois do aceite; a empresa marca no botão Reserva de cada candidato, na tela da vaga.`}
+                ? `A empresa não escolheu suplentes. ${candidatos.length === 1 ? "1 outro candidato pode entrar" : `${candidatos.length} outros candidatos podem entrar`} na lista; a empresa marca no botão Escolher como suplente de cada candidato, na tela da vaga.`
+                : `Ninguém aceito ainda e a empresa não escolheu suplentes. ${candidatos.length === 1 ? "1 candidato pode entrar" : `${candidatos.length} candidatos podem entrar`} na lista, antes ou depois do aceite; a empresa marca no botão Escolher como suplente de cada candidato, na tela da vaga.`}
           </p>
         ) : (
           <ol className="space-y-1.5">
@@ -510,7 +510,7 @@ export function VacancyReservesSection({
                 key={r.reserveId}
                 className="flex items-center gap-2 rounded-md bg-[#f7f7f7] px-2.5 py-1.5 text-xs"
               >
-                <span className="shrink-0 font-semibold text-[#737373]">{`Reserva ${r.position}`}</span>
+                <span className="shrink-0 font-semibold text-[#737373]">{`Suplente ${r.position}`}</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-[#1d1d1b]">
                     {r.name}
@@ -523,9 +523,9 @@ export function VacancyReservesSection({
                 </div>
                 <span className="shrink-0 text-[11px] text-[#737373]">
                   {r.status === "OFFERED"
-                    ? "Chamada agora"
+                    ? "Chamado agora"
                     : (ESCOLHIDA_POR[r.designatedBy] ??
-                      "Escolhida pela empresa")}
+                      "Escolhido pela empresa")}
                 </span>
               </li>
             ))}
@@ -534,8 +534,8 @@ export function VacancyReservesSection({
 
       {view.enabled && !chamadaAberta && !!proxima && !chamavel && (
         <p className="text-xs text-[#737373]">
-          Chamar reserva fica disponível depois que a empresa pagar a vaga e
-          enquanto as reservas valem.
+          Chamar suplente fica disponível depois que a empresa pagar a vaga e
+          enquanto os suplentes valem.
         </p>
       )}
 
@@ -550,8 +550,8 @@ export function VacancyReservesSection({
         >
           <ListOrdered className="h-3.5 w-3.5" />
           {naLista.length > 0
-            ? "Mudar reservas no lugar da empresa"
-            : "Escolher reservas no lugar da empresa"}
+            ? "Mudar suplentes no lugar da empresa"
+            : "Escolher suplentes no lugar da empresa"}
         </button>
       )}
 
@@ -559,19 +559,19 @@ export function VacancyReservesSection({
         <div
           className="space-y-2 rounded-md border border-[#e5e5e5] bg-[#f7f7f7] p-2.5 text-xs"
           role="group"
-          aria-label="Escolher reservas no lugar da empresa"
+          aria-label="Escolher suplentes no lugar da empresa"
         >
           <p className="font-semibold text-[#1d1d1b]">
-            Escolher reservas no lugar da empresa
+            Escolher suplentes no lugar da empresa
           </p>
           <ul className="list-disc space-y-0.5 pl-4 text-[#737373]">
             <li>Só quando a empresa pedir (por exemplo, quem usa só o app).</li>
             <li>{`A ordem em que você marca é a ordem de chamada. Até ${view.max}.`}</li>
             <li>
-              Ninguém é avisado agora: a reserva só recebe mensagem se for
-              chamada.
+              Ninguém é avisado agora: o suplente só recebe mensagem se for
+              chamado.
             </li>
-            <li>Fica registrado como &quot;Escolhida pelo suporte&quot;.</li>
+            <li>Fica registrado como &quot;Escolhido pelo suporte&quot;.</li>
           </ul>
           <ul className="space-y-1">
             {opcoes.map((o) => {
@@ -585,7 +585,7 @@ export function VacancyReservesSection({
                     role="checkbox"
                     aria-checked={marcada}
                     aria-label={
-                      marcada ? `${o.name}, reserva ${posicao}` : o.name
+                      marcada ? `${o.name}, suplente ${posicao}` : o.name
                     }
                     disabled={apagada || ocupado}
                     onClick={() => alternar(o.candidacyId)}
@@ -623,8 +623,8 @@ export function VacancyReservesSection({
             >
               {trocar.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
               {selecao.length === 0
-                ? "Tirar todas as reservas"
-                : `Guardar ${selecao.length} ${selecao.length === 1 ? "reserva" : "reservas"}`}
+                ? "Tirar todos os suplentes"
+                : `Guardar ${selecao.length} ${selecao.length === 1 ? "suplente" : "suplentes"}`}
             </button>
             <button
               type="button"
@@ -645,7 +645,7 @@ export function VacancyReservesSection({
           className="inline-flex items-center justify-center gap-1.5 rounded-md bg-[#1d1d1b] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#333]"
         >
           <BellRing className="h-3.5 w-3.5" />
-          Chamar reserva
+          Chamar suplente
         </button>
       )}
 
@@ -653,17 +653,16 @@ export function VacancyReservesSection({
         <div
           className="space-y-2 rounded-md border border-[#e5e5e5] bg-[#f7f7f7] p-2.5 text-xs"
           role="group"
-          aria-label="Chamar reserva"
+          aria-label="Chamar suplente"
         >
-          <p className="font-semibold text-[#1d1d1b]">{`Chamar ${primeiroNome(proxima.name)} (reserva ${proxima.position}) no lugar da empresa?`}</p>
+          <p className="font-semibold text-[#1d1d1b]">{`Chamar ${primeiroNome(proxima.name)} (suplente ${proxima.position}) no lugar da empresa?`}</p>
           <ul className="list-disc space-y-0.5 pl-4 text-[#737373]">
             <li>Mesmo valor, sem nova cobrança.</li>
             <li>
-              Ela tem até 15 minutos para aceitar. Se não aceitar, chamamos a
-              próxima.
+              {`${primeiroNome(proxima.name)} tem até 15 minutos para aceitar. Se não aceitar, chamamos o próximo.`}
             </li>
             {view.principal && (
-              <li>{`${nomeEscolhido} continua na vaga até uma reserva aceitar.`}</li>
+              <li>{`${nomeEscolhido} continua na vaga até um suplente aceitar.`}</li>
             )}
             <li>Fica registrado que foi o suporte.</li>
           </ul>
