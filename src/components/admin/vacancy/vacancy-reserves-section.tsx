@@ -162,6 +162,8 @@ const SAIU_SOZINHA: Record<string, string> = {
   CANDIDACY_GONE: "retirou a candidatura",
   // Fluxo v2, fatia C1: "Não posso" na prontidão (sem pontos).
   NOT_READY: "disse que não pode ficar de prontidão",
+  // Fluxo v2, fatia B2: o suplente saiu sozinho (botão do W29, página, site ou "Cancelar candidatura").
+  LEFT_QUEUE: 'tocou em "Sair da fila"',
 };
 
 /** Fim da lista inteira (cron), por motivo. */

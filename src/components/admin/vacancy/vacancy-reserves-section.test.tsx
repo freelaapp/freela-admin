@@ -602,6 +602,47 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     ).toBeInTheDocument();
   });
 
+  it('fluxo v2 (B2): quem tocou em "Sair da fila" aparece com o motivo', async () => {
+    const linha = (over: Record<string, unknown>) => ({
+      reserveId: `r-${over.candidacyId}-${over.designatedAt}`,
+      position: 1,
+      status: "RELEASED",
+      callId: null,
+      designatedBy: "SYSTEM",
+      designatedByLabel: null,
+      releaseReason: null,
+      releasedBy: null,
+      releasedByLabel: null,
+      releasedAt: null,
+      ...over,
+    });
+    const T1 = "2026-11-04T14:00:00.000Z";
+    const T2 = "2026-11-04T16:10:00.000Z";
+    api.getVacancyReserves.mockResolvedValue({
+      ...VIEW,
+      chosen: [reserva("c-cai", "Cai Rocha", 1)],
+      history: {
+        calls: [],
+        principalChanges: [],
+        reserveChanges: [
+          linha({
+            candidacyId: "c-bia",
+            name: "Bia Lima",
+            designatedAt: T1,
+            status: "LEFT",
+            releaseReason: "LEFT_QUEUE",
+            releasedAt: T2,
+          }),
+        ],
+      },
+    });
+    renderSection();
+
+    expect(
+      await screen.findByText(/Bia saiu das reservas: tocou em "Sair da fila"/),
+    ).toBeInTheDocument();
+  });
+
   it("histórico da lista: mudar a ordem e o fim pelo prazo", async () => {
     const T = "2026-10-31T14:30:00.000Z";
     const base = {
