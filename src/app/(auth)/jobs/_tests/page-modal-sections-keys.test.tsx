@@ -63,6 +63,10 @@ vi.mock("@/components/admin/vacancy/compatible-invite-section", () => ({
 vi.mock("@/components/admin/vacancy/vacancy-reserves-section", () => ({
   VacancyReservesSection: () => <section data-testid="secao-reservas" />,
 }));
+// Fluxo v2, fatia E: a rodada de seleção é a 4ª seção por vaga (chave `selecao-`).
+vi.mock("@/components/admin/vacancy/vacancy-selection-round-section", () => ({
+  VacancySelectionRoundSection: () => <section data-testid="secao-selecao" />,
+}));
 
 // O resto do modal, com dados próprios, fica fora deste teste.
 vi.mock("@/components/admin/vacancy/vacancy-candidacy-list", () => ({ VacancyCandidacyList: () => null }));
@@ -147,6 +151,7 @@ describe("Vagas Empresa — modal 'Detalhes da vaga': seções por vaga não se 
     expect(screen.getAllByTestId("secao-divulgacao")).toHaveLength(1);
     expect(screen.getAllByTestId("secao-convite")).toHaveLength(1);
     expect(screen.getAllByTestId("secao-reservas")).toHaveLength(1);
+    expect(screen.getAllByTestId("secao-selecao")).toHaveLength(1);
 
     // A lista recarrega com a vaga fechada (a empresa escolheu a Ana).
     state.vacancies = [vagaFechada()];
@@ -154,6 +159,7 @@ describe("Vagas Empresa — modal 'Detalhes da vaga': seções por vaga não se 
     expect(screen.getAllByTestId("secao-divulgacao")).toHaveLength(1);
     expect(screen.queryAllByTestId("secao-convite")).toHaveLength(0);
     expect(screen.getAllByTestId("secao-reservas")).toHaveLength(1);
+    expect(screen.getAllByTestId("secao-selecao")).toHaveLength(1);
 
     // A Ana foi desvinculada: a vaga reabre.
     state.vacancies = [vagaAberta()];
@@ -161,6 +167,7 @@ describe("Vagas Empresa — modal 'Detalhes da vaga': seções por vaga não se 
     expect(screen.getAllByTestId("secao-divulgacao")).toHaveLength(1);
     expect(screen.getAllByTestId("secao-convite")).toHaveLength(1);
     expect(screen.getAllByTestId("secao-reservas")).toHaveLength(1);
+    expect(screen.getAllByTestId("secao-selecao")).toHaveLength(1);
 
     expect(chavesRepetidas()).toEqual([]);
   });

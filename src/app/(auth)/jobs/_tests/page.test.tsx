@@ -55,6 +55,10 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 // Partes da tela com dados próprios: fora do escopo deste teste.
 vi.mock("@/components/admin/vacancy/vacancy-candidacy-list", () => ({ VacancyCandidacyList: () => null }));
 vi.mock("@/components/admin/vacancy/compatible-invite-section", () => ({ CompatibleInviteSection: () => null }));
+// Fluxo v2, fatia E: a rodada de seleção tem teste próprio (vacancy-selection-round-section.test).
+vi.mock("@/components/admin/vacancy/vacancy-selection-round-section", () => ({
+  VacancySelectionRoundSection: () => null,
+}));
 vi.mock("@/components/admin/vacancy/vacancy-feedbacks-section", () => ({ VacancyFeedbacksSection: () => null }));
 vi.mock("@/components/admin/vacancy/vacancy-price-history-section", () => ({ VacancyPriceHistorySection: () => null }));
 vi.mock("@/components/admin/vacancy/issue-report-queue", () => ({ IssueReportQueue: () => null }));

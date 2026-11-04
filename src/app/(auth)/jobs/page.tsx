@@ -5,6 +5,7 @@ import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
 import { VacancyReservesSection } from "@/components/admin/vacancy/vacancy-reserves-section";
+import { VacancySelectionRoundSection } from "@/components/admin/vacancy/vacancy-selection-round-section";
 import { CompatibleInviteSection } from "@/components/admin/vacancy/compatible-invite-section";
 import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feedbacks-section";
 import { VacancyPriceHistorySection } from "@/components/admin/vacancy/vacancy-price-history-section";
@@ -1258,9 +1259,9 @@ export default function JobsPage() {
 
               {/* Para quais grupos de WhatsApp a vaga foi + reenvio (substitui o
                   antigo aviso "Vaga não divulgada": o estado vazio já diz isso). */}
-              {/* Chave com prefixo: as três seções por vaga (divulgação, convite e reservas)
-                  são irmãs; com a mesma chave (o id da vaga), o React deixava cópias na tela
-                  quando o modal mudava de forma aberto ("Divulgação nos grupos" 2, 3 vezes). */}
+              {/* Chave com prefixo: as seções por vaga (divulgação, convite, reservas e rodada de
+                  seleção) são irmãs; com a mesma chave (o id da vaga), o React deixava cópias na
+                  tela quando o modal mudava de forma aberto ("Divulgação nos grupos" 2, 3 vezes). */}
               <VacancyGroupBroadcastsSection
                 key={`divulgacao-${modalDetalhes.id}`}
                 vacancyId={modalDetalhes.id}
@@ -1361,6 +1362,15 @@ export default function JobsPage() {
                   key={`reservas-${modalDetalhes.raw.id}`}
                   vacancyId={modalDetalhes.raw.id}
                   candidacies={candidacies}
+                />
+              )}
+
+              {/* Rodada de seleção (fluxo v2, fatia E, piloto): só leitura. Sem a chave da API
+                  (404 FEATURE_DISABLED), a seção não aparece. Chave própria (`selecao-`). */}
+              {modalDetalhes.raw?.id && (
+                <VacancySelectionRoundSection
+                  key={`selecao-${modalDetalhes.raw.id}`}
+                  vacancyId={modalDetalhes.raw.id}
                 />
               )}
 
