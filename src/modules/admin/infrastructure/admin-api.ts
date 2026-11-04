@@ -499,6 +499,30 @@ export async function getProvidersCompleteness(): Promise<ProvidersCompleteness>
 
 // ─── Vacancies (Jobs/Vagas) ─────────────────────────────────────────────────
 
+/**
+ * Situação do local no "Iniciar serviço" (fluxo v2, fatia F2): a até o raio, fora, GPS
+ * impreciso, local da vaga sem ponto exato, permissão negada, o celular não deu a posição,
+ * app sem o envio (versão antiga ou site).
+ */
+export type VacancyStartLocationStatus =
+  | "INSIDE"
+  | "OUTSIDE"
+  | "LOW_ACCURACY"
+  | "NO_VACANCY_COORDS"
+  | "NO_PERMISSION"
+  | "UNAVAILABLE"
+  | "NOT_SENT";
+
+export interface VacancyStartLocation {
+  status: VacancyStartLocationStatus;
+  /** Metros do celular até o local da vaga; só com INSIDE, OUTSIDE e LOW_ACCURACY. */
+  distanceMeters: number | null;
+  /** Precisão que o GPS informou, em metros. */
+  accuracyMeters: number | null;
+  /** O raio usado naquele início (fotografado na API). */
+  radiusMeters: number | null;
+}
+
 export interface VacancyItem {
   id: string;
   contractorId: string;
@@ -572,6 +596,13 @@ export interface VacancyItem {
     endedAt: string | null;
     reviewedAt: string | null;
   };
+  /**
+   * Local do "Iniciar serviço" do freelancer (fluxo v2, fatia F2; api com
+   * `ARRIVAL_LOCATION_ENABLED`). Só a distância até o local da vaga, nunca o ponto.
+   * Ausente = chave desligada ou API anterior; `null` = sem dado (a empresa iniciou,
+   * o serviço não começou ou foi antes da F2). Em ambos, o painel não mostra nada.
+   */
+  startLocation?: VacancyStartLocation | null;
   /**
    * Estado dos quatro documentos da vaga (épico serviços §1e, api). `NA` = não
    * se aplica ainda (ex.: recibo antes do repasse). Ausente na janela de deploy

@@ -4,6 +4,11 @@ import { Check, Clock, XCircle } from "lucide-react";
 
 import { resolveVacancyBucket, type ClassifiableVacancy } from "./vacancy-bucket";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
+import type { VacancyStartLocation } from "@/modules/admin/infrastructure/admin-api";
+import {
+  describeStartLocation,
+  type StartLocationTone,
+} from "@/modules/admin/application/start-location-presentation";
 
 /**
  * Roadmap da vaga — o caminho dela do anúncio à avaliação.
@@ -33,6 +38,18 @@ export type RoadmapVacancy = ClassifiableVacancy & {
   /** Campos avulsos, para o Casa, que não monta o objeto `timeline`. */
   providerConfirmedAt?: string | null;
   providerConfirmDeadlineAt?: string | null;
+  /**
+   * Local do "Iniciar serviço" (fluxo v2, fatia F2; só Empresas, só com a chave da API).
+   * Ausente ou `null` = nada novo na etapa "Serviço em andamento".
+   */
+  startLocation?: VacancyStartLocation | null;
+};
+
+/** Cor da frase do local do início: dentro do raio, fora, e o resto (sem julgamento). */
+const START_LOCATION_TONE: Record<StartLocationTone, string> = {
+  ok: "text-green-700",
+  warn: "text-amber-700",
+  neutral: "text-[#525252]",
 };
 
 /** Quando o freelancer confirmou presença — o Casa manda solto, Empresa manda
@@ -133,6 +150,8 @@ function confirmHint(vacancy: RoadmapVacancy): string {
 
 export function VacancyRoadmap({ vacancy }: { vacancy: RoadmapVacancy }) {
   const reached = resolveRoadmapReached(vacancy);
+  // Fatia F2: onde o freelancer estava ao tocar "Iniciar serviço" (só com dado).
+  const startLocation = describeStartLocation(vacancy.startLocation, vacancy.timeline?.startedAt);
   const bucket = resolveVacancyBucket(vacancy);
   const terminal =
     bucket === "cancelled" ? "cancelled" : bucket === "lost" ? "lost" : null;
@@ -246,6 +265,16 @@ export function VacancyRoadmap({ vacancy }: { vacancy: RoadmapVacancy }) {
                   <p className="mt-0.5 text-[11px] font-medium tabular-nums text-[#eca826]">
                     {formatStepAt(node.at)}
                   </p>
+                )}
+                {node.key === "inProgress" && startLocation && (
+                  <div className="mt-0.5" data-testid="roadmap-start-location">
+                    <p className={`text-[11px] font-medium ${START_LOCATION_TONE[startLocation.tone]}`}>
+                      {startLocation.text}
+                    </p>
+                    {startLocation.detail && (
+                      <p className="text-[10px] text-[#737373]">{startLocation.detail}</p>
+                    )}
+                  </div>
                 )}
               </div>
             </li>
