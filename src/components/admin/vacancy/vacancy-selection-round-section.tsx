@@ -19,13 +19,13 @@ import { formatInstantDateTime } from "@/lib/date.utils";
  * quantas vezes a empresa pediu outros nomes. Carregando: nada (revisão de 04/11, E7: o modal
  * piscava antes do 404 da chave desligada). Sem a rodada na API (qualquer 404: chave desligada,
  * empresa fora do piloto, API de antes), a seção não aparece. Outro erro: "Não foi possível
- * carregar a rodada de seleção." com "Tentar de novo", só quando já se sabe que a rodada vale para
- * a vaga (resposta anterior ou erro do servidor; lote 3, item 14).
+ * carregar a rodada de seleção." com "Tentar de novo", só com uma rodada já carregada no modal (lote
+ * 3, item 14; revisão D1: um 502 no deploy não abre a caixa em todo modal de vaga).
  */
 export function VacancySelectionRoundSection({ vacancyId }: { vacancyId: string }) {
   const { data, error, isError, isFetching, refetch } = useVacancySelectionRound(vacancyId);
   const loadError =
-    isError && selectionLoadErrorVisible({ answeredBefore: data !== undefined, error }) ? (
+    isError && selectionLoadErrorVisible({ roundLoaded: Boolean(data?.round), error }) ? (
       <div className="flex flex-wrap items-center gap-2 text-xs text-[#737373]">
         <p role="alert">Não foi possível carregar a rodada de seleção.</p>
         <button
@@ -39,7 +39,7 @@ export function VacancySelectionRoundSection({ vacancyId }: { vacancyId: string 
       </div>
     ) : null;
 
-  if (!data && !loadError) return null;
+  if (!data) return null;
 
   return (
     <section

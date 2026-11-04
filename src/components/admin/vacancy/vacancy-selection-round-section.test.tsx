@@ -143,24 +143,58 @@ describe("VacancySelectionRoundSection", () => {
     expect(screen.queryByText("Não foi possível carregar a rodada de seleção.")).not.toBeInTheDocument();
   }, 10_000);
 
-  it("lote 3, item 14: erro do servidor (500) com a chave ligada: a caixa com \"Tentar de novo\" (e o retry carrega)", async () => {
+  const serverError = (status: number) => {
     const headers = new AxiosHeaders();
-    const server500 = new AxiosError("Internal", "ERR_BAD_RESPONSE", { headers }, null, {
-      status: 500,
-      statusText: "Internal",
+    return new AxiosError("Server", "ERR_BAD_RESPONSE", { headers }, null, {
+      status,
+      statusText: "Server",
       data: { error: { code: "INTERNAL", message: "Erro" } },
       headers,
       config: { headers },
     });
-    api.getVacancySelectionRound.mockRejectedValue(server500);
+  };
+
+  it("revisão D1: 502 no primeiro carregamento (deploy): a seção não aparece, nem a caixa de erro", async () => {
+    api.getVacancySelectionRound.mockRejectedValue(serverError(502));
+    const { container } = render(ui());
+    await vi.waitFor(() => expect(api.getVacancySelectionRound).toHaveBeenCalledTimes(3), {
+      timeout: 8000,
+    });
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText("Não foi possível carregar a rodada de seleção.")).not.toBeInTheDocument();
+  }, 12_000);
+
+  it("revisão D1: vaga do piloto sem rodada e uma leitura seguinte que falha: sem caixa de erro", async () => {
+    api.getVacancySelectionRound.mockResolvedValueOnce({ round: null, people: [] });
     render(ui());
+    expect(await screen.findByText("Esta vaga não teve rodada de seleção.")).toBeInTheDocument();
+    api.getVacancySelectionRound.mockRejectedValue(serverError(500));
+    await client.refetchQueries({ queryKey: ["admin", "selection-round", "vac-1"] }, { throwOnError: false });
+    await vi.waitFor(
+      () => expect(client.getQueryState(["admin", "selection-round", "vac-1"])?.status).toBe("error"),
+      { timeout: 8000 },
+    );
+    expect(screen.getByText("Esta vaga não teve rodada de seleção.")).toBeInTheDocument();
+    expect(screen.queryByText("Não foi possível carregar a rodada de seleção.")).not.toBeInTheDocument();
+  }, 12_000);
+
+  it("lote 3, item 14: rodada já no modal e a leitura seguinte dá 500: a linha com \"Tentar de novo\"", async () => {
+    api.getVacancySelectionRound.mockResolvedValueOnce(VIEW);
+    render(ui());
+    expect(await screen.findByText("Opções enviadas à empresa")).toBeInTheDocument();
+    api.getVacancySelectionRound.mockRejectedValue(serverError(500));
+    await client.refetchQueries({ queryKey: ["admin", "selection-round", "vac-1"] }, { throwOnError: false });
     expect(
       await screen.findByText("Não foi possível carregar a rodada de seleção.", {}, { timeout: 8000 }),
     ).toBeInTheDocument();
+    // A tabela continua à vista.
+    expect(screen.getByText("Opções enviadas à empresa")).toBeInTheDocument();
     api.getVacancySelectionRound.mockResolvedValue(VIEW);
     screen.getByRole("button", { name: "Tentar de novo" }).click();
-    expect(await screen.findByText("Opções enviadas à empresa")).toBeInTheDocument();
-  }, 12_000);
+    await vi.waitFor(() =>
+      expect(screen.queryByText("Não foi possível carregar a rodada de seleção.")).not.toBeInTheDocument(),
+    );
+  }, 15_000);
 
   it("com rodada: a linha dos prazos e a tabela Posição · Pessoa · Por que está aqui · Situação", async () => {
     api.getVacancySelectionRound.mockResolvedValue(VIEW);

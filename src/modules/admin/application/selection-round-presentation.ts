@@ -32,16 +32,12 @@ export function isSelectionDisabled(error: unknown): boolean {
 }
 
 /**
- * Outro erro (lote 3, item 14): a caixa com "Tentar de novo", só quando já se sabe que a rodada vale
- * para esta vaga — uma resposta anterior (com ou sem rodada) ou um erro do servidor (5xx: com a
- * chave desligada ou a empresa fora do piloto, a API responde 404 antes de ler). Falha de rede sem
- * resposta anterior: nada (não dá para saber; antes a seção sumia em qualquer erro).
+ * Outro erro (lote 3, item 14; revisão D1): a linha com "Tentar de novo" só quando uma RODADA DE
+ * VERDADE já foi carregada neste modal. 404 = nada; 5xx ou falha de rede sem rodada carregada antes
+ * (um 502 durante o deploy) = nada: sem isso, todo modal de vaga abria com a caixa de erro.
  */
-export function selectionLoadErrorVisible(input: { answeredBefore: boolean; error: unknown }): boolean {
-  const { status } = apiErrorOf(input.error);
-  if (status === 404) return false;
-  if (input.answeredBefore) return true;
-  return status !== null && status >= 500;
+export function selectionLoadErrorVisible(input: { roundLoaded: boolean; error: unknown }): boolean {
+  return input.roundLoaded && apiErrorOf(input.error).status !== 404;
 }
 
 /** "sex 14h" / "sáb 17h45", em Brasília (o formato das mensagens). */

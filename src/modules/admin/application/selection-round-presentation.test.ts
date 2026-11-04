@@ -106,11 +106,13 @@ describe("selection-round-presentation (fatia E)", () => {
         config: { headers },
       });
     };
-    expect(selectionLoadErrorVisible({ answeredBefore: false, error: axiosError(404) })).toBe(false);
-    expect(selectionLoadErrorVisible({ answeredBefore: true, error: axiosError(404) })).toBe(false);
-    expect(selectionLoadErrorVisible({ answeredBefore: false, error: axiosError(500) })).toBe(true);
-    expect(selectionLoadErrorVisible({ answeredBefore: false, error: new Error("rede") })).toBe(false);
-    expect(selectionLoadErrorVisible({ answeredBefore: true, error: new Error("rede") })).toBe(true);
+    // Revisão D1: só com uma rodada de verdade já carregada.
+    expect(selectionLoadErrorVisible({ roundLoaded: false, error: axiosError(404) })).toBe(false);
+    expect(selectionLoadErrorVisible({ roundLoaded: true, error: axiosError(404) })).toBe(false);
+    expect(selectionLoadErrorVisible({ roundLoaded: false, error: axiosError(502) })).toBe(false);
+    expect(selectionLoadErrorVisible({ roundLoaded: false, error: new Error("rede") })).toBe(false);
+    expect(selectionLoadErrorVisible({ roundLoaded: true, error: axiosError(500) })).toBe(true);
+    expect(selectionLoadErrorVisible({ roundLoaded: true, error: new Error("rede") })).toBe(true);
   });
 
   it("a situação de cada pessoa", () => {
