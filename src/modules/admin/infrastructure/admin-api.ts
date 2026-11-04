@@ -913,7 +913,13 @@ export interface VacancyReserveChange {
   reserveId: string;
   candidacyId: string;
   name: string;
+  /** A posição de agora (anda quando alguém sai: o suplente 2 sobe para 1). */
   position: number;
+  /**
+   * Fluxo v2, lote 3: a posição de quando a pessoa entrou na lista (a da escolha). API anterior:
+   * ausente (vale a de agora).
+   */
+  designatedPosition?: number;
   status: string;
   /** Virou oferta numa chamada: o desfecho está em `history.calls`. */
   callId: string | null;
@@ -922,7 +928,7 @@ export interface VacancyReserveChange {
   /** E-mail de quem pôs. */
   designatedByLabel: string | null;
   designatedAt: string;
-  /** REPLACED_BY_CONTRACTOR | REORDERED | ACCEPTED_ELSEWHERE | CANDIDACY_GONE | HOLD_ENDED | … */
+  /** REPLACED_BY_CONTRACTOR | REORDERED | ACCEPTED_ELSEWHERE | CANDIDACY_GONE | HOLD_ENDED | CHOICE_UNDONE | … */
   releaseReason: string | null;
   /** CONTRACTOR | ADMIN quando alguém tirou; nulo nas saídas automáticas e antes de 29/10. */
   releasedBy: string | null;

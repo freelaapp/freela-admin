@@ -195,9 +195,17 @@ describe("mensagens prontas A a E (Guia do suporte)", () => {
     expect(text.A).toBe(
       "Olá! Aqui é [seu nome], do suporte do Freela. Já estou cuidando da sua vaga de Garçom para sáb 07/11 às 18h. Te dou notícia até 14h35.",
     );
-    expect(
-      text.B.startsWith("Seguimos procurando. Já falei com 0 profissionais"),
-    ).toBe(true);
+    // Lote 3 (QA de 04/11, achado 13): com 0 contatos, sem o "Já falei com 0 profissionais".
+    expect(text.B).toBe("Estou procurando agora e te atualizo em 30 minutos.");
+    const withName = readyMessages({
+      detail: detail({ newsDueAt: null, contacts: [] }),
+      myName: "Bruna Lima",
+      now,
+      firstNewsMinutes: 30,
+    });
+    expect(withName.find((m) => m.key === "B")?.text).toMatch(
+      /^[A-ZÀ-Ú][a-zà-ú]+, estou procurando agora e te atualizo em 30 minutos\.$/,
+    );
     expect(
       text.C.startsWith("Resolvido! [nome do freelancer] vai cobrir"),
     ).toBe(true);

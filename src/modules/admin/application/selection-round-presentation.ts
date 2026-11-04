@@ -31,6 +31,19 @@ export function isSelectionDisabled(error: unknown): boolean {
   return apiErrorOf(error).status === 404;
 }
 
+/**
+ * Outro erro (lote 3, item 14): a caixa com "Tentar de novo", só quando já se sabe que a rodada vale
+ * para esta vaga — uma resposta anterior (com ou sem rodada) ou um erro do servidor (5xx: com a
+ * chave desligada ou a empresa fora do piloto, a API responde 404 antes de ler). Falha de rede sem
+ * resposta anterior: nada (não dá para saber; antes a seção sumia em qualquer erro).
+ */
+export function selectionLoadErrorVisible(input: { answeredBefore: boolean; error: unknown }): boolean {
+  const { status } = apiErrorOf(input.error);
+  if (status === 404) return false;
+  if (input.answeredBefore) return true;
+  return status !== null && status >= 500;
+}
+
 /** "sex 14h" / "sáb 17h45", em Brasília (o formato das mensagens). */
 export function weekdayHour(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -65,26 +78,31 @@ const STAGE_LABEL: Record<SelectionStage, string> = {
   encerrada: "Encerrada",
 };
 
-const CLOSED_LABEL: Record<SelectionClosedReason, string> = {
-  ACCEPTED_IN_ROUND: "a empresa escolheu alguém da rodada",
-  ACCEPTED_OUTSIDE: "a empresa escolheu alguém de fora da rodada",
-  NO_ONE_AVAILABLE: "ninguém confirmou a tempo",
-  VACANCY_CANCELLED: "a vaga foi cancelada",
-  VACANCY_GONE: "o horário da vaga chegou",
+/** Quem escolheu, como sujeito da frase ("A empresa escolheu…", "O suporte escolheu…"). */
+const CHOSE: Record<string, (what: string) => string> = {
+  CONTRACTOR: (what) => `A empresa escolheu ${what}`,
+  ADMIN: (what) => `O suporte escolheu ${what}`,
+  // O cron fechou depois do aceite (o gancho do aceite não fechou na hora).
+  SYSTEM: (what) => `Foi escolhido ${what}`,
 };
 
-const CLOSED_BY: Record<string, string> = {
-  CONTRACTOR: "pela empresa",
-  ADMIN: "pelo suporte",
-  SYSTEM: "pelo sistema",
+/** Como a rodada acabou, numa frase só (lote 3: sem repetir a etapa nem o "pela empresa"). */
+const CLOSED_SENTENCE: Record<SelectionClosedReason, (by: string | null) => string> = {
+  ACCEPTED_IN_ROUND: (by) => (CHOSE[by ?? "CONTRACTOR"] ?? CHOSE.CONTRACTOR)("alguém da rodada"),
+  ACCEPTED_OUTSIDE: (by) => (CHOSE[by ?? "CONTRACTOR"] ?? CHOSE.CONTRACTOR)("alguém de fora da rodada"),
+  NO_ONE_AVAILABLE: () => "Ninguém confirmou a tempo",
+  VACANCY_CANCELLED: () => "Encerrada: a vaga foi cancelada",
+  VACANCY_GONE: () => "Encerrada: o horário da vaga chegou",
+  SCHEDULE_CHANGED: () => "Encerrada: o horário da vaga mudou (quem confirmou foi liberado)",
+  STOPPED: () => "Encerrada pelo suporte (piloto parado)",
 };
 
-/** "A empresa escolheu" / "Encerrada: a vaga foi cancelada (pelo sistema)". */
+/** "Opções enviadas à empresa" / "A empresa escolheu alguém da rodada" / "Encerrada: a vaga foi cancelada". */
 export function stageLine(round: AdminSelectionRound): string {
   const stage = STAGE_LABEL[round.stage] ?? round.stage;
   if (round.phase !== "CLOSED" || !round.closedReason) return stage;
-  const by = round.closedByKind ? ` (${CLOSED_BY[round.closedByKind] ?? round.closedByKind})` : "";
-  return `${stage}: ${CLOSED_LABEL[round.closedReason] ?? round.closedReason}${by}`;
+  const sentence = CLOSED_SENTENCE[round.closedReason];
+  return sentence ? sentence(round.closedByKind) : `${stage}: ${round.closedReason}`;
 }
 
 /** A coluna "Situação" (designer §5.6), com as saídas que a tabela dele não tem. */
@@ -111,11 +129,17 @@ export function situationLabel(person: AdminSelectionPerson): string {
         ? `Fila de espera nº ${person.waitlistPosition}`
         : "Fila de espera";
     case "LEFT_WAITLIST":
-      return "Saiu da fila";
+      return "Saiu da fila de espera";
     case "RELEASED":
       return "Liberado";
     case "CANDIDACY_GONE":
       return "Saiu da vaga";
+    case "LEFT_RESERVES":
+      return "Saiu da fila de suplentes";
+    case "RESERVE_ENDED":
+      return "Não é mais suplente";
+    case "NOT_ARRIVED":
+      return "Não chegou";
     default:
       return person.situation;
   }

@@ -27,6 +27,8 @@ const MOTIVO: Record<string, string> = {
   PRINCIPAL_UNCONFIRMED: "Não confirmou o aceite",
   PRINCIPAL_WITHDREW: 'Desistiu da vaga ("Não vou mais")',
   CONTRACTOR_CHOICE: "Outro motivo",
+  // Fluxo v2, fatia F1 (lote 3: o código cru aparecia no histórico).
+  PRINCIPAL_NOT_ARRIVED: "Não chegou (a empresa avisou)",
 };
 
 /** Motivos que o suporte pode escolher (a API recusa os outros). */
@@ -41,6 +43,13 @@ const QUEM: Record<string, string> = {
   CONTRACTOR: "a empresa",
   ADMIN: "o suporte",
   SYSTEM: "o sistema",
+};
+
+/** "pela empresa" / "pelo suporte" / "pelo sistema" (lote 3: antes saía "por a empresa"). */
+const POR_QUEM: Record<string, string> = {
+  CONTRACTOR: "pela empresa",
+  ADMIN: "pelo suporte",
+  SYSTEM: "pelo sistema",
 };
 
 const SITUACAO_CHAMADA: Record<string, string> = {
@@ -164,6 +173,8 @@ const SAIU_SOZINHA: Record<string, string> = {
   NOT_READY: "disse que não pode ficar de prontidão",
   // Fluxo v2, fatia B2: o suplente saiu sozinho (botão do W29, página, site ou "Cancelar candidatura").
   LEFT_QUEUE: 'tocou em "Sair da fila"',
+  // Fluxo v2, fatia E (lote 3): o "Escolher" da rodada gravou a lista e o aceite não passou.
+  CHOICE_UNDONE: 'o "Escolher" não passou e a lista voltou a ser a de antes',
 };
 
 /** Fim da lista inteira (cron), por motivo. */
@@ -215,7 +226,9 @@ function linhasDaLista(
     else grupo(c.releasedAt).sozinhas.push(c);
   }
 
-  const primeiro = (c: VacancyReserveChange) => primeiroNome(c.name);
+  // No admin, o nome completo; a posição é a da escolha, não a de agora (lote 3, QA de 04/11, 12).
+  const nomeCompleto = (c: VacancyReserveChange) => c.name.trim() || "O freelancer";
+  const posicao = (c: VacancyReserveChange) => c.designatedPosition ?? c.position;
   const prazo = formatVacancyTime(holdUntil);
   const linhas: LinhaDaLista[] = [];
   for (const [em, g] of grupos) {
@@ -232,21 +245,21 @@ function linhasDaLista(
           }
         : null;
     if (autor) {
-      const postas = [...g.postas].sort((a, b) => a.position - b.position);
+      const postas = [...g.postas].sort((a, b) => posicao(a) - posicao(b));
       const reordenadas = new Set(g.reordenadas.map((c) => c.candidacyId));
       const novas = postas.filter((c) => !reordenadas.has(c.candidacyId));
       const partes: string[] = [];
       if (novas.length > 0)
         partes.push(
-          `escolheu os suplentes: ${postas.map((c) => `${c.position} ${primeiro(c)}`).join(" · ")}`,
+          `escolheu os suplentes: ${postas.map((c) => `${posicao(c)} ${nomeCompleto(c)}`).join(" · ")}`,
         );
       else if (postas.length > 0)
         partes.push(
-          `mudou a ordem: ${postas.map((c) => `${primeiro(c)} passou para ${c.position}`).join(", ")}`,
+          `mudou a ordem: ${postas.map((c) => `${nomeCompleto(c)} passou para ${posicao(c)}`).join(", ")}`,
         );
       if (g.tiradas.length > 0)
         partes.push(
-          `tirou ${g.tiradas.map(primeiro).join(" e ")} da lista de suplentes`,
+          `tirou ${g.tiradas.map(nomeCompleto).join(" e ")} da lista de suplentes`,
         );
       linhas.push({
         id: `lista-${em}`,
@@ -270,8 +283,8 @@ function linhasDaLista(
         id: `saiu-${c.reserveId}`,
         em,
         texto: SAIU_SOZINHA[c.releaseReason ?? ""]
-          ? `${primeiro(c)} saiu da lista de suplentes: ${SAIU_SOZINHA[c.releaseReason ?? ""]}`
-          : `${primeiro(c)} saiu da lista de suplentes`,
+          ? `${nomeCompleto(c)} saiu da lista de suplentes: ${SAIU_SOZINHA[c.releaseReason ?? ""]}`
+          : `${nomeCompleto(c)} saiu da lista de suplentes`,
       });
   }
   return linhas;
@@ -335,6 +348,10 @@ export function VacancyReservesSection({
     historico.calls.length > 0 ||
     historico.principalChanges.length > 0 ||
     (historico.reserveChanges?.length ?? 0) > 0;
+  // A lista já teve gente (sem contar a linha desfeita pelo "Escolher" que não passou).
+  const jaTeveSuplentes = (historico.reserveChanges ?? []).some(
+    (c) => c.releaseReason !== "CHOICE_UNDONE",
+  );
   if (!view.enabled && !temHistorico) return null;
   const reservas = [...(view.chosen ?? view.reserves)].sort(
     (a, b) => a.position - b.position,
@@ -497,7 +514,10 @@ export function VacancyReservesSection({
       {view.enabled &&
         (reservas.length === 0 ? (
           <p className="text-xs text-[#737373]">
-            {candidatos.length === 0
+            {jaTeveSuplentes
+              ? // Lote 3 (QA de 04/11, achado 12): a empresa escolheu; só não há suplente ativo agora.
+                `Nenhum suplente ativo agora.${candidatos.length > 0 ? ` ${candidatos.length === 1 ? "1 candidato pode entrar" : `${candidatos.length} candidatos podem entrar`} na lista.` : ""}`
+              : candidatos.length === 0
               ? "A empresa não escolheu suplentes."
               : view.principal
                 ? `A empresa não escolheu suplentes. ${candidatos.length === 1 ? "1 outro candidato pode entrar" : `${candidatos.length} outros candidatos podem entrar`} na lista; a empresa marca no botão Escolher como suplente de cada candidato, na tela da vaga.`
@@ -757,7 +777,7 @@ export function VacancyReservesSection({
                       : ` · a vaga de ${nome(item.troca.fromCandidacyId)} foi liberada`}
                   </p>
                   <p className="text-[#737373]">
-                    {`${MOTIVO[item.troca.reason] ?? item.troca.reason} · por ${QUEM[item.troca.actorKind] ?? item.troca.actorKind}`}
+                    {`${MOTIVO[item.troca.reason] ?? item.troca.reason} · ${POR_QUEM[item.troca.actorKind] ?? item.troca.actorKind}`}
                     {item.troca.note && ` — "${item.troca.note}"`}
                   </p>
                 </li>

@@ -6,6 +6,7 @@ import { useVacancySelectionRound } from "@/modules/admin/application/use-select
 import {
   deadlinesLine,
   reasonLabel,
+  selectionLoadErrorVisible,
   situationLabel,
   stageLine,
   viaLabel,
@@ -15,14 +16,30 @@ import { formatInstantDateTime } from "@/lib/date.utils";
 /**
  * "Rodada de seleção" no modal da vaga (fluxo v2, fatia E, piloto; designer, lote 2 §5.6). Só
  * leitura: quem foi perguntado, por que está naquela posição, a situação de cada um, os prazos e
- * quantas vezes a empresa pediu outros nomes. Sem dados, nada (revisão de 04/11, E7): nem
- * "Carregando…" (o modal piscava antes do 404 da chave desligada), nem erro, como a seção de
- * suplentes. Sem a rodada na API (qualquer 404), a seção não aparece.
+ * quantas vezes a empresa pediu outros nomes. Carregando: nada (revisão de 04/11, E7: o modal
+ * piscava antes do 404 da chave desligada). Sem a rodada na API (qualquer 404: chave desligada,
+ * empresa fora do piloto, API de antes), a seção não aparece. Outro erro: "Não foi possível
+ * carregar a rodada de seleção." com "Tentar de novo", só quando já se sabe que a rodada vale para
+ * a vaga (resposta anterior ou erro do servidor; lote 3, item 14).
  */
 export function VacancySelectionRoundSection({ vacancyId }: { vacancyId: string }) {
-  const { data } = useVacancySelectionRound(vacancyId);
+  const { data, error, isError, isFetching, refetch } = useVacancySelectionRound(vacancyId);
+  const loadError =
+    isError && selectionLoadErrorVisible({ answeredBefore: data !== undefined, error }) ? (
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[#737373]">
+        <p role="alert">Não foi possível carregar a rodada de seleção.</p>
+        <button
+          type="button"
+          disabled={isFetching}
+          onClick={() => void refetch()}
+          className="rounded-md border border-[#e5e5e5] bg-white px-2.5 py-1 font-medium text-[#1d1d1b] hover:bg-[#f0f0f0] disabled:opacity-60"
+        >
+          {isFetching ? "Carregando…" : "Tentar de novo"}
+        </button>
+      </div>
+    ) : null;
 
-  if (!data) return null;
+  if (!data && !loadError) return null;
 
   return (
     <section
@@ -37,11 +54,13 @@ export function VacancySelectionRoundSection({ vacancyId }: { vacancyId: string 
         Rodada de seleção
       </p>
 
-      {!data.round && (
+      {loadError}
+
+      {data && !data.round && (
         <p className="text-xs text-[#737373]">Esta vaga não teve rodada de seleção.</p>
       )}
 
-      {data.round && (
+      {data?.round && (
         <>
           <div className="space-y-0.5 text-xs">
             <p className="font-medium text-[#1d1d1b]">{stageLine(data.round)}</p>

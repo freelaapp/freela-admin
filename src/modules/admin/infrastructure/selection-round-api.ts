@@ -4,8 +4,8 @@ import { createAuthedClient } from "@/modules/shared/infrastructure/authed-clien
  * Rodada de seleção da vaga (fluxo de vagas v2, fatia E, piloto; designer, lote 2 §5.6). Só
  * leitura, com a permissão de Vagas (`JOBS`).
  *
- * Com a chave da API desligada (`SELECTION_V2_ENABLED`) ou a lista de empresas vazia, a rota
- * responde 404 `FEATURE_DISABLED`: o modal da vaga não mostra a seção.
+ * Com a chave da API desligada (`SELECTION_V2_ENABLED`), a lista de empresas vazia ou a empresa
+ * fora do piloto (sem rodada), a rota responde 404 `FEATURE_DISABLED`: o modal não mostra a seção.
  */
 const adminApi = createAuthedClient("/v1/bars-restaurants/admin");
 
@@ -21,7 +21,11 @@ export type SelectionClosedReason =
   | "ACCEPTED_OUTSIDE"
   | "NO_ONE_AVAILABLE"
   | "VACANCY_CANCELLED"
-  | "VACANCY_GONE";
+  | "VACANCY_GONE"
+  /** Lote 3: a empresa mudou o horário da vaga no meio da rodada. */
+  | "SCHEDULE_CHANGED"
+  /** Lote 3: o "Parar tudo" do runbook (SQL à mão, sem aviso). */
+  | "STOPPED";
 
 export type SelectionSituation =
   | "ASKED"
@@ -35,7 +39,13 @@ export type SelectionSituation =
   | "WAITLIST"
   | "LEFT_WAITLIST"
   | "RELEASED"
-  | "CANDIDACY_GONE";
+  | "CANDIDACY_GONE"
+  /** Lote 3: saiu da fila de suplentes desta vaga. */
+  | "LEFT_RESERVES"
+  /** Lote 3: foi suplente e não é mais (a empresa tirou, foi chamado e não pôde, a lista acabou). */
+  | "RESERVE_ENDED"
+  /** Lote 3: ia trabalhar e a empresa respondeu "Não chegou" (fatia F1). */
+  | "NOT_ARRIVED";
 
 export type SelectionRankReason =
   | "LOW_PRIORITY"

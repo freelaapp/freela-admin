@@ -265,7 +265,11 @@ export function readyMessages(input: {
     {
       key: "B",
       title: "Enquanto procura (para a empresa)",
-      text: `${contact ? `${contact}, seguimos` : "Seguimos"} procurando. Já falei com ${reached} ${reached === 1 ? "profissional" : "profissionais"} e estou aguardando retorno. Volto a te atualizar em ${firstNewsMinutes} minutos.`,
+      // Lote 3 (QA de 04/11, achado 13): com 0 contatos, "Já falei com 0 profissionais" não serve.
+      text:
+        reached === 0
+          ? `${contact ? `${contact}, estou` : "Estou"} procurando agora e te atualizo em ${firstNewsMinutes} minutos.`
+          : `${contact ? `${contact}, seguimos` : "Seguimos"} procurando. Já falei com ${reached} ${reached === 1 ? "profissional" : "profissionais"} e estou aguardando retorno. Volto a te atualizar em ${firstNewsMinutes} minutos.`,
     },
     {
       key: "C",

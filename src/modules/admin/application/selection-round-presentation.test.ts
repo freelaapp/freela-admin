@@ -1,8 +1,10 @@
+import { AxiosError, AxiosHeaders } from "axios";
 import { describe, expect, it } from "vitest";
 
 import {
   deadlinesLine,
   reasonLabel,
+  selectionLoadErrorVisible,
   situationLabel,
   stageLine,
   weekdayHour,
@@ -75,10 +77,40 @@ describe("selection-round-presentation (fatia E)", () => {
           closedByKind: "ADMIN",
         }),
       ),
-    ).toBe("A empresa escolheu: a empresa escolheu alguém de fora da rodada (pelo suporte)");
+    ).toBe("O suporte escolheu alguém de fora da rodada");
     expect(
       stageLine(round({ stage: "sem_disponiveis", phase: "CLOSED", closedReason: "NO_ONE_AVAILABLE", closedByKind: "SYSTEM" })),
-    ).toBe("Ninguém confirmou a tempo: ninguém confirmou a tempo (pelo sistema)");
+    ).toBe("Ninguém confirmou a tempo");
+  });
+
+  it("lote 3: a frase de quem escolheu sem repetir (QA de 04/11, achado 12) e os motivos novos", () => {
+    const closed = (closedReason: AdminSelectionRound["closedReason"], closedByKind: AdminSelectionRound["closedByKind"]) =>
+      stageLine(round({ stage: "contratante_escolheu", phase: "CLOSED", closedReason, closedByKind }));
+    expect(closed("ACCEPTED_IN_ROUND", "CONTRACTOR")).toBe("A empresa escolheu alguém da rodada");
+    expect(closed("ACCEPTED_IN_ROUND", "SYSTEM")).toBe("Foi escolhido alguém da rodada");
+    expect(closed("VACANCY_CANCELLED", "SYSTEM")).toBe("Encerrada: a vaga foi cancelada");
+    expect(closed("SCHEDULE_CHANGED", "SYSTEM")).toBe(
+      "Encerrada: o horário da vaga mudou (quem confirmou foi liberado)",
+    );
+    expect(closed("STOPPED", "SYSTEM")).toBe("Encerrada pelo suporte (piloto parado)");
+  });
+
+  it("lote 3, item 14: erro visível só quando a rodada vale para a vaga", () => {
+    const axiosError = (status: number) => {
+      const headers = new AxiosHeaders();
+      return new AxiosError("x", "ERR", { headers }, null, {
+        status,
+        statusText: "x",
+        data: {},
+        headers,
+        config: { headers },
+      });
+    };
+    expect(selectionLoadErrorVisible({ answeredBefore: false, error: axiosError(404) })).toBe(false);
+    expect(selectionLoadErrorVisible({ answeredBefore: true, error: axiosError(404) })).toBe(false);
+    expect(selectionLoadErrorVisible({ answeredBefore: false, error: axiosError(500) })).toBe(true);
+    expect(selectionLoadErrorVisible({ answeredBefore: false, error: new Error("rede") })).toBe(false);
+    expect(selectionLoadErrorVisible({ answeredBefore: true, error: new Error("rede") })).toBe(true);
   });
 
   it("a situação de cada pessoa", () => {
@@ -95,7 +127,11 @@ describe("selection-round-presentation (fatia E)", () => {
     expect(situationLabel(person({ situation: "DECLINED_BY_CONTRACTOR" }))).toBe(
       "Trocado por outros nomes",
     );
-    expect(situationLabel(person({ situation: "LEFT_WAITLIST" }))).toBe("Saiu da fila");
+    expect(situationLabel(person({ situation: "LEFT_WAITLIST" }))).toBe("Saiu da fila de espera");
+    // Lote 3: quem foi suplente e o "Não chegou" (antes "Saiu da vaga").
+    expect(situationLabel(person({ situation: "LEFT_RESERVES" }))).toBe("Saiu da fila de suplentes");
+    expect(situationLabel(person({ situation: "RESERVE_ENDED" }))).toBe("Não é mais suplente");
+    expect(situationLabel(person({ situation: "NOT_ARRIVED" }))).toBe("Não chegou");
     expect(situationLabel(person({ situation: "RELEASED" }))).toBe("Liberado");
   });
 

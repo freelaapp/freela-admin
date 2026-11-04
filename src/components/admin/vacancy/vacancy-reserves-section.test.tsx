@@ -527,17 +527,17 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
 
     expect(
       await screen.findByText(
-        /a empresa escolheu os suplentes: 1 Bia · 2 Davi \(rafael@bardoze.com\)/,
+        /a empresa escolheu os suplentes: 1 Bia Lima · 2 Davi Melo \(rafael@bardoze.com\)/,
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /o suporte escolheu os suplentes: 2 Cai; tirou Davi da lista de suplentes \(suporte@freela.com\)/,
+        /o suporte escolheu os suplentes: 2 Cai Rocha; tirou Davi Melo da lista de suplentes \(suporte@freela.com\)/,
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Bia saiu da lista de suplentes: foi escolhido em outra vaga no mesmo horário/,
+        /Bia Lima saiu da lista de suplentes: foi escolhido em outra vaga no mesmo horário/,
       ),
     ).toBeInTheDocument();
   });
@@ -590,14 +590,14 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     renderSection();
 
     expect(
-      await screen.findByText(/o sistema escolheu os suplentes: 1 Bia · 2 Davi/),
+      await screen.findByText(/o sistema escolheu os suplentes: 1 Bia Lima · 2 Davi Melo/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/tirou Davi da lista de suplentes \(rafael@bardoze.com\)/),
+      screen.getByText(/tirou Davi Melo da lista de suplentes \(rafael@bardoze.com\)/),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Bia saiu da lista de suplentes: disse que não pode ficar de prontidão/,
+        /Bia Lima saiu da lista de suplentes: disse que não pode ficar de prontidão/,
       ),
     ).toBeInTheDocument();
   });
@@ -639,7 +639,7 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     renderSection();
 
     expect(
-      await screen.findByText(/Bia saiu da lista de suplentes: tocou em "Sair da fila"/),
+      await screen.findByText(/Bia Lima saiu da lista de suplentes: tocou em "Sair da fila"/),
     ).toBeInTheDocument();
   });
 
@@ -687,11 +687,93 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     renderSection();
 
     expect(
-      await screen.findByText(/a empresa mudou a ordem: Cai passou para 1/),
+      await screen.findByText(/a empresa mudou a ordem: Cai Rocha passou para 1/),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/a lista de suplentes terminou: prazo das 17:00/),
     ).toBeInTheDocument();
+  });
+
+  it("lote 3: a posição da ESCOLHA (o 2 subiu para 1), nome completo e \"Nenhum suplente ativo agora\"", async () => {
+    const T1 = "2026-11-04T18:00:00.000Z";
+    const base = {
+      callId: null,
+      designatedBy: "CONTRACTOR",
+      designatedByLabel: "rafael@bardoze.com",
+      designatedAt: T1,
+      releasedBy: null,
+      releasedByLabel: null,
+    };
+    api.getVacancyReserves.mockResolvedValue({
+      ...VIEW,
+      chosen: [],
+      reserves: [],
+      candidates: [],
+      eligible: [],
+      history: {
+        calls: [],
+        principalChanges: [],
+        reserveChanges: [
+          {
+            ...base,
+            reserveId: "r-ana",
+            candidacyId: "c-ana",
+            name: "Ana Souza",
+            position: 1,
+            designatedPosition: 1,
+            status: "LEFT",
+            releaseReason: "LEFT_QUEUE",
+            releasedAt: "2026-11-04T18:30:00.000Z",
+          },
+          {
+            ...base,
+            reserveId: "r-bia",
+            candidacyId: "c-bia",
+            name: "Bia Lima",
+            position: 1,
+            designatedPosition: 2,
+            status: "RELEASED",
+            releaseReason: "HOLD_ENDED",
+            releasedAt: "2026-11-04T20:00:00.000Z",
+          },
+        ],
+      },
+    });
+    renderSection();
+
+    expect(
+      await screen.findByText(/a empresa escolheu os suplentes: 1 Ana Souza · 2 Bia Lima/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Ana Souza saiu da lista de suplentes: tocou em "Sair da fila"/)).toBeInTheDocument();
+    expect(screen.getByText("Nenhum suplente ativo agora.")).toBeInTheDocument();
+    expect(screen.queryByText(/A empresa não escolheu suplentes/)).not.toBeInTheDocument();
+  });
+
+  it('lote 3: o motivo "Não chegou" e "pelo sistema" (não o código cru nem "por o sistema")', async () => {
+    api.getVacancyReserves.mockResolvedValue({
+      ...VIEW,
+      history: {
+        calls: [],
+        principalChanges: [
+          {
+            id: "pc-1",
+            kind: "SUBSTITUTED",
+            fromCandidacyId: "c-ana",
+            toCandidacyId: "c-bia",
+            reason: "PRINCIPAL_NOT_ARRIVED",
+            actorKind: "SYSTEM",
+            note: null,
+            occurredAt: "2026-11-04T18:20:00.000Z",
+          },
+        ],
+        reserveChanges: [],
+      },
+    });
+    renderSection();
+
+    expect(await screen.findByText("Não chegou (a empresa avisou) · pelo sistema")).toBeInTheDocument();
+    expect(screen.queryByText(/PRINCIPAL_NOT_ARRIVED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/por o sistema/)).not.toBeInTheDocument();
   });
 
   it("chave desligada e sem histórico: não mostra nada", async () => {

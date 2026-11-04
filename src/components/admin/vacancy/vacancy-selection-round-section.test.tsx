@@ -143,6 +143,25 @@ describe("VacancySelectionRoundSection", () => {
     expect(screen.queryByText("Não foi possível carregar a rodada de seleção.")).not.toBeInTheDocument();
   }, 10_000);
 
+  it("lote 3, item 14: erro do servidor (500) com a chave ligada: a caixa com \"Tentar de novo\" (e o retry carrega)", async () => {
+    const headers = new AxiosHeaders();
+    const server500 = new AxiosError("Internal", "ERR_BAD_RESPONSE", { headers }, null, {
+      status: 500,
+      statusText: "Internal",
+      data: { error: { code: "INTERNAL", message: "Erro" } },
+      headers,
+      config: { headers },
+    });
+    api.getVacancySelectionRound.mockRejectedValue(server500);
+    render(ui());
+    expect(
+      await screen.findByText("Não foi possível carregar a rodada de seleção.", {}, { timeout: 8000 }),
+    ).toBeInTheDocument();
+    api.getVacancySelectionRound.mockResolvedValue(VIEW);
+    screen.getByRole("button", { name: "Tentar de novo" }).click();
+    expect(await screen.findByText("Opções enviadas à empresa")).toBeInTheDocument();
+  }, 12_000);
+
   it("com rodada: a linha dos prazos e a tabela Posição · Pessoa · Por que está aqui · Situação", async () => {
     api.getVacancySelectionRound.mockResolvedValue(VIEW);
     render(ui());
