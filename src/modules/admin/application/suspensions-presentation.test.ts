@@ -4,6 +4,7 @@ import {
   canKeepOccurrence,
   canRegisterConversation,
   conversationLabel,
+  conversationOverdueLabel,
   dayLabel,
   deadlineLabel,
   isPenaltyLadderDisabled,
@@ -65,6 +66,13 @@ describe("Suspensões — textos (fatia G, designer §5.5)", () => {
     });
     expect(canKeepOccurrence(contested)).toBe(true);
     expect(canKeepOccurrence({ ...contested, state: "LIFTED" })).toBe(false);
+  });
+
+  it("\"Conversa atrasada\": só quando a API diz (a regra mora lá)", () => {
+    expect(conversationOverdueLabel(suspensionItem({ conversationOverdue: true }))).toBe("Conversa atrasada");
+    expect(conversationOverdueLabel(suspensionItem({ conversationOverdue: false }))).toBeNull();
+    // API antiga, sem o campo: sem etiqueta.
+    expect(conversationOverdueLabel(suspensionItem())).toBeNull();
   });
 
   it("o diálogo diz o que cada motivo faz", () => {

@@ -23,6 +23,7 @@ import {
 } from "@/modules/admin/application/use-suspensions";
 import {
   LIFT_REASON_OPTIONS,
+  MANUAL_SUSPENSION_DAYS,
   liftReasonHint,
   reasonLabel,
 } from "@/modules/admin/application/suspensions-presentation";
@@ -242,7 +243,7 @@ export function KeepOccurrenceDialog({
   );
 }
 
-/** "Suspender" (motivo obrigatório): dias sem se candidatar e/ou a conversa. */
+/** "Suspender" (motivo obrigatório): dias sem se candidatar (1 a 90, sempre) e a conversa opcional. */
 export function SuspendDialog({ onClose }: { onClose: () => void }) {
   const create = useCreateSuspension();
   const [query, setQuery] = useState("");
@@ -254,12 +255,11 @@ export function SuspendDialog({ onClose }: { onClose: () => void }) {
   const [reason, setReason] = useState("");
   const parsedDays = days.trim() ? Number(days) : null;
   const daysInvalid =
-    parsedDays !== null && (!Number.isInteger(parsedDays) || parsedDays < 1 || parsedDays > 180);
-  const missing =
-    !person?.providerGlobalId ||
-    reason.trim().length < 5 ||
-    daysInvalid ||
-    (parsedDays === null && !conversation);
+    parsedDays === null ||
+    !Number.isInteger(parsedDays) ||
+    parsedDays < MANUAL_SUSPENSION_DAYS.min ||
+    parsedDays > MANUAL_SUSPENSION_DAYS.max;
+  const missing = !person?.providerGlobalId || reason.trim().length < 5 || daysInvalid;
 
   async function search() {
     if (!query.trim()) return;
@@ -275,11 +275,11 @@ export function SuspendDialog({ onClose }: { onClose: () => void }) {
   }
 
   async function submit() {
-    if (missing || !person?.providerGlobalId) return;
+    if (missing || !person?.providerGlobalId || parsedDays === null) return;
     try {
       await create.mutateAsync({
         providerGlobalId: person.providerGlobalId,
-        ...(parsedDays !== null ? { days: parsedDays } : {}),
+        days: parsedDays,
         requiresConversation: conversation,
         reason: reason.trim(),
       });
@@ -341,7 +341,7 @@ export function SuspendDialog({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <label htmlFor="suspend-days" className={LABEL}>
-              Dias sem se candidatar (vazio = só depois da conversa)
+              Dias sem se candidatar ({MANUAL_SUSPENSION_DAYS.min} a {MANUAL_SUSPENSION_DAYS.max})
             </label>
             <input
               id="suspend-days"
@@ -349,8 +349,12 @@ export function SuspendDialog({ onClose }: { onClose: () => void }) {
               value={days}
               onChange={(e) => setDays(e.target.value)}
               aria-invalid={daysInvalid || undefined}
+              aria-describedby="suspend-days-hint"
               className={FIELD}
             />
+            <p id="suspend-days-hint" className="mt-1 text-xs text-[#737373]">
+              A suspensão sempre tem fim. Com a conversa marcada, a volta também espera a conversa.
+            </p>
           </div>
           <label className="flex min-h-10 items-center gap-2 text-sm">
             <input

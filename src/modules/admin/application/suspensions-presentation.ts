@@ -89,6 +89,17 @@ export function conversationLabel(
   return item.conversationAt ? `Feita em ${shortDate(item.conversationAt)}` : "Pendente";
 }
 
+/**
+ * Etiqueta "Conversa atrasada" (revisão da G): a conversa que trava a volta passou da hora. A
+ * regra mora na API (`conversationOverdue`); a página só mostra.
+ */
+export const CONVERSATION_OVERDUE_TEXT = "Conversa atrasada";
+export function conversationOverdueLabel(
+  item: Pick<SuspensionItem, "conversationOverdue">,
+): string | null {
+  return item.conversationOverdue ? CONVERSATION_OVERDUE_TEXT : null;
+}
+
 const STATE_LABEL: Record<SuspensionState, string> = {
   DATED: "Sem poder se candidatar",
   DATED_AND_CONVERSATION: "Sem poder se candidatar",
@@ -140,6 +151,9 @@ export function canRegisterConversation(
 export function canKeepOccurrence(item: Pick<SuspensionItem, "state" | "source">): boolean {
   return isActive(item) && item.source?.status === "CONTESTED";
 }
+
+/** "Suspender": dias de 1 a 90, sempre (revisão da G; a API recusa fora disso). */
+export const MANUAL_SUSPENSION_DAYS = { min: 1, max: 90 } as const;
 
 export const LIFT_REASON_OPTIONS: Array<{ value: SuspensionLiftReason; label: string }> = [
   { value: "CONTEST_ACCEPTED", label: "Contestação aceita" },

@@ -15,6 +15,7 @@ import {
   canRegisterConversation,
   contestReasonLabel,
   conversationLabel,
+  conversationOverdueLabel,
   dayLabel,
   isActive,
   isPenaltyLadderDisabled,
@@ -177,7 +178,14 @@ export default function SuspensoesPage() {
                   <td className={TD}>{reasonLabel(item)}</td>
                   <td className={TD}>{dayLabel(item.startsAt)}</td>
                   <td className={TD}>{returnLabel(item)}</td>
-                  <td className={TD}>{conversationLabel(item)}</td>
+                  <td className={TD}>
+                    <p>{conversationLabel(item)}</p>
+                    {conversationOverdueLabel(item) && (
+                      <span className="mt-1 inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                        {conversationOverdueLabel(item)}
+                      </span>
+                    )}
+                  </td>
                   <td className={TD}>
                     <p>{originLabel(item)}</p>
                     {item.source?.status === "CONTESTED" && item.source.justification && (

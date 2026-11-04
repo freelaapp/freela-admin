@@ -100,6 +100,32 @@ describe("Suspensões (admin)", () => {
     await waitFor(() => expect(listSuspensions).toHaveBeenLastCalledWith("all"));
   });
 
+  it("\"Conversa atrasada\" na linha e a ordem da API (a conversa pendente primeiro)", async () => {
+    vi.mocked(listSuspensions).mockResolvedValue(
+      suspensionList([
+        suspensionItem({
+          id: "atrasada",
+          person: { providerGlobalId: "g-caio", name: "Caio Reis", email: null, phone: null },
+          state: "CONVERSATION_ONLY",
+          conversationOverdue: true,
+        }),
+        suspensionItem({
+          id: "feita",
+          conversationAt: "2026-11-10T15:00:00.000Z",
+          conversationOverdue: false,
+        }),
+      ]),
+    );
+    renderPage();
+    const caio = (await screen.findByText("Caio Reis")).closest("tr")!;
+    expect(within(caio).getByText("Conversa atrasada")).toBeInTheDocument();
+    const ana = screen.getByText("Ana Souza").closest("tr")!;
+    expect(within(ana).queryByText("Conversa atrasada")).not.toBeInTheDocument();
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows[0]).toBe(caio);
+    expect(rows[1]).toBe(ana);
+  });
+
   it("levantar: \"Outro\" pede a nota; com ela, chama a rota com o motivo", async () => {
     vi.mocked(listSuspensions).mockResolvedValue(suspensionList());
     vi.mocked(liftSuspension).mockResolvedValue({});
@@ -147,6 +173,38 @@ describe("Suspensões (admin)", () => {
     fireEvent.change(within(keep).getByLabelText(/Por que mantém/), { target: { value: "Sem prova." } });
     fireEvent.click(submit);
     await waitFor(() => expect(keepInfraction).toHaveBeenCalledWith("inf-1", "Sem prova."));
+  });
+
+  it("suspender: os dias são obrigatórios (1 a 90), mesmo com a conversa marcada", async () => {
+    vi.mocked(listSuspensions).mockResolvedValue(suspensionList([]));
+    vi.mocked(getAdminProviders).mockResolvedValue({
+      data: [{ id: "p1", providerGlobalId: "g-bia", name: "Bia Lima", phone: "5511977776666", email: null } as never],
+      total: 1,
+      page: 1,
+      limit: 5,
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Suspender" }));
+    const dialog = screen.getByRole("dialog", { name: "Suspender freelancer" });
+    fireEvent.change(within(dialog).getByLabelText(/Freelancer \(nome/), { target: { value: "Bia" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Buscar" }));
+    fireEvent.click(await within(dialog).findByRole("radio", { name: /Bia Lima/ }));
+    fireEvent.change(within(dialog).getByLabelText(/Motivo \(obrigatório/), {
+      target: { value: "Desrespeitou a equipe da loja." },
+    });
+    const days = within(dialog).getByLabelText(/Dias sem se candidatar \(1 a 90\)/);
+    const submit = within(dialog).getByRole("button", { name: "Suspender" });
+    expect(within(dialog).getByRole("checkbox")).toBeChecked();
+    for (const bad of ["", "0", "91", "2,5"]) {
+      fireEvent.change(days, { target: { value: bad } });
+      expect(submit).toBeDisabled();
+    }
+    fireEvent.change(days, { target: { value: "90" } });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(createSuspension).toHaveBeenCalledWith(expect.objectContaining({ days: 90 })),
+    );
   });
 
   it("suspender: busca a pessoa, dias e motivo obrigatório", async () => {

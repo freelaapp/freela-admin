@@ -46,6 +46,11 @@ export interface SuspensionItem {
   conversationBy: string | null;
   conversationNote: string | null;
   state: SuspensionState;
+  /**
+   * A conversa que trava a volta já passou da hora (revisão da G): a data de volta venceu, ou
+   * 48 h corridas da criação na que é só com conversa. Ausente na API antiga = não atrasada.
+   */
+  conversationOverdue?: boolean;
   vacancy: {
     id: string;
     title: string | null;
@@ -71,6 +76,7 @@ export interface SuspensionItem {
 }
 
 export interface SuspensionList {
+  /** Na ordem da API: a conversa pendente primeiro (a mais antiga no topo), depois as outras. */
   items: SuspensionItem[];
   /** O aviso do jurídico que a API manda junto da lista. */
   legalNotice: string;
@@ -85,7 +91,8 @@ export async function listSuspensions(
 
 export async function createSuspension(body: {
   providerGlobalId: string;
-  days?: number;
+  /** 1 a 90, sempre (revisão da G: a suspensão manual sempre tem fim). */
+  days: number;
   requiresConversation: boolean;
   reason: string;
 }): Promise<unknown> {
