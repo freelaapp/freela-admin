@@ -1,11 +1,10 @@
 "use client";
 
-import { ListChecks, Loader2 } from "lucide-react";
+import { ListChecks } from "lucide-react";
 
 import { useVacancySelectionRound } from "@/modules/admin/application/use-selection-round";
 import {
   deadlinesLine,
-  isSelectionDisabled,
   reasonLabel,
   situationLabel,
   stageLine,
@@ -16,13 +15,14 @@ import { formatInstantDateTime } from "@/lib/date.utils";
 /**
  * "Rodada de seleção" no modal da vaga (fluxo v2, fatia E, piloto; designer, lote 2 §5.6). Só
  * leitura: quem foi perguntado, por que está naquela posição, a situação de cada um, os prazos e
- * quantas vezes a empresa pediu outros nomes. Com a chave da API desligada (404
- * `FEATURE_DISABLED`), a seção não aparece.
+ * quantas vezes a empresa pediu outros nomes. Sem dados, nada (revisão de 04/11, E7): nem
+ * "Carregando…" (o modal piscava antes do 404 da chave desligada), nem erro, como a seção de
+ * suplentes. Sem a rodada na API (qualquer 404), a seção não aparece.
  */
 export function VacancySelectionRoundSection({ vacancyId }: { vacancyId: string }) {
-  const { data, isLoading, isError, error } = useVacancySelectionRound(vacancyId);
+  const { data } = useVacancySelectionRound(vacancyId);
 
-  if (isError && isSelectionDisabled(error)) return null;
+  if (!data) return null;
 
   return (
     <section
@@ -37,24 +37,11 @@ export function VacancySelectionRoundSection({ vacancyId }: { vacancyId: string 
         Rodada de seleção
       </p>
 
-      {isLoading && (
-        <p className="flex items-center gap-1.5 text-xs text-[#737373]">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          Carregando a rodada…
-        </p>
-      )}
-
-      {isError && (
-        <p role="alert" className="text-xs text-red-600">
-          Não foi possível carregar a rodada de seleção.
-        </p>
-      )}
-
-      {data && !data.round && (
+      {!data.round && (
         <p className="text-xs text-[#737373]">Esta vaga não teve rodada de seleção.</p>
       )}
 
-      {data?.round && (
+      {data.round && (
         <>
           <div className="space-y-0.5 text-xs">
             <p className="font-medium text-[#1d1d1b]">{stageLine(data.round)}</p>

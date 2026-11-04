@@ -17,12 +17,14 @@ vi.mock("@/modules/admin/infrastructure/selection-round-api", async (importOrigi
 }));
 
 /** Fluxo v2, fatia E: a seção "Rodada de seleção" do modal da vaga (designer, lote 2 §5.6). */
-function axios404(code: string) {
+function axios404(code: string | null) {
   const headers = new AxiosHeaders();
   return new AxiosError("Not Found", "ERR_BAD_REQUEST", { headers }, null, {
     status: 404,
     statusText: "Not Found",
-    data: { error: { code, message: "Este recurso ainda não está disponível." } },
+    data: code
+      ? { error: { code, message: "Este recurso ainda não está disponível." } }
+      : { message: "Cannot GET /v1/bars-restaurants/admin/vacancies/vac-1/selection-round" },
     headers,
     config: { headers },
   });
@@ -105,6 +107,25 @@ describe("VacancySelectionRoundSection", () => {
     expect(screen.queryByText("Rodada de seleção")).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["sem código (API de antes, sem a rota)", null],
+    ["com outro código", "NOT_FOUND"],
+  ])("404 %s: a seção não aparece, nem o erro (revisão 04/11, E7)", async (_label, code) => {
+    api.getVacancySelectionRound.mockRejectedValue(axios404(code));
+    const { container } = render(ui());
+    await vi.waitFor(() => expect(api.getVacancySelectionRound).toHaveBeenCalledWith("vac-1"));
+    await vi.waitFor(() => expect(container).toBeEmptyDOMElement());
+    // 404 não tenta de novo.
+    expect(api.getVacancySelectionRound).toHaveBeenCalledTimes(1);
+  });
+
+  it("carregando: nada, nem o \"Carregando a rodada…\" (o modal não pisca; revisão 04/11, E7)", async () => {
+    api.getVacancySelectionRound.mockReturnValue(new Promise(() => undefined));
+    const { container } = render(ui());
+    await vi.waitFor(() => expect(api.getVacancySelectionRound).toHaveBeenCalledWith("vac-1"));
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("vaga sem rodada: o texto do designer", async () => {
     api.getVacancySelectionRound.mockResolvedValue({ round: null, people: [] });
     render(ui());
@@ -112,13 +133,14 @@ describe("VacancySelectionRoundSection", () => {
     expect(screen.getByText("Rodada de seleção")).toBeInTheDocument();
   });
 
-  it("outro erro: tenta de novo (2 vezes), depois avisa e não some", async () => {
+  it("outro erro: tenta de novo (2 vezes) e não desenha nada (revisão 04/11, E7)", async () => {
     api.getVacancySelectionRound.mockRejectedValue(new Error("rede"));
-    render(ui());
-    expect(
-      await screen.findByText("Não foi possível carregar a rodada de seleção.", {}, { timeout: 8000 }),
-    ).toBeInTheDocument();
-    expect(api.getVacancySelectionRound).toHaveBeenCalledTimes(3);
+    const { container } = render(ui());
+    await vi.waitFor(() => expect(api.getVacancySelectionRound).toHaveBeenCalledTimes(3), {
+      timeout: 8000,
+    });
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText("Não foi possível carregar a rodada de seleção.")).not.toBeInTheDocument();
   }, 10_000);
 
   it("com rodada: a linha dos prazos e a tabela Posição · Pessoa · Por que está aqui · Situação", async () => {

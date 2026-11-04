@@ -23,10 +23,12 @@ const WEEKDAYS: Record<string, string> = {
   Sat: "sáb",
 };
 
-/** A chave da API está desligada: a rota respondeu 404 `FEATURE_DISABLED`. */
+/**
+ * Sem a rodada na API: qualquer 404, com `FEATURE_DISABLED` (a chave desligada) ou não (a API de
+ * antes, que nem tem a rota). Não tenta de novo e a seção não aparece (revisão de 04/11, E7).
+ */
 export function isSelectionDisabled(error: unknown): boolean {
-  const e = apiErrorOf(error);
-  return e.status === 404 && e.code === "FEATURE_DISABLED";
+  return apiErrorOf(error).status === 404;
 }
 
 /** "sex 14h" / "sáb 17h45", em Brasília (o formato das mensagens). */
