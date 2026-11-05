@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { ListChecks } from "lucide-react";
 
 import { useVacancySelectionRound } from "@/modules/admin/application/use-selection-round";
 import {
+  canReleaseList,
+  companyViewCard,
   deadlinesLine,
   reasonLabel,
   selectionLoadErrorVisible,
@@ -12,6 +15,8 @@ import {
   viaLabel,
 } from "@/modules/admin/application/selection-round-presentation";
 import { formatInstantDateTime } from "@/lib/date.utils";
+import { Button } from "@/components/ui/button";
+import { ReleaseListDialog } from "./release-list-dialog";
 
 /**
  * "Rodada de seleção" no modal da vaga (fluxo v2, fatia E, piloto; designer, lote 2 §5.6). Só
@@ -24,6 +29,8 @@ import { formatInstantDateTime } from "@/lib/date.utils";
  */
 export function VacancySelectionRoundSection({ vacancyId }: { vacancyId: string }) {
   const { data, error, isError, isFetching, refetch } = useVacancySelectionRound(vacancyId);
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const company = companyViewCard(data?.companyView);
   const loadError =
     isError && selectionLoadErrorVisible({ roundLoaded: Boolean(data?.round), error }) ? (
       <div className="flex flex-wrap items-center gap-2 text-xs text-[#737373]">
@@ -56,8 +63,44 @@ export function VacancySelectionRoundSection({ vacancyId }: { vacancyId: string 
 
       {loadError}
 
+      {company && (
+        <div
+          data-testid="company-view"
+          className="space-y-2 rounded-md bg-[#f7f7f7] p-3 text-xs"
+        >
+          <p className="font-medium text-[#1d1d1b]">{company.headline}</p>
+          {company.rows.length > 0 && (
+            <dl className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
+              {company.rows.map((row) => (
+                <div key={row.label}>
+                  <dt className="text-[#737373]">{row.label}</dt>
+                  <dd className="break-words text-[#1d1d1b]">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {canReleaseList(data?.companyView) && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReleaseOpen(true)}
+              className="min-h-11 w-full border-[#eca826]/40 text-[#c97b0e] hover:bg-[#eca826]/10 sm:w-auto"
+            >
+              Liberar a lista agora
+            </Button>
+          )}
+        </div>
+      )}
+      <ReleaseListDialog
+        vacancyId={vacancyId}
+        open={releaseOpen}
+        onClose={() => setReleaseOpen(false)}
+      />
+
       {data && !data.round && (
-        <p className="text-xs text-[#737373]">Esta vaga não teve rodada de seleção.</p>
+        <p className="text-xs text-[#737373]">
+          {company ? "Ainda sem rodada de seleção." : "Esta vaga não teve rodada de seleção."}
+        </p>
       )}
 
       {data?.round && (

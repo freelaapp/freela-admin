@@ -2,7 +2,12 @@ import { AxiosError, AxiosHeaders } from "axios";
 import { describe, expect, it } from "vitest";
 
 import {
+  canReleaseList,
+  clockLabel,
+  companyViewCard,
   deadlinesLine,
+  releaseErrorMessage,
+  releaseNoteProblem,
   reasonLabel,
   selectionLoadErrorVisible,
   situationLabel,
@@ -10,6 +15,7 @@ import {
   weekdayHour,
 } from "./selection-round-presentation";
 import type {
+  AdminCompanyView,
   AdminSelectionPerson,
   AdminSelectionRound,
 } from "../infrastructure/selection-round-api";
@@ -148,5 +154,98 @@ describe("selection-round-presentation (fatia E)", () => {
       "Candidatou-se antes (outros nomes)",
     );
     expect(reasonLabel(person({ rankReason: null }))).toBe("—");
+  });
+});
+
+describe("A empresa vê (pré-seleção curada)", () => {
+  // Sex 06/11/2026, 07h em Brasília.
+  const NOW = new Date("2026-11-06T10:00:00.000Z");
+  const view = (over: Partial<AdminCompanyView> = {}): AdminCompanyView => ({
+    mode: "HIDDEN",
+    curated: true,
+    stage: "RECEIVING",
+    optionsBy: "2026-11-06T17:00:00.000Z",
+    reason: null,
+    releasedAt: null,
+    applicants: 8,
+    asked: null,
+    options: 0,
+    listReleasedByKind: null,
+    listReleaseNote: null,
+    openTrigger: null,
+    ...over,
+  });
+
+  it("hora: hoje às, amanhã às, ou o dia da semana", () => {
+    expect(clockLabel("2026-11-06T17:00:00.000Z", NOW)).toBe("hoje às 14h");
+    expect(clockLabel("2026-11-07T12:30:00.000Z", NOW)).toBe("amanhã às 9h30");
+    expect(clockLabel("2026-11-09T17:00:00.000Z", NOW)).toBe("seg 14h");
+    expect(clockLabel(null, NOW)).toBe("—");
+  });
+
+  it("sem companyView: nada", () => {
+    expect(companyViewCard(null, NOW)).toBeNull();
+    expect(companyViewCard(undefined, NOW)).toBeNull();
+  });
+
+  it("escondida: Estamos selecionando + hora prometida", () => {
+    const card = companyViewCard(view(), NOW);
+    expect(card?.headline).toBe('A empresa vê "Estamos selecionando" · opções até hoje às 14h');
+    expect(card?.rows).toEqual([{ label: "Hora prometida", value: "opções até hoje às 14h" }]);
+  });
+
+  it("opções, opções em primeiro, lista toda, ninguém se candidatou, sem curadoria", () => {
+    expect(companyViewCard(view({ mode: "OPTIONS_ONLY", options: 3 }), NOW)?.headline).toBe(
+      "A empresa vê só as 3 opções (sem a lista de candidatos)",
+    );
+    expect(companyViewCard(view({ mode: "OPTIONS_FIRST", options: 2, reason: "FEWER_CONFIRMED" }), NOW)?.headline).toBe(
+      "A empresa vê as 2 que confirmaram + a lista com os outros candidatos",
+    );
+    expect(companyViewCard(view({ mode: "FULL", reason: "NO_ONE_CONFIRMED" }), NOW)?.headline).toBe(
+      "A empresa vê a lista toda de candidatos",
+    );
+    expect(companyViewCard(view({ mode: "FULL", reason: "NO_CANDIDATES" }), NOW)?.headline).toContain("Ninguém se candidatou");
+    expect(companyViewCard(view({ curated: false, mode: "FULL", reason: "DISABLED" }), NOW)?.headline).toContain("sem pré-seleção");
+  });
+
+  it("liberada: hora, motivo, quem, nota e gatilho", () => {
+    const card = companyViewCard(
+      view({
+        mode: "FULL",
+        reason: "ADMIN",
+        releasedAt: "2026-11-06T16:50:00.000Z",
+        listReleasedByKind: "ADMIN",
+        listReleaseNote: "Pedido do dono.",
+        openTrigger: "LIST_RELEASED",
+      }),
+      NOW,
+    );
+    expect(card?.rows.map((r) => `${r.label}: ${r.value}`)).toEqual([
+      "Hora prometida: opções até hoje às 14h",
+      "Lista liberada: hoje às 13h50",
+      "Motivo da liberação: liberada pelo suporte",
+      "Quem liberou: pelo suporte",
+      "Nota da liberação: Pedido do dono.",
+      "Como abriu: o suporte liberou a lista",
+    ]);
+  });
+
+  it("o botão só com a lista escondida", () => {
+    expect(canReleaseList(view())).toBe(true);
+    expect(canReleaseList(view({ mode: "OPTIONS_ONLY", options: 3 }))).toBe(true);
+    expect(canReleaseList(view({ mode: "OPTIONS_FIRST" }))).toBe(false);
+    expect(canReleaseList(view({ mode: "FULL" }))).toBe(false);
+    expect(canReleaseList(view({ curated: false }))).toBe(false);
+    expect(canReleaseList(null)).toBe(false);
+  });
+
+  it("nota: obrigatória e até 500", () => {
+    expect(releaseNoteProblem("   ")).toMatch(/Escreva/);
+    expect(releaseNoteProblem("x".repeat(501))).toMatch(/500/);
+    expect(releaseNoteProblem("x".repeat(500))).toBeNull();
+  });
+
+  it("erros em português; erro de rede = mensagem geral", () => {
+    expect(releaseErrorMessage(new Error("rede"))).toBe("Não foi possível liberar a lista. Tente de novo.");
   });
 });

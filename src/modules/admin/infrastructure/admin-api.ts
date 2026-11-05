@@ -1163,6 +1163,7 @@ export async function adminCancelVacancy(
   return res.data.data;
 }
 
+/** Resultado do reinício do Freela em Casa (o de Empresas foi desativado em 05/11/2026). */
 export interface AdminRestartVacancyResult {
   vacancyId: string;
   reopened: boolean;
@@ -1172,15 +1173,6 @@ export interface AdminRestartVacancyResult {
   restoredCandidacies: number;
   jobReset: boolean;
   checkinsCleared: number;
-}
-
-/** Reabre a vaga do zero (no-show): tira o aceito, reseta job/check-ins, mantém o valor. */
-export async function adminRestartVacancy(
-  vacancyId: string,
-  reason: string,
-): Promise<AdminRestartVacancyResult> {
-  const res = await adminApi.post(`/vacancies/${vacancyId}/restart`, { reason });
-  return res.data.data;
 }
 
 /** Banir (definitivo) ou desbanir um freelancer pelo userId. Bloqueia/libera o login. */

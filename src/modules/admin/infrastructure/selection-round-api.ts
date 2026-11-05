@@ -25,7 +25,11 @@ export type SelectionClosedReason =
   /** Lote 3: a empresa mudou o horário da vaga no meio da rodada. */
   | "SCHEDULE_CHANGED"
   /** Lote 3: o "Parar tudo" do runbook (SQL à mão, sem aviso). */
-  | "STOPPED";
+  | "STOPPED"
+  /** Pré-seleção curada: ninguém se candidatou até o fim da janela. */
+  | "NO_CANDIDATES"
+  /** Pré-seleção curada: o admin liberou a lista antes da rodada. */
+  | "LIST_RELEASED";
 
 export type SelectionSituation =
   | "ASKED"
@@ -92,15 +96,76 @@ export interface AdminSelectionPerson {
   answeredVia: "WHATSAPP" | "PAGE" | "SITE" | null;
 }
 
+export type CompanyViewMode = "FULL" | "HIDDEN" | "OPTIONS_FIRST" | "OPTIONS_ONLY";
+
+export type CompanyViewReason =
+  | "DISABLED"
+  | "NOT_ELIGIBLE"
+  | "LEGACY_ROUND"
+  | "ROUND_CLOSED"
+  | "NO_ONE_CONFIRMED"
+  | "NO_CANDIDATES"
+  | "LATE"
+  | "ROUND_DID_NOT_OPEN"
+  | "FEWER_CONFIRMED"
+  | "NONE_LEFT"
+  | "OTHER_NAMES_DONE"
+  | "ADMIN";
+
+export type CompanyViewOpenTrigger =
+  | "WINDOW_ENDED"
+  | "CANDIDATES_REACHED"
+  | "CONTRACTOR_HURRY"
+  | "NO_CANDIDATES"
+  | "LIST_RELEASED";
+
+/**
+ * "A empresa vê" (pré-seleção curada): o mesmo objeto do `selection/status` da empresa, mais quem
+ * liberou a lista, a nota e o gatilho que abriu as opções.
+ */
+export interface AdminCompanyView {
+  mode: CompanyViewMode;
+  curated: boolean;
+  stage: "RECEIVING" | "ASKING" | null;
+  /** A hora prometida à empresa (ISO). */
+  optionsBy: string | null;
+  reason: CompanyViewReason | null;
+  releasedAt: string | null;
+  applicants: number | null;
+  asked: number | null;
+  options: number;
+  listReleasedByKind: "SYSTEM" | "CONTRACTOR" | "ADMIN" | null;
+  listReleaseNote: string | null;
+  openTrigger: CompanyViewOpenTrigger | null;
+}
+
 export interface AdminSelectionRoundView {
   /** `null` = a vaga não teve rodada de seleção. */
   round: AdminSelectionRound | null;
   people: AdminSelectionPerson[];
+  /** `null` (ou ausente, API de antes) = sem a chave ou vaga que nunca escondeu a lista. */
+  companyView?: AdminCompanyView | null;
 }
 
 export async function getVacancySelectionRound(
   vacancyId: string,
 ): Promise<AdminSelectionRoundView> {
   const res = await adminApi.get(`/vacancies/${vacancyId}/selection-round`);
+  return res.data.data;
+}
+
+/** O motivo da liberação: obrigatório, até 500 caracteres. */
+export const RELEASE_NOTE_MAX = 500;
+
+/**
+ * "Liberar a lista agora": a empresa passa a ver os candidatos. Responde o mesmo `GET` da rodada.
+ * Erros: 400 `RELEASE_NOTE_REQUIRED` / `RELEASE_NOTE_TOO_LONG`, 404 `VACANCY_NOT_FOUND`,
+ * 409 `SELECTION_LIST_ALREADY_VISIBLE`.
+ */
+export async function releaseVacancyCandidateList(
+  vacancyId: string,
+  note: string,
+): Promise<AdminSelectionRoundView> {
+  const res = await adminApi.post(`/vacancies/${vacancyId}/selection-round/release-list`, { note });
   return res.data.data;
 }

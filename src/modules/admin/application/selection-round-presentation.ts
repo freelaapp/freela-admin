@@ -1,5 +1,6 @@
 import { apiErrorOf } from "../infrastructure/api-error";
 import type {
+  AdminCompanyView,
   AdminSelectionPerson,
   AdminSelectionRound,
   SelectionClosedReason,
@@ -91,6 +92,8 @@ const CLOSED_SENTENCE: Record<SelectionClosedReason, (by: string | null) => stri
   VACANCY_GONE: () => "Encerrada: o horário da vaga chegou",
   SCHEDULE_CHANGED: () => "Encerrada: o horário da vaga mudou (quem confirmou foi liberado)",
   STOPPED: () => "Encerrada pelo suporte (piloto parado)",
+  NO_CANDIDATES: () => "Encerrada: ninguém se candidatou até o fim da janela",
+  LIST_RELEASED: () => "Encerrada: a lista foi liberada antes da rodada",
 };
 
 /** "Opções enviadas à empresa" / "A empresa escolheu alguém da rodada" / "Encerrada: a vaga foi cancelada". */
@@ -168,4 +171,130 @@ const VIA: Record<string, string> = { WHATSAPP: "WhatsApp", PAGE: "link", SITE: 
 /** "pelo WhatsApp" / "pelo link" / "pelo site". */
 export function viaLabel(via: AdminSelectionPerson["answeredVia"]): string | null {
   return via ? `pelo ${VIA[via] ?? via}` : null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// "A empresa vê" (pré-seleção curada; UX de 05/11 §5.1) e "Liberar a lista agora" (§5.3)
+// ---------------------------------------------------------------------------------------------
+
+/** "hoje às 14h" / "amanhã às 9h" / "sex 14h" (Brasília), para a hora prometida. */
+export function clockLabel(iso: string | null | undefined, now: Date = new Date()): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  const day = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: SP_TZ }).format(d);
+  const at = weekdayHour(iso).split(" ")[1] ?? "";
+  if (day(date) === day(now)) return `hoje às ${at}`;
+  if (day(date) === day(new Date(now.getTime() + 24 * 60 * 60 * 1000))) return `amanhã às ${at}`;
+  return weekdayHour(iso);
+}
+
+const RELEASE_REASON: Partial<Record<NonNullable<AdminCompanyView["reason"]>, string>> = {
+  NO_ONE_CONFIRMED: "ninguém confirmou a tempo",
+  NONE_LEFT: "quem confirmou não pode mais",
+  NO_CANDIDATES: "ninguém se candidatou",
+  LATE: "as opções atrasaram",
+  ROUND_DID_NOT_OPEN: "a rodada não abriu",
+  FEWER_CONFIRMED: "menos de 3 confirmaram",
+  OTHER_NAMES_DONE: "acabaram os outros nomes",
+  ADMIN: "liberada pelo suporte",
+};
+
+const RELEASED_BY: Record<string, string> = {
+  ADMIN: "pelo suporte",
+  CONTRACTOR: "pela empresa",
+  SYSTEM: "pelo sistema",
+};
+
+const OPEN_TRIGGER: Record<string, string> = {
+  WINDOW_ENDED: "a janela terminou",
+  CANDIDATES_REACHED: "chegaram candidatos suficientes",
+  CONTRACTOR_HURRY: "a empresa pediu pressa",
+  NO_CANDIDATES: "ninguém se candidatou",
+  LIST_RELEASED: "o suporte liberou a lista",
+};
+
+export interface CompanyViewCard {
+  /** A frase "A empresa vê …" (a linha de cima). */
+  headline: string;
+  /** Detalhes em pares rótulo/valor: hora prometida, liberação, motivo, quem, nota. */
+  rows: { label: string; value: string }[];
+}
+
+/**
+ * O cartão "A empresa vê" do modal da vaga (UX §5.1). `null` = sem a informação (sem a chave ou
+ * API de antes): a linha não aparece. Vale também antes da rodada (`round: null`).
+ */
+export function companyViewCard(
+  view: AdminCompanyView | null | undefined,
+  now: Date = new Date(),
+): CompanyViewCard | null {
+  if (!view) return null;
+  const rows: CompanyViewCard["rows"] = [];
+  if (view.curated && view.optionsBy) {
+    rows.push({ label: "Hora prometida", value: `opções até ${clockLabel(view.optionsBy, now)}` });
+  }
+  if (view.releasedAt) {
+    rows.push({ label: "Lista liberada", value: clockLabel(view.releasedAt, now) });
+  }
+  if (view.curated && view.mode !== "HIDDEN" && view.reason && RELEASE_REASON[view.reason]) {
+    rows.push({ label: "Motivo da liberação", value: RELEASE_REASON[view.reason] as string });
+  }
+  if (view.listReleasedByKind) {
+    rows.push({
+      label: "Quem liberou",
+      value: RELEASED_BY[view.listReleasedByKind] ?? view.listReleasedByKind,
+    });
+  }
+  if (view.listReleaseNote) {
+    rows.push({ label: "Nota da liberação", value: view.listReleaseNote });
+  }
+  if (view.openTrigger) {
+    rows.push({ label: "Como abriu", value: OPEN_TRIGGER[view.openTrigger] ?? view.openTrigger });
+  }
+  return { headline: companyViewHeadline(view, now), rows };
+}
+
+function companyViewHeadline(view: AdminCompanyView, now: Date): string {
+  if (!view.curated) return "A empresa vê a lista de candidatos de sempre (vaga sem pré-seleção)";
+  const until = clockLabel(view.optionsBy, now);
+  switch (view.mode) {
+    case "HIDDEN":
+      return `A empresa vê "Estamos selecionando" · opções até ${until}`;
+    case "OPTIONS_ONLY":
+      return `A empresa vê só as ${view.options} opções (sem a lista de candidatos)`;
+    case "OPTIONS_FIRST":
+      return `A empresa vê as ${view.options} que confirmaram + a lista com os outros candidatos`;
+    case "FULL":
+    default:
+      return view.reason === "NO_CANDIDATES"
+        ? `A empresa vê "Ninguém se candidatou" · caso na fila do suporte`
+        : "A empresa vê a lista toda de candidatos";
+  }
+}
+
+/** O botão "Liberar a lista agora" só vale com a lista escondida (a API recusa o resto com 409). */
+export function canReleaseList(view: AdminCompanyView | null | undefined): boolean {
+  return Boolean(view && view.curated && (view.mode === "HIDDEN" || view.mode === "OPTIONS_ONLY"));
+}
+
+/** Texto da nota: obrigatória (sem espaços nas pontas), até 500. `null` = válida. */
+export function releaseNoteProblem(note: string, max = 500): string | null {
+  const trimmed = note.trim();
+  if (!trimmed) return "Escreva o motivo da liberação.";
+  if (trimmed.length > max) return `O motivo passa de ${max} caracteres.`;
+  return null;
+}
+
+/** Os erros do "Liberar a lista agora" em português (400, 404, 409). */
+export function releaseErrorMessage(error: unknown): string {
+  const { status, code } = apiErrorOf(error);
+  if (code === "RELEASE_NOTE_REQUIRED") return "Escreva o motivo da liberação.";
+  if (code === "RELEASE_NOTE_TOO_LONG") return "O motivo passa de 500 caracteres.";
+  if (code === "SELECTION_LIST_ALREADY_VISIBLE" || status === 409) {
+    return "A empresa já vê a lista. Nada foi alterado.";
+  }
+  if (status === 404) return "Vaga não encontrada.";
+  return "Não foi possível liberar a lista. Tente de novo.";
 }

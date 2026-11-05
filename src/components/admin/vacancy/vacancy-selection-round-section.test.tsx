@@ -1,19 +1,22 @@
 import "@testing-library/jest-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { VacancySelectionRoundSection } from "./vacancy-selection-round-section";
 import type {
+  AdminCompanyView,
   AdminSelectionPerson,
   AdminSelectionRoundView,
 } from "@/modules/admin/infrastructure/selection-round-api";
 
-const api = vi.hoisted(() => ({ getVacancySelectionRound: vi.fn() }));
+const api = vi.hoisted(() => ({ getVacancySelectionRound: vi.fn(), releaseVacancyCandidateList: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/modules/admin/infrastructure/selection-round-api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getVacancySelectionRound: api.getVacancySelectionRound,
+  releaseVacancyCandidateList: api.releaseVacancyCandidateList,
 }));
 
 /** Fluxo v2, fatia E: a seção "Rodada de seleção" do modal da vaga (designer, lote 2 §5.6). */
@@ -96,6 +99,7 @@ const ui = () => (
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   api.getVacancySelectionRound.mockReset();
+  api.releaseVacancyCandidateList.mockReset();
 });
 
 describe("VacancySelectionRoundSection", () => {
@@ -219,5 +223,129 @@ describe("VacancySelectionRoundSection", () => {
     expect(linhas[4]).toHaveTextContent("Sem resposta");
     expect(linhas[5]).toHaveTextContent("Perguntado");
     expect(linhas[5]).toHaveTextContent("(outros nomes)");
+  });
+
+  describe("A empresa vê + Liberar a lista agora (pré-seleção curada)", () => {
+    const COMPANY: AdminCompanyView = {
+      mode: "HIDDEN",
+      curated: true,
+      stage: "RECEIVING",
+      optionsBy: "2099-01-05T17:00:00.000Z",
+      reason: null,
+      releasedAt: null,
+      applicants: 8,
+      asked: null,
+      options: 0,
+      listReleasedByKind: null,
+      listReleaseNote: null,
+      openTrigger: null,
+    };
+
+    const apiError = (status: number, code: string) => {
+      const headers = new AxiosHeaders();
+      return new AxiosError("x", "ERR_BAD_REQUEST", { headers }, null, {
+        status,
+        statusText: "x",
+        data: { error: { code, message: "m" } },
+        headers,
+        config: { headers },
+      });
+    };
+
+    it("antes da rodada (round null): mostra \"A empresa vê\" e o botão", async () => {
+      api.getVacancySelectionRound.mockResolvedValue({ round: null, people: [], companyView: COMPANY });
+      render(ui());
+      expect(await screen.findByTestId("company-view")).toHaveTextContent(
+        'A empresa vê "Estamos selecionando" · opções até',
+      );
+      expect(screen.getByText("Ainda sem rodada de seleção.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Liberar a lista agora" })).toBeInTheDocument();
+    });
+
+    it("lista já visível (FULL liberada pelo suporte): motivo, quem e nota, e sem o botão", async () => {
+      api.getVacancySelectionRound.mockResolvedValue({
+        ...VIEW,
+        companyView: {
+          ...COMPANY,
+          mode: "FULL",
+          reason: "ADMIN",
+          releasedAt: "2026-11-06T16:50:00.000Z",
+          listReleasedByKind: "ADMIN",
+          listReleaseNote: "Pedido do dono.",
+          openTrigger: "LIST_RELEASED",
+        },
+      });
+      render(ui());
+      const card = await screen.findByTestId("company-view");
+      expect(card).toHaveTextContent("A empresa vê a lista toda de candidatos");
+      expect(card).toHaveTextContent("pelo suporte");
+      expect(card).toHaveTextContent("Pedido do dono.");
+      expect(card).toHaveTextContent("o suporte liberou a lista");
+      expect(screen.queryByRole("button", { name: "Liberar a lista agora" })).not.toBeInTheDocument();
+    });
+
+    it("API de antes (sem companyView): nada novo e sem botão", async () => {
+      api.getVacancySelectionRound.mockResolvedValue(VIEW);
+      render(ui());
+      await screen.findByText("Opções enviadas à empresa");
+      expect(screen.queryByTestId("company-view")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Liberar a lista agora" })).not.toBeInTheDocument();
+    });
+
+    it("confirma antes: nota obrigatória, envia { note } e atualiza a seção", async () => {
+      api.getVacancySelectionRound.mockResolvedValue({ round: null, people: [], companyView: COMPANY });
+      api.releaseVacancyCandidateList.mockResolvedValue({
+        round: null,
+        people: [],
+        companyView: { ...COMPANY, mode: "FULL", reason: "ADMIN", listReleasedByKind: "ADMIN" },
+      });
+      render(ui());
+      fireEvent.click(await screen.findByRole("button", { name: "Liberar a lista agora" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      const confirm = screen.getByRole("button", { name: "Liberar a lista" });
+      expect(confirm).toBeDisabled();
+      expect(api.releaseVacancyCandidateList).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByLabelText(/Motivo/), { target: { value: "  a empresa ligou  " } });
+      fireEvent.click(confirm);
+      await waitFor(() => expect(api.releaseVacancyCandidateList).toHaveBeenCalledWith("vac-1", "a empresa ligou"));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(screen.getByTestId("company-view")).toHaveTextContent("A empresa vê a lista toda de candidatos");
+      expect(screen.queryByRole("button", { name: "Liberar a lista agora" })).not.toBeInTheDocument();
+    });
+
+    it.each([
+      [400, "RELEASE_NOTE_TOO_LONG", "O motivo passa de 500 caracteres."],
+      [400, "RELEASE_NOTE_REQUIRED", "Escreva o motivo da liberação."],
+      [409, "SELECTION_LIST_ALREADY_VISIBLE", "A empresa já vê a lista. Nada foi alterado."],
+      [404, "VACANCY_NOT_FOUND", "Vaga não encontrada."],
+    ])("erro %s %s: mensagem no diálogo, que continua aberto", async (status, code, message) => {
+      api.getVacancySelectionRound.mockResolvedValue({ round: null, people: [], companyView: COMPANY });
+      api.releaseVacancyCandidateList.mockRejectedValue(apiError(status, code));
+      render(ui());
+      fireEvent.click(await screen.findByRole("button", { name: "Liberar a lista agora" }));
+      fireEvent.change(screen.getByLabelText(/Motivo/), { target: { value: "motivo" } });
+      fireEvent.click(screen.getByRole("button", { name: "Liberar a lista" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("nota com mais de 500 caracteres: barra antes de chamar a API", async () => {
+      api.getVacancySelectionRound.mockResolvedValue({ round: null, people: [], companyView: COMPANY });
+      render(ui());
+      fireEvent.click(await screen.findByRole("button", { name: "Liberar a lista agora" }));
+      fireEvent.change(screen.getByLabelText(/Motivo/), { target: { value: "x".repeat(501) } });
+      fireEvent.click(screen.getByRole("button", { name: "Liberar a lista" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("passa de 500");
+      expect(api.releaseVacancyCandidateList).not.toHaveBeenCalled();
+    });
+
+    it("Voltar fecha sem chamar a API", async () => {
+      api.getVacancySelectionRound.mockResolvedValue({ round: null, people: [], companyView: COMPANY });
+      render(ui());
+      fireEvent.click(await screen.findByRole("button", { name: "Liberar a lista agora" }));
+      fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(api.releaseVacancyCandidateList).not.toHaveBeenCalled();
+    });
   });
 });

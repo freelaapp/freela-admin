@@ -40,7 +40,6 @@ vi.mock("@/modules/admin/application/use-vacancy-feedbacks", () => ({
 }));
 vi.mock("@/modules/admin/application/use-admin-cancel-vacancy", () => ({
   useAdminCancelVacancy: mutation,
-  useAdminRestartVacancy: mutation,
   useFinalizeVacancy: mutation,
   getAxiosErrorMessage: () => "erro",
 }));
@@ -137,6 +136,14 @@ describe("Vagas Empresa — modal 'Detalhes da vaga'", () => {
     expect(screen.getByText("bruno@pix.com")).toBeInTheDocument();
     expect(screen.queryByText("Ana Souza")).not.toBeInTheDocument();
     expect(screen.queryByText("111.111.111-11")).not.toBeInTheDocument();
+  });
+
+  it("não tem mais o botão \"Reiniciar\" (a API responde 422 VACANCY_RESTART_DISABLED desde 05/11)", () => {
+    render(ui());
+    fireEvent.click(screen.getAllByTitle("Ver")[0]);
+    expect(screen.getByText("Detalhes da Vaga")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cancelar Vaga/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Reiniciar/ })).not.toBeInTheDocument();
   });
 
   it("fecha quando a vaga some da lista, e não reabre sozinho quando ela volta", () => {

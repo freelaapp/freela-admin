@@ -41,7 +41,6 @@ vi.mock("@/modules/admin/application/use-vacancy-feedbacks", () => ({
 }));
 vi.mock("@/modules/admin/application/use-admin-cancel-vacancy", () => ({
   useAdminCancelVacancy: mutation,
-  useAdminRestartVacancy: mutation,
   useFinalizeVacancy: mutation,
   getAxiosErrorMessage: () => "erro",
 }));

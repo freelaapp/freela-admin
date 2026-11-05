@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import {
   adminCancelVacancy,
-  adminRestartVacancy,
   adminFinalizeVacancy,
   type RefundType,
 } from "../infrastructure/admin-api";
@@ -26,16 +25,6 @@ export function useAdminCancelVacancy() {
       reason: string;
       refundType?: RefundType;
     }) => adminCancelVacancy(vacancyId, reason, refundType),
-    onSuccess: () => invalidateVacancies(qc),
-  });
-}
-
-/** Reabre a vaga do zero (no-show) mantendo o valor pago. */
-export function useAdminRestartVacancy() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ vacancyId, reason }: { vacancyId: string; reason: string }) =>
-      adminRestartVacancy(vacancyId, reason),
     onSuccess: () => invalidateVacancies(qc),
   });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, RefreshCw, Bot } from "lucide-react";
+import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, Bot } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
 import { VacancyReservesSection } from "@/components/admin/vacancy/vacancy-reserves-section";
@@ -63,7 +63,7 @@ import {
   useVacancyCandidacies,
 } from "@/modules/admin/application/use-vacancy-candidacies";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
-import { useAdminCancelVacancy, useAdminRestartVacancy, useFinalizeVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
+import { useAdminCancelVacancy, useFinalizeVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
 import {
   cancelResultMessage,
@@ -335,7 +335,6 @@ export default function JobsPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelRefundType, setCancelRefundType] = useState<RefundType>("FULL");
   const cancelMutation = useAdminCancelVacancy();
-  const restartMutation = useAdminRestartVacancy();
   const finalizeMutation = useFinalizeVacancy();
 
   const [removeTarget, setRemoveTarget] = useState<{
@@ -444,27 +443,6 @@ export default function JobsPage() {
       setModalDetalhesId(null);
     } catch (err) {
       toast.error(getAxiosErrorMessage(err, "Falha ao cancelar a vaga."));
-    }
-  };
-
-  const handleRestartVacancy = async () => {
-    if (!modalDetalhes) return;
-    if (
-      !window.confirm(
-        "Reabrir esta vaga do ZERO?\n\nO freelancer aceito sai, a vaga volta a aceitar candidatos e o job/check-in são resetados. O valor pago FICA RETIDO (sem estorno) para o substituto. Use quando o freelancer não compareceu/desistiu.",
-      )
-    ) {
-      return;
-    }
-    try {
-      await restartMutation.mutateAsync({
-        vacancyId: modalDetalhes.raw.id,
-        reason: "Freelancer nao compareceu/desistiu (no-show) — reabrir para substituto",
-      });
-      toast.success("Vaga reaberta. Aceite um novo freelancer (sem nova cobrança).");
-      setModalDetalhesId(null);
-    } catch (err) {
-      toast.error(getAxiosErrorMessage(err, "Falha ao reabrir a vaga."));
     }
   };
 
@@ -1403,18 +1381,6 @@ export default function JobsPage() {
               >
                 <XCircle className="w-4 h-4 mr-2" />
                 Cancelar Vaga
-              </Button>
-            )}
-            {modalDetalhes && modalDetalhes.status !== "cancelled" && (
-              <Button
-                variant="outline"
-                onClick={handleRestartVacancy}
-                disabled={restartMutation.isPending}
-                className="border-[#eca826]/40 text-[#c97b0e] hover:bg-[#eca826]/10"
-                title="No-show: reabre a vaga mantendo o valor pago (sem estorno)"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Reiniciar (no-show)
               </Button>
             )}
             <Button variant="outline" onClick={() => setModalDetalhesId(null)} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">
