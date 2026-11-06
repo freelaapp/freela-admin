@@ -11,6 +11,7 @@ import {
   UserCheck,
   XCircle,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import type { VacancyCandidacyItem } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
 import { PrestartCheckStatus } from "./prestart-check-status";
@@ -27,6 +28,13 @@ import { PrestartCheckStatus } from "./prestart-check-status";
  * por prop e nada é buscado aqui dentro.
  */
 export interface VacancyCandidacyListProps {
+  /**
+   * Limita a lista a ~55vh com rolagem própria (padrão). Em um modal que já tem
+   * a sua rolagem (Vagas Empresa), passe `false` para não ter rolagem aninhada.
+   */
+  scrollable?: boolean;
+  /** Barra de ações no topo da lista (ex.: "Selecionar agora"). Ausente ⇒ nada aparece. */
+  actions?: ReactNode;
   candidacies: VacancyCandidacyItem[] | undefined;
   loading: boolean;
   /** Confirma a presença pelo painel quando o freelancer avisou por fora. */
@@ -118,12 +126,15 @@ export function VacancyCandidacyList({
   vacancyOpen = false,
   onPrestartConfirm,
   prestartConfirming = false,
+  scrollable = true,
+  actions,
 }: VacancyCandidacyListProps) {
   return (
     <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
       <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
         Candidatos {candidacies ? `(${candidacies.length})` : ""}
       </p>
+      {actions && <div data-testid="candidatos-acoes">{actions}</div>}
       {loading && (
         <div className="flex items-center gap-2 text-xs text-[#737373]">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -136,7 +147,10 @@ export function VacancyCandidacyList({
       {!loading && candidacies && candidacies.length > 0 && (
         // Rola a lista por dentro: sem isso, muitos candidatos esticam o modal
         // para além da tela (o Dialog não limita altura) e não dava pra rolar.
-        <div className="flex flex-col gap-2 max-h-[55vh] overflow-y-auto pr-1">
+        <div
+          data-testid="lista-candidatos"
+          className={`flex flex-col gap-2 ${scrollable ? "max-h-[55vh] overflow-y-auto pr-1" : ""}`}
+        >
           {candidacies.map((c) => {
             // Nunca rotular status desconhecido como "Pendente": WITHDRAWN e
             // CANCELLED_BY_CONTRACTOR caíam no fallback e o admin mostrava

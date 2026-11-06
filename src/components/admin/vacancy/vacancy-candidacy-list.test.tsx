@@ -190,3 +190,30 @@ describe("VacancyCandidacyList — Confirmação do dia", () => {
     expect(screen.queryByRole("button", { name: /confirmar por telefone/i })).not.toBeInTheDocument();
   });
 });
+
+describe("VacancyCandidacyList — rolagem e barra de ações", () => {
+  it("por padrão limita a altura da lista (55vh) com rolagem própria", () => {
+    renderList([item()]);
+
+    expect(screen.getByTestId("lista-candidatos").className).toContain("max-h-[55vh]");
+  });
+
+  it("com scrollable={false} a lista não tem max-h nem rolagem", () => {
+    renderList([item()], { scrollable: false });
+
+    const lista = screen.getByTestId("lista-candidatos");
+    expect(lista.className).not.toMatch(/max-h-/);
+    expect(lista.className).not.toContain("overflow-y-auto");
+  });
+
+  it("mostra a barra de ações no topo só quando recebe `actions`", () => {
+    const { unmount } = renderList([item()]);
+    expect(screen.queryByTestId("candidatos-acoes")).not.toBeInTheDocument();
+    unmount();
+
+    renderList([item()], { actions: <button type="button">Selecionar agora</button> });
+    expect(screen.getByTestId("candidatos-acoes")).toContainElement(
+      screen.getByRole("button", { name: "Selecionar agora" }),
+    );
+  });
+});

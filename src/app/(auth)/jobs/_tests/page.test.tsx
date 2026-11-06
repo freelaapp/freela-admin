@@ -118,7 +118,7 @@ describe("Vagas Empresa — modal 'Detalhes da vaga'", () => {
     fireEvent.click(screen.getAllByTitle("Ver")[0]);
 
     expect(screen.getByText("Detalhes da Vaga")).toBeInTheDocument();
-    expect(screen.getByText("Ana Souza")).toBeInTheDocument();
+    expect(within(screen.getByTestId("resumo-vaga")).getByText("Ana Souza")).toBeInTheDocument();
     expect(screen.getByText("111.111.111-11")).toBeInTheDocument();
 
     // A lista recarrega depois da troca (as mutations invalidam ["admin","vacancies"]).
@@ -132,7 +132,7 @@ describe("Vagas Empresa — modal 'Detalhes da vaga'", () => {
     rerender(ui());
 
     expect(screen.getByText("Detalhes da Vaga")).toBeInTheDocument();
-    expect(screen.getByText("Bruno Lima")).toBeInTheDocument();
+    expect(within(screen.getByTestId("resumo-vaga")).getByText("Bruno Lima")).toBeInTheDocument();
     expect(screen.getByText("bruno@pix.com")).toBeInTheDocument();
     expect(screen.queryByText("Ana Souza")).not.toBeInTheDocument();
     expect(screen.queryByText("111.111.111-11")).not.toBeInTheDocument();

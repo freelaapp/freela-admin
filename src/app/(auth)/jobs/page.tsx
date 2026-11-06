@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, Bot } from "lucide-react";
+import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, Bot, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
 import { VacancyReservesSection } from "@/components/admin/vacancy/vacancy-reserves-section";
@@ -11,6 +11,7 @@ import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feed
 import { VacancyPriceHistorySection } from "@/components/admin/vacancy/vacancy-price-history-section";
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
+import { whatsappLink } from "./_components/support-messages";
 import { SupportAutoSettingsDialog } from "./_components/support-auto-settings-dialog";
 import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
 import { VacancyDocumentsCell } from "./_components/vacancy-documents-cell";
@@ -990,9 +991,13 @@ export default function JobsPage() {
       )}
 
       {/* Modal Detalhes da Vaga */}
-      <Dialog open={!!modalDetalhes} onOpenChange={(open) => !open && setModalDetalhesId(null)}>
+      <Dialog
+        open={!!modalDetalhes}
+        onOpenChange={(open) => !open && setModalDetalhesId(null)}
+        className="max-w-6xl"
+      >
         <DialogContent
-          className="max-h-[85vh] overflow-y-auto"
+          className="flex max-h-[90vh] flex-col overflow-hidden p-4 sm:p-6"
           role="dialog"
           aria-modal="true"
           aria-label="Detalhes da Vaga"
@@ -1000,10 +1005,12 @@ export default function JobsPage() {
           <DialogClose onClick={() => setModalDetalhesId(null)} />
           <DialogHeader>
             <DialogTitle>Detalhes da Vaga</DialogTitle>
-            <DialogDescription>Informações completas da vaga selecionada.</DialogDescription>
           </DialogHeader>
           {modalDetalhes && (
-            <div className="space-y-3 text-sm max-h-[60vh] overflow-y-auto pr-1 -mr-1">
+            <div
+              data-testid="modal-vaga-corpo"
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 -mr-1 text-sm"
+            >
               <IssueReportResolution
                 vacancy={modalDetalhes.raw}
                 report={openReportForVacancy(modalDetalhes.raw.id)}
@@ -1014,6 +1021,126 @@ export default function JobsPage() {
                   setCancelRefundType("FULL");
                 }}
               />
+
+              {/* Resumo da vaga: sempre à vista, compacto. O resto das informações fica no
+                  bloco "Detalhes da vaga" (fechado), para a lista de candidatos vir primeiro. */}
+              <div
+                data-testid="resumo-vaga"
+                className="flex flex-col gap-2 rounded-lg bg-[#f7f7f7] p-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4"
+              >
+                <p className="min-w-0 font-semibold text-[#1d1d1b]">
+                  {modalDetalhes.empresa}
+                  <span className="font-normal text-[#737373]">
+                    {" · "}
+                    {modalDetalhes.cargo}
+                    {" · "}
+                    {modalDetalhes.data}
+                    {" · "}
+                    {modalDetalhes.horario}
+                  </span>
+                </p>
+                <StatusBadge status={modalDetalhes.statusExibido} />
+                <p className="text-[#1d1d1b]">
+                  <span className="text-[#737373]">{modalDetalhes.valorTitulo}: </span>
+                  <span className="font-semibold">{modalDetalhes.valor}</span>
+                </p>
+                {modalDetalhes.status === "filled" && modalDetalhes.providerName && (
+                  <p className="text-green-900">
+                    <span className="text-green-700">Freelancer alocado: </span>
+                    <span className="font-semibold">{modalDetalhes.providerName}</span>
+                  </p>
+                )}
+                {(() => {
+                  const contato = modalDetalhes.raw?.contractorId
+                    ? contractorMap.get(modalDetalhes.raw.contractorId)
+                    : undefined;
+                  if (!contato?.contactPhone) return null;
+                  const wa = whatsappLink(contato.contactPhone, "");
+                  return (
+                    <span className="flex flex-wrap items-center gap-3 sm:ml-auto">
+                      <a
+                        href={`tel:${contato.contactPhone}`}
+                        className="inline-flex items-center gap-1.5 text-[#1d1d1b] transition-colors hover:text-[#eca826]"
+                      >
+                        <Phone className="h-3.5 w-3.5 text-[#737373]" />
+                        {contato.contactPhone}
+                      </a>
+                      {wa && (
+                        <a
+                          href={wa}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-8 items-center rounded-md border border-green-200 bg-green-50 px-2.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-100"
+                        >
+                          WhatsApp do contratante
+                        </a>
+                      )}
+                    </span>
+                  );
+                })()}
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
+                <div className="min-w-0 space-y-3">
+              <VacancyCandidacyList
+                candidacies={candidacies}
+                loading={loadingCandidacies}
+                scrollable={false}
+                onConfirm={handleConfirmCandidacy}
+                confirming={confirmCandidacy.isPending}
+                onReinstate={handleReinstateCandidacy}
+                reinstating={reinstateCandidacy.isPending}
+                onAccept={handleAcceptCandidacy}
+                accepting={acceptCandidacy.isPending}
+                onRestore={handleRestoreCandidacy}
+                restoring={restoreCandidacy.isPending}
+                onPrestartConfirm={handleConfirmPrestart}
+                prestartConfirming={confirmPrestart.isPending}
+                vacancyOpen={modalDetalhes?.raw.status === "OPEN"}
+                onUnlink={
+                  modalDetalhes?.raw.id
+                    ? ({ candidacyId, providerName }) =>
+                        setRemoveTarget({
+                          vacancyId: modalDetalhes.raw.id,
+                          candidacyId,
+                          providerName,
+                        })
+                    : undefined
+                }
+              />
+
+                </div>
+                <div className="min-w-0 space-y-3">
+              {/* Rodada de seleção (fluxo v2, fatia E, piloto): só leitura. Sem a chave da API
+                  (404 FEATURE_DISABLED), a seção não aparece. Chave própria (`selecao-`). */}
+              {modalDetalhes.raw?.id && (
+                <VacancySelectionRoundSection
+                  key={`selecao-${modalDetalhes.raw.id}`}
+                  vacancyId={modalDetalhes.raw.id}
+                />
+              )}
+
+              {/* Reservas: quem está guardado, "Chamar reserva" e o histórico de trocas. */}
+              {modalDetalhes.raw?.id && (
+                <VacancyReservesSection
+                  key={`reservas-${modalDetalhes.raw.id}`}
+                  vacancyId={modalDetalhes.raw.id}
+                  candidacies={candidacies}
+                />
+              )}
+
+                </div>
+              </div>
+
+              <details data-testid="detalhes-vaga" className="group rounded-lg border border-[#e5e5e5]">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-semibold text-[#1d1d1b] [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" aria-hidden />
+                  Detalhes da vaga
+                  <span className="font-normal text-[#737373]">
+                    valores, contato, Pix, divulgação, link, histórico e feedbacks
+                  </span>
+                </summary>
+                <div className="space-y-3 p-3 pt-0">
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
                   <p className="text-[#737373]">Empresa</p>
@@ -1308,52 +1435,10 @@ export default function JobsPage() {
                   />
                 )}
 
-              <VacancyCandidacyList
-                candidacies={candidacies}
-                loading={loadingCandidacies}
-                onConfirm={handleConfirmCandidacy}
-                confirming={confirmCandidacy.isPending}
-                onReinstate={handleReinstateCandidacy}
-                reinstating={reinstateCandidacy.isPending}
-                onAccept={handleAcceptCandidacy}
-                accepting={acceptCandidacy.isPending}
-                onRestore={handleRestoreCandidacy}
-                restoring={restoreCandidacy.isPending}
-                onPrestartConfirm={handleConfirmPrestart}
-                prestartConfirming={confirmPrestart.isPending}
-                vacancyOpen={modalDetalhes?.raw.status === "OPEN"}
-                onUnlink={
-                  modalDetalhes?.raw.id
-                    ? ({ candidacyId, providerName }) =>
-                        setRemoveTarget({
-                          vacancyId: modalDetalhes.raw.id,
-                          candidacyId,
-                          providerName,
-                        })
-                    : undefined
-                }
-              />
-
-              {/* Reservas: quem está guardado, "Chamar reserva" e o histórico de trocas. */}
-              {modalDetalhes.raw?.id && (
-                <VacancyReservesSection
-                  key={`reservas-${modalDetalhes.raw.id}`}
-                  vacancyId={modalDetalhes.raw.id}
-                  candidacies={candidacies}
-                />
-              )}
-
-              {/* Rodada de seleção (fluxo v2, fatia E, piloto): só leitura. Sem a chave da API
-                  (404 FEATURE_DISABLED), a seção não aparece. Chave própria (`selecao-`). */}
-              {modalDetalhes.raw?.id && (
-                <VacancySelectionRoundSection
-                  key={`selecao-${modalDetalhes.raw.id}`}
-                  vacancyId={modalDetalhes.raw.id}
-                />
-              )}
-
               {/* Feedbacks — contratante ↔ freelancer */}
               <VacancyFeedbacksSection feedbacks={feedbacks} loading={loadingFeedbacks} />
+                </div>
+              </details>
             </div>
           )}
           <DialogFooter>
