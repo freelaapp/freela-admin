@@ -34,9 +34,14 @@ import {
   useAdminContractorEmployeeMutations,
 } from "@/modules/admin/application/use-admin-contractor-employee";
 import { AbrirVagaDialog } from "@/components/admin/vacancy/abrir-vaga-dialog";
-import { formatPhoneBr } from "@/lib/utils";
 import { formatPhoneMask } from "@/modules/consultant/application/phone-mask";
 import { resolveContactPhoneForSave } from "./_lib/contact-phone";
+import {
+  companyPhoneLines,
+  companyPhoneSearchText,
+  companyPhoneSummary,
+  formatCompanyPhone,
+} from "./_lib/phone-display";
 import { cepError as cepErrorOf, formatCepMask } from "./_lib/cep";
 import { useAdminProviders } from "@/modules/admin/application/use-admin-providers";
 import {
@@ -69,10 +74,11 @@ function mapContractorToRow(c: ContractorItem) {
     nome: c.companyName || c.contactName || "Sem nome",
     email: c.registrationEmail ?? "",
     _search:
-      `${c.companyName ?? ""} ${c.contactName ?? ""} ${c.registrationEmail ?? ""} ${c.city ?? ""} ${c.uf ?? ""}`.toLowerCase(),
+      `${c.companyName ?? ""} ${c.contactName ?? ""} ${c.registrationEmail ?? ""} ${c.city ?? ""} ${c.uf ?? ""} ${companyPhoneSearchText(c)}`.toLowerCase(),
     responsavel: c.contactName,
-    // formatPhoneBr: contactPhone pode vir em E.164 (+55...) — exibe nacional
-    telefone: c.contactPhone ? formatPhoneBr(c.contactPhone) : "N/A",
+    // Contato do responsável (ou, se vazio, o da conta rotulado). Os dois podem
+    // vir em E.164 (+55...) — exibe nacional.
+    telefone: companyPhoneSummary(c),
     // Cidade COM o estado: "Campinas" existe em SP e em quatro outros estados,
     // e o `uf` já vinha da API — só não chegava à tela (aparecia apenas no CSV).
     cidade: [c.city, c.uf].filter(Boolean).join("/") || "N/A",
@@ -89,6 +95,22 @@ function mapContractorToRow(c: ContractorItem) {
 }
 
 type Row = ReturnType<typeof mapContractorToRow>;
+
+/** Coluna de telefone: contato do responsável e, se for outro número, o da conta embaixo. */
+function PhoneCell({ phones }: { phones: Pick<ContractorItem, "contactPhone" | "accountPhone"> }) {
+  const { primary, secondary } = companyPhoneLines(phones);
+  if (!primary) return <>N/A</>;
+  return (
+    <span className="flex flex-col">
+      <span>{primary.label ? `${primary.label}: ${primary.text}` : primary.text}</span>
+      {secondary && (
+        <span className="text-xs text-[#737373]">
+          {secondary.label}: {secondary.text}
+        </span>
+      )}
+    </span>
+  );
+}
 
 export default function EmpresasPage() {
   // Área controlada por permissão (COMPANIES); sem ela, volta para o dashboard.
@@ -214,7 +236,8 @@ export default function EmpresasPage() {
       "Empresa",
       "Responsável",
       "E-mail (login)",
-      "Telefone",
+      "Contato do responsável",
+      "Telefone da conta",
       "Cidade",
       "UF",
       "Segmento",
@@ -231,7 +254,8 @@ export default function EmpresasPage() {
       c.companyName || c.contactName || "Sem nome",
       c.contactName,
       c.registrationEmail ?? "",
-      c.contactPhone ? formatPhoneBr(c.contactPhone) : "",
+      formatCompanyPhone(c.contactPhone, ""),
+      formatCompanyPhone(c.accountPhone, ""),
       c.city ?? "",
       c.uf ?? "",
       c.segment ?? "",
@@ -320,7 +344,11 @@ export default function EmpresasPage() {
       ),
     },
     { header: "Responsável", accessor: "responsavel" as const, className: "hidden md:table-cell" },
-    { header: "Telefone", accessor: "telefone" as const, className: "hidden lg:table-cell" },
+    {
+      header: "Telefone",
+      accessor: (row: Row) => <PhoneCell phones={row.raw} />,
+      className: "hidden lg:table-cell",
+    },
     { header: "Cidade", accessor: "cidade" as const },
     { header: "Segmento", accessor: "segmento" as const, className: "hidden md:table-cell" },
     {
@@ -486,12 +514,12 @@ export default function EmpresasPage() {
               <div className="space-y-2 rounded-lg border border-[#e5e5e5] p-3 text-sm">
                 <CampoPerfil rotulo="Responsável" valor={selectedItem.raw.contactName || "—"} />
                 <CampoPerfil
-                  rotulo="Telefone"
-                  valor={
-                    selectedItem.raw.contactPhone
-                      ? formatPhoneBr(selectedItem.raw.contactPhone)
-                      : "—"
-                  }
+                  rotulo="Contato do responsável"
+                  valor={formatCompanyPhone(selectedItem.raw.contactPhone)}
+                />
+                <CampoPerfil
+                  rotulo="Telefone da conta"
+                  valor={formatCompanyPhone(selectedItem.raw.accountPhone)}
                 />
                 <CampoPerfil
                   rotulo="E-mail de contato"
@@ -547,7 +575,7 @@ export default function EmpresasPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="telefone-emp">Telefone</Label>
+                  <Label htmlFor="telefone-emp">Contato do responsável</Label>
                   <Input
                     id="telefone-emp"
                     type="tel"
@@ -561,6 +589,7 @@ export default function EmpresasPage() {
                     }}
                   />
                   {contactPhoneError && <p className="text-xs text-red-600">{contactPhoneError}</p>}
+                  <p className="text-xs text-[#737373]">Para mudar o telefone de login, use a tela Usuários.</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="email-contato">E-mail de contato</Label>

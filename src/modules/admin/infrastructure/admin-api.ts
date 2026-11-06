@@ -226,6 +226,8 @@ export interface ContractorItem {
   contactEmail: string | null;
   registrationEmail: string | null;
   contactPhone: string;
+  /** Telefone da conta de login (E.164). Ausente em API anterior; null sem telefone. */
+  accountPhone?: string | null;
   city: string;
   uf: string;
   /** Endereço completo. Opcional durante a janela de deploy da API. */
