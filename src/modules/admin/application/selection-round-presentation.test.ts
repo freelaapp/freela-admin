@@ -17,6 +17,7 @@ import {
   nextFreeSlot,
   payWayOf,
   pruneChoice,
+  reconcileChoice,
   toggleChoice,
   clockLabel,
   companyViewCard,
@@ -431,5 +432,16 @@ describe("textos da confirmação pelo jeito de pagar", () => {
     expect(chooseSuccessText({ ...base, reserveNames: [], billing: "ALREADY_PAID" })).toBe(
       "Ana vai trabalhar. Os suplentes, o sistema escolhe depois do pagamento.",
     );
+  });
+});
+
+describe("reconcileChoice: o que vai no POST é o que a tela mostra", () => {
+  const pend = new Set(["a", "b", "c"]);
+  it("tira suplente fora da lista de suplentes e acima de maxReserves", () => {
+    const sel = { principal: "a", reserves: ["b", "c"] as [string, string] };
+    expect(reconcileChoice(sel, pend, new Set(["b", "c"]), 2)).toEqual(sel);
+    expect(reconcileChoice(sel, pend, new Set(["c"]), 2)).toEqual({ principal: "a", reserves: [null, "c"] });
+    expect(reconcileChoice(sel, pend, new Set(["b", "c"]), 1)).toEqual({ principal: "a", reserves: ["b", null] });
+    expect(reconcileChoice(sel, new Set(["b", "c"]), new Set(["b", "c"]), 2).principal).toBeNull();
   });
 });

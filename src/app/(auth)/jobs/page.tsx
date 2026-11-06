@@ -1115,6 +1115,7 @@ export default function JobsPage() {
                         reserveEligibleIds: chooseFlow.reserveEligibleIds,
                         maxReserves: chooseFlow.maxReserves,
                         onReview: chooseFlow.openReview,
+                        busy: chooseFlow.isPending,
                       }
                     : undefined
                 }

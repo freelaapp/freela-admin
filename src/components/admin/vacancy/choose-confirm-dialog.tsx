@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useChooseTeam } from "@/modules/admin/application/use-selection-round";
+import type { AdminChooseResult } from "@/modules/admin/infrastructure/selection-round-api";
 import {
   chooseBillingLine,
   chooseConfirmLabel,
@@ -41,6 +41,11 @@ export function ChooseConfirmDialog({
   autoFill,
   othersCount,
   roundInProgress,
+  submit,
+  busy,
+  filled,
+  lastError,
+  onFail,
   onClose,
   onDone,
 }: {
@@ -60,13 +65,21 @@ export function ChooseConfirmDialog({
   othersCount: number;
   /** A rodada está perguntando ou com as opções na empresa. */
   roundInProgress: boolean;
+  /** A aprovação (a mutação mora no pai: a trava vale mesmo se este diálogo for remontado). */
+  submit: (body: { principalCandidacyId: string; reserveCandidacyIds: string[] }) => Promise<AdminChooseResult>;
+  busy: boolean;
+  /** A vaga já foi preenchida (talvez por esta aprovação, com a resposta perdida). */
+  filled?: string | null;
+  /** O último erro de uma aprovação anterior (este diálogo pode ter sido remontado). */
+  lastError?: string | null;
+  onFail?: (message: string) => void;
   onClose: () => void;
   onDone: () => void;
 }) {
-  const choose = useChooseTeam(vacancyId);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(false);
-  const busy = choose.isPending;
+  // Trava síncrona: dois cliques no mesmo tick passam antes de `busy` virar true.
+  const inFlight = useRef(false);
   const first = principal.name.split(" ")[0] ?? principal.name;
   const missing = Math.max(0, maxReserves - reserves.length);
 
@@ -76,9 +89,11 @@ export function ChooseConfirmDialog({
   };
 
   const confirm = async () => {
+    if (busy || inFlight.current || filled) return;
+    inFlight.current = true;
     setError(null);
     try {
-      const result = await choose.mutateAsync({
+      const result = await submit({
         principalCandidacyId: principal.id,
         reserveCandidacyIds: reserves.map((r) => r.id),
       });
@@ -92,8 +107,12 @@ export function ChooseConfirmDialog({
       );
       onDone();
     } catch (err) {
-      setError(chooseErrorMessage(err));
+      const message = chooseErrorMessage(err);
+      setError(message);
+      onFail?.(message);
       setRetry(isTransientError(err));
+    } finally {
+      inFlight.current = false;
     }
   };
 
@@ -168,9 +187,14 @@ export function ChooseConfirmDialog({
             Os suplentes dá para trocar depois, na seção Suplentes. Para tirar {first}, só pelo Desvincular da
             vaga.
           </p>
-          {error && (
+          {filled && (
+            <p role="alert" className="text-sm font-medium text-red-600">
+              {filled}
+            </p>
+          )}
+          {(error ?? lastError) && (
             <p role="alert" className="text-sm text-red-600">
-              {error}
+              {error ?? lastError}
             </p>
           )}
         </div>
@@ -181,11 +205,11 @@ export function ChooseConfirmDialog({
             disabled={busy}
             className="min-h-11 w-full border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7] sm:w-auto"
           >
-            Voltar
+            {filled ? "Fechar" : "Voltar"}
           </Button>
           <Button
             onClick={() => void confirm()}
-            disabled={busy}
+            disabled={busy || Boolean(filled)}
             className="min-h-11 w-full bg-[#eca826] text-[#1d1d1b] hover:bg-[#d99a20] disabled:opacity-50 sm:w-auto"
           >
             {busy ? (
@@ -193,7 +217,7 @@ export function ChooseConfirmDialog({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Aprovando...
               </>
-            ) : retry && error ? (
+            ) : retry && (error ?? lastError) ? (
               "Tentar de novo"
             ) : (
               chooseConfirmLabel(way)

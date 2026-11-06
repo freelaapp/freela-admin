@@ -68,23 +68,56 @@ export function AccelerateVacancyBar({
 
   const pending = (candidacies ?? []).filter((c) => c.status === "PENDING");
   const pendingIds = pending.map((c) => c.id).join(",");
+  const hurry = round.data?.hurry ?? null;
+
+  const acceptedItem = (candidacies ?? []).find((c) => c.status === "ACCEPTED");
+  const started = Boolean(startTime && new Date(startTime).getTime() <= Date.now());
+  const gone = !vacancyOpen || Boolean(acceptedItem) || started;
+
+  // Revalida a marcação contra a lista e os suplentes de agora. Não com a vaga já preenchida: o
+  // titular marcado vira ACCEPTED (aprovação cuja resposta se perdeu) e a marcação tem de ficar.
   const { prune } = choose;
   useEffect(() => {
-    if (choose.active) prune(new Set(pendingIds ? pendingIds.split(",") : []));
-  }, [choose.active, pendingIds, prune]);
+    if (choose.active && !gone && !choose.isPending) {
+      prune(new Set(pendingIds ? pendingIds.split(",") : []));
+    }
+  }, [choose.active, choose.isPending, gone, pendingIds, prune]);
 
-  const accepted = (candidacies ?? []).some((c) => c.status === "ACCEPTED");
-  const started = Boolean(startTime && new Date(startTime).getTime() <= Date.now());
-  const gone = !vacancyOpen || accepted || started;
-  // A vaga mudou enquanto marcava (alguém foi aceito, fechou): o modo sai sozinho.
+  // A vaga mudou enquanto marcava (alguém foi aceito, fechou): o modo sai sozinho. Com a
+  // confirmação aberta ou a aprovação em curso, NÃO: pode ser a nossa aprovação com a resposta
+  // perdida, e o diálogo precisa continuar na tela dizendo isso.
   const { cancel } = choose;
+  const confirming = choose.reviewOpen || choose.isPending;
   useEffect(() => {
-    if (gone && choose.active) {
+    if (gone && choose.active && !confirming) {
       cancel();
       toast.info("A vaga mudou enquanto você escolhia. Nada foi alterado.");
     }
-  }, [gone, choose.active, cancel]);
-  if (gone) return null;
+  }, [gone, choose.active, confirming, cancel]);
+
+  // O diálogo do "Selecionar agora" não reabre sozinho quando a barra volta.
+  useEffect(() => {
+    if (hurryOpen && (gone || pending.length === 0 || !hurry)) setHurryOpen(false);
+  }, [hurryOpen, gone, pending.length, hurry]);
+  if (gone) {
+    if (choose.active && confirming) {
+      return (
+        <ConfirmFromFlow
+          vacancyId={vacancyId}
+          subtitle={subtitle}
+          company={company}
+          valueLabel={valueLabel}
+          billingMode={billingMode}
+          candidacies={candidacies ?? []}
+          othersCount={pending.length}
+          roundInProgress={false}
+          choose={choose}
+          filled={`A vaga foi preenchida${acceptedItem?.providerName ? ` por ${acceptedItem.providerName}` : ""}. Confira se o titular é quem você marcou.`}
+        />
+      );
+    }
+    return null;
+  }
 
   // Sem a lista de candidatos ou sem a rodada ainda: esqueleto do tamanho da barra (nada que
   // aparece depois e empurra a lista).
@@ -106,11 +139,12 @@ export function AccelerateVacancyBar({
   }
 
   const view = round.data;
-  const hurry = view?.hurry ?? null;
   const card = companyViewCard(view?.companyView, new Date(), view?.round);
   const hurryVisible = Boolean(hurry && hurry.options.length > 0);
   const hurryOff = hurry?.available === false;
   const showReadError = round.isError && !isSelectionDisabled(round.error);
+  const releasable = canReleaseList(view?.companyView);
+  if (!choose.active && !hurryVisible && !choose.canChoose && !releasable && !showReadError) return null;
 
   if (choose.active) {
     return (
@@ -122,9 +156,15 @@ export function AccelerateVacancyBar({
             {choose.maxReserves === 1 ? "" : "s"}, na ordem de chamada. Ninguém é avisado até você
             confirmar.
           </p>
+          {choose.notice && !choose.reviewOpen && (
+            <p role="alert" className="text-xs font-medium text-red-600">
+              {choose.notice}
+            </p>
+          )}
           <Button
             type="button"
             variant="outline"
+            disabled={choose.isPending}
             onClick={choose.cancel}
             className="min-h-11 w-full border-[#e5e5e5] text-[#1d1d1b] hover:bg-[#f7f7f7] sm:w-auto"
           >
@@ -211,7 +251,7 @@ export function AccelerateVacancyBar({
           </div>
         )}
 
-        {canReleaseList(view?.companyView) && (
+        {releasable && (
           <div className="flex flex-col gap-1 sm:max-w-[16rem]">
             <Button
               type="button"
@@ -253,6 +293,7 @@ function ConfirmFromFlow({
   othersCount,
   roundInProgress,
   choose,
+  filled,
 }: {
   vacancyId: string;
   subtitle: string;
@@ -263,11 +304,13 @@ function ConfirmFromFlow({
   othersCount: number;
   roundInProgress: boolean;
   choose: ChooseFlow;
+  filled?: string;
 }) {
   const nameOf = (id: string) => candidacies.find((c) => c.id === id)?.providerName ?? "Sem nome";
   const principalId = choose.selection.principal;
   if (!principalId) return null;
-  const reserves = choiceReserveIds(choose.selection).map((id) => ({ id, name: nameOf(id) }));
+  // Exatamente o que vai no POST: só os lugares de suplente que existem.
+  const reserves = choiceReserveIds(choose.selection).slice(0, choose.maxReserves).map((id) => ({ id, name: nameOf(id) }));
   return (
     <ChooseConfirmDialog
       vacancyId={vacancyId}
@@ -281,7 +324,12 @@ function ConfirmFromFlow({
       autoFill={choose.autoFill}
       othersCount={Math.max(0, othersCount - 1 - reserves.length)}
       roundInProgress={roundInProgress}
-      onClose={choose.closeReview}
+      submit={choose.submit}
+      busy={choose.isPending}
+      filled={filled}
+      lastError={choose.notice}
+      onFail={choose.setNotice}
+      onClose={filled ? choose.cancel : choose.closeReview}
       onDone={choose.finish}
     />
   );

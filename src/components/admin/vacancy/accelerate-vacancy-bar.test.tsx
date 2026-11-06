@@ -494,4 +494,116 @@ describe("Modo 'Escolher titular e suplentes'", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Não sabemos se deu certo");
     expect(within(dialog).getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
   });
+
+  const reserveMarks = () => {
+    fireEvent.click(marca("Ana"));
+    fireEvent.click(marca("João"));
+    fireEvent.click(marca("Maria"));
+    fireEvent.click(screen.getByRole("button", { name: "Revisar e aprovar" }));
+  };
+  const candidatos = (over: Record<string, Partial<VacancyCandidacyItem>>) =>
+    CANDS.map((c) => (over[c.id] ? { ...c, ...over[c.id] } : c));
+  const wrap = (props: Parameters<typeof Harness>[0] = {}) => (
+    <QueryClientProvider client={client}>
+      <Harness {...props} />
+    </QueryClientProvider>
+  );
+
+  it("resposta perdida e vaga já aceita: o diálogo continua, sem o 'Nada foi alterado' falso", async () => {
+    api.chooseVacancyTeam.mockRejectedValue(new Error("timeout"));
+    const { rerender } = renderHarness();
+    fireEvent.click(await screen.findByRole("button", { name: /Escolher titular e suplentes/ }));
+    reserveMarks();
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Aprovar e lançar na fatura" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Não sabemos se deu certo");
+    // A releitura mostra o titular aceito.
+    rerender(wrap({ candidacies: candidatos({ c1: { status: "ACCEPTED" } }) }));
+    const depois = await screen.findByRole("alertdialog");
+    expect(depois).toHaveTextContent("Não sabemos se deu certo");
+    expect(depois).toHaveTextContent("A vaga foi preenchida por Ana Souza. Confira se o titular é quem você marcou.");
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(within(depois).getByRole("button", { name: /Aprovar e lançar/ })).toBeDisabled();
+    fireEvent.click(within(depois).getByRole("button", { name: "Fechar" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("titular que sai da lista fecha a confirmação, mantém o erro na barra e não reabre sozinha", async () => {
+    api.chooseVacancyTeam.mockRejectedValue(
+      apiError(409, "CANDIDACY_NOT_PENDING", "Ana Souza não está mais disponível. Nada foi aprovado."),
+    );
+    const { rerender } = renderHarness();
+    fireEvent.click(await screen.findByRole("button", { name: /Escolher titular e suplentes/ }));
+    reserveMarks();
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Aprovar e lançar na fatura" }));
+    await within(dialog).findByRole("alert");
+    rerender(wrap({ candidacies: candidatos({ c1: { status: "WITHDRAWN" } }) }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(await screen.findByTestId("acelerar-escolhendo")).toHaveTextContent("Nada foi aprovado.");
+    fireEvent.click(marca("Carlos"));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("clique duplo no mesmo tick: um POST só", async () => {
+    let resolve: (v: unknown) => void = () => undefined;
+    api.chooseVacancyTeam.mockReturnValue(new Promise((r) => (resolve = r)));
+    renderHarness();
+    fireEvent.click(await screen.findByRole("button", { name: /Escolher titular e suplentes/ }));
+    reserveMarks();
+    const botao = within(await screen.findByRole("alertdialog")).getByRole("button", {
+      name: "Aprovar e lançar na fatura",
+    });
+    fireEvent.click(botao);
+    fireEvent.click(botao);
+    await waitFor(() => expect(api.chooseVacancyTeam).toHaveBeenCalledTimes(1));
+    fireEvent.click(botao);
+    expect(api.chooseVacancyTeam).toHaveBeenCalledTimes(1);
+    resolve({
+      candidacy: { candidacyId: "c1", vacancyId: "vac-1", providerId: "p", status: "ACCEPTED" },
+      reserves: null,
+      billing: "INVOICE",
+    });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  });
+});
+
+describe("Barra: casos menores", () => {
+  it("sem nenhum botão a mostrar, a barra não aparece", async () => {
+    api.getVacancySelectionRound.mockResolvedValue({ round: null, people: [], companyView: null, hurry: null });
+    api.getVacancyReserves.mockResolvedValue(reservesView({ canChoose: false }));
+    renderHarness();
+    await waitFor(() => expect(api.getVacancyReserves).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByTestId("acelerar-esqueleto")).not.toBeInTheDocument());
+    expect(screen.queryByTestId("acelerar-barra")).not.toBeInTheDocument();
+  });
+
+  it("o diálogo do 'Selecionar agora' não reabre sozinho depois que a barra sai do ar", async () => {
+    const { rerender } = renderHarness();
+    fireEvent.click(await screen.findByRole("button", { name: /Selecionar agora/ }));
+    await screen.findByRole("dialog");
+    const wrap = (c: VacancyCandidacyItem[]) => (
+      <QueryClientProvider client={client}>
+        <Harness candidacies={c} />
+      </QueryClientProvider>
+    );
+    rerender(wrap([]));
+    rerender(wrap(CANDS));
+    await screen.findByTestId("acelerar-barra");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("o sucesso do 'Selecionar agora' também recarrega a lista de vagas", async () => {
+    api.hurryVacancySelection.mockResolvedValue({
+      ...view(hurryBlock({ available: false })),
+      hurried: { roundId: "r1", asked: 10, answersBy: iso("20:18"), optionsBy: iso("20:20") },
+    });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHarness();
+    fireEvent.click(await screen.findByRole("button", { name: /Selecionar agora/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Selecionar agora (20 min)" }));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["admin", "vacancies"] }),
+    );
+  });
 });

@@ -498,6 +498,23 @@ export function pruneChoice(sel: ChoiceSelection, validIds: ReadonlySet<string>)
   return { principal: keep(sel.principal), reserves: [keep(sel.reserves[0]), keep(sel.reserves[1])] };
 }
 
+/**
+ * Revalida a marcação contra o que o servidor diz agora: o titular precisa seguir pendente; os
+ * suplentes, pendentes E na lista de quem pode ser suplente, e só até `maxReserves` lugares.
+ * Assim o que vai no POST é exatamente o que a tela mostra.
+ */
+export function reconcileChoice(
+  sel: ChoiceSelection,
+  pendingIds: ReadonlySet<string>,
+  reserveEligibleIds: ReadonlySet<string>,
+  maxReserves: number,
+): ChoiceSelection {
+  const principal = sel.principal !== null && pendingIds.has(sel.principal) ? sel.principal : null;
+  const reserve = (id: string | null, slot: number) =>
+    id !== null && slot < maxReserves && pendingIds.has(id) && reserveEligibleIds.has(id) ? id : null;
+  return { principal, reserves: [reserve(sel.reserves[0], 0), reserve(sel.reserves[1], 1)] };
+}
+
 /** Como a empresa paga, para os textos da confirmação. `undefined` = não sabemos. */
 export type PayWay = "INVOICE" | "PIX" | "UNKNOWN";
 

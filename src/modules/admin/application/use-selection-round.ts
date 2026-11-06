@@ -43,6 +43,8 @@ export function useHurrySelection(vacancyId: string) {
       hurryVacancySelection(vacancyId, input),
     onSuccess: (result) => {
       qc.setQueryData(["admin", "selection-round", vacancyId], result);
+      // A tabela de vagas atrás do modal também mostra a etapa da vaga.
+      qc.invalidateQueries({ queryKey: ["admin", "vacancies"] });
     },
   });
 }

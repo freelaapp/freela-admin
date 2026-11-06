@@ -56,6 +56,7 @@ export function HurrySelectionDialog({
   const [retry, setRetry] = useState(false);
   const hurryNow = useHurrySelection(vacancyId);
   const radios = useRef<Record<number, HTMLButtonElement | null>>({});
+  const inFlight = useRef(false);
 
   // O tempo marcado só vale se o servidor ainda o permite (a leitura é refeita com o diálogo aberto).
   const selected =
@@ -72,7 +73,8 @@ export function HurrySelectionDialog({
   };
 
   const confirm = async () => {
-    if (!option || noteTooLong) return;
+    if (!option || noteTooLong || busy || inFlight.current) return;
+    inFlight.current = true;
     setError(null);
     try {
       const result = await hurryNow.mutateAsync({ minutes: option.minutes, note });
@@ -84,6 +86,8 @@ export function HurrySelectionDialog({
     } catch (err) {
       setError(hurryErrorMessage(err));
       setRetry(isTransientError(err));
+    } finally {
+      inFlight.current = false;
     }
   };
 
