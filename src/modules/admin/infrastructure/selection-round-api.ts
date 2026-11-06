@@ -1,4 +1,5 @@
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { VacancyReservesView } from "./admin-api";
 
 /**
  * Rodada de seleção da vaga (fluxo de vagas v2, fatia E, piloto; designer, lote 2 §5.6). Só
@@ -75,6 +76,13 @@ export interface AdminSelectionRound {
   closedByKind: "SYSTEM" | "CONTRACTOR" | "ADMIN" | null;
   waitlistBuiltAt: string | null;
   waitlistEndedAt: string | null;
+  /** 05/11 noite: o que abriu a rodada. Ausente na API de antes. */
+  openTrigger?: CompanyViewOpenTrigger | null;
+  /** Quem apertou o "Selecionar agora" (só quando `openTrigger = ADMIN_HURRY`). */
+  openedBy?: { id: string; name: string | null; email: string | null } | null;
+  openNote?: string | null;
+  /** O prazo de resposta desta rodada, em minutos (o escolhido no "Selecionar agora"). */
+  availabilityMinutes?: number | null;
 }
 
 export interface AdminSelectionPerson {
@@ -117,7 +125,9 @@ export type CompanyViewOpenTrigger =
   | "CANDIDATES_REACHED"
   | "CONTRACTOR_HURRY"
   | "NO_CANDIDATES"
-  | "LIST_RELEASED";
+  | "LIST_RELEASED"
+  /** 05/11 noite: o suporte apertou o "Selecionar agora". */
+  | "ADMIN_HURRY";
 
 /**
  * "A empresa vê" (pré-seleção curada): o mesmo objeto do `selection/status` da empresa, mais quem
@@ -139,13 +149,67 @@ export interface AdminCompanyView {
   openTrigger: CompanyViewOpenTrigger | null;
 }
 
+export type HurryMinutes = 10 | 20 | 45;
+
+export type HurryReason =
+  | "ALREADY_STARTED"
+  | "ROUND_CLOSED"
+  | "ALREADY_CHOSEN"
+  | "NOT_ELIGIBLE"
+  | "QUIET_HOURS"
+  | "NO_CANDIDATES"
+  | "NO_TIME_LEFT"
+  | "LATER_THAN_PROMISED";
+
+export type HurryOptionReason = "QUIET_HOURS" | "WINDOW_GONE" | "NO_TIME_LEFT" | "LATER_THAN_PROMISED";
+
+export interface AdminHurryOption {
+  minutes: HurryMinutes;
+  allowed: boolean;
+  reason: HurryOptionReason | null;
+  /** Até quando os freelancers respondem (ISO). */
+  answersBy: string;
+  /** A hora que a empresa passa a ver (ISO). */
+  optionsBy: string;
+}
+
+/**
+ * O bloco `hurry` do GET da rodada (05/11 noite): o servidor decide e manda pronto, inclusive o
+ * motivo escrito (`message`). A tela não refaz regra nenhuma.
+ */
+export interface AdminSelectionHurry {
+  available: boolean;
+  reason: HurryReason | null;
+  message: string | null;
+  pendingCount: number;
+  askUpTo: number;
+  normalMinutes: number | null;
+  contractorMinutes: number | null;
+  currentOptionsBy: string | null;
+  /** A rodada nasceria com a lista escondida. */
+  listHidden: boolean;
+  startTime: string | null;
+  /** Vazio quando o botão nem aparece. */
+  options: AdminHurryOption[];
+  computedAt: string;
+}
+
 export interface AdminSelectionRoundView {
   /** `null` = a vaga não teve rodada de seleção. */
   round: AdminSelectionRound | null;
   people: AdminSelectionPerson[];
   /** `null` (ou ausente, API de antes) = sem a chave ou vaga que nunca escondeu a lista. */
   companyView?: AdminCompanyView | null;
+  /** Ausente (API de antes) ou `null`: o "Selecionar agora" não aparece. */
+  hurry?: AdminSelectionHurry | null;
 }
+
+export interface AdminHurryResult extends AdminSelectionRoundView {
+  hurried: { roundId: string; asked: number; answersBy: string; optionsBy: string };
+}
+
+/** O motivo do "Selecionar agora": opcional, até 500 caracteres. */
+export const HURRY_NOTE_MAX = 500;
 
 export async function getVacancySelectionRound(
   vacancyId: string,
@@ -167,5 +231,43 @@ export async function releaseVacancyCandidateList(
   note: string,
 ): Promise<AdminSelectionRoundView> {
   const res = await adminApi.post(`/vacancies/${vacancyId}/selection-round/release-list`, { note });
+  return res.data.data;
+}
+
+/**
+ * "Selecionar agora": fecha a janela e abre a rodada na hora. Erros: 400
+ * `SELECTION_HURRY_MINUTES_INVALID` / `SELECTION_HURRY_NOTE_TOO_LONG`, 404, 409
+ * `SELECTION_ALREADY_STARTED` / `SELECTION_ROUND_CLOSED` / `VACANCY_SLOT_FILLED`, 422
+ * `SELECTION_HURRY_*`. As mensagens dos 409 e 422 já terminam em "Nada mudou.".
+ */
+export async function hurryVacancySelection(
+  vacancyId: string,
+  body: { minutes: HurryMinutes; note?: string },
+): Promise<AdminHurryResult> {
+  const note = body.note?.trim();
+  const res = await adminApi.post(`/vacancies/${vacancyId}/selection-round/hurry`, {
+    minutes: body.minutes,
+    ...(note ? { note } : {}),
+  });
+  return res.data.data;
+}
+
+export type ChooseBilling = "INVOICE" | "AWAITING_PAYMENT" | "ALREADY_PAID";
+
+export interface AdminChooseResult {
+  candidacy: { candidacyId: string; vacancyId: string; providerId: string; status: string };
+  reserves: VacancyReservesView | null;
+  billing: ChooseBilling;
+}
+
+/**
+ * "Escolher titular e suplentes": os suplentes são gravados antes do aceite do titular. Em erro
+ * nada é aprovado (a lista de suplentes volta a ser a de antes).
+ */
+export async function chooseVacancyTeam(
+  vacancyId: string,
+  body: { principalCandidacyId: string; reserveCandidacyIds: string[] },
+): Promise<AdminChooseResult> {
+  const res = await adminApi.post(`/vacancies/${vacancyId}/choose`, body);
   return res.data.data;
 }

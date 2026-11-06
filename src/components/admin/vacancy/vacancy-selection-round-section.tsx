@@ -30,7 +30,7 @@ import { ReleaseListDialog } from "./release-list-dialog";
 export function VacancySelectionRoundSection({ vacancyId }: { vacancyId: string }) {
   const { data, error, isError, isFetching, refetch } = useVacancySelectionRound(vacancyId);
   const [releaseOpen, setReleaseOpen] = useState(false);
-  const company = companyViewCard(data?.companyView);
+  const company = companyViewCard(data?.companyView, new Date(), data?.round);
   const loadError =
     isError && selectionLoadErrorVisible({ roundLoaded: Boolean(data?.round), error }) ? (
       <div className="flex flex-wrap items-center gap-2 text-xs text-[#737373]">

@@ -13,6 +13,11 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { VacancyCandidacyItem } from "@/modules/admin/infrastructure/admin-api";
+import {
+  choiceSlotOf,
+  nextFreeSlot,
+  type ChoiceSelection,
+} from "@/modules/admin/application/selection-round-presentation";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
 import { PrestartCheckStatus } from "./prestart-check-status";
 
@@ -27,7 +32,26 @@ import { PrestartCheckStatus } from "./prestart-check-status";
  * O que muda entre elas é só a ORIGEM dos dados e das ações — por isso tudo entra
  * por prop e nada é buscado aqui dentro.
  */
+/**
+ * Modo "Escolher titular e suplentes" (Vagas Empresa): os cartões PENDENTES viram caixas de marcar
+ * (1º toque = titular, depois suplente 1 e 2) e uma faixa fixa no pé mostra os 3 lugares. Os
+ * botões de cada cartão somem enquanto o modo estiver ligado (botão dentro de botão não vale).
+ */
+export interface CandidacyChooseMode {
+  selection: ChoiceSelection;
+  onToggle: (candidacyId: string) => void;
+  /** Quem pode ser suplente (vem do GET de suplentes do admin). Só o titular pode ser qualquer um. */
+  reserveEligibleIds: ReadonlySet<string>;
+  /** Quantos suplentes cabem (0 a 2). */
+  maxReserves: number;
+  onReview: () => void;
+  /** Aprovando: a marcação trava. */
+  busy?: boolean;
+}
+
 export interface VacancyCandidacyListProps {
+  /** Ligado ⇒ a lista vira o modo de marcação do "Escolher titular e suplentes". */
+  chooseMode?: CandidacyChooseMode;
   /**
    * Limita a lista a ~55vh com rolagem própria (padrão). Em um modal que já tem
    * a sua rolagem (Vagas Empresa), passe `false` para não ter rolagem aninhada.
@@ -128,7 +152,10 @@ export function VacancyCandidacyList({
   prestartConfirming = false,
   scrollable = true,
   actions,
+  chooseMode,
 }: VacancyCandidacyListProps) {
+  const nameOf = (id: string | null) =>
+    id ? (candidacies?.find((c) => c.id === id)?.providerName ?? "Sem nome") : null;
   return (
     <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
       <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
@@ -176,7 +203,19 @@ export function VacancyCandidacyList({
                         ? "Retirado"
                         : c.status === "PENDING"
                           ? "Pendente"
-                          : c.status;
+                          : c.status === "NOT_SELECTED"
+                            ? "Não selecionado"
+                            : c.status;
+            if (chooseMode) {
+              return (
+                <ChooseCard
+                  key={c.id}
+                  candidacy={c}
+                  statusLabel={statusLabel}
+                  mode={chooseMode}
+                />
+              );
+            }
             return (
               <div
                 key={c.id}
@@ -413,6 +452,138 @@ export function VacancyCandidacyList({
           })}
         </div>
       )}
+      {chooseMode && (
+        <ChooseStrip
+          mode={chooseMode}
+          principalName={nameOf(chooseMode.selection.principal)}
+          reserveNames={[nameOf(chooseMode.selection.reserves[0]), nameOf(chooseMode.selection.reserves[1])]}
+        />
+      )}
+    </div>
+  );
+}
+
+const SLOT_BADGE = { principal: "TITULAR", 1: "SUPLENTE 1", 2: "SUPLENTE 2" } as const;
+const SLOT_ARIA = { principal: "titular", 1: "suplente 1", 2: "suplente 2" } as const;
+
+/** O cartão no modo "Escolher": o cartão inteiro é a caixa de marcar (56 px ou mais). */
+function ChooseCard({
+  candidacy: c,
+  statusLabel,
+  mode,
+}: {
+  candidacy: VacancyCandidacyItem;
+  statusLabel: string;
+  mode: CandidacyChooseMode;
+}) {
+  const name = c.providerName ?? "Sem nome";
+  if (c.status !== "PENDING") {
+    return (
+      <div className="rounded-md border border-[#e5e5e5] bg-white p-2.5 opacity-60">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-[#1d1d1b]">{name}</p>
+          <span className="rounded border border-gray-300 bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-600">
+            {statusLabel}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-[#737373]">Não está na lista de candidatos.</p>
+      </div>
+    );
+  }
+  const slot = choiceSlotOf(mode.selection, c.id);
+  const free = nextFreeSlot(mode.selection, mode.maxReserves);
+  const full = slot === null && free === null;
+  const onlyPrincipal =
+    slot === null && free !== null && free !== "principal" && !mode.reserveEligibleIds.has(c.id);
+  const blocked = full || onlyPrincipal;
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={slot !== null}
+      aria-disabled={blocked || mode.busy ? true : undefined}
+      aria-label={slot !== null ? `${name}, ${SLOT_ARIA[slot]}` : name}
+      onClick={() => !mode.busy && mode.onToggle(c.id)}
+      className={`flex min-h-14 w-full items-start gap-3 rounded-md border p-2.5 text-left transition-colors ${
+        slot !== null
+          ? "border-[#eca826] bg-amber-50"
+          : blocked
+            ? "border-[#e5e5e5] bg-white opacity-60"
+            : "border-[#e5e5e5] bg-white hover:bg-[#fafafa]"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${
+          slot !== null ? "border-[#eca826] bg-[#eca826] text-[#1d1d1b]" : "border-[#a3a3a3]"
+        }`}
+      >
+        {slot === "principal" ? 1 : slot === 1 ? 2 : slot === 2 ? 3 : null}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-start justify-between gap-2">
+          <span className="text-sm font-medium text-[#1d1d1b]">{name}</span>
+          {slot !== null && (
+            <span className="shrink-0 rounded bg-[#eca826] px-2 py-0.5 text-xs font-bold text-[#1d1d1b]">
+              {SLOT_BADGE[slot]}
+            </span>
+          )}
+        </span>
+        {c.matchScore !== undefined && (
+          <span className="mt-1 block">
+            <MatchBadge score={c.matchScore} />
+          </span>
+        )}
+        {full && (
+          <span className="mt-1 block text-xs text-[#737373]">
+            Máximo de {mode.maxReserves} suplente{mode.maxReserves === 1 ? "" : "s"}. Desmarque alguém para trocar.
+          </span>
+        )}
+        {onlyPrincipal && (
+          <span className="mt-1 block text-xs text-[#737373]">
+            Não dá para ser suplente. Pode ser o titular.
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+/** A faixa do pé: os 3 lugares e o botão "Revisar e aprovar". */
+function ChooseStrip({
+  mode,
+  principalName,
+  reserveNames,
+}: {
+  mode: CandidacyChooseMode;
+  principalName: string | null;
+  reserveNames: (string | null)[];
+}) {
+  const slots = Array.from({ length: mode.maxReserves }, (_, i) => `${i + 1} ${reserveNames[i] ?? "—"}`);
+  return (
+    <div
+      data-testid="escolher-faixa"
+      className="sticky bottom-0 -mx-3 -mb-3 space-y-2 rounded-b-lg border-t border-[#e5e5e5] bg-white p-3"
+    >
+      <div aria-live="polite" className="space-y-0.5 text-sm text-[#1d1d1b]">
+        <p>
+          <span className="font-semibold">Titular:</span>{" "}
+          {principalName ?? "toque em quem vai trabalhar"}
+        </p>
+        {mode.maxReserves > 0 && (
+          <p>
+            <span className="font-semibold">Suplentes:</span> {slots.join(" · ")}
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={mode.onReview}
+        disabled={!principalName || mode.busy}
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-[#eca826] px-4 text-sm font-semibold text-[#1d1d1b] hover:bg-[#d99a20] disabled:opacity-50"
+      >
+        Revisar e aprovar
+      </button>
     </div>
   );
 }

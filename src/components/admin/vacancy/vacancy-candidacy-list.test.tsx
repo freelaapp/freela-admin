@@ -217,3 +217,11 @@ describe("VacancyCandidacyList — rolagem e barra de ações", () => {
     );
   });
 });
+
+describe("VacancyCandidacyList — rótulo de status", () => {
+  it("NOT_SELECTED aparece como 'Não selecionado', nunca cru", () => {
+    renderList([item({ id: "c-ns", status: "NOT_SELECTED" })]);
+    expect(screen.getByText("Não selecionado")).toBeInTheDocument();
+    expect(screen.queryByText("NOT_SELECTED")).not.toBeInTheDocument();
+  });
+});

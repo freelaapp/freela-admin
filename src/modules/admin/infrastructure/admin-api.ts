@@ -890,6 +890,8 @@ export interface VacancyReservesView {
   chosen?: VacancyReserveItem[];
   candidates?: VacancyReservePerson[];
   canChoose?: boolean;
+  /** Com ele, depois do pagamento o sistema completa a lista de suplentes sozinho. */
+  autoFill?: boolean;
   /** O "Chamar reserva" passa agora: vaga paga, com reserva, sem chamada aberta, com tempo. */
   canCall?: boolean;
   /** @deprecated contrato antigo: `chosen` só com a vaga paga. */

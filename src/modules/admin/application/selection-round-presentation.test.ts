@@ -2,7 +2,22 @@ import { AxiosError, AxiosHeaders } from "axios";
 import { describe, expect, it } from "vitest";
 
 import {
+  adminHurryTrigger,
   canReleaseList,
+  chooseBillingLine,
+  chooseConfirmLabel,
+  chooseErrorMessage,
+  chooseSuccessText,
+  choiceReserveIds,
+  defaultHurryMinutes,
+  EMPTY_CHOICE,
+  hourLabel,
+  hurryErrorMessage,
+  isTransientError,
+  nextFreeSlot,
+  payWayOf,
+  pruneChoice,
+  toggleChoice,
   clockLabel,
   companyViewCard,
   deadlinesLine,
@@ -247,5 +262,174 @@ describe("A empresa vê (pré-seleção curada)", () => {
 
   it("erros em português; erro de rede = mensagem geral", () => {
     expect(releaseErrorMessage(new Error("rede"))).toBe("Não foi possível liberar a lista. Tente de novo.");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// "Selecionar agora" e "Escolher titular e suplentes" (05/11 noite)
+// ---------------------------------------------------------------------------------------------
+
+function apiErr(status: number, code: string | null, message: string | null) {
+  const headers = new AxiosHeaders();
+  return new AxiosError("x", "ERR_BAD_REQUEST", { headers }, null, {
+    status,
+    statusText: "x",
+    data: { error: { ...(code ? { code } : {}), ...(message ? { message } : {}) } },
+    headers,
+    config: { headers },
+  });
+}
+
+describe("'Como abriu' com o suporte adiantando", () => {
+  const hurried = round({
+    windowClosedAt: "2026-11-05T22:58:00.000Z", // 19h58 em Brasília
+    openTrigger: "ADMIN_HURRY",
+    openedBy: { id: "u1", name: "Denner", email: "d@x.com" },
+    openNote: "A empresa ligou com pressa",
+    availabilityMinutes: 20,
+  });
+
+  it("hora de Brasília", () => {
+    expect(hourLabel("2026-11-05T22:58:00.000Z")).toBe("19h58");
+    expect(hourLabel("2026-11-05T23:00:00.000Z")).toBe("20h");
+    expect(hourLabel(null)).toBe("—");
+  });
+
+  it("diz quem, a hora e o prazo; a nota vai em 'Nota'", () => {
+    expect(adminHurryTrigger(hurried)).toBe("o suporte adiantou (Denner, 19h58, 20 min)");
+    const card = companyViewCard(
+      {
+        mode: "HIDDEN",
+        curated: true,
+        stage: "ASKING",
+        optionsBy: "2026-11-06T00:20:00.000Z",
+        reason: null,
+        releasedAt: null,
+        applicants: 17,
+        asked: 10,
+        options: 0,
+        listReleasedByKind: null,
+        listReleaseNote: null,
+        openTrigger: "ADMIN_HURRY",
+      },
+      new Date("2026-11-05T22:59:00.000Z"),
+      hurried,
+    );
+    expect(card?.rows).toContainEqual({
+      label: "Como abriu",
+      value: "o suporte adiantou (Denner, 19h58, 20 min)",
+    });
+    expect(card?.rows).toContainEqual({ label: "Nota", value: "A empresa ligou com pressa" });
+  });
+
+  it("sem os dados da rodada: só 'o suporte adiantou'", () => {
+    expect(adminHurryTrigger(null)).toBe("o suporte adiantou");
+  });
+});
+
+describe("tempo que já vem marcado", () => {
+  const opt = (minutes: 10 | 20 | 45, allowed: boolean) => ({
+    minutes,
+    allowed,
+    reason: null,
+    answersBy: "",
+    optionsBy: "",
+  });
+  it("20 min quando pode; senão o maior permitido; nenhum = null", () => {
+    expect(defaultHurryMinutes([opt(10, true), opt(20, true), opt(45, true)])).toBe(20);
+    expect(defaultHurryMinutes([opt(10, true), opt(20, false), opt(45, false)])).toBe(10);
+    expect(defaultHurryMinutes([opt(10, true), opt(20, false), opt(45, true)])).toBe(45);
+    expect(defaultHurryMinutes([opt(10, false), opt(20, false), opt(45, false)])).toBeNull();
+    expect(defaultHurryMinutes([])).toBeNull();
+  });
+});
+
+describe("erros do 'Selecionar agora' e do 'Escolher'", () => {
+  it("mostra a message da API; sem ela, o texto do código; rede, o texto de rede", () => {
+    expect(hurryErrorMessage(apiErr(422, "SELECTION_HURRY_NO_TIME", "Pronta. Nada mudou."))).toBe("Pronta. Nada mudou.");
+    expect(hurryErrorMessage(apiErr(422, "SELECTION_HURRY_NO_CANDIDATES", null))).toBe(
+      "Ninguém se candidatou a esta vaga ainda. Nada mudou.",
+    );
+    expect(hurryErrorMessage(apiErr(404, "VACANCY_NOT_FOUND", null))).toBe("Vaga não encontrada.");
+    expect(hurryErrorMessage(new Error("x"))).toContain("Não conseguimos falar com o servidor");
+    expect(chooseErrorMessage(apiErr(409, "CANDIDACY_NOT_PENDING", "Maria saiu. Nada foi aprovado."))).toBe(
+      "Maria saiu. Nada foi aprovado.",
+    );
+    expect(chooseErrorMessage(apiErr(422, "RESERVES_TOO_MANY", null))).toContain("até 2 suplentes");
+    expect(chooseErrorMessage(new Error("x"))).toContain("Não sabemos se deu certo");
+  });
+
+  it("erro transitório = rede ou 5xx", () => {
+    expect(isTransientError(new Error("x"))).toBe(true);
+    expect(isTransientError(apiErr(502, null, null))).toBe(true);
+    expect(isTransientError(apiErr(422, "X", null))).toBe(false);
+  });
+});
+
+describe("marcação do titular e dos suplentes", () => {
+  it("ocupa o primeiro lugar vazio: titular, suplente 1, suplente 2; o 4º não entra", () => {
+    let sel = toggleChoice(EMPTY_CHOICE, "a");
+    sel = toggleChoice(sel, "b");
+    sel = toggleChoice(sel, "c");
+    expect(sel).toEqual({ principal: "a", reserves: ["b", "c"] });
+    expect(toggleChoice(sel, "d")).toEqual(sel);
+    expect(nextFreeSlot(sel)).toBeNull();
+    expect(choiceReserveIds(sel)).toEqual(["b", "c"]);
+  });
+
+  it("desmarcar deixa o lugar vazio: ninguém sobe", () => {
+    const sel = toggleChoice({ principal: "a", reserves: ["b", "c"] }, "a");
+    expect(sel).toEqual({ principal: null, reserves: ["b", "c"] });
+    // O próximo toque preenche o lugar de titular.
+    expect(toggleChoice(sel, "d")).toEqual({ principal: "d", reserves: ["b", "c"] });
+    // Tirar o suplente 1 deixa o 2 onde está; o próximo ocupa o 1.
+    const sel2 = toggleChoice({ principal: "a", reserves: ["b", "c"] }, "b");
+    expect(sel2).toEqual({ principal: "a", reserves: [null, "c"] });
+    expect(choiceReserveIds(sel2)).toEqual(["c"]);
+    expect(toggleChoice(sel2, "d")).toEqual({ principal: "a", reserves: ["d", "c"] });
+  });
+
+  it("quem não pode ser suplente só entra de titular; maxReserves limita os lugares", () => {
+    const cheioDeTitular = { principal: "a", reserves: [null, null] as [null, null] };
+    expect(toggleChoice(cheioDeTitular, "x", { canBeReserve: false })).toEqual(cheioDeTitular);
+    expect(toggleChoice(EMPTY_CHOICE, "x", { canBeReserve: false })).toEqual({ principal: "x", reserves: [null, null] });
+    expect(toggleChoice({ principal: "a", reserves: ["b", null] }, "c", { maxReserves: 1 })).toEqual({
+      principal: "a",
+      reserves: ["b", null],
+    });
+    expect(nextFreeSlot({ principal: "a", reserves: ["b", null] }, 1)).toBeNull();
+  });
+
+  it("pruneChoice tira quem saiu da lista", () => {
+    expect(pruneChoice({ principal: "a", reserves: ["b", "c"] }, new Set(["a", "c"]))).toEqual({
+      principal: "a",
+      reserves: [null, "c"],
+    });
+  });
+});
+
+describe("textos da confirmação pelo jeito de pagar", () => {
+  it("PREPAID e ausente = Pix só para PREPAID; INVOICED_* = fatura; ausente = neutro", () => {
+    expect(payWayOf("PREPAID")).toBe("PIX");
+    expect(payWayOf("INVOICED_15")).toBe("INVOICE");
+    expect(payWayOf(undefined)).toBe("UNKNOWN");
+    expect(chooseConfirmLabel("INVOICE")).toBe("Aprovar e lançar na fatura");
+    expect(chooseConfirmLabel("PIX")).toBe("Aprovar e pedir o Pix");
+    expect(chooseConfirmLabel("UNKNOWN")).toBe("Aprovar");
+    expect(chooseBillingLine("INVOICE", "Bar", "R$ 160,00", "Ana")).toContain("entra agora na fatura da Bar");
+    expect(chooseBillingLine("PIX", "Bar", "R$ 160,00", "Ana")).toContain("por Pix");
+  });
+
+  it("sucesso conforme o billing da API", () => {
+    const base = { principalName: "Ana", reserveNames: ["João", "Maria"], autoFill: true };
+    expect(chooseSuccessText({ ...base, billing: "INVOICE" })).toBe(
+      "Ana vai trabalhar. Suplentes: 1 João, 2 Maria. Valor lançado na fatura.",
+    );
+    expect(chooseSuccessText({ ...base, billing: "AWAITING_PAYMENT" })).toBe(
+      "Ana aprovado(a). Suplentes: 1 João, 2 Maria. A empresa recebeu o pedido de pagamento.",
+    );
+    expect(chooseSuccessText({ ...base, reserveNames: [], billing: "ALREADY_PAID" })).toBe(
+      "Ana vai trabalhar. Os suplentes, o sistema escolhe depois do pagamento.",
+    );
   });
 });

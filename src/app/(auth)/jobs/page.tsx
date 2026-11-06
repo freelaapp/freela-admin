@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Eye, LayoutGrid, Clock, Check, CheckCircle2, Loader2, Phone, Mail, XCircle, Link2, Copy, KeyRound, Search, Users, Bot, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
+import { AccelerateVacancyBar } from "@/components/admin/vacancy/accelerate-vacancy-bar";
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
 import { VacancyReservesSection } from "@/components/admin/vacancy/vacancy-reserves-section";
 import { VacancySelectionRoundSection } from "@/components/admin/vacancy/vacancy-selection-round-section";
@@ -63,6 +64,7 @@ import {
   useConfirmPrestartByPhone,
   useVacancyCandidacies,
 } from "@/modules/admin/application/use-vacancy-candidacies";
+import { useChooseFlow } from "@/modules/admin/application/use-choose-flow";
 import { useVacancyFeedbacks } from "@/modules/admin/application/use-vacancy-feedbacks";
 import { useAdminCancelVacancy, useFinalizeVacancy, getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import { useAdminRemoveCandidacy } from "@/modules/admin/application/use-admin-remove-candidacy";
@@ -215,6 +217,8 @@ export default function JobsPage() {
   const acceptCandidacy = useAcceptCandidacy(modalDetalhesId);
   const restoreCandidacy = useRestoreCandidacy(modalDetalhesId);
   const confirmPrestart = useConfirmPrestartByPhone(modalDetalhesId);
+  // "Escolher titular e suplentes" (Vagas Empresa): a marcação é dividida entre a barra e a lista.
+  const chooseFlow = useChooseFlow(modalDetalhesId);
 
   /** "Confirmar por telefone" da confirmação do dia (3 h antes). */
   async function handleConfirmPrestart(candidacyId: string, nome: string) {
@@ -1086,6 +1090,34 @@ export default function JobsPage() {
                 candidacies={candidacies}
                 loading={loadingCandidacies}
                 scrollable={false}
+                actions={
+                  modalDetalhes.raw?.id ? (
+                    <AccelerateVacancyBar
+                      key={`acelerar-${modalDetalhes.raw.id}`}
+                      vacancyId={modalDetalhes.raw.id}
+                      vacancyOpen={modalDetalhes.raw.status === "OPEN"}
+                      startTime={modalDetalhes.raw.startTime}
+                      candidacies={candidacies}
+                      loadingCandidacies={loadingCandidacies}
+                      company={modalDetalhes.empresa}
+                      billingMode={contractorMap.get(modalDetalhes.raw.contractorId)?.billingMode}
+                      valueLabel={modalDetalhes.valor}
+                      subtitle={`${modalDetalhes.cargo} · ${modalDetalhes.data}, ${modalDetalhes.horario}`}
+                      choose={chooseFlow}
+                    />
+                  ) : undefined
+                }
+                chooseMode={
+                  chooseFlow.active
+                    ? {
+                        selection: chooseFlow.selection,
+                        onToggle: chooseFlow.toggle,
+                        reserveEligibleIds: chooseFlow.reserveEligibleIds,
+                        maxReserves: chooseFlow.maxReserves,
+                        onReview: chooseFlow.openReview,
+                      }
+                    : undefined
+                }
                 onConfirm={handleConfirmCandidacy}
                 confirming={confirmCandidacy.isPending}
                 onReinstate={handleReinstateCandidacy}

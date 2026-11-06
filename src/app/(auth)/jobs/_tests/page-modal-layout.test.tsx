@@ -35,6 +35,10 @@ vi.mock("@/modules/admin/application/use-vacancy-candidacies", () => ({
   useConfirmPrestartByPhone: mutation,
   useVacancyCandidacies: () => ({ data: [], isLoading: false }),
 }));
+// O modo "Escolher titular e suplentes" lê os suplentes da vaga aberta no modal; aqui não vai à rede.
+vi.mock("@/modules/admin/application/use-vacancy-reserves", () => ({
+  useVacancyReserves: () => ({ data: undefined }),
+}));
 vi.mock("@/modules/admin/application/use-admin-catalog", () => ({ useCatalogRoles: () => ({ data: [] }) }));
 vi.mock("@/modules/admin/application/use-vacancy-feedbacks", () => ({
   useVacancyFeedbacks: () => ({ data: [], isLoading: false }),

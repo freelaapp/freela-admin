@@ -1,8 +1,11 @@
 import { apiErrorOf } from "../infrastructure/api-error";
 import type {
   AdminCompanyView,
+  AdminHurryOption,
+  AdminSelectionHurry,
   AdminSelectionPerson,
   AdminSelectionRound,
+  ChooseBilling,
   SelectionClosedReason,
   SelectionStage,
 } from "../infrastructure/selection-round-api";
@@ -213,6 +216,8 @@ const OPEN_TRIGGER: Record<string, string> = {
   CONTRACTOR_HURRY: "a empresa pediu pressa",
   NO_CANDIDATES: "ninguém se candidatou",
   LIST_RELEASED: "o suporte liberou a lista",
+  // O texto completo (quem, hora e prazo) vem de `adminHurryTrigger`.
+  ADMIN_HURRY: "o suporte adiantou",
 };
 
 export interface CompanyViewCard {
@@ -229,6 +234,7 @@ export interface CompanyViewCard {
 export function companyViewCard(
   view: AdminCompanyView | null | undefined,
   now: Date = new Date(),
+  round?: AdminSelectionRound | null,
 ): CompanyViewCard | null {
   if (!view) return null;
   const rows: CompanyViewCard["rows"] = [];
@@ -251,7 +257,14 @@ export function companyViewCard(
     rows.push({ label: "Nota da liberação", value: view.listReleaseNote });
   }
   if (view.openTrigger) {
-    rows.push({ label: "Como abriu", value: OPEN_TRIGGER[view.openTrigger] ?? view.openTrigger });
+    const value =
+      view.openTrigger === "ADMIN_HURRY"
+        ? adminHurryTrigger(round)
+        : (OPEN_TRIGGER[view.openTrigger] ?? view.openTrigger);
+    rows.push({ label: "Como abriu", value });
+    if (view.openTrigger === "ADMIN_HURRY" && round?.openNote) {
+      rows.push({ label: "Nota", value: round.openNote });
+    }
   }
   return { headline: companyViewHeadline(view, now), rows };
 }
@@ -297,4 +310,240 @@ export function releaseErrorMessage(error: unknown): string {
   }
   if (status === 404) return "Vaga não encontrada.";
   return "Não foi possível liberar a lista. Tente de novo.";
+}
+
+// ---------------------------------------------------------------------------------------------
+// "Selecionar agora" e "Escolher titular e suplentes" (UX de 05/11 noite)
+// ---------------------------------------------------------------------------------------------
+
+/** "19h58" (Brasília), sem o dia da semana. */
+export function hourLabel(iso: string | null | undefined): string {
+  const label = weekdayHour(iso);
+  return label === "—" ? label : (label.split(" ")[1] ?? "—");
+}
+
+/** "o suporte adiantou (Denner, 19h58, 20 min para responder)". */
+export function adminHurryTrigger(round: AdminSelectionRound | null | undefined): string {
+  const parts: string[] = [];
+  const who = round?.openedBy?.name ?? round?.openedBy?.email;
+  if (who) parts.push(who);
+  // A janela fecha na hora em que o suporte aperta o botão.
+  if (round?.windowClosedAt) parts.push(hourLabel(round.windowClosedAt));
+  if (round?.availabilityMinutes) parts.push(`${round.availabilityMinutes} min`);
+  return parts.length > 0 ? `o suporte adiantou (${parts.join(", ")})` : "o suporte adiantou";
+}
+
+/** O tempo que já vem marcado: 20 min, ou o maior que puder; `null` se nenhum puder. */
+export function defaultHurryMinutes(options: AdminHurryOption[]): AdminHurryOption["minutes"] | null {
+  const allowed = options.filter((o) => o.allowed);
+  if (allowed.length === 0) return null;
+  const twenty = allowed.find((o) => o.minutes === 20);
+  if (twenty) return twenty.minutes;
+  return allowed.reduce((best, o) => (o.minutes > best.minutes ? o : best)).minutes;
+}
+
+/** "1 h" / "30 min" / "1 h 30". */
+export function minutesLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m}`;
+}
+
+/** Por que um dos 3 tempos está desligado (o texto que fica no lugar da hora). */
+export function hurryOptionDisabledText(option: AdminHurryOption, hurry: AdminSelectionHurry): string {
+  switch (option.reason) {
+    case "LATER_THAN_PROMISED":
+      return `as opções chegariam às ${hourLabel(option.optionsBy)}, depois das ${hourLabel(hurry.currentOptionsBy)} prometidas`;
+    case "NO_TIME_LEFT":
+      return hurry.contractorMinutes
+        ? `não sobra ${minutesLabel(hurry.contractorMinutes)} da empresa antes de ${weekdayHour(hurry.startTime)}`
+        : `não dá tempo antes de ${weekdayHour(hurry.startTime)}`;
+    case "QUIET_HOURS":
+      return "entre 22h e 8h não perguntamos aos freelancers";
+    case "WINDOW_GONE":
+      return "a janela desta vaga já fechou há mais de 30 min";
+    default:
+      return "indisponível agora";
+  }
+}
+
+const NETWORK_TEXT =
+  "Não conseguimos falar com o servidor. Toque em Tentar de novo: se a pergunta já tiver saído, ela não se repete.";
+
+/** Texto de reserva por código (UX §5.3), usado só quando a API não manda a `message`. */
+const HURRY_FALLBACK: Record<string, string> = {
+  SELECTION_ALREADY_STARTED: "A seleção desta vaga já tinha começado. Nada mudou.",
+  SELECTION_ROUND_CLOSED: "A seleção desta vaga já terminou. Nada mudou.",
+  VACANCY_SLOT_FILLED: "Alguém já foi aceito nesta vaga. Nada mudou.",
+  SELECTION_HURRY_QUIET_HOURS:
+    "Entre 22h e 8h não perguntamos aos freelancers. Nada mudou. Se a empresa precisa escolher agora, use Liberar a lista agora.",
+  SELECTION_HURRY_NO_TIME:
+    "Com esse tempo para responder, passaria do início da vaga. Nada mudou. Escolha um tempo menor ou use Escolher titular e suplentes.",
+  SELECTION_HURRY_LATER_THAN_PROMISED:
+    "Com esse tempo, as opções chegariam depois da hora já prometida à empresa. Nada mudou. Escolha um tempo menor.",
+  SELECTION_HURRY_NO_CANDIDATES: "Ninguém se candidatou a esta vaga ainda. Nada mudou.",
+  SELECTION_HURRY_NO_ONE_TO_ASK:
+    "Nenhum candidato pôde ser perguntado (ocupados no horário, bloqueados pela empresa ou suspensos). Nada mudou.",
+  SELECTION_HURRY_NOT_ELIGIBLE: "Esta vaga não entra na pré-seleção. Nada mudou.",
+  SELECTION_HURRY_NOTE_TOO_LONG: "O motivo passa de 500 caracteres.",
+  SELECTION_HURRY_MINUTES_INVALID: "Escolha 10, 20 ou 45 minutos.",
+  FEATURE_DISABLED: "A pré-seleção está desligada para esta empresa agora. Nada mudou.",
+  VACANCY_NOT_FOUND: "Vaga não encontrada.",
+};
+
+/** Erro do "Selecionar agora": a `message` da API (já pronta); senão o texto do código. */
+export function hurryErrorMessage(error: unknown): string {
+  const { status, code, message } = apiErrorOf(error);
+  if (message) return message;
+  if (code && HURRY_FALLBACK[code]) return HURRY_FALLBACK[code];
+  if (status === 404) return "Vaga não encontrada.";
+  return NETWORK_TEXT;
+}
+
+/** O erro foi de rede ou 5xx (o botão vira "Tentar de novo"). */
+export function isTransientError(error: unknown): boolean {
+  const { status } = apiErrorOf(error);
+  return status === null || status >= 500;
+}
+
+const CHOOSE_FALLBACK: Record<string, string> = {
+  CANDIDACY_NOT_PENDING:
+    "Alguém que você marcou não está mais disponível para esta vaga (retirou a candidatura ou foi escolhido em outra). Nada foi aprovado. Marque outra pessoa.",
+  VACANCY_SLOT_FILLED: "A vaga foi preenchida enquanto você escolhia. Nada foi alterado.",
+  PROVIDER_SCHEDULE_CONFLICT:
+    "Alguém que você marcou já está em outra vaga nesse horário. Nada foi aprovado. Marque outra pessoa.",
+  VACANCY_NOT_OPEN: "Esta vaga não aceita mais escolha (fechada, cancelada ou já começou). Nada foi alterado.",
+  RESERVES_TOO_MANY: "Dá para guardar até 2 suplentes. Nada foi aprovado.",
+  RESERVES_NOT_AVAILABLE:
+    "Passou do horário dos suplentes. Nada foi aprovado. Desmarque os suplentes e aprove só o titular.",
+  SELECTION_RESERVES_DISABLED:
+    "Os suplentes estão desligados agora. Nada foi aprovado. Use Colocar na vaga no cartão do titular.",
+  SELECTION_CHOICE_LIST_CHANGED:
+    "Nada foi aprovado, mas a lista de suplentes pode ter mudado. Confira a seção Suplentes antes de tentar de novo.",
+  ADMIN_CHOICE_INVALID: "O titular não pode ser também suplente, nem repetir suplente. Nada foi aprovado.",
+  ADMIN_CHOICE_NOT_A_CANDIDATE: "O titular marcado não é candidato desta vaga. Nada foi aprovado.",
+  ADMIN_CHOICE_GROUP_RESERVES:
+    "Esta vaga tem várias posições: aqui só dá para aprovar o titular. Desmarque os suplentes.",
+  VACANCY_NOT_FOUND: "Vaga não encontrada.",
+};
+
+/** Erro do "Escolher": a `message` da API; senão o texto do código; rede: não sabemos se deu certo. */
+export function chooseErrorMessage(error: unknown): string {
+  const { status, code, message } = apiErrorOf(error);
+  if (message) return message;
+  if (code && CHOOSE_FALLBACK[code]) return CHOOSE_FALLBACK[code];
+  if (status === 404) return "Vaga não encontrada.";
+  return "Não sabemos se deu certo. Atualizamos a lista: confira se o titular aparece como Aceito antes de tentar de novo.";
+}
+
+// ---- A marcação do modo "Escolher titular e suplentes" ----------------------------------------
+
+export interface ChoiceSelection {
+  principal: string | null;
+  reserves: [string | null, string | null];
+}
+
+export const EMPTY_CHOICE: ChoiceSelection = { principal: null, reserves: [null, null] };
+
+export type ChoiceSlot = "principal" | 1 | 2;
+
+/** Em que lugar a candidatura está marcada (`null` = em nenhum). */
+export function choiceSlotOf(sel: ChoiceSelection, id: string): ChoiceSlot | null {
+  if (sel.principal === id) return "principal";
+  if (sel.reserves[0] === id) return 1;
+  if (sel.reserves[1] === id) return 2;
+  return null;
+}
+
+/**
+ * Um toque num cartão. Marcado: desmarca e o lugar FICA VAZIO (ninguém sobe sozinho: promover
+ * alguém em silêncio para "vai trabalhar" seria o pior erro possível). Não marcado: ocupa o
+ * primeiro lugar vazio, na ordem titular, suplente 1, suplente 2. `canBeReserve = false` impede
+ * esse cartão de ocupar lugar de suplente; `maxReserves` limita os lugares de suplente.
+ */
+export function toggleChoice(
+  sel: ChoiceSelection,
+  id: string,
+  opts: { canBeReserve?: boolean; maxReserves?: number } = {},
+): ChoiceSelection {
+  const slot = choiceSlotOf(sel, id);
+  if (slot === "principal") return { ...sel, principal: null };
+  if (slot === 1) return { ...sel, reserves: [null, sel.reserves[1]] };
+  if (slot === 2) return { ...sel, reserves: [sel.reserves[0], null] };
+  if (sel.principal === null) return { ...sel, principal: id };
+  const max = Math.min(2, opts.maxReserves ?? 2);
+  if (opts.canBeReserve === false) return sel;
+  if (sel.reserves[0] === null && max >= 1) return { ...sel, reserves: [id, sel.reserves[1]] };
+  if (sel.reserves[1] === null && max >= 2) return { ...sel, reserves: [sel.reserves[0], id] };
+  return sel;
+}
+
+/** Os suplentes na ordem de chamada, sem os lugares vazios (a ordem é a dos lugares 1 e 2). */
+export function choiceReserveIds(sel: ChoiceSelection): string[] {
+  return sel.reserves.filter((id): id is string => id !== null);
+}
+
+/** O lugar a ser preenchido pelo próximo toque, ou `null` se estiver tudo cheio. */
+export function nextFreeSlot(sel: ChoiceSelection, maxReserves = 2): ChoiceSlot | null {
+  if (sel.principal === null) return "principal";
+  if (sel.reserves[0] === null && maxReserves >= 1) return 1;
+  if (sel.reserves[1] === null && maxReserves >= 2) return 2;
+  return null;
+}
+
+/** Tira da marcação quem não está mais na lista (retirou a candidatura, foi aceito em outra). */
+export function pruneChoice(sel: ChoiceSelection, validIds: ReadonlySet<string>): ChoiceSelection {
+  const keep = (id: string | null) => (id !== null && validIds.has(id) ? id : null);
+  return { principal: keep(sel.principal), reserves: [keep(sel.reserves[0]), keep(sel.reserves[1])] };
+}
+
+/** Como a empresa paga, para os textos da confirmação. `undefined` = não sabemos. */
+export type PayWay = "INVOICE" | "PIX" | "UNKNOWN";
+
+export function payWayOf(billingMode: string | undefined | null): PayWay {
+  if (!billingMode) return "UNKNOWN";
+  return billingMode === "PREPAID" ? "PIX" : "INVOICE";
+}
+
+export function chooseConfirmLabel(way: PayWay): string {
+  if (way === "INVOICE") return "Aprovar e lançar na fatura";
+  if (way === "PIX") return "Aprovar e pedir o Pix";
+  return "Aprovar";
+}
+
+/** A primeira linha das consequências, pelo jeito de pagar da empresa. */
+export function chooseBillingLine(way: PayWay, company: string, value: string, principalName: string): string {
+  if (way === "INVOICE") {
+    return `A vaga fecha, e o valor da vaga (${value}) entra agora na fatura da ${company}.`;
+  }
+  if (way === "PIX") {
+    return `A vaga fecha, e a ${company} recebe o pedido para pagar ${value} por Pix. ${principalName} fica garantido(a) quando a empresa pagar.`;
+  }
+  return `A vaga fecha, e a ${company} paga o valor da vaga (${value}) como sempre, por fatura ou Pix.`;
+}
+
+/** A frase de sucesso, pelo `billing` que a API devolveu. */
+export function chooseSuccessText(input: {
+  principalName: string;
+  reserveNames: string[];
+  billing: ChooseBilling;
+  autoFill: boolean;
+}): string {
+  const { principalName, reserveNames, billing, autoFill } = input;
+  const head =
+    billing === "AWAITING_PAYMENT" ? `${principalName} aprovado(a).` : `${principalName} vai trabalhar.`;
+  const reserves =
+    reserveNames.length > 0
+      ? ` Suplentes: ${reserveNames.map((n, i) => `${i + 1} ${n}`).join(", ")}.`
+      : autoFill
+        ? " Os suplentes, o sistema escolhe depois do pagamento."
+        : "";
+  const tail =
+    billing === "INVOICE"
+      ? " Valor lançado na fatura."
+      : billing === "AWAITING_PAYMENT"
+        ? " A empresa recebeu o pedido de pagamento."
+        : "";
+  return `${head}${reserves}${tail}`;
 }
