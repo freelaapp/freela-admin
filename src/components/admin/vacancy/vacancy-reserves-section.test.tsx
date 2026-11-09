@@ -151,6 +151,7 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     expect(
       screen.getByText("Chamar Bia (suplente 1) no lugar da empresa?"),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Não confirmou presença"));
     fireEvent.click(screen.getByRole("button", { name: "Chamar Bia" }));
 
     await waitFor(() =>
@@ -160,6 +161,59 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
         expect.stringMatching(/^admin-reserve-v1-/),
       ),
     );
+  });
+
+  it("nenhum motivo vem marcado: sem escolher, não dá para chamar", async () => {
+    api.getVacancyReserves.mockResolvedValue(VIEW);
+    renderSection();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Chamar suplente/ }),
+    );
+    for (const nome of [
+      "Não confirmou presença",
+      "Avisou que não vai",
+      "Outro motivo",
+    ]) {
+      expect(screen.getByLabelText(nome)).not.toBeChecked();
+    }
+    const chamar = screen.getByRole("button", { name: "Chamar Bia" });
+    expect(chamar).toBeDisabled();
+    fireEvent.click(chamar);
+    expect(api.adminOpenReserveCall).not.toHaveBeenCalled();
+  });
+
+  it("a API recusa (titular já confirmou): mostra a mensagem dela e desmarca o motivo", async () => {
+    api.getVacancyReserves.mockResolvedValue(VIEW);
+    const erro = Object.assign(new Error("422"), {
+      isAxiosError: true,
+      response: {
+        status: 422,
+        data: {
+          error: {
+            code: "RESERVE_CALL_PRINCIPAL_ALREADY_CONFIRMED",
+            message:
+              "Este freelancer já confirmou presença. Escolha outro motivo.",
+          },
+        },
+      },
+    });
+    api.adminOpenReserveCall.mockRejectedValue(erro);
+    renderSection();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Chamar suplente/ }),
+    );
+    fireEvent.click(screen.getByLabelText("Não confirmou presença"));
+    fireEvent.click(screen.getByRole("button", { name: "Chamar Bia" }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Este freelancer já confirmou presença. Escolha outro motivo.",
+      ),
+    );
+    expect(screen.getByLabelText("Não confirmou presença")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Chamar Bia" })).toBeDisabled();
   });
 
   it('"Outro motivo" só chama com a nota', async () => {

@@ -336,9 +336,9 @@ export function VacancyReservesSection({
   const [formAberto, setFormAberto] = useState(false);
   const [escolhendo, setEscolhendo] = useState(false);
   const [selecao, setSelecao] = useState<string[]>([]);
-  const [motivo, setMotivo] = useState<AdminReserveCallReason>(
-    "PRESTART_NO_RESPONSE",
-  );
+  // Nenhum motivo vem marcado: o suporte escolhe (09/11, o padrão "Não confirmou presença"
+  // punia freelancer que já tinha confirmado).
+  const [motivo, setMotivo] = useState<AdminReserveCallReason | null>(null);
   const [nota, setNota] = useState("");
   const chave = useRef(`admin-reserve-${vacancyId}-${Date.now()}`);
 
@@ -379,7 +379,8 @@ export function VacancyReservesSection({
   const chamavel = view.canCall ?? true;
   const podeChamar = view.enabled && !chamadaAberta && !!proxima && chamavel;
   const ocupado = chamar.isPending || cancelar.isPending || trocar.isPending;
-  const faltaNota = motivo === "CONTRACTOR_CHOICE" && !nota.trim();
+  const faltaNota =
+    !motivo || (motivo === "CONTRACTOR_CHOICE" && !nota.trim());
   // Escolher no lugar da empresa (a pedido dela): só com `canChoose` explícito —
   // API anterior não manda e não tem a rota. Vale antes ou depois do aceite (29/10).
   const naLista = reservas.filter((r) => r.status === "HELD");
@@ -428,7 +429,7 @@ export function VacancyReservesSection({
   }
 
   async function confirmarChamada() {
-    if (!proxima || faltaNota) return;
+    if (!proxima || !motivo || faltaNota) return;
     try {
       await chamar.mutateAsync({
         reason: motivo,
@@ -441,7 +442,10 @@ export function VacancyReservesSection({
       chave.current = `admin-reserve-${vacancyId}-${Date.now()}`;
       setFormAberto(false);
       setNota("");
+      setMotivo(null);
     } catch (e) {
+      // Titular que já confirmou: a API recusa "Não confirmou presença" com a mensagem pronta.
+      setMotivo(null);
       toast.error(
         getAxiosErrorMessage(e, "Não foi possível chamar o suplente."),
       );
