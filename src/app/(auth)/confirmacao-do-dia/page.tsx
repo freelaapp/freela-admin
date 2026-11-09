@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ArrivalSignalLine } from "@/components/admin/arrival-signal-line";
 import { PrestartCheckStatus } from "@/components/admin/vacancy/prestart-check-status";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
@@ -161,6 +162,7 @@ export default function ConfirmacaoDoDiaPage() {
                 {item.providerPhone}
               </a>
             )}
+            <ArrivalSignalLine signal={item.arrivalSignal} className="mt-1.5" />
             <PrestartCheckStatus
               check={item}
               confirming={confirm.isPending}

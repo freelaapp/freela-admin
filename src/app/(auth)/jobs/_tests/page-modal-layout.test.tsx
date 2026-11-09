@@ -197,3 +197,23 @@ describe("Vagas Empresa — modal 'Detalhes da vaga': freelancer alocado no resu
     expect(screen.getByTestId("resumo-vaga")).toHaveTextContent("Ana Souza");
   });
 });
+
+describe("Vagas Empresa — modal 'Detalhes da vaga': sinal de chegada (Cheguei)", () => {
+  it("com arrivalSignal, o texto da API aparece discreto no resumo", () => {
+    state.vacancies = [{ ...vagaFechada(), arrivalSignal: { text: "Chegou às 17h32, a 80 m (app)" } }];
+    abrirModal();
+    expect(screen.getByTestId("resumo-vaga")).toHaveTextContent("Chegou às 17h32, a 80 m (app)");
+  });
+
+  it("sem o campo (API antiga) ou com null: nada aparece", () => {
+    state.vacancies = [vagaFechada()];
+    const { unmount } = render(ui());
+    fireEvent.click(screen.getAllByTitle("Ver")[0]);
+    expect(screen.queryByTestId("arrival-signal")).not.toBeInTheDocument();
+    unmount();
+
+    state.vacancies = [{ ...vagaFechada(), arrivalSignal: null }];
+    abrirModal();
+    expect(screen.queryByTestId("arrival-signal")).not.toBeInTheDocument();
+  });
+});

@@ -1,3 +1,4 @@
+import type { AdminArrivalSignal } from "./arrival-signal.types";
 import { isAxiosError } from "axios";
 
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
@@ -525,6 +526,8 @@ export interface VacancyStartLocation {
   radiusMeters: number | null;
 }
 
+export type { AdminArrivalSignal } from "./arrival-signal.types";
+
 export interface VacancyItem {
   id: string;
   contractorId: string;
@@ -585,6 +588,11 @@ export interface VacancyItem {
   } | null;
   /** Consultor que indicou o contratante desta vaga (null quando não indicado). */
   referringConsultant?: { id: string; name: string; code: string } | null;
+  /**
+   * "Cheguei": último sinal de chegada do titular (só vagas fechadas e canceladas, só com a chave
+   * ligada na API). Ausente = sem a chave ou API antiga; `null` = ainda sem sinal.
+   */
+  arrivalSignal?: AdminArrivalSignal | null;
   /**
    * Horários de cada etapa da linha do tempo (ISO). Presente nas vagas fechadas;
    * ausente nas abertas (que ainda não têm job). Campo nulo = evento não ocorreu.
@@ -790,6 +798,8 @@ export interface AdminPrestartCheckItem extends VacancyPrestartCheck {
   contractorAlertedAt: string | null;
   providerName: string | null;
   providerPhone: string | null;
+  /** "Cheguei": ausente sem a chave na API; `null` = ainda sem sinal. */
+  arrivalSignal?: AdminArrivalSignal | null;
 }
 
 /**

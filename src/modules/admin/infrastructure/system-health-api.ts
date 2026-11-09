@@ -1,3 +1,4 @@
+import type { AdminArrivalSignal } from "./arrival-signal.types";
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 
 const adminApi = createAuthedClient("/v1/admins");
@@ -44,6 +45,8 @@ export interface AttendanceFlowItem {
   status: string;
   contractorReason: string | null;
   openedAt: string;
+  /** "Cheguei": ausente sem a chave na API; `null` = ainda sem sinal. */
+  arrivalSignal?: AdminArrivalSignal | null;
 }
 
 export interface AttendanceSummary {

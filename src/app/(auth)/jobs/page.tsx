@@ -13,6 +13,7 @@ import { VacancyPriceHistorySection } from "@/components/admin/vacancy/vacancy-p
 import { DataTable } from "@/components/shared/data-table";
 import { VacancyBoard } from "./_components/vacancy-board";
 import { whatsappLink } from "./_components/support-messages";
+import { ArrivalSignalLine } from "@/components/admin/arrival-signal-line";
 import { SupportAutoSettingsDialog } from "./_components/support-auto-settings-dialog";
 import { VacancyDispatchCell } from "./_components/vacancy-dispatch-cell";
 import { VacancyDocumentsCell } from "./_components/vacancy-documents-cell";
@@ -1054,6 +1055,7 @@ export default function JobsPage() {
                     <span className="font-semibold">{modalDetalhes.providerName}</span>
                   </p>
                 )}
+                <ArrivalSignalLine signal={modalDetalhes.raw?.arrivalSignal} className="sm:basis-full" />
                 {(() => {
                   const contato = modalDetalhes.raw?.contractorId
                     ? contractorMap.get(modalDetalhes.raw.contractorId)

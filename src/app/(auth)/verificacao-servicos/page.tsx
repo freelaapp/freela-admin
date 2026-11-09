@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ArrivalSignalLine } from "@/components/admin/arrival-signal-line";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -685,6 +686,7 @@ export default function VerificacaoServicosPage() {
                       <div>
                         <p className="font-medium text-[#1d1d1b]">{row.vacancyTitle ?? "Vaga sem título"}</p>
                         <p className="font-mono text-[11px] text-[#a3a3a3]">{row.vacancyId.slice(0, 8)}</p>
+                        <ArrivalSignalLine signal={row.arrivalSignal} className="mt-0.5" />
                       </div>
                     ),
                   },
@@ -739,6 +741,8 @@ export default function VerificacaoServicosPage() {
               contratante {emResolucao?.contractorName ?? "—"}.
             </DialogDescription>
           </DialogHeader>
+
+          <ArrivalSignalLine signal={emResolucao?.arrivalSignal} className="mb-3" />
 
           {emResolucao?.contractorReason && (
             <div className="mb-4 rounded-lg bg-[#f7f7f7] p-3 text-sm">
