@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -93,6 +93,14 @@ vi.mock("../_components/vacancy-roadmap", async (importOriginal) => ({
   VacancyRoadmap: () => null,
 }));
 
+// Vagas em lote, fatia 1 (A1): por padrão a API é a de antes (404); cada teste pode trocar.
+const lotsApi = vi.hoisted(() => ({ byVacancy: vi.fn() }));
+vi.mock("@/modules/admin/infrastructure/lots-api", () => ({ getAdminLotByVacancy: lotsApi.byVacancy }));
+function rejectWith404() {
+  const err = Object.assign(new Error("Not Found"), { isAxiosError: true, response: { status: 404, data: {} } });
+  lotsApi.byVacancy.mockRejectedValue(err);
+}
+
 import JobsPage from "../page";
 
 const EM_UMA_SEMANA = new Date(Date.now() + 7 * 24 * 3600_000).toISOString();
@@ -142,6 +150,8 @@ function ui() {
 beforeEach(() => {
   client = new QueryClient();
   state.vacancies = [vagaAberta()];
+  lotsApi.byVacancy.mockReset();
+  rejectWith404();
 });
 
 function abrirModal() {
@@ -215,5 +225,32 @@ describe("Vagas Empresa — modal 'Detalhes da vaga': sinal de chegada (Cheguei)
     state.vacancies = [{ ...vagaFechada(), arrivalSignal: null }];
     abrirModal();
     expect(screen.queryByTestId("arrival-signal")).not.toBeInTheDocument();
+  });
+});
+
+describe("Vagas Empresa: modal da vaga, lote (A1)", () => {
+  it("API sem lote (404): o modal fica igual a hoje, sem linha de lote e sem erro", async () => {
+    abrirModal();
+    await waitFor(() => expect(lotsApi.byVacancy).toHaveBeenCalledWith("vac-1"));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId("vacancy-lot-line")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByTestId("lista-candidatos")).toBeInTheDocument();
+    expect(screen.getByTestId("secao-selecao")).toBeInTheDocument();
+  });
+
+  it("vaga em lote: a linha aparece no modal, antes da rodada de seleção", async () => {
+    lotsApi.byVacancy.mockResolvedValue({
+      lot: {
+        id: "lot-1",
+        serviceDate: "2026-11-14",
+        totals: { vacancies: 12, chosen: 5, paid: 3, free: 7, chosenUnpaid: 2, candidatesToChoose: 4, functions: 1, cancelled: 0 },
+      },
+      besideLot: null,
+    });
+    abrirModal();
+    const linha = await screen.findByTestId("vacancy-lot-line");
+    expect(linha).toHaveTextContent("Lote: 12 vagas · 5 escolhidas · 3 pagas");
+    expect(linha.compareDocumentPosition(screen.getByTestId("secao-selecao")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

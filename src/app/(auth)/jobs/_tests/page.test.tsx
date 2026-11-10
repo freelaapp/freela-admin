@@ -78,6 +78,18 @@ vi.mock("../_components/vacancy-roadmap", async (importOriginal) => ({
   VacancyRoadmap: () => null,
 }));
 
+// Vagas em lote, fatia 1 (A1): a API de antes não tem a rota (404), e o modal fica como era.
+vi.mock("@/modules/admin/infrastructure/lots-api", async () => {
+  const { AxiosError } = await import("axios");
+  return {
+    getAdminLotByVacancy: vi.fn(async () => {
+      const err = new AxiosError("Not Found");
+      err.response = { status: 404, data: {} } as never;
+      throw err;
+    }),
+  };
+});
+
 import JobsPage from "../page";
 
 const vaga = (over: Partial<VacancyItem> = {}): VacancyItem => ({

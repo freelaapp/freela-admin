@@ -7,6 +7,7 @@ import { AccelerateVacancyBar } from "@/components/admin/vacancy/accelerate-vaca
 import { VacancyCandidacyList } from "@/components/admin/vacancy/vacancy-candidacy-list";
 import { VacancyReservesSection } from "@/components/admin/vacancy/vacancy-reserves-section";
 import { VacancySelectionRoundSection } from "@/components/admin/vacancy/vacancy-selection-round-section";
+import { VacancyLotLine } from "@/components/admin/vacancy/vacancy-lot-line";
 import { CompatibleInviteSection } from "@/components/admin/vacancy/compatible-invite-section";
 import { VacancyFeedbacksSection } from "@/components/admin/vacancy/vacancy-feedbacks-section";
 import { VacancyPriceHistorySection } from "@/components/admin/vacancy/vacancy-price-history-section";
@@ -1146,6 +1147,14 @@ export default function JobsPage() {
 
                 </div>
                 <div className="min-w-0 space-y-3">
+              {/* Lote da vaga (vagas em lote, fatia 1): só leitura; sem lote na API não aparece. */}
+              {modalDetalhes.raw?.id && (
+                <VacancyLotLine
+                  key={`lote-${modalDetalhes.raw.id}`}
+                  vacancyId={modalDetalhes.raw.id}
+                />
+              )}
+
               {/* Rodada de seleção (fluxo v2, fatia E, piloto): só leitura. Sem a chave da API
                   (404 FEATURE_DISABLED), a seção não aparece. Chave própria (`selecao-`). */}
               {modalDetalhes.raw?.id && (

@@ -45,6 +45,7 @@ import {
   MapPin,
   Crown,
   LifeBuoy,
+  Layers,
   UserX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -80,6 +81,8 @@ const navItems: NavItem[] = [
   { label: "Confirmação do dia", icon: PhoneCall, path: "/confirmacao-do-dia", permission: "JOBS" },
   // Fluxo v2, fatia C2: as vagas que o sistema não resolveu sozinho (mesma chave de Vagas).
   { label: "Fila do suporte", icon: LifeBuoy, path: "/fila-do-suporte", permission: "JOBS" },
+  // Vagas em lote, fatia 1: os lotes dos próximos dias, só leitura (mesma chave de Vagas).
+  { label: "Lotes", icon: Layers, path: "/lotes", permission: "JOBS" },
   { label: "Vagas — Casa", icon: Home, path: "/vagas-casa", permission: "CASA_VACANCIES" },
   { label: "Vagas Fixas / CLT", icon: ClipboardList, path: "/vagas-fixas", permission: "FIXED_JOBS" },
   {
