@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminLotCandidates, useAdminLotChoose } from "@/modules/admin/application/use-lot-day";
 import {
-  CHOICE_NO_ASK_NOTICE,
   CHOICE_NOTICE,
   canSelect,
   choiceErrorMessage,
@@ -26,6 +25,7 @@ import {
   isRetryable,
   itemAskText,
   itemStatusLabel,
+  noAskNotice,
   resultPayLine,
   resultSummaryText,
   toggleSelection,
@@ -66,9 +66,15 @@ export function LotChoiceDialog({
 
   const view = candidates.data;
   const max = view?.choiceMax || 50;
-  const names = new Map(
-    (view?.candidates ?? []).map((c) => [c.provider.providerGlobalId ?? "", c.provider.name]),
-  );
+  // Os nomes só crescem: depois da escolha a lista é relida e quem entrou sai de `candidates`.
+  const namesRef = useRef(new Map<string, string>());
+  for (const c of view?.candidates ?? []) {
+    if (c.provider.providerGlobalId) namesRef.current.set(c.provider.providerGlobalId, c.provider.name);
+  }
+  for (const c of view?.chosen ?? []) {
+    if (c.providerGlobalId) namesRef.current.set(c.providerGlobalId, c.name);
+  }
+  const names = namesRef.current;
   const busy = choose.isPending;
 
   const close = () => {
@@ -84,9 +90,9 @@ export function LotChoiceDialog({
       const res = await choose.mutateAsync({ groupKey, providerGlobalIds: selected });
       setResult(res);
       setConfirming(false);
-      // Quem entrou sai da marcação; quem foi recusado continua marcado para o admin decidir.
-      const done = new Set(res.items.filter((i) => isItemOk(i.status)).map((i) => i.providerGlobalId));
-      setSelected((prev) => prev.filter((id) => !done.has(id)));
+      // A lista é relida e muda (quem entrou vira "escolhido"; os recusados costumam sair ou ficar
+      // ocupados): a marcação recomeça do zero. O resultado por pessoa fica na tela.
+      setSelected([]);
     } catch (err) {
       setError(choiceErrorMessage(err));
       setRetry(isRetryable(err));
@@ -122,7 +128,7 @@ export function LotChoiceDialog({
 
           <div className="max-h-[55vh] space-y-4 overflow-y-auto text-sm text-[#1d1d1b]">
             <p data-testid="lot-choice-no-ask" className="rounded-lg bg-[#f7f7f7] p-3 text-xs text-[#737373]">
-              {CHOICE_NO_ASK_NOTICE}
+              {noAskNotice(view?.askPlan ?? null, view?.serviceDate ?? "")}
             </p>
 
             {candidates.isLoading && (
@@ -276,7 +282,7 @@ export function LotChoiceDialog({
                 setError(null);
                 setConfirming(true);
               }}
-              disabled={selected.length === 0 || busy || !view}
+              disabled={selected.length === 0 || busy || !view || gone}
               className="min-h-11 w-full bg-[#eca826] text-[#1d1d1b] hover:bg-[#d99a20] disabled:opacity-50 sm:w-auto"
             >
               {selected.length === 0 ? "Escolher" : `Escolher ${selected.length} ${selected.length === 1 ? "pessoa" : "pessoas"}`}

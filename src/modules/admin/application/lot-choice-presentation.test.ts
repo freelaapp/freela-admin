@@ -11,6 +11,7 @@ import {
   isRetryable,
   itemAskText,
   itemStatusLabel,
+  noAskNotice,
   resultPayLine,
   resultSummaryText,
   toggleSelection,
@@ -98,11 +99,21 @@ describe("confirmação e dia", () => {
   it("pré-pago, faturado e a pergunta automática", () => {
     const pre = confirmLines({ count: 2, billing: "PREPAID", askPlanned: true });
     expect(pre.join(" ")).toContain("a empresa é quem paga");
-    expect(pre.join(" ")).toContain("às 2 pessoas escolhidas");
+    expect(pre.join(" ")).toContain("As 2 pessoas escolhidas recebem a pergunta");
+    expect(pre.join(" ")).not.toContain("recebe o aviso de que foi escolhida");
     const inv = confirmLines({ count: 1, billing: "INVOICED", askPlanned: false });
     expect(inv.join(" ")).toContain("entram na fatura");
     expect(inv.join(" ")).not.toContain("Ainda pode vir");
     expect(inv[0]).toContain("1 aviso");
+  });
+
+  it("aviso do topo: sem askPlan, a frase simples; com askPlan, diz que a API pergunta e quando", () => {
+    expect(noAskNotice(null, "2026-11-14")).toBe(
+      "Pelo admin não há botão de “Ainda pode vir?”: quem fala com a pessoa é o suporte.",
+    );
+    const withPlan = noAskNotice({ askAt: "2026-11-14T17:02:00.000Z", answerMinutes: 60 }, "2026-11-14");
+    expect(withPlan).toContain("a API pergunta “Ainda pode vir?” sozinha");
+    expect(withPlan).toContain("a partir de 14h02, com 60 min para responder");
   });
 
   it("falta pagar com a conta, e a contagem das perguntas", () => {

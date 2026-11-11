@@ -106,7 +106,7 @@ export function askText(
       };
     case "NO_ANSWER":
       return {
-        text: `${asked}, não respondeu${ask.deadlineAt ? ` até ${at(ask.deadlineAt)}` : ""}. Saiu da vaga e voltou à lista.`,
+        text: `${asked}, não respondeu${ask.deadlineAt ? ` até ${at(ask.deadlineAt)}` : ""}. Saiu da vaga e voltou à lista; como está escolhida de novo, foi sem nova pergunta.`,
         tone: "bad",
         notes,
       };

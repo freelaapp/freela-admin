@@ -117,8 +117,46 @@ describe("A4: escolher pelo lote", () => {
     expect(items[1]).toHaveTextContent("Acabou de aceitar outro serviço nesse horário.");
     expect(screen.getByTestId("lot-choice-result")).toHaveTextContent("2 pedidas = 1 escolhidas agora + 0 já estavam escolhidas + 1 recusadas");
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    // quem entrou sai da marcação; o recusado continua marcado
-    expect(screen.getByRole("button", { name: "Escolher 1 pessoa" })).toBeInTheDocument();
+    // depois do resultado a marcação recomeça do zero
+    expect(screen.getByRole("button", { name: "Escolher" })).toBeDisabled();
+  });
+
+  it("a lista é relida depois da escolha (quem entrou vira 'escolhido'): os nomes seguem no resultado e a marcação some", async () => {
+    const after = {
+      ...view,
+      chosen: [{ candidacyId: "c1", vacancyId: "v1", providerGlobalId: "g1", name: "Ana Souza", paid: false, confirmedAt: null, ask: null }],
+      candidates: [person("g2", "João Pereira", { choosable: false, busy: true })],
+    };
+    getCandidates.mockResolvedValueOnce(view).mockResolvedValue(after);
+    choose.mockResolvedValue({
+      summary: { requested: 2, accepted: 1, alreadyChosen: 0, failed: 1, billing: "PREPAID", chosenAmountInCents: 18100, dayUnpaidCount: 1, dayUnpaidInCents: 18100 },
+      items: [
+        { providerGlobalId: "g1", status: "ACCEPTED", vacancyId: "v1", candidacyId: "c1", vacancyPaid: false, message: "Escolha feita. Falta pagar.", ask: null },
+        { providerGlobalId: "g2", status: "SCHEDULE_CONFLICT", vacancyId: null, candidacyId: null, vacancyPaid: false, message: "Acabou de aceitar outro serviço nesse horário.", ask: null },
+      ],
+    });
+    renderDialog();
+    fireEvent.click(await screen.findByLabelText("Escolher Ana Souza"));
+    fireEvent.click(screen.getByLabelText("Escolher João Pereira"));
+    fireEvent.click(screen.getByRole("button", { name: "Escolher 2 pessoas" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Confirmar escolha" }));
+    await waitFor(() => expect(getCandidates).toHaveBeenCalledTimes(2));
+    const items = await screen.findAllByTestId("lot-choice-item");
+    expect(items[0]).toHaveTextContent("Ana Souza");
+    expect(items[1]).toHaveTextContent("João Pereira");
+    expect(screen.getAllByTestId("lot-chosen")[0]).toHaveTextContent("Ana Souza");
+    expect(screen.getByRole("button", { name: "Escolher" })).toBeDisabled();
+  });
+
+  it("com `askPlan`, o topo e a confirmação dizem que a API pergunta sozinha", async () => {
+    getCandidates.mockResolvedValue({ ...view, askPlan: { askAt: "2026-11-14T17:02:00.000Z", answerMinutes: 60, delaySeconds: 120 } });
+    renderDialog();
+    fireEvent.click(await screen.findByLabelText("Escolher Ana Souza"));
+    expect(screen.getByTestId("lot-choice-no-ask")).toHaveTextContent("a API pergunta “Ainda pode vir?” sozinha");
+    fireEvent.click(screen.getByRole("button", { name: "Escolher 1 pessoa" }));
+    const confirm = await screen.findByRole("alertdialog");
+    expect(confirm).toHaveTextContent("recebe a pergunta “Ainda pode vir?” no lugar do aviso de escolha");
+    expect(confirm).not.toHaveTextContent("recebe o aviso de que foi escolhida");
   });
 
   it("422 LOT_CHOICE_TOO_MANY: mostra o máximo na confirmação e nada é dado como feito", async () => {

@@ -2,7 +2,7 @@ import { formatCents } from "@/lib/money";
 import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import type { LotCandidate, LotChoiceResult } from "@/modules/admin/infrastructure/lot-choice-api";
 import type { AdminLotChoice } from "@/modules/admin/infrastructure/lots-api";
-import { hourLabel } from "./lot-lines-presentation";
+import { hourLabel, momentLabel } from "./lot-lines-presentation";
 
 /** "Escolher pelo lote" (A4): textos e regras puras. */
 
@@ -49,13 +49,15 @@ export function toggleSelection(
 }
 
 /** Quem pode ser marcado (a API manda `choosable`) e tem `providerGlobalId`. */
-export function canSelect(candidate: Pick<LotCandidate, "choosable" | "provider">): boolean {
+type ProviderRef = { provider: Pick<LotCandidate["provider"], "providerGlobalId"> };
+
+export function canSelect(candidate: Pick<LotCandidate, "choosable"> & ProviderRef): boolean {
   return candidate.choosable && !!candidate.provider.providerGlobalId;
 }
 
 /** Por que a pessoa não dá para marcar, em português. */
 export function whyNotChoosable(
-  candidate: Pick<LotCandidate, "choosable" | "busy" | "chosenInOtherFunction" | "provider">,
+  candidate: Pick<LotCandidate, "choosable" | "busy" | "chosenInOtherFunction"> & ProviderRef,
 ): string | null {
   if (canSelect(candidate)) return null;
   if (candidate.chosenInOtherFunction) return `Já escolhida como ${candidate.chosenInOtherFunction} neste dia.`;
@@ -68,8 +70,22 @@ export function whyNotChoosable(
 export const CHOICE_NOTICE =
   "Você está escolhendo no lugar da empresa. Fica registrado no seu nome.";
 
-export const CHOICE_NO_ASK_NOTICE =
-  "Pelo admin não há botão de “Ainda pode vir?”: quem fala com a pessoa é o suporte. Se a pergunta automática estiver ligada na API, ela sai sozinha para empresa pré-paga e o resultado abaixo mostra.";
+/**
+ * O aviso do topo do diálogo. Sem `askPlan`: pelo admin não há "Ainda pode vir?" e o suporte fala
+ * com a pessoa. Com `askPlan`: a API pergunta sozinha (ela não olha quem escolheu), e o texto diz
+ * quando.
+ */
+export function noAskNotice(
+  askPlan: { askAt: string; answerMinutes: number } | null,
+  serviceDate: string,
+): string {
+  const base = "Pelo admin não há botão de “Ainda pode vir?”: quem fala com a pessoa é o suporte.";
+  if (!askPlan) return base;
+  return `${base} Atenção: nesta empresa a API pergunta “Ainda pode vir?” sozinha às pessoas escolhidas, a partir de ${momentLabel(
+    askPlan.askAt,
+    serviceDate,
+  )}, com ${askPlan.answerMinutes} min para responder, se a vaga ainda não estiver paga.`;
+}
 
 /** As linhas "Ao confirmar" do diálogo. */
 export function confirmLines(input: {
@@ -79,7 +95,9 @@ export function confirmLines(input: {
 }): string[] {
   const n = input.count;
   const lines = [
-    `Cada pessoa recebe o aviso de que foi escolhida (${n === 1 ? "1 aviso" : `${n} avisos`}), como no “Colocar na vaga”.`,
+    input.askPlanned
+      ? `${n === 1 ? "A pessoa escolhida recebe" : `As ${n} pessoas escolhidas recebem`} a pergunta “Ainda pode vir?” no lugar do aviso de escolha (empresa pré-paga, ainda sem pagamento).`
+      : `Cada pessoa recebe o aviso de que foi escolhida (${n === 1 ? "1 aviso" : `${n} avisos`}), como no “Colocar na vaga”.`,
     "A empresa é avisada de que a equipe da Freela escolheu.",
   ];
   lines.push(
@@ -88,9 +106,6 @@ export function confirmLines(input: {
       : "Empresa pré-paga: a empresa é quem paga.",
   );
   lines.push("Fatura vencida ou suspensão não barram: passa e fica registrado que você seguiu.");
-  if (input.askPlanned) {
-    lines.push(`Depois da escolha, a API pergunta “Ainda pode vir?” sozinha ${n === 1 ? "à pessoa escolhida" : `às ${n} pessoas escolhidas`} (empresa pré-paga, ainda sem pagamento).`);
-  }
   return lines;
 }
 
