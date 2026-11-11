@@ -49,6 +49,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { KpiCard } from "@/components/shared/kpi-card";
+import { OrientationQueueCard } from "./_components/orientation-queue-card";
 import { Button } from "@/components/ui/button";
 import { useAdminMetrics } from "@/modules/admin/application/use-admin-metrics";
 import type {
@@ -776,6 +777,8 @@ export default function DashboardPage() {
         <strong>Global</strong> — a mesma conta atende os dois produtos, então não são quebrados por
         módulo.
       </p>
+
+      <OrientationQueueCard />
 
       {/* Painel simplificado — os 8 indicadores da matinal (PMO jul/2026). */}
       {cardsSimplificados.length > 0 ? (

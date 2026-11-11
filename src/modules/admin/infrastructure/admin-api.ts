@@ -446,6 +446,8 @@ export interface GetAdminProvidersParams {
   city?: string;
   service?: string;
   status?: "active" | "inactive";
+  /** Situação na aula obrigatória (filtro no servidor). */
+  orientation?: OrientationStatus;
 }
 
 export interface PagedProviders {

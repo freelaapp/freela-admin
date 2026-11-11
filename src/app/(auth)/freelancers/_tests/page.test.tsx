@@ -1,12 +1,13 @@
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ProviderExportItem } from "@/modules/admin/infrastructure/providers-export-api";
 
-const { mutation } = vi.hoisted(() => ({
+const { mutation, useAdminProvidersMock } = vi.hoisted(() => ({
   mutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAdminProvidersMock: vi.fn(),
 }));
 
 const ana = {
@@ -32,7 +33,15 @@ vi.mock("@/modules/auth/application/use-area-guard", () => ({
   useAreaGuard: () => ({ isChecking: false, allowed: true }),
 }));
 vi.mock("@/modules/admin/application/use-admin-providers", () => ({
-  useAdminProviders: () => ({ data: { data: [ana], total: 1 }, isLoading: false, isError: false, isFetching: false }),
+  useAdminProviders: (params: unknown) => {
+    useAdminProvidersMock(params);
+    return {
+      data: { data: [{ ...ana, orientationStatus: "APPROVED" }, { ...ana, id: "prov-2", name: "Bia Lima" }], total: 2 },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+    };
+  },
   useAdminBanFreelancer: mutation,
   useProvidersFilterOptions: () => ({ data: { ufs: [], cities: [], services: [] } }),
   useClearLowPriority: mutation,
@@ -65,5 +74,41 @@ describe("Freelancers — modal no celular", () => {
     const bio = screen.getByText("Trabalho com eventos há 5 anos.");
     expect(bio.closest(".overflow-y-auto")).toHaveClass("max-h-[88vh]");
     expect(screen.getAllByRole("button", { name: "Fechar" }).length).toBeGreaterThan(0);
+  });
+
+  it("coluna Onboarding entre Cadastro e Status: Aprovado e — quando a API não manda", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FreelancersPage />
+      </QueryClientProvider>,
+    );
+    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent?.trim());
+    const i = headers.findIndex((h) => h?.startsWith("Onboarding"));
+    expect(i).toBeGreaterThan(-1);
+    expect(headers[i - 1]).toMatch(/^Cadastro/);
+    expect(headers[i + 1]).toMatch(/^Status/);
+    const rows = screen.getAllByRole("row");
+    const cells = (r: HTMLElement) => within(r).getAllByRole("cell")[i].textContent;
+    expect(cells(rows.find((r) => r.textContent?.includes("Ana Souza"))!)).toBe("Aprovado");
+    expect(cells(rows.find((r) => r.textContent?.includes("Bia Lima"))!)).toBe("—");
+  });
+
+  it("filtro Onboarding vai ao servidor e 'Limpar filtros' zera", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FreelancersPage />
+      </QueryClientProvider>,
+    );
+    const select = screen.getByDisplayValue("Onboarding");
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Onboarding",
+      "Pendente",
+      "Aprovado",
+      "Reprovado",
+    ]);
+    fireEvent.change(select, { target: { value: "APPROVED" } });
+    expect(useAdminProvidersMock).toHaveBeenLastCalledWith(expect.objectContaining({ orientation: "APPROVED" }));
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    expect(useAdminProvidersMock).toHaveBeenLastCalledWith(expect.objectContaining({ orientation: undefined }));
   });
 });

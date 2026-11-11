@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Eye, Pencil, Ban, History, Star, Briefcase, MapPin, Phone, User, Award, ShieldAlert, Loader2, ChevronLeft, ChevronRight, Trash2, ArrowUpCircle, Download, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
+import { OrientationStatusBadge } from "@/components/admin/orientation/orientation-status-badge";
+import type { OrientationStatus } from "@/modules/admin/infrastructure/orientation-api";
 import { OrientationProviderSection } from "@/components/admin/orientation/orientation-provider-section";
 import { PixKeyReplaceSection } from "@/components/admin/provider/pix-key-replace-section";
 import { CompletenessCard } from "./_components/completeness-card";
@@ -189,10 +191,11 @@ export default function FreelancersPage() {
   const [cargoFilter, setCargoFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [prioridadeFilter, setPrioridadeFilter] = useState<PriorityFilter>("");
+  const [orientationFilter, setOrientationFilter] = useState("");
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, estadoFilter, cidadeFilter, cargoFilter, statusFilter, prioridadeFilter]);
+  }, [debouncedSearch, estadoFilter, cidadeFilter, cargoFilter, statusFilter, prioridadeFilter, orientationFilter]);
 
   // Filtros aplicados no servidor — os mesmos da listagem e da exportação.
   const serverFilters = {
@@ -201,6 +204,7 @@ export default function FreelancersPage() {
     city: cidadeFilter || undefined,
     service: cargoFilter || undefined,
     status: (statusFilter as "active" | "inactive") || undefined,
+    orientation: (orientationFilter as OrientationStatus) || undefined,
   };
 
   const { data, isLoading, isError, isFetching } = useAdminProviders({
@@ -491,6 +495,12 @@ export default function FreelancersPage() {
       className: "hidden lg:table-cell",
       sortable: true,
       sortAccessor: (row: Row) => (row.cadastro ? new Date(row.cadastro) : null),
+    },
+    {
+      // Situação na aula obrigatória; API antiga sem o campo → "—".
+      header: "Onboarding",
+      accessor: (row: Row) => <OrientationStatusBadge status={row.raw.orientationStatus} />,
+      className: "hidden lg:table-cell",
     },
     {
       header: "Status",
@@ -1023,7 +1033,17 @@ export default function FreelancersPage() {
               ]}
               placeholder="Prioridade"
             />
-            {(estadoFilter || cidadeFilter || cargoFilter || statusFilter || prioridadeFilter) && (
+            <FilterSelect
+              value={orientationFilter}
+              onChange={setOrientationFilter}
+              options={[
+                { value: "PENDING", label: "Pendente" },
+                { value: "APPROVED", label: "Aprovado" },
+                { value: "REJECTED", label: "Reprovado" },
+              ]}
+              placeholder="Onboarding"
+            />
+            {(estadoFilter || cidadeFilter || cargoFilter || statusFilter || prioridadeFilter || orientationFilter) && (
               <button
                 onClick={() => {
                   setEstadoFilter("");
@@ -1031,6 +1051,7 @@ export default function FreelancersPage() {
                   setCargoFilter("");
                   setStatusFilter("");
                   setPrioridadeFilter("");
+                  setOrientationFilter("");
                 }}
                 className="h-9 px-3 rounded-lg text-sm text-[#737373] hover:text-[#1d1d1b] hover:bg-[#f7f7f7] cursor-pointer transition-colors"
               >
