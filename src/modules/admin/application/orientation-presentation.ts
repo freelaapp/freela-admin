@@ -1,5 +1,6 @@
 import { apiErrorOf } from "../infrastructure/api-error";
 import type {
+  OrientationCancelReason,
   OrientationEnrollmentStatus,
   OrientationEventRow,
   OrientationSessionAlert,
@@ -100,9 +101,9 @@ const ENROLLMENT_LABELS: Record<OrientationEnrollmentStatus, string> = {
 
 export function enrollmentStatusLabel(
   status: OrientationEnrollmentStatus | string,
-  cancelledReason?: string | null,
+  cancelledReason?: OrientationCancelReason | null,
 ): string {
-  if (status === "CANCELLED" && cancelledReason === "session_cancelled") return "Turma cancelada";
+  if (status === "CANCELLED" && cancelledReason === "SESSION_CANCELLED") return "Turma cancelada";
   return ENROLLMENT_LABELS[status as OrientationEnrollmentStatus] ?? status;
 }
 

@@ -20,6 +20,16 @@ export type OrientationEnrollmentStatus =
   | "CANCELLED"
   | "MOVED";
 export type OrientationSessionAlert = "LOW_BOOKINGS" | "NO_LINK_24H" | "ATTENDANCE_OPEN";
+export type OrientationOrigin = "APP" | "WEB" | "TOKEN_LINK" | "ADMIN";
+export type OrientationCancelReason = "BY_FREELANCER" | "BY_ADMIN" | "SESSION_CANCELLED";
+export type OrientationMeetSource = "GOOGLE" | "MANUAL";
+export type OrientationGoogleSyncStatus =
+  | "NOT_CONNECTED"
+  | "PENDING"
+  | "SYNCING"
+  | "SYNCED"
+  | "FAILED"
+  | "DELETE_PENDING";
 export type AttendanceResult = "APPROVED" | "REJECTED" | "NO_SHOW";
 
 export interface OrientationSettings {
@@ -83,8 +93,8 @@ export interface OrientationSessionView {
   hostAdminId: string;
   hostName: string | null;
   meetUrl: string | null;
-  meetSource: string;
-  googleSyncStatus: string;
+  meetSource: OrientationMeetSource | null;
+  googleSyncStatus: OrientationGoogleSyncStatus;
   googleSyncError: string | null;
   audience: { ufs: string[]; cities: string[] };
   seriesId: string | null;
@@ -100,7 +110,7 @@ export interface OrientationEnrollee {
   providerGlobalId: string;
   userId: string;
   status: string;
-  origin: string;
+  origin: OrientationOrigin;
   bookedAt: string;
   notes: string | null;
   firstJoinClickAt: string | null;
@@ -184,7 +194,7 @@ export interface OrientationEnrollmentView {
   sessionId: string;
   providerGlobalId: string;
   status: OrientationEnrollmentStatus;
-  origin: string;
+  origin: OrientationOrigin;
   bookedAt: string;
   startsAt: string;
   endsAt: string;
@@ -194,11 +204,11 @@ export interface OrientationEnrollmentRow {
   id: string;
   sessionId: string;
   status: OrientationEnrollmentStatus;
-  origin: string;
+  origin: OrientationOrigin;
   bookedAt: string;
   resultAt: string | null;
   notes: string | null;
-  cancelledReason: string | null;
+  cancelledReason: OrientationCancelReason | null;
   session: { startsAt: string; endsAt: string; status: OrientationSessionStatus };
 }
 

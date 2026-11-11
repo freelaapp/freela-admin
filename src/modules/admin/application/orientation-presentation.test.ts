@@ -81,7 +81,7 @@ describe("rótulos", () => {
     expect(enrollmentStatusLabel("NO_SHOW")).toBe("Faltou");
     expect(enrollmentStatusLabel("MOVED")).toBe("Trocou de turma");
     expect(enrollmentStatusLabel("CANCELLED")).toBe("Cancelou");
-    expect(enrollmentStatusLabel("CANCELLED", "session_cancelled")).toBe("Turma cancelada");
+    expect(enrollmentStatusLabel("CANCELLED", "SESSION_CANCELLED")).toBe("Turma cancelada");
   });
   it("como foi aprovado", () => {
     expect(approvedViaLabel("CLASS")).toBe("Fez a aula");
