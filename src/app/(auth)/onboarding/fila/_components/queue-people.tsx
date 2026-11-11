@@ -47,20 +47,20 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, busy, sel
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const name = (r: QueueRow) => r.name?.trim() || "Sem nome";
 
-  const check = (r: QueueRow) => (
+  const check = (r: QueueRow, layout: "tabela" | "cartao") => (
     <input
       type="checkbox"
       className="h-5 w-5 md:h-4 md:w-4"
       aria-label={`Selecionar ${name(r)}`}
       disabled={busy || !r.providerGlobalId}
-      aria-describedby={r.providerGlobalId ? undefined : `sem-convite-${r.userId}`}
+      aria-describedby={r.providerGlobalId ? undefined : `sem-convite-${layout}-${r.userId}`}
       checked={!!r.providerGlobalId && selected.has(r.providerGlobalId)}
       onChange={() => r.providerGlobalId && onToggle(r.providerGlobalId)}
     />
   );
-  const reason = (r: QueueRow) =>
+  const reason = (r: QueueRow, layout: "tabela" | "cartao") =>
     r.providerGlobalId ? null : (
-      <p id={`sem-convite-${r.userId}`} className="text-xs text-[#a16207]">
+      <p id={`sem-convite-${layout}-${r.userId}`} className="text-xs text-[#a16207]">
         {NO_INVITE}
       </p>
     );
@@ -116,8 +116,8 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, busy, sel
           <tbody className="divide-y divide-[#f0f0f0]">
             {rows.map((r) => (
               <tr key={r.userId}>
-                <td className="px-3 py-2">{check(r)}</td>
-                <td className="px-3 py-2 font-medium text-[#1d1d1b]">{name(r)}{reason(r)}</td>
+                <td className="px-3 py-2">{check(r, "tabela")}</td>
+                <td className="px-3 py-2 font-medium text-[#1d1d1b]">{name(r)}{reason(r, "tabela")}</td>
                 <td className="px-3 py-2">{whats(r)}</td>
                 <td className="px-3 py-2">{place(r)}</td>
                 <td className="px-3 py-2">{r.roles.join(", ") || "—"}</td>
@@ -151,7 +151,7 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, busy, sel
           <div key={r.userId} className="rounded-lg border border-[#e5e5e5] bg-white p-3 text-[13px]">
             <div className="flex items-start justify-between gap-2">
               <p className="font-medium text-[#1d1d1b]">{name(r)}</p>
-              {check(r)}
+              {check(r, "cartao")}
             </div>
             <div className="mt-1 space-y-0.5 text-[#525252]">
               <p>{place(r)} · {r.roles.join(", ") || "sem função"}</p>
@@ -159,7 +159,7 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, busy, sel
               <p>Serviços: {r.totalCompletedServices} · Faltas: {r.noShows}</p>
               <p>Último acesso: {dayBr(r.lastActiveDay)}</p>
               <p>{STATUS_TEXT[r.status] ?? r.status}</p>
-              {reason(r)}
+              {reason(r, "cartao")}
             </div>
           </div>
         ))}

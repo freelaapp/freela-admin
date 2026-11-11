@@ -20,6 +20,8 @@ import {
   useOrientationQueuePeople,
 } from "@/modules/admin/application/use-orientation";
 import type { OrientationQueueFilter } from "@/modules/admin/infrastructure/orientation-api";
+import { ConvocationDialog, type ConvocationTarget } from "./_components/convocation-dialog";
+import { ConvocationsProgress } from "./_components/convocations-progress";
 import { QueueCounters } from "./_components/queue-counters";
 import { QueueFiltersBar } from "./_components/queue-filters-bar";
 import { QueueGroups } from "./_components/queue-groups";
@@ -42,6 +44,8 @@ function FilaScreen() {
   const page = cur.page;
   const selected = cur.ids;
   const [exportNote, setExportNote] = useState<string | null>(null);
+  const [limitText, setLimitText] = useState("");
+  const [convoke, setConvoke] = useState<{ target: ConvocationTarget; requestKey: string } | null>(null);
 
   const counters = useOrientationQueueCounters();
   const groups = useOrientationQueue(filter);
@@ -88,6 +92,11 @@ function FilaScreen() {
     }
   };
 
+  const limitValid = /^\d{1,5}$/.test(limitText) && Number(limitText) >= 1 && Number(limitText) <= 10_000;
+  const limitOk = limitText === "" || limitValid;
+  const openConvocation = (target: ConvocationTarget) =>
+    setConvoke({ target, requestKey: crypto.randomUUID() });
+
   return (
     <div className="mx-auto max-w-6xl space-y-4 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -128,6 +137,44 @@ function FilaScreen() {
         </p>
       )}
 
+      {people.data && people.data.rows.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-lg border border-[#e5e5e5] bg-white p-3 md:flex-row md:flex-wrap md:items-end">
+          <Button
+            className="min-h-11 md:min-h-9"
+            disabled={selected.size === 0}
+            onClick={() => openConvocation({ kind: "picked", ids: [...selected] })}
+          >
+            Convocar selecionados ({formatCount(selected.size)})
+          </Button>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex items-center gap-2 text-sm text-[#525252]">
+              <label htmlFor="convocar-limite">no máximo</label>
+              <input
+                id="convocar-limite"
+                inputMode="numeric"
+                placeholder="todos"
+                value={limitText}
+                onChange={(e) => setLimitText(e.target.value.trim())}
+                aria-invalid={!limitOk}
+                className="h-11 w-24 rounded-md border border-[#e5e5e5] px-3 text-sm md:h-9"
+              />
+              <span>pessoas</span>
+            </div>
+            <Button
+              variant="outline"
+              className="min-h-11 md:min-h-9"
+              disabled={!limitOk || people.data.total === 0}
+              onClick={() =>
+                openConvocation({ kind: "filtered", ...(limitValid ? { limit: Number(limitText) } : {}) })
+              }
+            >
+              Convocar o grupo filtrado
+            </Button>
+          </div>
+          {!limitOk && <p role="alert" className="text-xs text-[#991b1b]">Digite um número de 1 a 10.000.</p>}
+        </div>
+      )}
+
       {people.isLoading ? (
         <div role="status" aria-label="Carregando" className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-[#eca826]" />
@@ -153,6 +200,19 @@ function FilaScreen() {
           onToggle={toggle}
           onToggleAll={toggleAll}
           onPage={(p) => setView({ key: filterKey, page: p, ids: new Set() })}
+        />
+      )}
+
+      <ConvocationsProgress />
+
+      {convoke && (
+        <ConvocationDialog
+          key={convoke.requestKey}
+          target={convoke.target}
+          filter={filter}
+          requestKey={convoke.requestKey}
+          onClose={() => setConvoke(null)}
+          onSent={() => setView({ ...cur, ids: new Set() })}
         />
       )}
     </div>

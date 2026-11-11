@@ -221,7 +221,7 @@ describe("Fila", () => {
     rerenderWith("situacao=APPROVED");
     rerenderWith("");
     await screen.findAllByText("Pessoa 1");
-    expect(screen.queryByText(/selecionado/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/selecionados? nesta página/)).not.toBeInTheDocument();
   });
 
   it("filtros vêm da URL", async () => {
