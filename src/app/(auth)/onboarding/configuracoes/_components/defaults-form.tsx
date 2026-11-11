@@ -13,30 +13,37 @@ import {
   buildSettingsPatch,
   SETTING_FIELDS,
   settingsToForm,
+  type SettingsFormState,
   type NumericSettingKey,
 } from "../_lib/settings-form";
 
 export function DefaultsForm({ settings }: { settings: OrientationSettingsView }) {
-  const incoming = settingsToForm(settings);
-  const incomingKey = JSON.stringify(incoming);
-  const [form, setForm] = useState(incoming);
-  const [base, setBase] = useState(incomingKey);
-  // Valores novos do servidor: só entram se a pessoa não mexeu em nada; edição local é mantida.
-  if (incomingKey !== base) {
-    setBase(incomingKey);
-    if (JSON.stringify(form) === base) setForm(incoming);
+  const [base, setBase] = useState(settings);
+  const [form, setForm] = useState(() => settingsToForm(settings));
+  // Valores novos do servidor entram campo a campo: o que a pessoa não mexeu acompanha o servidor,
+  // o que ela editou fica. A base é a última leitura: o PUT compara com ela e só leva as edições.
+  if (settings !== base) {
+    const oldForm = settingsToForm(base);
+    const newForm = settingsToForm(settings);
+    setBase(settings);
+    setForm(
+      Object.fromEntries(
+        SETTING_FIELDS.map((f) => [f.key, form[f.key] === oldForm[f.key] ? newForm[f.key] : form[f.key]]),
+      ) as SettingsFormState,
+    );
   }
   const update = useUpdateOrientationSettings();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const built = buildSettingsPatch(form, settings);
+    const built = buildSettingsPatch(form, base);
     if (!built.ok) {
       toast.error(built.error);
       return;
     }
     update.mutate(built.payload, {
       onSuccess: (saved) => {
+        setBase(saved);
         setForm(settingsToForm(saved));
         toast.success("Padrões salvos. Valem em até 1 minuto.");
       },

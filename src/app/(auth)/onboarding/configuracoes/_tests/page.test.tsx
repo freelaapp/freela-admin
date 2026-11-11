@@ -151,4 +151,25 @@ describe("Configurações do Onboarding", () => {
     await screen.findByText(/Configuração alterada por Ana/);
     expect(screen.getByLabelText("Trocas de horário permitidas")).toHaveValue("9");
   });
+
+  it("enquanto os números carregam: o cartão e o botão de desligar já aparecem e funcionam", async () => {
+    api.getOrientationSummary.mockReturnValue(new Promise(() => {}));
+    api.getOrientationSettings.mockResolvedValue({ ...settings, gateMode: "ALL" });
+    renderPage();
+    fireEvent.click((await screen.findAllByRole("button", { name: "Usar este modo" }))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Desligar o bloqueio" }));
+    await waitFor(() => expect(api.updateOrientationSettings).toHaveBeenCalledWith({ gateMode: "OFF" }));
+  });
+
+  it("salvar manda só o que esta pessoa editou, sem desfazer a mudança de outro admin", async () => {
+    renderPage();
+    const duration = await screen.findByLabelText("Duração da aula (min)");
+    fireEvent.change(duration, { target: { value: "90" } });
+    api.getOrientationSettings.mockResolvedValue({ ...settings, maxChanges: 4, updatedAt: "2026-11-11T16:00:00Z", updatedByAdminName: "Bia" });
+    fireEvent.click(await screen.findByRole("switch", { name: /vagas fixas/ }));
+    await screen.findByText(/Configuração alterada por Bia/);
+    api.updateOrientationSettings.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Salvar padrões" }));
+    await waitFor(() => expect(api.updateOrientationSettings).toHaveBeenCalledWith({ defaultDurationMin: 90 }));
+  });
 });

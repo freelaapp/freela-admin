@@ -113,23 +113,21 @@ export function GateModeSection({ settings }: { settings: OrientationSettingsVie
         Quem precisa fazer a aula para ver vagas
       </h2>
       {summary.isLoading && <Loader2 className="mt-4 h-5 w-5 animate-spin text-neutral-400" />}
-      {!summary.isLoading && (
-        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-          {(summary.data
-            ? modeCards(summary.data, settings.gateMode)
-            : modeCardsWithoutNumbers(settings.gateMode, settings.newSignupsSince)
-          ).map((card) => (
-            <Card
-              key={card.mode}
-              card={card}
-              source={summary.data ? summarySource(summary.data) : ""}
-              canChange={isSuperAdmin}
-              busy={update.isPending}
-              onChoose={setTarget}
-            />
-          ))}
-        </div>
-      )}
+      <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+        {(summary.data
+          ? modeCards(summary.data, settings.gateMode)
+          : modeCardsWithoutNumbers(settings.gateMode, settings.newSignupsSince)
+        ).map((card) => (
+          <Card
+            key={card.mode}
+            card={card}
+            source={summary.data ? summarySource(summary.data) : ""}
+            canChange={isSuperAdmin}
+            busy={update.isPending}
+            onChoose={setTarget}
+          />
+        ))}
+      </div>
       {!summary.isLoading && !summary.data && (
         <p className="mt-2 text-xs text-[#737373]">
           Não consegui contar os freelancers agora. Desligar o bloqueio continua possível.{" "}
