@@ -88,10 +88,14 @@ function SeriesBody({
   });
   const [preview, setPreview] = useState<OrientationSeriesResult | null>(null);
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
-  // Mesmo plano reenviado (timeout, duplo clique) = mesmo id: a API não cria a série duas vezes.
-  // Qualquer campo do formulário que mude é outro plano e leva outro id.
-  const seriesId = useRef<string>("");
-  if (!seriesId.current) seriesId.current = crypto.randomUUID();
+  // O id vale para um plano exato (campos + datas puladas + quem dá a aula já resolvido): a API só
+  // compara o id, então plano diferente com o mesmo id seria dado como "já criado".
+  const idRef = useRef<{ key: string; id: string }>({ key: "", id: "" });
+  const idFor = (skipDates: string[]): string => {
+    const key = JSON.stringify([{ ...form, hostAdminId: form.hostAdminId || defaultHost }, skipDates]);
+    if (idRef.current.key !== key) idRef.current = { key, id: crypto.randomUUID() };
+    return idRef.current.id;
+  };
   const sending = useRef(false);
   const defaultHost = useDefaultHostId();
   const previewMutation = useCreateOrientationSeries();
@@ -99,7 +103,6 @@ function SeriesBody({
   const limits = { maxCapacity: settings.maxCapacity };
 
   const change = (patch: Partial<SeriesFormState>) => {
-    seriesId.current = crypto.randomUUID();
     setPreview(null);
     setSkipped(new Set());
     setForm((f) => ({ ...f, ...patch }));
@@ -113,7 +116,7 @@ function SeriesBody({
     const built = buildSeriesPayload(planForm(), limits, {
       dryRun: true,
       skipDates: [],
-      seriesId: seriesId.current,
+      seriesId: idFor([]),
     });
     if (!built.ok) {
       toast.error(built.error);
@@ -141,10 +144,11 @@ function SeriesBody({
 
   const create = () => {
     if (!preview || sending.current || createMutation.isPending) return;
+    const skipDates = [...skipped].sort();
     const built = buildSeriesPayload(planForm(), limits, {
       dryRun: false,
-      skipDates: [...skipped].sort(),
-      seriesId: seriesId.current,
+      skipDates,
+      seriesId: idFor(skipDates),
     });
     if (!built.ok) {
       toast.error(built.error);

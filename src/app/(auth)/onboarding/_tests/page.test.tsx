@@ -192,8 +192,28 @@ describe("Turmas do Onboarding", () => {
       const real = calls.filter((c) => !c.dryRun);
       expect(real).toHaveLength(1);
       expect(real[0].skipDates).toEqual(["2026-11-20", "2026-11-27"]);
-      expect(real[0].seriesId).toBe(calls[0].seriesId);
+      expect(real[0].seriesId).not.toBe(calls[0].seriesId);
       expect(real[0]).not.toHaveProperty("notes");
+    });
+
+    it("reenviar o mesmo plano mantém o seriesId; sem desmarcar nada a prévia e o envio usam o mesmo", async () => {
+      let fail = true;
+      api.createOrientationSeries.mockImplementation(async (input: { dryRun: boolean }) => {
+        if (input.dryRun) return { seriesId: null, sessions: dates };
+        if (fail) {
+          fail = false;
+          throw new Error("timeout");
+        }
+        return { seriesId: "x", sessions: dates };
+      });
+      vi.useRealTimers();
+      await openPreview();
+      fireEvent.click(screen.getByRole("button", { name: "Criar 10 turmas" }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      fireEvent.click(screen.getByRole("button", { name: "Criar 10 turmas" }));
+      await waitFor(() => expect(toast.success).toHaveBeenCalled());
+      const ids = api.createOrientationSeries.mock.calls.map((c) => c[0].seriesId);
+      expect(new Set(ids).size).toBe(1);
     });
 
     it("mostra que as turmas já tinham sido criadas", async () => {
