@@ -7,6 +7,8 @@ import {
 } from "./support-queue.test-fixtures";
 import {
   contactsLabel,
+  groupSupportCases,
+  lotGroupLabel,
   isSupportQueueDisabled,
   newsClock,
   readyMessages,
@@ -211,5 +213,37 @@ describe("mensagens prontas A a E (Guia do suporte)", () => {
     ).toBe(true);
     expect(text.E).toContain("Garçom em [bairro/cidade]");
     expect(text.E).toContain("R$ [valor]");
+  });
+});
+
+describe("fila do suporte: casos do mesmo lote (fatia 6)", () => {
+  const lot = { id: "lot-1", casesInLot: 3, leadCaseId: "c1", caseIds: ["c1", "c2", "c3"] };
+
+  it("sem `lot` em nenhum caso: um bloco por caso, na mesma ordem (tela como hoje)", () => {
+    const items = [supportCaseItem({ id: "a" }), supportCaseItem({ id: "b" })];
+    const groups = groupSupportCases(items);
+    expect(groups.map((g) => [g.lot, g.items.map((i) => i.id)])).toEqual([
+      [null, ["a"]],
+      [null, ["b"]],
+    ]);
+  });
+
+  it("junta os casos do mesmo lote no lugar do primeiro; os outros ficam onde estão", () => {
+    const items = [
+      supportCaseItem({ id: "c1", reason: "DAILY_CUTOFF", lot }),
+      supportCaseItem({ id: "solo" }),
+      supportCaseItem({ id: "c2", reason: "DAILY_CUTOFF", lot }),
+    ];
+    const groups = groupSupportCases(items);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].lot?.id).toBe("lot-1");
+    expect(groups[0].items.map((i) => i.id)).toEqual(["c1", "c2"]);
+    expect(groups[1].items.map((i) => i.id)).toEqual(["solo"]);
+  });
+
+  it("rótulo: 'Lote: N casos', com quantos aparecem quando o filtro esconde parte", () => {
+    expect(lotGroupLabel({ casesInLot: 3 }, 3)).toBe("Lote: 3 casos");
+    expect(lotGroupLabel({ casesInLot: 3 }, 2)).toBe("Lote: 3 casos (2 nesta lista)");
+    expect(lotGroupLabel({ casesInLot: 1 }, 1)).toBe("Lote: 1 caso");
   });
 });

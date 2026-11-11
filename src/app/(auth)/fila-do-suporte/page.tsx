@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Loader2, MoonStar, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,7 +14,11 @@ import {
   useAssumeSupportCase,
   useSupportCases,
 } from "@/modules/admin/application/use-support-cases";
-import { isSupportQueueDisabled } from "@/modules/admin/application/support-queue-presentation";
+import {
+  groupSupportCases,
+  isSupportQueueDisabled,
+  lotGroupLabel,
+} from "@/modules/admin/application/support-queue-presentation";
 import type {
   SupportCaseFilter,
   SupportCaseItem,
@@ -210,18 +215,39 @@ export default function FilaDoSuportePage() {
 
       {data && items.length > 0 && (
         <div className="grid gap-3">
-          {items.map((item) => (
-            <SupportCaseCard
-              key={item.id}
-              item={item}
-              now={now}
-              cutoffLabel={data.cutoffLabel}
-              myAdminId={user?.id ?? null}
-              assuming={assume.isPending && assume.variables === item.id}
-              onAssume={() => handleAssume(item)}
-              onOpenDialog={(kind) => setDialog({ kind, item })}
-            />
-          ))}
+          {groupSupportCases(items).map((group) => {
+            const cards = group.items.map((item) => (
+              <SupportCaseCard
+                key={item.id}
+                item={item}
+                now={now}
+                cutoffLabel={data.cutoffLabel}
+                myAdminId={user?.id ?? null}
+                assuming={assume.isPending && assume.variables === item.id}
+                onAssume={() => handleAssume(item)}
+                onOpenDialog={(kind) => setDialog({ kind, item })}
+              />
+            ));
+            if (!group.lot) return cards;
+            return (
+              <section
+                key={`lot-${group.lot.id}`}
+                data-testid="support-lot-group"
+                className="grid gap-3 rounded-lg border border-[#eca826]/50 bg-[#fffaf0] p-3"
+              >
+                <p className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-[#1d1d1b]">
+                  <span>{lotGroupLabel(group.lot, group.items.length)}</span>
+                  <Link
+                    href={`/lotes/${encodeURIComponent(group.lot.id)}`}
+                    className="text-[#c97b0e] hover:underline"
+                  >
+                    Abrir o lote
+                  </Link>
+                </p>
+                {cards}
+              </section>
+            );
+          })}
         </div>
       )}
 

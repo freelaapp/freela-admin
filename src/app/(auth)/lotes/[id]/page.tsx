@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -17,6 +18,14 @@ import {
   lotCountsLine,
 } from "@/modules/admin/application/lots-presentation";
 import { formatVacancyTime } from "@/lib/date.utils";
+import { LotChoiceDialog } from "@/components/admin/lots/lot-choice-dialog";
+import { LotLinesSection } from "@/components/admin/lots/lot-lines-section";
+import {
+  asksLine,
+  exitReasonText,
+  unpaidLine,
+} from "@/modules/admin/application/lot-choice-presentation";
+import { momentLabel } from "@/modules/admin/application/lot-lines-presentation";
 
 function BackLink() {
   return (
@@ -41,6 +50,8 @@ export default function LoteDetalhePage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
   const lot = useAdminLot(id, allowed && !!id);
+  // A4: a função aberta no "Escolher pelo lote" (chave + título).
+  const [choosing, setChoosing] = useState<{ groupKey: string; title: string } | null>(null);
 
   if (isChecking || !allowed) {
     return (
@@ -89,6 +100,8 @@ export default function LoteDetalhePage() {
   const data = lot.data;
   const sees = companySeesText(data);
   const reasons = attentionReasons(data);
+  const choice = data.choice;
+  const asks = asksLine(choice?.asks ?? null);
 
   return (
     <div>
@@ -113,6 +126,13 @@ export default function LoteDetalhePage() {
         </p>
       )}
 
+      {choice && (
+        <div data-testid="lot-choice-day" className="mb-4 space-y-1 rounded-lg border border-[#e5e5e5] bg-white p-3 text-sm">
+          <p>{unpaidLine(choice)}</p>
+          {asks && <p className="text-[#737373]">{asks}</p>}
+        </div>
+      )}
+
       <div className="grid gap-3 md:grid-cols-2">
         {data.groups.map((group) => (
           <article
@@ -133,6 +153,15 @@ export default function LoteDetalhePage() {
               {group.candidatesToChoose}{" "}
               {group.candidatesToChoose === 1 ? "candidato esperando" : "candidatos esperando"}
             </p>
+            {choice && !data.past && (
+              <Button
+                variant="outline"
+                className="min-h-11 w-full"
+                onClick={() => setChoosing({ groupKey: group.groupKey, title: group.title })}
+              >
+                Escolher pelo lote
+              </Button>
+            )}
             {group.representativeVacancyId && (
               <Link
                 href={`/jobs?vaga=${encodeURIComponent(group.representativeVacancyId)}`}
@@ -144,6 +173,22 @@ export default function LoteDetalhePage() {
           </article>
         ))}
       </div>
+
+      <LotLinesSection lotId={id} enabled />
+
+      {choice && choice.exits.length > 0 && (
+        <section className="mt-6 space-y-2" aria-label="Quem saiu">
+          <h2 className="text-sm font-semibold text-[#1d1d1b]">Quem estava escolhido e saiu</h2>
+          {choice.exits.map((e) => (
+            <p key={`${e.candidacyId}-${e.at}`} data-testid="lot-exit" className="rounded-lg border border-[#e5e5e5] p-3 text-sm">
+              <span className="font-medium">{e.name ?? "Pessoa"}</span> · {e.title} · {exitReasonText(e.reason)}
+              {e.at ? ` às ${momentLabel(e.at, data.serviceDate)}` : ""}
+              {e.vacancyPaid ? " · a vaga segue paga" : ""}
+              {e.vacancyRefilled ? " · já tem outra pessoa" : ""}
+            </p>
+          ))}
+        </section>
+      )}
 
       {data.inSelection.length > 0 && (
         <section className="mt-6 space-y-2">
@@ -166,6 +211,16 @@ export default function LoteDetalhePage() {
             </p>
           ))}
         </section>
+      )}
+
+      {choosing && (
+        <LotChoiceDialog
+          lotId={id}
+          groupKey={choosing.groupKey}
+          title={choosing.title}
+          onClose={() => setChoosing(null)}
+          onGroupGone={() => void lot.refetch()}
+        />
       )}
     </div>
   );

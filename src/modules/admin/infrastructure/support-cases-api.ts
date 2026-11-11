@@ -65,6 +65,11 @@ export interface SupportCaseItem {
   };
   contractor: { contactName: string | null; phone: string | null };
   contactsCount: number;
+  /**
+   * Vagas em lote, fatia 6: só nos casos `DAILY_CUTOFF` de vaga de lote, e só com a chave da API
+   * ligada. Ausente = o caso aparece como sempre.
+   */
+  lot?: { id: string; casesInLot: number; leadCaseId: string; caseIds: string[] };
 }
 
 export interface SupportCaseContact {

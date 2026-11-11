@@ -409,3 +409,32 @@ describe("Fila do suporte (admin)", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("Fila do suporte: casos do mesmo lote (fatia 6)", () => {
+  const lot = { id: "lot-9", casesInLot: 2, leadCaseId: "c1", caseIds: ["c1", "c2"] };
+
+  it("agrupa os casos do corte do mesmo lote, com 'Lote: 2 casos' e o link para o lote", async () => {
+    vi.mocked(listSupportCases).mockResolvedValue(
+      supportCaseList({
+        items: [
+          supportCaseItem({ id: "c1", reason: "DAILY_CUTOFF", lot }),
+          supportCaseItem({ id: "c2", vacancyId: "vac-2", reason: "DAILY_CUTOFF", lot }),
+        ],
+      }),
+    );
+    renderPage();
+    const group = await screen.findByTestId("support-lot-group");
+    expect(group).toHaveTextContent("Lote: 2 casos");
+    expect(within(group).getByRole("link", { name: "Abrir o lote" })).toHaveAttribute("href", "/lotes/lot-9");
+    expect(within(group).getAllByRole("article")).toHaveLength(2);
+  });
+
+  it("sem o campo `lot`: nenhum grupo, a tela é a de sempre", async () => {
+    vi.mocked(listSupportCases).mockResolvedValue(
+      supportCaseList({ items: [supportCaseItem({ id: "c1" })] }),
+    );
+    renderPage();
+    expect(await screen.findAllByRole("article")).toHaveLength(1);
+    expect(screen.queryByTestId("support-lot-group")).toBeNull();
+  });
+});

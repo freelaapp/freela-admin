@@ -288,3 +288,41 @@ export function readyMessages(input: {
     },
   ];
 }
+
+/** Um bloco da fila: os casos do mesmo lote juntos (`lot` preenchido) ou um caso sozinho. */
+export interface SupportCaseGroup {
+  lot: NonNullable<SupportCaseItem["lot"]> | null;
+  items: SupportCaseItem[];
+}
+
+/**
+ * Agrupa só o que a API marcou com `lot` (casos do corte diário do mesmo lote), pela ordem do
+ * primeiro caso de cada lote. Caso sem `lot` fica onde está, sozinho: sem o campo, a fila é a de
+ * sempre. Cada caso segue com as próprias ações; o grupo é só visual.
+ */
+export function groupSupportCases(items: SupportCaseItem[]): SupportCaseGroup[] {
+  const groups: SupportCaseGroup[] = [];
+  const byLot = new Map<string, SupportCaseGroup>();
+  for (const item of items) {
+    const lot = item.lot ?? null;
+    if (!lot || !lot.id) {
+      groups.push({ lot: null, items: [item] });
+      continue;
+    }
+    const existing = byLot.get(lot.id);
+    if (existing) {
+      existing.items.push(item);
+    } else {
+      const group: SupportCaseGroup = { lot, items: [item] };
+      byLot.set(lot.id, group);
+      groups.push(group);
+    }
+  }
+  return groups;
+}
+
+/** "Lote: 5 casos", ou "Lote: 5 casos (2 nesta lista)" quando o filtro esconde parte deles. */
+export function lotGroupLabel(lot: { casesInLot: number }, shown: number): string {
+  const total = `Lote: ${lot.casesInLot} ${lot.casesInLot === 1 ? "caso" : "casos"}`;
+  return shown < lot.casesInLot ? `${total} (${shown} nesta lista)` : total;
+}

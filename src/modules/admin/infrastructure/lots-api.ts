@@ -54,6 +54,65 @@ const inSelectionSchema = z.object({
   endTime: z.string(),
 });
 
+/**
+ * `data.choice` de `GET admin/lots/:id` (fatia 3 em diante): só o que a tela do dia lê. Ausente =
+ * escolha desligada (a tela fica como na fatia 1). Um `choice` que não casa com o formato vira
+ * "ausente", nunca derruba o detalhe do lote.
+ */
+const choiceSchema = z
+  .object({
+    max: z.number().optional().default(0),
+    billing: nullableText,
+    unpaidCount: count,
+    unpaidInCents: count,
+    groups: z
+      .array(
+        z.object({
+          groupKey: z.string(),
+          chargePerVacancyInCents: count,
+          unpaidCount: count,
+          unpaidInCents: count,
+          removable: count,
+        }),
+      )
+      .optional()
+      .default([]),
+    exits: z
+      .array(
+        z.object({
+          candidacyId: z.string(),
+          vacancyId: z.string(),
+          groupKey: nullableText,
+          title: z.string().optional().default(""),
+          name: nullableText,
+          byKind: z.string().optional().default(""),
+          reason: z.string().optional().default(""),
+          at: nullableText,
+          vacancyPaid: z.boolean().optional().default(false),
+          vacancyRefilled: z.boolean().optional().default(false),
+        }),
+      )
+      .optional()
+      .default([]),
+    asks: z
+      .object({
+        scheduled: count,
+        asking: count,
+        confirmed: count,
+        undelivered: count,
+        nextDeadlineAt: nullableText,
+      })
+      .nullable()
+      .optional()
+      .transform((v) => v ?? null),
+  })
+  .nullable()
+  .optional()
+  .catch(null)
+  .transform((v) => v ?? null);
+
+export type AdminLotChoice = NonNullable<z.infer<typeof choiceSchema>>;
+
 export const lotSchema = z.object({
   id: z.string(),
   /** Dia civil de Brasília, `AAAA-MM-DD`. Nunca passa por `Date`. */
@@ -70,6 +129,8 @@ export const lotSchema = z.object({
   companyName: nullableText,
   firstStartTime: nullableText,
   attention: z.array(z.string()).optional().default([]),
+  /** Fatia 3: o que a tela do dia precisa para escolher. `null` = escolha desligada. */
+  choice: choiceSchema,
 });
 
 export type AdminLot = z.infer<typeof lotSchema>;

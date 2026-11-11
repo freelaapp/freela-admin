@@ -29,6 +29,7 @@ const lot = (over: Partial<AdminLot> = {}): AdminLot => ({
   companyName: "Buffet Villa",
   firstStartTime: null,
   attention: [],
+  choice: null,
   ...over,
 });
 
