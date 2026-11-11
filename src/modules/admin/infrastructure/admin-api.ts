@@ -2,6 +2,7 @@ import type { AdminArrivalSignal } from "./arrival-signal.types";
 import { isAxiosError } from "axios";
 
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
+import type { OrientationStatus } from "./orientation-api";
 import type { VacancyNfseInvoice } from "./vacancy-documents-api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -433,6 +434,8 @@ export interface ProviderItem {
   lowPrioritySince?: string | null;
   /** Origem completa do cadastro. Ausente = API anterior a 29/09/2026. */
   signupOrigin?: SignupOrigin | null;
+  /** Situação na aula obrigatória (null = sem identidade global). Ausente = API anterior ao campo. */
+  orientationStatus?: OrientationStatus | null;
 }
 
 export interface GetAdminProvidersParams {

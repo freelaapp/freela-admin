@@ -47,6 +47,7 @@ vi.mock("@/modules/admin/application/use-export-providers", async (importOrigina
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 // Peças com dados próprios: fora do escopo deste teste.
 vi.mock("../_components/completeness-card", () => ({ CompletenessCard: () => null }));
+vi.mock("@/components/admin/orientation/orientation-provider-section", () => ({ OrientationProviderSection: () => null }));
 vi.mock("@/components/admin/provider/pix-key-replace-section", () => ({ PixKeyReplaceSection: () => null }));
 vi.mock("@/components/admin/excluir-usuario-dialog", () => ({ ExcluirUsuarioPanel: () => null }));
 
