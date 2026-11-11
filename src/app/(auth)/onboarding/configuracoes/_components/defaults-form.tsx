@@ -17,7 +17,15 @@ import {
 } from "../_lib/settings-form";
 
 export function DefaultsForm({ settings }: { settings: OrientationSettingsView }) {
-  const [form, setForm] = useState(() => settingsToForm(settings));
+  const incoming = settingsToForm(settings);
+  const incomingKey = JSON.stringify(incoming);
+  const [form, setForm] = useState(incoming);
+  const [base, setBase] = useState(incomingKey);
+  // Valores novos do servidor: só entram se a pessoa não mexeu em nada; edição local é mantida.
+  if (incomingKey !== base) {
+    setBase(incomingKey);
+    if (JSON.stringify(form) === base) setForm(incoming);
+  }
   const update = useUpdateOrientationSettings();
 
   const submit = (e: React.FormEvent) => {
@@ -28,7 +36,10 @@ export function DefaultsForm({ settings }: { settings: OrientationSettingsView }
       return;
     }
     update.mutate(built.payload, {
-      onSuccess: () => toast.success("Padrões salvos. Valem em até 1 minuto."),
+      onSuccess: (saved) => {
+        setForm(settingsToForm(saved));
+        toast.success("Padrões salvos. Valem em até 1 minuto.");
+      },
       onError: (err) => toast.error(orientationErrorMessage(err, "Não foi possível salvar os padrões.")),
     });
   };

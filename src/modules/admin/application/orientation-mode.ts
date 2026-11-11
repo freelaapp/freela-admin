@@ -14,6 +14,8 @@ export interface ModeCard {
   isCurrent: boolean;
 }
 
+export type CardView = Omit<ModeCard, "seeing" | "blocked"> & { seeing: number | null; blocked: number | null };
+
 export interface ModeChangeDialog {
   title: string;
   lines: string[];
@@ -67,6 +69,16 @@ export function modeCards(summary: OrientationSummary, current: OrientationGateM
       calc: `${formatCount(approved)} aprovados de ${a} ativos`,
       isCurrent: current === "ALL",
     },
+  ];
+}
+
+/** Cartões sem números (a contagem falhou ou ainda carrega): só título e efeito. */
+export function modeCardsWithoutNumbers(current: OrientationGateMode, cutoff: string | null): CardView[] {
+  const when = cutoff ? formatInstantDate(cutoff) : "a data de corte";
+  return [
+    { mode: "OFF", title: MODE_TITLES.OFF, effect: "Todos veem vagas, menos os reprovados.", seeing: null, blocked: null, calc: "", isCurrent: current === "OFF" },
+    { mode: "NEW_ONLY", title: MODE_TITLES.NEW_ONLY, effect: `Quem virar freelancer a partir de ${when} precisa da aula.`, seeing: null, blocked: null, calc: "", isCurrent: current === "NEW_ONLY" },
+    { mode: "ALL", title: MODE_TITLES.ALL, effect: "Só os aprovados veem vagas.", seeing: null, blocked: null, calc: "", isCurrent: current === "ALL" },
   ];
 }
 
@@ -131,8 +143,13 @@ export function modeChangeDialog(
   return {
     title: `Mudar para "${MODE_TITLES[to]}"?`,
     lines,
-    confirmLabel: losing > 0 ? `Esconder vagas de ${people(losing)}` : `Mudar para ${target}`,
-    requiresTyping: to === "ALL" && losing > 0 ? "TODOS" : null,
+    confirmLabel:
+      losing > 0
+        ? `Esconder vagas de ${people(losing)}`
+        : to === "ALL"
+          ? "Ligar para Todos — ninguém perde vagas agora"
+          : `Mudar para ${target}`,
+    requiresTyping: to === "ALL" ? "TODOS" : null,
     losing,
   };
 }

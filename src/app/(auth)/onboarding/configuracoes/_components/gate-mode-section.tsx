@@ -10,7 +10,8 @@ import {
   modeCards,
   modeChangeDialog,
   summarySource,
-  type ModeCard,
+  modeCardsWithoutNumbers,
+  type CardView,
 } from "@/modules/admin/application/orientation-mode";
 import { formatCount, orientationErrorMessage } from "@/modules/admin/application/orientation-presentation";
 import {
@@ -31,7 +32,7 @@ function Card({
   busy,
   onChoose,
 }: {
-  card: ModeCard;
+  card: CardView;
   source: string;
   canChange: boolean;
   busy: boolean;
@@ -52,14 +53,20 @@ function Card({
         )}
       </div>
       <p className="mt-1 text-sm text-[#737373]">{card.effect}</p>
-      <p className="mt-4 text-3xl font-bold text-[#1d1d1b]">{formatCount(card.seeing)}</p>
+      <p className="mt-4 text-3xl font-bold text-[#1d1d1b]">
+        {card.seeing === null ? "—" : formatCount(card.seeing)}
+      </p>
       <p className="text-xs text-[#737373]">freelancers veem vagas</p>
-      <p className="mt-1 text-xs text-[#737373]">{formatCount(card.blocked)} ficam sem ver vagas</p>
-      <details className="mt-3 text-xs text-[#737373]">
-        <summary className="cursor-pointer font-medium text-[#1d1d1b]">Ver a conta</summary>
-        <p className="mt-1">{card.calc}</p>
-        <p className="mt-1">{source}</p>
-      </details>
+      <p className="mt-1 text-xs text-[#737373]">
+        {card.blocked === null ? "—" : formatCount(card.blocked)} ficam sem ver vagas
+      </p>
+      {card.calc && (
+        <details className="mt-3 text-xs text-[#737373]">
+          <summary className="cursor-pointer font-medium text-[#1d1d1b]">Ver a conta</summary>
+          <p className="mt-1">{card.calc}</p>
+          <p className="mt-1">{source}</p>
+        </details>
+      )}
       {canChange && !card.isCurrent && (
         <Button className="mt-4 min-h-11" variant="outline" disabled={busy} onClick={() => onChoose(card.mode)}>
           Usar este modo
@@ -105,24 +112,27 @@ export function GateModeSection({ settings }: { settings: OrientationSettingsVie
       <h2 id="gate-title" className="text-base font-semibold text-[#1d1d1b]">
         Quem precisa fazer a aula para ver vagas
       </h2>
-      {summary.isLoading ? (
-        <Loader2 className="mt-4 h-5 w-5 animate-spin text-neutral-400" />
-      ) : summary.data ? (
+      {summary.isLoading && <Loader2 className="mt-4 h-5 w-5 animate-spin text-neutral-400" />}
+      {!summary.isLoading && (
         <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-          {modeCards(summary.data, settings.gateMode).map((card) => (
+          {(summary.data
+            ? modeCards(summary.data, settings.gateMode)
+            : modeCardsWithoutNumbers(settings.gateMode, settings.newSignupsSince)
+          ).map((card) => (
             <Card
               key={card.mode}
               card={card}
-              source={summarySource(summary.data)}
+              source={summary.data ? summarySource(summary.data) : ""}
               canChange={isSuperAdmin}
               busy={update.isPending}
               onChoose={setTarget}
             />
           ))}
         </div>
-      ) : (
-        <p className="mt-3 text-sm text-[#737373]">
-          Não consegui contar os freelancers agora.{" "}
+      )}
+      {!summary.isLoading && !summary.data && (
+        <p className="mt-2 text-xs text-[#737373]">
+          Não consegui contar os freelancers agora. Desligar o bloqueio continua possível.{" "}
           <button type="button" className="underline" onClick={() => void summary.refetch()}>
             Tentar de novo
           </button>

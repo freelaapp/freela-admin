@@ -37,8 +37,7 @@ export default function ConfiguracoesOnboardingPage() {
     <div className="mx-auto max-w-5xl py-4">
       <p className="mb-4 text-xs text-[#737373]">{changedBy}</p>
       <GateModeSection settings={s} />
-      {/* key: depois de salvar, o formulário recomeça dos valores novos */}
-      <DefaultsForm key={s.updatedAt ?? "initial"} settings={s} />
+      <DefaultsForm settings={s} />
     </div>
   );
 }

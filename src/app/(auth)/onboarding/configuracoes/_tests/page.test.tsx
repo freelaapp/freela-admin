@@ -122,4 +122,33 @@ describe("Configurações do Onboarding", () => {
     fireEvent.click(await screen.findByRole("switch", { name: /vagas fixas/ }));
     await waitFor(() => expect(api.updateOrientationSettings).toHaveBeenCalledWith({ gateFixedJobs: true }));
   });
+
+  it("sem os números: ainda dá para desligar; ligar mostra que não deu para contar e não envia", async () => {
+    api.getOrientationSummary.mockRejectedValue(new Error("falhou"));
+    api.getOrientationSettings.mockResolvedValue({ ...settings, gateMode: "ALL" });
+    renderPage();
+    fireEvent.click((await screen.findAllByRole("button", { name: "Usar este modo" }))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Desligar o bloqueio" }));
+    await waitFor(() => expect(api.updateOrientationSettings).toHaveBeenCalledWith({ gateMode: "OFF" }));
+  });
+
+  it("sem os números: NEW_ONLY e ALL mostram o aviso e não enviam nada", async () => {
+    api.getOrientationSummary.mockRejectedValue(new Error("falhou"));
+    renderPage();
+    const buttons = await screen.findAllByRole("button", { name: "Usar este modo" });
+    fireEvent.click(buttons[1]);
+    expect(await screen.findByText("Não consegui contar quem perde as vagas agora. Tente de novo.")).toBeInTheDocument();
+    expect(api.updateOrientationSettings).not.toHaveBeenCalled();
+  });
+
+  it("a edição dos padrões sobrevive a uma mudança de configuração feita por outro lado", async () => {
+    renderPage();
+    const field = await screen.findByLabelText("Trocas de horário permitidas");
+    fireEvent.change(field, { target: { value: "9" } });
+    api.getOrientationSettings.mockResolvedValue({ ...settings, gateFixedJobs: true, updatedAt: "2026-11-11T16:00:00Z", updatedByAdminName: "Ana" });
+    fireEvent.click(await screen.findByRole("switch", { name: /vagas fixas/ }));
+    await waitFor(() => expect(api.updateOrientationSettings).toHaveBeenCalledWith({ gateFixedJobs: true }));
+    await screen.findByText(/Configuração alterada por Ana/);
+    expect(screen.getByLabelText("Trocas de horário permitidas")).toHaveValue("9");
+  });
 });

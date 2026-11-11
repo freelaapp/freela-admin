@@ -73,4 +73,12 @@ describe("modeChangeDialog", () => {
     expect(modeChangeDialog("OFF", "ALL", null, hoje)).toEqual({ blocked: msg });
     expect(modeChangeDialog("OFF", "NEW_ONLY", null, hoje)).toEqual({ blocked: msg });
   });
+  it("ALL sem ninguém para perder: continua pedindo TODOS, com rótulo próprio", () => {
+    const zero = summary({ blockedByMode: { OFF: 5, NEW_ONLY: 12, ALL: 5 } });
+    const d = modeChangeDialog("OFF", "ALL", zero, hoje);
+    if ("blocked" in d) throw new Error("bloqueou");
+    expect(d.requiresTyping).toBe("TODOS");
+    expect(d.losing).toBe(0);
+    expect(d.confirmLabel).toBe("Ligar para Todos — ninguém perde vagas agora");
+  });
 });
