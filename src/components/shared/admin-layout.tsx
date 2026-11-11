@@ -11,6 +11,7 @@ import {
   Briefcase,
   Home,
   ClipboardList,
+  ClipboardCheck,
   TrendingUp,
   BookOpen,
   GraduationCap,
@@ -70,6 +71,8 @@ const navItems: NavItem[] = [
   { label: "Freelancers", icon: Users, path: "/freelancers", permission: "FREELANCERS" },
   // Fluxo v2, fatia G: quem não pode se candidatar (mesma chave das infrações, FREELANCERS).
   { label: "Suspensões", icon: UserX, path: "/suspensoes", permission: "FREELANCERS" },
+  // Aula obrigatória dos freelancers (turmas, chamada, configurações).
+  { label: "Onboarding", icon: ClipboardCheck, path: "/onboarding", permission: "ORIENTATION" },
   { label: "Empresas", icon: Building2, path: "/empresas", permission: "COMPANIES" },
   // Nasce só para SUPER_ADMIN: a chave SUBSCRIPTIONS não existe em nenhum admin
   // até ser concedida em /usuarios-painel. É o default certo — conceder cortesia

@@ -97,3 +97,32 @@ describe("menu do painel: Suspensões (fluxo v2, fatia G)", () => {
     expect(screen.queryByRole("link", { name: /Suspensões/ })).not.toBeInTheDocument();
   });
 });
+
+describe("menu do painel: Onboarding (aula obrigatória)", () => {
+  beforeEach(() => {
+    auth.permissions = [];
+  });
+
+  it("aparece para quem tem ORIENTATION, logo depois de Suspensões", () => {
+    auth.permissions = ["ORIENTATION", "FREELANCERS"];
+    render(
+      <AdminLayout>
+        <div />
+      </AdminLayout>,
+    );
+    const link = screen.getAllByRole("link", { name: /Onboarding/ })[0];
+    expect(link).toHaveAttribute("href", "/onboarding");
+    const labels = menuLinks();
+    expect(labels.indexOf("Onboarding")).toBe(labels.indexOf("Suspensões") + 1);
+  });
+
+  it("some sem a permissão ORIENTATION", () => {
+    auth.permissions = ["FREELANCERS"];
+    render(
+      <AdminLayout>
+        <div />
+      </AdminLayout>,
+    );
+    expect(screen.queryByRole("link", { name: /Onboarding/ })).not.toBeInTheDocument();
+  });
+});
