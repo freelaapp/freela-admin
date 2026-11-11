@@ -24,13 +24,15 @@ interface Props {
 const TEXTS: Record<CorrectionKind, { title: string; consequence: string; confirm: string; done: string }> = {
   "correct-result": {
     title: "Corrigir resultado",
-    consequence: "A pessoa deixa de estar aprovada e volta para pendente. Fica registrado quem corrigiu e o motivo.",
+    consequence:
+      "A pessoa deixa de estar aprovada: quando a trava de vagas estiver ligada, ela não vê vagas até fazer a aula de novo. Ninguém é avisado. Fica registrado quem corrigiu e o motivo.",
     confirm: "Corrigir resultado",
     done: "Resultado corrigido.",
   },
   "allow-new-class": {
     title: "Permitir nova aula",
-    consequence: "A pessoa deixa de estar reprovada e pode marcar outra aula. Fica registrado quem permitiu e o motivo.",
+    consequence:
+      "A pessoa deixa de estar reprovada e pode marcar outra aula. Ninguém é avisado; avise pelo WhatsApp se precisar. Fica registrado quem permitiu e o motivo.",
     confirm: "Permitir nova aula",
     done: "Pronto: a pessoa pode marcar outra aula.",
   },

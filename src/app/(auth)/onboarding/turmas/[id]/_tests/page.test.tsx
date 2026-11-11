@@ -209,6 +209,32 @@ describe("Chamada da turma", () => {
     expect(screen.getByText(/Reprovado sem anotação: Bruno/)).toBeInTheDocument();
     fireEvent.change(within(rowOf("Bruno")).getByRole("textbox"), { target: { value: " saiu cedo " } });
     expect(btn).toBeEnabled();
+    await waitFor(() => expect(api.previewAttendance).toHaveBeenCalled());
+    await act(async () => {});
+  });
+
+  it("dois reprovados antes da 1ª consulta voltar: os dois avisos aparecem", async () => {
+    const vac = (id: string, name: string) => ({
+      vacancyId: id,
+      startTime: "2026-11-17T22:00:00.000Z",
+      title: "Garçom",
+      contractorName: name,
+    });
+    let resolveFirst: (v: unknown) => void = () => {};
+    api.previewAttendance
+      .mockImplementationOnce(() => new Promise((r) => (resolveFirst = r)))
+      .mockResolvedValueOnce({ warnings: [{ enrollmentId: "e2", futureAcceptedVacancies: [vac("vac-2", "Madero")] }] });
+    renderPage();
+    await screen.findByText("Ana");
+    mark("Ana", "Reprovado");
+    await waitFor(() => expect(api.previewAttendance).toHaveBeenCalledTimes(1));
+    mark("Bruno", "Reprovado");
+    await waitFor(() => expect(api.previewAttendance).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolveFirst({ warnings: [{ enrollmentId: "e1", futureAcceptedVacancies: [vac("vac-1", "Coco Bambu")] }] });
+    });
+    expect(await screen.findByText(/Coco Bambu\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/Madero\)/)).toBeInTheDocument();
   });
 
   it("diálogo mostra o resumo, manda o payload e avisa de quem não mudou", async () => {

@@ -115,21 +115,19 @@ export default function ChamadaPage() {
       .map(([eid]) => eid);
     if (ids.length === 0) return;
     ids.forEach((eid) => previewed.current.add(eid));
-    preview.mutate(
-      ids.map((enrollmentId) => ({ enrollmentId, result: "REJECTED" as const })),
-      {
-        onSuccess: (r) =>
-          setVacancies((prev) => {
-            const next = { ...prev };
-            for (const eid of ids) {
-              next[eid] = r.warnings.find((w) => w.enrollmentId === eid)?.futureAcceptedVacancies ?? [];
-            }
-            return next;
-          }),
-        // O aviso é um extra: se falhar, deixa tentar de novo na próxima marcação.
-        onError: () => ids.forEach((eid) => previewed.current.delete(eid)),
-      },
-    );
+    preview
+      .mutateAsync(ids.map((enrollmentId) => ({ enrollmentId, result: "REJECTED" as const })))
+      .then((r) =>
+        setVacancies((prev) => {
+          const next = { ...prev };
+          for (const eid of ids) {
+            next[eid] = r.warnings.find((w) => w.enrollmentId === eid)?.futureAcceptedVacancies ?? [];
+          }
+          return next;
+        }),
+      )
+      // O aviso é um extra: se falhar, deixa tentar de novo na próxima marcação.
+      .catch(() => ids.forEach((eid) => previewed.current.delete(eid)));
     // `preview` muda a cada render; só as marcas disparam a consulta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, marks]);
@@ -190,7 +188,7 @@ export default function ChamadaPage() {
   const confirmFinish = () => {
     if (finish.isPending) return;
     setChangedNotice(null);
-    finish.mutate(toFinishPayload(marks), {
+    finish.mutate(toFinishPayload(pruneMarks(marks, booked)), {
       onSuccess: (r) => {
         const s = storage();
         if (s) clearDraft(s, id);

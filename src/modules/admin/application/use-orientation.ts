@@ -132,8 +132,9 @@ export function useCancelOrientationSeries() {
   );
 }
 
+/** Só leitura: não relê o Onboarding (senão cada marca refaz as listas e a poda). */
 export function usePreviewAttendance(id: string) {
-  return useInvalidatingMutation((marks: AttendanceMarkInput[]) => previewAttendance(id, marks));
+  return useMutation({ mutationFn: (marks: AttendanceMarkInput[]) => previewAttendance(id, marks) });
 }
 
 export function useFinishAttendance(id: string) {
