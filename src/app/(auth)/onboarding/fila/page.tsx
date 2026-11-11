@@ -96,6 +96,8 @@ function FilaScreen() {
   const limitOk = limitText === "" || limitValid;
   const openConvocation = (target: ConvocationTarget) =>
     setConvoke({ target, filter, requestKey: crypto.randomUUID() });
+  // A API só convoca quem está Pendente (soma isso ao filtro): com outra Situação a prévia seria sempre 0.
+  const notPending = (filter.status ?? "PENDING") !== "PENDING";
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 py-4">
@@ -141,7 +143,7 @@ function FilaScreen() {
         <div className="flex flex-col gap-3 rounded-lg border border-[#e5e5e5] bg-white p-3 md:flex-row md:flex-wrap md:items-end">
           <Button
             className="min-h-11 md:min-h-9"
-            disabled={selected.size === 0}
+            disabled={selected.size === 0 || notPending}
             onClick={() => openConvocation({ kind: "picked", ids: [...selected] })}
           >
             Convocar selecionados ({formatCount(selected.size)})
@@ -163,14 +165,23 @@ function FilaScreen() {
             <Button
               variant="outline"
               className="min-h-11 md:min-h-9"
-              disabled={!limitOk || people.data.total === 0}
+              disabled={!limitOk || people.data.total === 0 || notPending}
               onClick={() =>
-                openConvocation({ kind: "filtered", ...(limitValid ? { limit: Number(limitText) } : {}) })
+                openConvocation({
+                  kind: "filtered",
+                  listTotal: people.data.total,
+                  ...(limitValid ? { limit: Number(limitText) } : {}),
+                })
               }
             >
               Convocar o grupo filtrado
             </Button>
           </div>
+          {notPending && (
+            <p role="status" className="text-xs text-[#525252]">
+              Só dá para convocar quem está Pendente. Troque a Situação para Pendente.
+            </p>
+          )}
           {!limitOk && <p role="alert" className="text-xs text-[#991b1b]">Digite um número de 1 a 10.000.</p>}
         </div>
       )}

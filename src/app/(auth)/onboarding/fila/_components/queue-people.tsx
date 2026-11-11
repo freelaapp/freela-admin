@@ -17,6 +17,16 @@ function dayBr(key: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
+/** Instante (ISO) → dia de Brasília dd/mm/aaaa. */
+function isoDayBr(iso: string | null): string {
+  return iso ? dayBr(brasiliaDateKey(iso) || null) : "—";
+}
+
+const NO_ACTIVITY = "sem acesso registrado nos últimos 365 dias ou antes de começarmos a medir";
+function lastActiveTitle(r: QueueRow): string | undefined {
+  return r.lastActiveDay ? undefined : NO_ACTIVITY;
+}
+
 const NO_INVITE = "Sem convite: cadastro antigo";
 
 function place(r: QueueRow): string {
@@ -109,6 +119,8 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, busy, sel
               <th scope="col" className="px-3 py-2">Cadastro</th>
               <th scope="col" className="px-3 py-2">Serviços</th>
               <th scope="col" className="px-3 py-2">Último acesso</th>
+              <th scope="col" className="px-3 py-2">Convocado em</th>
+              <th scope="col" className="px-3 py-2">Pediu aviso em</th>
               <th scope="col" className="px-3 py-2">Faltas</th>
               <th scope="col" className="px-3 py-2">Situação</th>
             </tr>
@@ -123,7 +135,9 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, busy, sel
                 <td className="px-3 py-2">{r.roles.join(", ") || "—"}</td>
                 <td className="px-3 py-2">{dayBr(brasiliaDateKey(r.signedUpAt) || null)}</td>
                 <td className="px-3 py-2 tabular-nums">{r.totalCompletedServices}</td>
-                <td className="px-3 py-2">{dayBr(r.lastActiveDay)}</td>
+                <td className="px-3 py-2" title={lastActiveTitle(r)}>{dayBr(r.lastActiveDay)}</td>
+                <td className="px-3 py-2">{isoDayBr(r.lastConvokedAt)}</td>
+                <td className="px-3 py-2">{isoDayBr(r.notifyRequestedAt)}</td>
                 <td className="px-3 py-2 tabular-nums">{r.noShows}</td>
                 <td className="px-3 py-2">{STATUS_TEXT[r.status] ?? r.status}</td>
               </tr>
@@ -157,7 +171,12 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, busy, sel
               <p>{place(r)} · {r.roles.join(", ") || "sem função"}</p>
               <p>{whats(r)}</p>
               <p>Serviços: {r.totalCompletedServices} · Faltas: {r.noShows}</p>
-              <p>Último acesso: {dayBr(r.lastActiveDay)}</p>
+              <p title={lastActiveTitle(r)}>
+                Último acesso: {dayBr(r.lastActiveDay)}
+                {!r.lastActiveDay && <span className="block text-xs text-[#737373]">({NO_ACTIVITY})</span>}
+              </p>
+              <p>Convocado em: {isoDayBr(r.lastConvokedAt)}</p>
+              <p>Pediu aviso em: {isoDayBr(r.notifyRequestedAt)}</p>
               <p>{STATUS_TEXT[r.status] ?? r.status}</p>
               {reason(r, "cartao")}
             </div>

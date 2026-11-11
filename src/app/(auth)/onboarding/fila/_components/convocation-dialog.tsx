@@ -7,15 +7,19 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCount, orientationErrorMessage } from "@/modules/admin/application/orientation-presentation";
-import { convocationSummary } from "@/modules/admin/application/orientation-queue-presentation";
-import { useCreateConvocation, usePreviewConvocation } from "@/modules/admin/application/use-orientation";
+import { type ConvocationAudience, convocationSummary } from "@/modules/admin/application/orientation-queue-presentation";
+import {
+  useCreateConvocation,
+  useOrientationSettings,
+  usePreviewConvocation,
+} from "@/modules/admin/application/use-orientation";
 import { apiErrorOf } from "@/modules/admin/infrastructure/api-error";
 import type { ConvocationPreview, OrientationQueueFilter } from "@/modules/admin/infrastructure/orientation-api";
 
 /** Quem entra: as pessoas marcadas na lista, ou o grupo que o filtro mostra (com teto opcional). */
 export type ConvocationTarget =
   | { kind: "picked"; ids: string[] }
-  | { kind: "filtered"; limit?: number };
+  | { kind: "filtered"; limit?: number; /** Total que a lista mostrava ao abrir (a conta "X na lista"). */ listTotal?: number };
 
 interface Props {
   target: ConvocationTarget;
@@ -43,6 +47,7 @@ export function ConvocationDialog({ target, filter, requestKey, onClose, onSent 
   const previewMutation = usePreviewConvocation();
   const createMutation = useCreateConvocation();
   const sending = useRef(false);
+  const settings = useOrientationSettings();
 
   // Mandar para uma lista escolhida à mão não pode perder gente pelo padrão de 30 dias (a API cruza a lista com o filtro).
   // `filter` e `target` são o retrato de quando o diálogo abriu (a tela os congela): prévia e envio
@@ -103,15 +108,24 @@ export function ConvocationDialog({ target, filter, requestKey, onClose, onSent 
     }
   };
 
-  const lines = preview ? convocationSummary(preview, place) : [];
+  const audience: ConvocationAudience =
+    target.kind === "picked"
+      ? { kind: "picked", picked: target.ids.length, minDays: settings.data?.convocationMinDays }
+      : { kind: "filtered", listTotal: target.listTotal, limit: target.limit };
+  const lines = preview ? convocationSummary(preview, place, audience) : [];
   // Com 0 lugares o aviso de bloqueio abaixo já diz o que fazer; não repete a linha dos lugares.
   const summary = blocked ? lines.filter((_, i) => i !== 1) : lines;
 
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()} className="max-w-lg">
-      <DialogContent role="dialog" aria-modal="true" aria-label="Convocar para a aula" className="max-h-[55vh] overflow-y-auto">
+      <DialogContent
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="convocar-titulo"
+        className="max-h-[55vh] overflow-y-auto"
+      >
         <DialogHeader>
-          <DialogTitle>Convocar para a aula</DialogTitle>
+          <DialogTitle id="convocar-titulo">Convocar para a aula</DialogTitle>
           <DialogDescription>
             Convocar grava a lista; o envio sai aos poucos, dentro do teto diário.
           </DialogDescription>

@@ -37,7 +37,7 @@ export function QueueCounters({ data, isLoading, onRetry }: Props) {
           <p className="text-xs font-medium text-[#737373]">{l.label}</p>
           <p className="mt-1 text-2xl font-bold tabular-nums text-[#1d1d1b]">{l.value}</p>
           <details className="mt-2 text-xs text-[#525252]">
-            <summary className="min-h-6 cursor-pointer font-medium text-[#1d1d1b] underline">Ver a conta</summary>
+            <summary className="flex min-h-11 cursor-pointer items-center font-medium text-[#1d1d1b] underline md:min-h-6">Ver a conta</summary>
             <p className="mt-1">{l.explanation}</p>
           </details>
         </div>

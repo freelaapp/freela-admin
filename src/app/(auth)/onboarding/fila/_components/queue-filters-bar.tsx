@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { useCatalogRoles } from "@/modules/admin/application/use-admin-catalog";
 import type { OrientationQueueFilter, QueueStatus } from "@/modules/admin/infrastructure/orientation-api";
 import { DEFAULT_ACTIVE_DAYS } from "../_lib/queue-filters";
 
@@ -65,6 +66,36 @@ function CommitInput({
   );
 }
 
+/** UF: 2 letras, sempre maiúsculas. Só vira filtro com 2 letras (ou vazio, que limpa). */
+function UfInput({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const valid = draft === "" || /^[A-Z]{2}$/.test(draft);
+  const commit = () => {
+    if (!valid) return;
+    if (draft !== value) onCommit(draft);
+  };
+  return (
+    <label className={FIELD}>
+      UF
+      <Input
+        className={CONTROL}
+        value={draft}
+        maxLength={2}
+        autoCapitalize="characters"
+        aria-invalid={!valid}
+        placeholder="SP"
+        onChange={(e) => setDraft(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+        }}
+      />
+      {!valid && <span className="text-[#991b1b]">Use 2 letras, como SP.</span>}
+    </label>
+  );
+}
+
 export function QueueFiltersBar({ filter, onChange }: Props) {
   const set = (patch: Partial<OrientationQueueFilter>) => {
     const next = { ...filter, ...patch };
@@ -73,6 +104,9 @@ export function QueueFiltersBar({ filter, onChange }: Props) {
     }
     onChange(next);
   };
+  const roles = useCatalogRoles();
+  const roleOptions = roles.data ?? [];
+  const role = filter.role ?? "";
   const activeDays = String(filter.activeWithinDays ?? DEFAULT_ACTIVE_DAYS);
   const activeOptions = ACTIVE_OPTIONS.some((o) => o.value === activeDays)
     ? ACTIVE_OPTIONS
@@ -96,7 +130,19 @@ export function QueueFiltersBar({ filter, onChange }: Props) {
           </NativeSelect>
         </label>
         <CommitInput label="Cidade" value={filter.city ?? ""} onCommit={(v) => set({ city: v || undefined })} />
-        <CommitInput label="Função" value={filter.role ?? ""} onCommit={(v) => set({ role: v || undefined })} />
+        <UfInput value={filter.uf ?? ""} onCommit={(v) => set({ uf: v || undefined })} />
+        <label className={FIELD}>
+          Função
+          <NativeSelect className={CONTROL} value={role} onChange={(e) => set({ role: e.target.value || undefined })}>
+            <option value="">Todas</option>
+            {role && !roleOptions.some((r) => r.slug === role) && <option value={role}>{role}</option>}
+            {roleOptions.map((r) => (
+              <option key={r.slug} value={r.slug}>
+                {r.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
         <label className={FIELD}>
           Acessou nos últimos
           <NativeSelect

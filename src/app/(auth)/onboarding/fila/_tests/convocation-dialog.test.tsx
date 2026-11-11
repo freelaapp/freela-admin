@@ -12,8 +12,11 @@ const api = vi.hoisted(() => ({
   previewConvocation: vi.fn(),
   createConvocation: vi.fn(),
   listConvocations: vi.fn(),
+  getOrientationSettings: vi.fn(),
 }));
 vi.mock("@/modules/admin/infrastructure/orientation-api", async (orig) => ({ ...(await orig<object>()), ...api }));
+const catalog = vi.hoisted(() => ({ getCatalogRoles: vi.fn(async () => []) }));
+vi.mock("@/modules/admin/infrastructure/catalog-api", async (orig) => ({ ...(await orig<object>()), ...catalog }));
 vi.mock("@/lib/csv", () => ({ downloadCsv: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const nav = vi.hoisted(() => ({ search: "uf=SP&cidade=Campinas" }));
@@ -96,6 +99,7 @@ describe("Convocar da Fila", () => {
     api.previewConvocation.mockResolvedValue(preview());
     api.createConvocation.mockResolvedValue({ convocationId: "c1", queued: 40 });
     api.listConvocations.mockResolvedValue([]);
+    api.getOrientationSettings.mockResolvedValue({ convocationMinDays: 7 });
   });
 
   it("ids de 'sem convite' são únicos entre tabela e cartão", async () => {
@@ -109,7 +113,34 @@ describe("Convocar da Fila", () => {
     }
   });
 
+  it("diálogo: um só papel de dialog, nomeado pelo título", async () => {
+    renderPage();
+    const d = await openFiltered();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(d).not.toHaveAttribute("aria-label");
+    expect(d).toHaveAccessibleName("Convocar para a aula");
+  });
+
+  it("grupo filtrado: explica lista, convocáveis e limite", async () => {
+    api.previewConvocation.mockResolvedValue(preview({ people: 40, matching: 90 }));
+    renderPage();
+    const d = await openFiltered();
+    await within(d).findByText(
+      "3 na lista; 90 podem ser convocadas agora; vai mandar para 40 pessoas de Campinas/SP (limite de 10.000 por convocação).",
+    );
+  });
+
+  it("Situação diferente de Pendente: os dois botões Convocar ficam desativados com o motivo", async () => {
+    nav.search = "uf=SP&situacao=APPROVED";
+    renderPage();
+    await screen.findAllByText("Pessoa 1");
+    expect(screen.getByRole("button", { name: "Convocar o grupo filtrado" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Convocar selecionados (0)" })).toBeDisabled();
+    expect(screen.getByText(/Só dá para convocar quem está Pendente/)).toBeInTheDocument();
+  });
+
   it("Convocar selecionados (N): só com seleção; prévia manda a lista com activeWithinDays 0", async () => {
+    api.previewConvocation.mockResolvedValue(preview({ people: 1, matching: 1 }));
     renderPage();
     await screen.findAllByText("Pessoa 1");
     expect(screen.getByRole("button", { name: "Convocar selecionados (0)" })).toBeDisabled();
@@ -117,7 +148,9 @@ describe("Convocar da Fila", () => {
     fireEvent.click(screen.getAllByLabelText("Selecionar Pessoa 2")[0]);
     fireEvent.click(screen.getByRole("button", { name: "Convocar selecionados (2)" }));
     const d = await screen.findByRole("dialog");
-    await within(d).findByText(/Vai mandar para 40 pessoas/);
+    await within(d).findByText(
+      "2 selecionadas; 1 fica de fora (convocadas há menos de 7 dias, já na fila de envio ou no limite de faltas); vai mandar para 1 pessoa de Campinas/SP.",
+    );
     expect(api.previewConvocation).toHaveBeenCalledWith(
       expect.objectContaining({
         providerGlobalIds: ["pg1", "pg2"],
@@ -134,7 +167,7 @@ describe("Convocar da Fila", () => {
     fireEvent.change(screen.getByLabelText(/no máximo/i), { target: { value: "50" } });
     fireEvent.click(screen.getByRole("button", { name: "Convocar o grupo filtrado" }));
     const d = await screen.findByRole("dialog");
-    await within(d).findByText(/Vai mandar para 40 pessoas de Campinas\/SP/);
+    await within(d).findByText(/vai mandar para 40 pessoas de Campinas\/SP/i);
     expect(api.previewConvocation).toHaveBeenCalledWith(expect.objectContaining({ limit: 50 }));
   });
 
@@ -264,7 +297,7 @@ describe("Convocar da Fila", () => {
     renderPage();
     const d = await openFiltered();
     fireEvent.click(await within(d).findByRole("button", { name: "Tentar de novo" }));
-    expect(await within(d).findByText(/Vai mandar para 40 pessoas/)).toBeInTheDocument();
+    expect(await within(d).findByText(/vai mandar para 40 pessoas/i)).toBeInTheDocument();
   });
 
   it("sucesso: '1.200 pessoas na fila de envio' e a lista mostra enviadas / na fila / puladas com a conta", async () => {

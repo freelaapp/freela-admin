@@ -78,11 +78,15 @@ export function DialogHeader({
 
 export function DialogTitle({
   children,
+  id,
 }: {
   children: React.ReactNode;
+  /** Para o painel apontar com `aria-labelledby`. */
+  id?: string;
 }) {
   return (
     <h2
+      id={id}
       className="text-lg font-bold text-[#1d1d1b]"
       style={{ fontFamily: "var(--font-display)" }}
     >

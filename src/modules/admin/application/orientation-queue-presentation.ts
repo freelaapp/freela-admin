@@ -62,23 +62,66 @@ function plural(n: number, one: string, many: string): string {
   return n === 1 ? one : many;
 }
 
-/** Texto da prévia da convocação: quantos, onde, lugares, prazo de envio e carga por lugar. */
-export function convocationSummary(p: ConvocationPreview, placeLabel: string): string[] {
-  const lines = [
-    `Vai mandar para ${formatCount(p.people)} ${plural(p.people, "pessoa", "pessoas")} de ${placeLabel}.`,
-  ];
+/** Teto de pessoas por convocação quando ninguém digita "no máximo" (CONVOCATION_MAX_PEOPLE da API). */
+export const CONVOCATION_MAX_PEOPLE = 10_000;
+
+/** De onde vem o público da prévia: as pessoas marcadas ou o grupo que o filtro mostra. */
+export type ConvocationAudience =
+  | { kind: "picked"; picked: number; minDays?: number }
+  | { kind: "filtered"; listTotal?: number; limit?: number };
+
+/** Texto da prévia da convocação: quantos, de onde saiu a conta, onde, lugares, prazo de envio e carga por lugar. */
+export function convocationSummary(
+  p: ConvocationPreview,
+  placeLabel: string,
+  audience?: ConvocationAudience,
+): string[] {
+  const who = `${formatCount(p.people)} ${plural(p.people, "pessoa", "pessoas")} de ${placeLabel}`;
+  const lines: string[] = [];
+  if (audience?.kind === "picked") {
+    const n = audience.picked;
+    const out = Math.max(0, n - p.people);
+    const days =
+      audience.minDays !== undefined
+        ? `convocadas há menos de ${formatCount(audience.minDays)} ${plural(audience.minDays, "dia", "dias")}`
+        : "convocadas há pouco tempo";
+    const head = `${formatCount(n)} ${plural(n, "selecionada", "selecionadas")}`;
+    const left =
+      out > 0
+        ? `; ${formatCount(out)} ${plural(out, "fica", "ficam")} de fora (${days}, já na fila de envio ou no limite de faltas)`
+        : "";
+    lines.push(`${head}${left}; vai mandar para ${who}.`);
+  } else if (audience?.kind === "filtered") {
+    const list =
+      audience.listTotal !== undefined ? `${formatCount(audience.listTotal)} na lista; ` : "";
+    const cut = p.people < p.matching;
+    const why = cut
+      ? audience.limit
+        ? " (limite digitado)"
+        : ` (limite de ${formatCount(CONVOCATION_MAX_PEOPLE)} por convocação)`
+      : "";
+    lines.push(
+      `${list}${formatCount(p.matching)} ${plural(p.matching, "pode ser convocada", "podem ser convocadas")} agora; vai mandar para ${who}${why}.`,
+    );
+  } else {
+    lines.push(`Vai mandar para ${who}.`);
+  }
   if (p.freeSeats14d > 0) {
     lines.push(`Lugares livres para elas nas próximas 2 semanas: ${formatCount(p.freeSeats14d)}.`);
   } else {
     lines.push("Não há lugar livre para elas nas próximas 2 semanas. Crie turmas antes de convocar.");
   }
+  const queue =
+    p.pendingInQueue > 0
+      ? `, somando ${formatCount(p.pendingInQueue)} ${plural(p.pendingInQueue, "que já está", "que já estão")} na fila de envio`
+      : "";
   lines.push(
-    `Envio em cerca de ${formatCount(p.plan.days)} ${plural(p.plan.days, "dia", "dias")} (teto de ${formatCount(p.dailyCap)} por dia).`,
+    `Envio em cerca de ${formatCount(p.plan.days)} ${plural(p.plan.days, "dia", "dias")}${queue}; teto de ${formatCount(p.dailyCap)} por dia (${formatCount(p.pendingInQueue + p.people)} ÷ ${formatCount(p.dailyCap)}, arredondado para cima).`,
   );
   if (p.plan.perSeat !== null) {
     const n = new Intl.NumberFormat("pt-BR").format(p.plan.perSeat);
     lines.push(
-      `São ${n} ${p.plan.perSeat === 1 ? "convocado" : "convocados"} por lugar${p.plan.overbooked ? " (acima de 3)" : ""}.`,
+      `São ${n} ${p.plan.perSeat === 1 ? "convocado" : "convocados"} por lugar (${formatCount(p.people)} ${plural(p.people, "pessoa", "pessoas")} ÷ ${formatCount(p.freeSeats14d)} ${plural(p.freeSeats14d, "lugar livre", "lugares livres")} em 14 dias)${p.plan.overbooked ? ", acima de 3" : ""}.`,
     );
   }
   if (p.withoutGlobal > 0) {

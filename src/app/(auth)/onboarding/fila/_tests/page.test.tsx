@@ -10,7 +10,10 @@ const api = vi.hoisted(() => ({
   getOrientationQueuePeople: vi.fn(),
   exportOrientationQueue: vi.fn(),
   listConvocations: vi.fn(),
+  getOrientationSettings: vi.fn(),
 }));
+const catalog = vi.hoisted(() => ({ getCatalogRoles: vi.fn() }));
+vi.mock("@/modules/admin/infrastructure/catalog-api", async (orig) => ({ ...(await orig<object>()), ...catalog }));
 vi.mock("@/modules/admin/infrastructure/orientation-api", async (orig) => ({ ...(await orig<object>()), ...api }));
 const csv = vi.hoisted(() => ({ downloadCsv: vi.fn() }));
 vi.mock("@/lib/csv", () => csv);
@@ -80,6 +83,11 @@ describe("Fila", () => {
     api.getOrientationQueue.mockResolvedValue(groups);
     api.getOrientationQueuePeople.mockResolvedValue(people);
     api.listConvocations.mockResolvedValue([]);
+    api.getOrientationSettings.mockResolvedValue({ convocationMinDays: 7 });
+    catalog.getCatalogRoles.mockResolvedValue([
+      { id: "r1", slug: "garcom", name: "Garçom" },
+      { id: "r2", slug: "cozinha", name: "Cozinha" },
+    ]);
   });
 
   it("contadores mostram valor + explicação (conta e fonte)", async () => {
@@ -138,15 +146,66 @@ describe("Fila", () => {
     expect(change(/Cadastro de/, "2026-10-01")).toContain("cadastroDe=2026-10-01");
     expect(change(/Cadastro até/, "2026-10-31")).toContain("cadastroAte=2026-10-31");
     nav.replace.mockClear();
-    const role = screen.getByLabelText(/Função/);
-    fireEvent.change(role, { target: { value: "Cozinha" } });
-    fireEvent.blur(role);
-    expect(nav.replace.mock.calls[0][0]).toContain("funcao=Cozinha");
-    nav.replace.mockClear();
     const city = screen.getByLabelText(/^Cidade/);
     fireEvent.change(city, { target: { value: "Jundiaí" } });
     fireEvent.keyDown(city, { key: "Enter" });
     expect(nav.replace.mock.calls[0][0]).toContain("cidade=Jund");
+  });
+
+  it("Função: lista com nome, manda o slug e a primeira opção é Todas", async () => {
+    renderPage();
+    await screen.findAllByText("Pessoa 1");
+    const select = screen.getByLabelText(/Função/);
+    await within(select).findByRole("option", { name: "Cozinha" });
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["Todas", "Garçom", "Cozinha"]);
+    nav.replace.mockClear();
+    fireEvent.change(select, { target: { value: "cozinha" } });
+    expect(nav.replace.mock.calls[0][0]).toContain("funcao=cozinha");
+  });
+
+  it("Função vinda da URL aparece selecionada pelo nome", async () => {
+    nav.search = "funcao=cozinha";
+    renderPage();
+    const select = screen.getByLabelText(/Função/) as HTMLSelectElement;
+    await waitFor(() => expect(select.selectedOptions[0].textContent).toBe("Cozinha"));
+  });
+
+  it("UF: 2 letras maiúsculas ao lado de Cidade; 1 letra não vira filtro", async () => {
+    renderPage();
+    await screen.findAllByText("Pessoa 1");
+    const uf = screen.getByLabelText("UF");
+    nav.replace.mockClear();
+    fireEvent.change(uf, { target: { value: "s" } });
+    fireEvent.blur(uf);
+    expect(nav.replace).not.toHaveBeenCalled();
+    expect(screen.getByText("Use 2 letras, como SP.")).toBeInTheDocument();
+    fireEvent.change(uf, { target: { value: "sp" } });
+    expect(uf).toHaveValue("SP");
+    fireEvent.keyDown(uf, { key: "Enter" });
+    expect(nav.replace.mock.calls[0][0]).toContain("uf=SP");
+  });
+
+  it("tabela mostra Convocado em e Pediu aviso em (dia de Brasília); sem acesso ganha legenda", async () => {
+    api.getOrientationQueuePeople.mockResolvedValue({
+      rows: [row(1, { lastConvokedAt: "2026-11-10T02:30:00.000Z", notifyRequestedAt: "2026-11-05T15:00:00.000Z", lastActiveDay: null })],
+      total: 1,
+      page: 1,
+      pageSize: 30,
+    });
+    renderPage();
+    await screen.findAllByText("Pessoa 1");
+    expect(screen.getByRole("columnheader", { name: "Convocado em" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Pediu aviso em" })).toBeInTheDocument();
+    expect(screen.getAllByText("09/11/2026").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("05/11/2026").length).toBeGreaterThan(0);
+    expect(document.querySelector('td[title*="365 dias"]')).not.toBeNull();
+    expect(screen.getByText(/sem acesso registrado nos últimos 365 dias/)).toBeInTheDocument();
+  });
+
+  it('"Ver a conta" tem área de toque de 44 px no celular', async () => {
+    renderPage();
+    await screen.findByText("1.200");
+    for (const el of screen.getAllByText("Ver a conta")) expect(el.className).toContain("min-h-11");
   });
 
   it('situação não tem "Todas"', async () => {
