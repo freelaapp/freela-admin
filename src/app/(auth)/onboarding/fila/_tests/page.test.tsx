@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   getOrientationQueueCounters: vi.fn(),
   getOrientationQueuePeople: vi.fn(),
   exportOrientationQueue: vi.fn(),
+  listConvocations: vi.fn(),
 }));
 vi.mock("@/modules/admin/infrastructure/orientation-api", async (orig) => ({ ...(await orig<object>()), ...api }));
 const csv = vi.hoisted(() => ({ downloadCsv: vi.fn() }));
@@ -78,6 +79,7 @@ describe("Fila", () => {
     api.getOrientationQueueCounters.mockResolvedValue(counters);
     api.getOrientationQueue.mockResolvedValue(groups);
     api.getOrientationQueuePeople.mockResolvedValue(people);
+    api.listConvocations.mockResolvedValue([]);
   });
 
   it("contadores mostram valor + explicação (conta e fonte)", async () => {
@@ -186,6 +188,7 @@ describe("Fila", () => {
     expect(within(screen.getByRole("table")).getByLabelText("Selecionar todos")).toBeDisabled();
     first.unmount();
     api.getOrientationQueuePeople.mockResolvedValue(people);
+    api.listConvocations.mockResolvedValue([]);
     renderPage();
     await screen.findAllByText("Pessoa 1");
     const table = screen.getByRole("table");

@@ -5,7 +5,6 @@ import { useOrientationConvocations } from "@/modules/admin/application/use-orie
 import type { ConvocationProgress } from "@/modules/admin/infrastructure/orientation-api";
 
 function Item({ c }: { c: ConvocationProgress }) {
-  const left = c.requestedCount - c.queued;
   const parts = [
     `${formatCount(c.sent)} enviadas`,
     `${formatCount(c.pending)} na fila`,
@@ -26,9 +25,7 @@ function Item({ c }: { c: ConvocationProgress }) {
       </p>
       <p className="mt-1 text-xs text-[#737373]">
         {formatCount(c.queued)} na lista = {parts.join(" + ")}
-        {left > 0
-          ? `. ${formatCount(c.requestedCount)} pedidas, ${formatCount(left)} ficaram de fora (já estavam na fila ou deixaram de poder receber).`
-          : "."}
+        .
       </p>
     </li>
   );

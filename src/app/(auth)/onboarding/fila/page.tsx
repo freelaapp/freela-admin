@@ -45,7 +45,7 @@ function FilaScreen() {
   const selected = cur.ids;
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [limitText, setLimitText] = useState("");
-  const [convoke, setConvoke] = useState<{ target: ConvocationTarget; requestKey: string } | null>(null);
+  const [convoke, setConvoke] = useState<{ target: ConvocationTarget; filter: OrientationQueueFilter; requestKey: string } | null>(null);
 
   const counters = useOrientationQueueCounters();
   const groups = useOrientationQueue(filter);
@@ -95,7 +95,7 @@ function FilaScreen() {
   const limitValid = /^\d{1,5}$/.test(limitText) && Number(limitText) >= 1 && Number(limitText) <= 10_000;
   const limitOk = limitText === "" || limitValid;
   const openConvocation = (target: ConvocationTarget) =>
-    setConvoke({ target, requestKey: crypto.randomUUID() });
+    setConvoke({ target, filter, requestKey: crypto.randomUUID() });
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 py-4">
@@ -209,7 +209,7 @@ function FilaScreen() {
         <ConvocationDialog
           key={convoke.requestKey}
           target={convoke.target}
-          filter={filter}
+          filter={convoke.filter}
           requestKey={convoke.requestKey}
           onClose={() => setConvoke(null)}
           onSent={() => setView({ ...cur, ids: new Set() })}

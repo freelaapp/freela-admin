@@ -45,6 +45,8 @@ export function ConvocationDialog({ target, filter, requestKey, onClose, onSent 
   const sending = useRef(false);
 
   // Mandar para uma lista escolhida à mão não pode perder gente pelo padrão de 30 dias (a API cruza a lista com o filtro).
+  // `filter` e `target` são o retrato de quando o diálogo abriu (a tela os congela): prévia e envio
+  // valem para o mesmo público, mesmo que a URL mude com o diálogo aberto.
   const input =
     target.kind === "picked"
       ? { filter: { ...filter, activeWithinDays: 0 }, providerGlobalIds: target.ids }
@@ -52,6 +54,7 @@ export function ConvocationDialog({ target, filter, requestKey, onClose, onSent 
 
   const loadPreview = () => {
     setPreview(null);
+    setError(null);
     previewMutation.mutate(input, {
       onSuccess: (p) => setPreview(p),
       onError: (err) => setError(orientationErrorMessage(err, "Não consegui calcular a prévia. Tente de novo.")),
@@ -89,11 +92,12 @@ export function ConvocationDialog({ target, filter, requestKey, onClose, onSent 
       setQueued(res.queued);
       onSent();
     } catch (err) {
-      setError(orientationErrorMessage(err, "Não consegui convocar. Tente de novo."));
+      const msg = orientationErrorMessage(err, "Não consegui convocar. Tente de novo.");
       if (apiErrorOf(err).code === "CONVOCATION_COUNT_MISMATCH") {
         setTyped("");
         loadPreview();
       }
+      setError(msg);
     } finally {
       sending.current = false;
     }
@@ -169,6 +173,12 @@ export function ConvocationDialog({ target, filter, requestKey, onClose, onSent 
             <p role="status" className="rounded-lg border border-[#16a34a] bg-[#f0fdf4] p-3 font-medium">
               {formatCount(queued)} {queued === 1 ? "pessoa" : "pessoas"} na fila de envio
             </p>
+          )}
+
+          {!preview && error && !sent && (
+            <Button variant="outline" className="min-h-11" onClick={loadPreview} disabled={previewMutation.isPending}>
+              Tentar de novo
+            </Button>
           )}
 
           {error && (

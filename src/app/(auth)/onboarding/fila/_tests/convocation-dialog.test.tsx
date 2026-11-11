@@ -244,6 +244,29 @@ describe("Convocar da Fila", () => {
     expect(api.createConvocation.mock.calls[0][0].requestKey.length).toBeGreaterThanOrEqual(8);
   });
 
+  it("mudar o filtro na URL com o diálogo aberto não muda o corpo do envio", async () => {
+    const view = renderPage();
+    const d = await openFiltered();
+    const btn = await within(d).findByRole("button", { name: "Convocar 40 pessoas" });
+    nav.search = "uf=RJ&cidade=Niteroi";
+    view.rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <FilaPage />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(btn);
+    await waitFor(() => expect(api.createConvocation).toHaveBeenCalled());
+    expect(api.createConvocation.mock.calls[0][0].filter).toEqual(expect.objectContaining({ uf: "SP", city: "Campinas" }));
+  });
+
+  it("prévia falhou: botão Tentar de novo refaz a prévia", async () => {
+    api.previewConvocation.mockRejectedValueOnce(new Error("x"));
+    renderPage();
+    const d = await openFiltered();
+    fireEvent.click(await within(d).findByRole("button", { name: "Tentar de novo" }));
+    expect(await within(d).findByText(/Vai mandar para 40 pessoas/)).toBeInTheDocument();
+  });
+
   it("sucesso: '1.200 pessoas na fila de envio' e a lista mostra enviadas / na fila / puladas com a conta", async () => {
     api.previewConvocation.mockResolvedValue(preview({ people: 1200 }, { requiresTypedCount: true }));
     api.createConvocation.mockResolvedValue({ convocationId: "c1", queued: 1200 });
@@ -253,7 +276,7 @@ describe("Convocar da Fila", () => {
         kind: "ADMIN",
         createdAt: "2026-11-11T15:00:00.000Z",
         requestedByName: "Diego",
-        requestedCount: 1250,
+        requestedCount: 1200,
         queued: 1200,
         sent: 800,
         skipped: 40,
@@ -271,6 +294,6 @@ describe("Convocar da Fila", () => {
     expect(within(list).getByText(/Na fila: 350/)).toBeInTheDocument();
     expect(within(list).getByText(/Puladas: 40/)).toBeInTheDocument();
     expect(within(list).getByText(/1\.200 na lista = 800 enviadas \+ 350 na fila \+ 40 puladas \+ 10 a conferir/)).toBeInTheDocument();
-    expect(within(list).getByText(/1\.250 pedidas, 50 ficaram de fora/)).toBeInTheDocument();
+    expect(within(list).queryByText(/pedidas|ficaram de fora/)).not.toBeInTheDocument();
   });
 });
