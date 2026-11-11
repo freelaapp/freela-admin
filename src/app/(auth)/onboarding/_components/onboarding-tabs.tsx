@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { label: "Turmas", href: "/onboarding" },
+  { label: "Fila", href: "/onboarding/fila" },
   { label: "Configurações", href: "/onboarding/configuracoes" },
 ];
 
@@ -13,7 +14,9 @@ const TABS = [
 export function OnboardingTabs() {
   const pathname = usePathname() ?? "";
   const active = (href: string) =>
-    href === "/onboarding" ? !pathname.startsWith("/onboarding/configuracoes") : pathname.startsWith(href);
+    href === "/onboarding"
+      ? pathname === "/onboarding" || pathname.startsWith("/onboarding/turmas")
+      : pathname.startsWith(href);
   return (
     <nav aria-label="Seções do Onboarding" className="mb-4 flex gap-1 overflow-x-auto border-b border-[#e5e5e5]">
       {TABS.map((tab) => (

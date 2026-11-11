@@ -15,7 +15,8 @@ const settings = vi.hoisted(() => ({ data: undefined as { gateWired?: boolean } 
 vi.mock("@/modules/admin/application/use-orientation", () => ({
   useOrientationSettings: () => settings,
 }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/onboarding" }));
+const path = vi.hoisted(() => ({ value: "/onboarding" }));
+vi.mock("next/navigation", () => ({ usePathname: () => path.value }));
 
 import OnboardingLayout from "../layout";
 
@@ -24,6 +25,19 @@ describe("layout do Onboarding", () => {
     guard.value = { isChecking: false, allowed: true };
     useAreaGuard.mockClear();
     settings.data = { gateWired: true };
+    path.value = "/onboarding";
+  });
+
+  it.each([
+    ["/onboarding/fila", "Fila"],
+    ["/onboarding/turmas/abc", "Turmas"],
+    ["/onboarding", "Turmas"],
+    ["/onboarding/configuracoes", "Configurações"],
+  ])("em %s só a aba %s fica ativa", (p, tab) => {
+    path.value = p;
+    render(<OnboardingLayout><p>filho</p></OnboardingLayout>);
+    const current = screen.getAllByRole("link").filter((l) => l.getAttribute("aria-current") === "page");
+    expect(current.map((l) => l.textContent)).toEqual([tab]);
   });
 
   const BANNER = /A trava de vagas ainda não está ligada: reprovar fica registrado/;
@@ -47,6 +61,7 @@ describe("layout do Onboarding", () => {
   it("liberado: mostra as abas e os filhos", () => {
     render(<OnboardingLayout><p>filho</p></OnboardingLayout>);
     expect(screen.getByRole("link", { name: "Turmas" })).toHaveAttribute("href", "/onboarding");
+    expect(screen.getByRole("link", { name: "Fila" })).toHaveAttribute("href", "/onboarding/fila");
     expect(screen.getByRole("link", { name: "Configurações" })).toHaveAttribute(
       "href",
       "/onboarding/configuracoes",
