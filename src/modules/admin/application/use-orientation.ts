@@ -10,16 +10,23 @@ import {
   cancelProviderBooking,
   correctOrientationResult,
   createOrientationSeries,
+  createConvocation,
   createOrientationSession,
+  exportOrientationQueue,
   finishAttendance,
   getBookingLink,
   getOrientationHosts,
   getOrientationProvider,
+  getOrientationQueue,
+  getOrientationQueueCounters,
+  getOrientationQueuePeople,
   getOrientationSession,
   getOrientationSettings,
   getOrientationSummary,
+  listConvocations,
   listOrientationSessions,
   previewAttendance,
+  previewConvocation,
   reopenAttendance,
   rescheduleProvider,
   resetChanges,
@@ -27,7 +34,10 @@ import {
   updateOrientationSession,
   updateOrientationSettings,
   type AttendanceMarkInput,
+  type ConvocationInput,
+  type CreateConvocationInput,
   type CreateOrientationSessionInput,
+  type OrientationQueueFilter,
   type OrientationSeriesInput,
   type OrientationSettingsPatch,
   type UpdateOrientationSessionInput,
@@ -42,6 +52,11 @@ const KEYS = {
   hosts: [...ORIENTATION_QUERY_ROOT, "hosts"] as const,
   sessions: (from: string, to: string) => [...ORIENTATION_QUERY_ROOT, "sessions", from, to] as const,
   session: (id: string) => [...ORIENTATION_QUERY_ROOT, "session", id] as const,
+  queue: (f: OrientationQueueFilter) => [...ORIENTATION_QUERY_ROOT, "queue", f] as const,
+  queueCounters: [...ORIENTATION_QUERY_ROOT, "queue-counters"] as const,
+  queuePeople: (f: OrientationQueueFilter, page: number) =>
+    [...ORIENTATION_QUERY_ROOT, "queue-people", f, page] as const,
+  convocations: [...ORIENTATION_QUERY_ROOT, "convocations"] as const,
   provider: (pgId: string | null) => [...ORIENTATION_QUERY_ROOT, "provider", pgId] as const,
 };
 
@@ -82,6 +97,37 @@ export function useOrientationProvider(pgId: string | null, enabled: boolean) {
     queryKey: KEYS.provider(pgId),
     queryFn: () => getOrientationProvider(pgId as string),
     enabled: enabled && !!pgId,
+  });
+}
+
+export function useOrientationQueue(f: OrientationQueueFilter) {
+  return useQuery({ queryKey: KEYS.queue(f), queryFn: () => getOrientationQueue(f) });
+}
+
+/** Contadores do topo (não seguem o filtro; o servidor guarda 60 s). */
+export function useOrientationQueueCounters() {
+  return useQuery({
+    queryKey: KEYS.queueCounters,
+    queryFn: getOrientationQueueCounters,
+    staleTime: 60_000,
+  });
+}
+
+export function useOrientationQueuePeople(f: OrientationQueueFilter, page: number, enabled = true) {
+  return useQuery({
+    queryKey: KEYS.queuePeople(f, page),
+    queryFn: () => getOrientationQueuePeople(f, page),
+    enabled,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/** Acompanha o envio: relê a cada 30 s enquanto houver gente esperando. */
+export function useOrientationConvocations() {
+  return useQuery({
+    queryKey: KEYS.convocations,
+    queryFn: listConvocations,
+    refetchInterval: (q) => (q.state.data?.some((c) => c.pending > 0) ? 30_000 : false),
   });
 }
 
@@ -197,4 +243,18 @@ function runProviderAction(v: OrientationProviderActionInput): Promise<unknown> 
 
 export function useOrientationProviderAction() {
   return useInvalidatingMutation(runProviderAction, { providers: true });
+}
+
+/** Só leitura (dryRun): não relê nada. */
+export function usePreviewConvocation() {
+  return useMutation({ mutationFn: (input: ConvocationInput) => previewConvocation(input) });
+}
+
+export function useCreateConvocation() {
+  return useInvalidatingMutation((input: CreateConvocationInput) => createConvocation(input));
+}
+
+/** Exportação: só leitura (grava o registro no servidor, nada a reler). */
+export function useExportOrientationQueue() {
+  return useMutation({ mutationFn: (f: OrientationQueueFilter) => exportOrientationQueue(f) });
 }

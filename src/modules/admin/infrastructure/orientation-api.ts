@@ -396,3 +396,179 @@ export const resetNoShows = (pgId: string, reason: string) =>
   providerReason(pgId, "reset-no-shows", reason);
 export const resetChanges = (pgId: string, reason: string) =>
   providerReason(pgId, "reset-changes", reason);
+
+// ----- fila (convocação) -----
+
+export type QueueStatus = "PENDING" | "BOOKED" | "APPROVED" | "REJECTED";
+
+/** Filtro da Fila. `activeWithinDays`: ausente = 30 (padrão da API); 0 = sem filtro de atividade. `signedUpFrom/To` = `YYYY-MM-DD` (dia de Brasília). */
+export interface OrientationQueueFilter {
+  status?: QueueStatus;
+  uf?: string;
+  city?: string;
+  role?: string;
+  signedUpFrom?: string;
+  signedUpTo?: string;
+  workedBefore?: boolean;
+  activeWithinDays?: number;
+  noShows?: "NONE" | "ANY";
+  convoked?: "NEVER" | "EVER";
+  notifyRequested?: boolean;
+}
+
+export interface QueueRow {
+  providerGlobalId: string | null;
+  userId: string;
+  name: string | null;
+  phone: string | null;
+  city: string | null;
+  uf: string | null;
+  roles: string[];
+  signedUpAt: string;
+  totalCompletedServices: number;
+  /** `YYYY-MM-DD` (Brasília). */
+  lastActiveDay: string | null;
+  noShows: number;
+  lastConvokedAt: string | null;
+  notifyRequestedAt: string | null;
+  status: QueueStatus;
+}
+
+export interface QueueCounters {
+  pending: { value: number; active: number; approved: number; rejected: number; booked: number };
+  pendingActive30: { value: number; measuredSince: string | null };
+  freeSeats4w: { value: number; sessions: number };
+  weeksToServe: { value: number | null; perWeek: number };
+  approved: { value: number };
+}
+
+export interface QueueCountersView {
+  counters: QueueCounters;
+  measuredSince?: string | null;
+}
+
+export interface QueueGroup {
+  uf: string | null;
+  count: number;
+  cities: Array<{ city: string | null; count: number }>;
+}
+
+export interface QueueGroupsView {
+  groups: QueueGroup[];
+  /** Opcional: API velha não manda. true = o corte de 5.000 grupos escondeu os menores. */
+  groupsTruncated?: boolean;
+}
+
+export interface QueuePeoplePage {
+  rows: QueueRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface QueueExport {
+  rows: QueueRow[];
+  total: number;
+  truncated: boolean;
+}
+
+export interface ConvocationPreview {
+  people: number;
+  matching: number;
+  withoutGlobal: number;
+  places: Array<{ uf: string | null; city: string | null; count: number }>;
+  freeSeats14d: number;
+  plan: {
+    days: number;
+    perSeat: number | null;
+    blocked: "NO_SEATS" | null;
+    overbooked: boolean;
+    requiresTypedCount: boolean;
+  };
+  pendingInQueue: number;
+  dailyCap: number;
+  channels: { messagesEnabled: boolean; whatsapp: boolean; push: true };
+}
+
+export interface ConvocationProgress {
+  id: string;
+  kind: "ADMIN" | "NOTIFY_REQUEST";
+  createdAt: string;
+  requestedByName: string | null;
+  requestedCount: number;
+  queued: number;
+  sent: number;
+  skipped: number;
+  pending: number;
+  parked: number;
+}
+
+export interface ConvocationInput {
+  /** Obrigatório: a API recusa convocação sem filtro. */
+  filter: OrientationQueueFilter;
+  limit?: number;
+  providerGlobalIds?: string[];
+}
+
+export type CreateConvocationInput = ConvocationInput & { requestKey: string; confirmCount?: number };
+
+/** Tira o que é vazio (a API recusa string vazia em uf, por exemplo); mantém 0 e false. */
+function queueParams(f: OrientationQueueFilter): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  for (const [k, v] of Object.entries(f)) {
+    if (v !== undefined && v !== null && v !== "") out[k] = v as string | number | boolean;
+  }
+  return out;
+}
+
+export async function getOrientationQueue(f: OrientationQueueFilter): Promise<QueueGroupsView> {
+  const res = await api.get("/queue", { params: queueParams(f) });
+  return res.data.data;
+}
+
+/** Contadores do topo: não seguem o filtro (cache de 60 s no servidor). */
+export async function getOrientationQueueCounters(): Promise<QueueCountersView> {
+  const res = await api.get("/queue/counters");
+  return res.data.data;
+}
+
+export async function getOrientationQueuePeople(
+  f: OrientationQueueFilter,
+  page: number,
+  pageSize?: number,
+): Promise<QueuePeoplePage> {
+  const res = await api.get("/queue/people", {
+    params: { ...queueParams(f), page, ...(pageSize ? { pageSize } : {}) },
+  });
+  return res.data.data;
+}
+
+/** Até 20.000 linhas. Limite de 3 por minuto no servidor (429). */
+export async function exportOrientationQueue(f: OrientationQueueFilter): Promise<QueueExport> {
+  const res = await api.get("/queue/export", { params: queueParams(f) });
+  return res.data.data;
+}
+
+export async function previewConvocation(input: ConvocationInput): Promise<ConvocationPreview> {
+  const res = await api.post("/queue/convocations", {
+    ...input,
+    filter: queueParams(input.filter),
+    dryRun: true,
+  });
+  return res.data.data;
+}
+
+export async function createConvocation(
+  input: CreateConvocationInput,
+): Promise<{ convocationId: string; queued: number }> {
+  const res = await api.post("/queue/convocations", {
+    ...input,
+    filter: queueParams(input.filter),
+  });
+  return res.data.data;
+}
+
+export async function listConvocations(): Promise<ConvocationProgress[]> {
+  const res = await api.get("/queue/convocations");
+  return res.data.data;
+}

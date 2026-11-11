@@ -133,3 +133,17 @@ describe("orientationErrorMessage", () => {
     expect(orientationErrorMessage(new Error("boom"), "Falhou")).toBe("Falhou");
   });
 });
+
+describe("erros da Fila", () => {
+  it("textos do admin para os códigos da convocação", () => {
+    expect(orientationErrorMessage(axios409("MESSAGES_DISABLED", "x"), "f")).toContain("desligados");
+    expect(orientationErrorMessage(axios409("CONVOCATION_EMPTY", "x", 422), "f")).toContain("Ninguém");
+    expect(orientationErrorMessage(axios409("NO_SEATS_FOR_AUDIENCE", "x", 422), "f")).toContain("turmas");
+    expect(orientationErrorMessage(axios409("CONVOCATION_COUNT_MISMATCH", "x"), "f")).toContain("número");
+  });
+  it("429 da exportação vira aviso amigável", () => {
+    const err = new AxiosError("x");
+    err.response = { status: 429, data: {}, statusText: "", headers: {}, config: {} as never };
+    expect(orientationErrorMessage(err, "f")).toContain("3 por minuto");
+  });
+});

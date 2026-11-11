@@ -179,13 +179,23 @@ const ERROR_TEXTS: Record<string, string> = {
     'Os links de agendamento ainda não estão ligados no servidor. Use "Agendar por ele" e mande o link do Meet.',
   SUPER_ADMIN_REQUIRED: "Só super administradores podem fazer isso.",
   FORBIDDEN: "Você não tem permissão para isso.",
+  MESSAGES_DISABLED:
+    "Os envios da aula estão desligados no servidor. Peça para ligar antes de convocar (a prévia continua funcionando).",
+  CONVOCATION_EMPTY: "Ninguém para convocar com esses filtros. Mude os filtros e confira a prévia.",
+  NO_SEATS_FOR_AUDIENCE:
+    "Não há lugar livre nas turmas dessas cidades. Crie turmas para elas antes de convocar.",
+  CONVOCATION_COUNT_MISMATCH:
+    "O número digitado não bate com o da prévia. A lista mudou: confira a prévia de novo e digite o número novo.",
   GATE_NOT_WIRED:
     "O bloqueio de vagas ainda não está ligado nesta versão; só dá para manter desligado.",
 };
 
 /** Texto do admin para um erro da API do Onboarding (tabela "Erros" do contrato). */
 export function orientationErrorMessage(err: unknown, fallback: string): string {
-  const { code, message } = apiErrorOf(err);
+  const { code, message, status } = apiErrorOf(err);
+  if (status === 429) {
+    return "Muitos pedidos em pouco tempo (a exportação aceita 3 por minuto). Espere 1 minuto e tente de novo.";
+  }
   if (code === "BAD_REQUEST") {
     return message ? `Algum campo está fora do formato: ${message}` : fallback;
   }

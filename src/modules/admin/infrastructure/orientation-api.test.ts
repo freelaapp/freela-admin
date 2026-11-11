@@ -16,6 +16,13 @@ vi.mock("@/modules/shared/infrastructure/authed-client", () => ({
 }));
 
 import {
+  createConvocation,
+  exportOrientationQueue,
+  getOrientationQueue,
+  getOrientationQueueCounters,
+  getOrientationQueuePeople,
+  listConvocations,
+  previewConvocation,
   approveWithoutClass,
   cancelOrientationSeries,
   cancelOrientationSession,
@@ -111,5 +118,55 @@ describe("orientation-api", () => {
     get.mockResolvedValueOnce(ok({ url: "u", expiresAt: "x" }));
     await expect(getBookingLink("pg-1")).resolves.toEqual({ url: "u", expiresAt: "x" });
     expect(get).toHaveBeenCalledWith("/providers/pg-1/booking-link");
+  });
+
+  it("getOrientationQueue manda só filtros preenchidos e mantém 0", async () => {
+    get.mockResolvedValueOnce(ok({ groups: [], groupsTruncated: false }));
+    await getOrientationQueue({ status: "PENDING", uf: "", city: "Campinas", activeWithinDays: 0 });
+    expect(get).toHaveBeenCalledWith("/queue", {
+      params: { status: "PENDING", city: "Campinas", activeWithinDays: 0 },
+    });
+  });
+
+  it("contadores vêm de /queue/counters", async () => {
+    get.mockResolvedValueOnce(ok({ counters: {}, measuredSince: null }));
+    await getOrientationQueueCounters();
+    expect(get).toHaveBeenCalledWith("/queue/counters");
+  });
+
+  it("pessoas e exportação", async () => {
+    get.mockResolvedValue(ok({ rows: [], total: 0, page: 2, pageSize: 50 }));
+    await getOrientationQueuePeople({ status: "PENDING", workedBefore: false }, 2);
+    expect(get).toHaveBeenCalledWith("/queue/people", {
+      params: { status: "PENDING", workedBefore: false, page: 2 },
+    });
+    await exportOrientationQueue({ uf: "SP" });
+    expect(get).toHaveBeenCalledWith("/queue/export", { params: { uf: "SP" } });
+  });
+
+  it("previewConvocation manda dryRun e o filtro", async () => {
+    post.mockResolvedValueOnce(ok({ people: 1 }));
+    await previewConvocation({ filter: { uf: "SP" }, limit: 10 });
+    expect(post).toHaveBeenCalledWith("/queue/convocations", {
+      filter: { uf: "SP" },
+      limit: 10,
+      dryRun: true,
+    });
+  });
+
+  it("createConvocation manda a chave e a confirmação, sem dryRun", async () => {
+    post.mockResolvedValueOnce(ok({ convocationId: "c", queued: 5 }));
+    await createConvocation({ filter: { uf: "SP" }, requestKey: "abc12345", confirmCount: 5 });
+    expect(post).toHaveBeenCalledWith("/queue/convocations", {
+      filter: { uf: "SP" },
+      requestKey: "abc12345",
+      confirmCount: 5,
+    });
+  });
+
+  it("listConvocations lê o andamento", async () => {
+    get.mockResolvedValueOnce(ok([{ id: "c" }]));
+    await expect(listConvocations()).resolves.toEqual([{ id: "c" }]);
+    expect(get).toHaveBeenCalledWith("/queue/convocations");
   });
 });
