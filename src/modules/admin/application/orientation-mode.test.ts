@@ -54,6 +54,7 @@ describe("modeChangeDialog", () => {
     expect(d.requiresTyping).toBeNull();
     expect(d.losing).toBe(7);
     expect(d.lines).toContain("A data de corte será hoje, 11/11/2026, e não muda depois.");
+    expect(d.lines).toContain("A partir de agora, todo cadastro novo só vê vagas depois da aula.");
     const s = modeChangeDialog("OFF", "NEW_ONLY", summary({ cutoffStamped: true }), hoje);
     if ("blocked" in s) throw new Error("bloqueou");
     expect(s.lines.some((l) => l.includes("data de corte será hoje"))).toBe(false);

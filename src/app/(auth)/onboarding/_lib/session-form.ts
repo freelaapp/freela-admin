@@ -41,6 +41,7 @@ export interface FormLimits {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const INT_RE = /^\d+$/;
+const MIN_DURATION_MIN = 5;
 const MAX_DURATION_MIN = 480;
 const MEET_ERROR = "Cole o link do Meet (https://…).";
 
@@ -53,8 +54,8 @@ function isHttpUrl(v: string): boolean {
 function parseDuration(raw: string): number | string | undefined {
   const v = raw.trim();
   if (!v) return undefined;
-  if (!INT_RE.test(v) || Number(v) < 1 || Number(v) > MAX_DURATION_MIN) {
-    return `Duração: use um valor entre 1 e ${MAX_DURATION_MIN} minutos.`;
+  if (!INT_RE.test(v) || Number(v) < MIN_DURATION_MIN || Number(v) > MAX_DURATION_MIN) {
+    return `Duração: use um valor entre ${MIN_DURATION_MIN} e ${MAX_DURATION_MIN} minutos.`;
   }
   return Number(v);
 }

@@ -16,6 +16,10 @@ const api = vi.hoisted(() => ({
 vi.mock("@/modules/admin/infrastructure/orientation-api", async (orig) => ({ ...(await orig<object>()), ...api }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
+const auth = vi.hoisted(() => ({ jobs: true }));
+vi.mock("@/modules/auth/application/use-auth", () => ({
+  useAuth: () => ({ hasPermission: (p: string) => (p === "JOBS" ? auth.jobs : true) }),
+}));
 vi.mock("next/navigation", () => ({ useParams: () => ({ id: "s1" }) }));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -100,6 +104,7 @@ const mark = (name: string, label: string) =>
 describe("Chamada da turma", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    auth.jobs = true;
     sessionStorage.clear();
     // 16/11 12:30Z = 9h30 em Brasília: a aula já começou.
     vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-16T12:30:00Z") });
@@ -193,7 +198,35 @@ describe("Chamada da turma", () => {
         el?.tagName === "SPAN" &&
         el.textContent === "Esta pessoa tem 1 vaga aceita (ter 17/11, 19h · Coco Bambu Jundiaí) — ver",
     );
-    expect(within(warn).getByRole("link", { name: "ver" })).toHaveAttribute("href", "/jobs?vaga=vac-1");
+    const link = within(warn).getByRole("link", { name: "ver" });
+    expect(link).toHaveAttribute("href", "/jobs?vaga=vac-1");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("sem permissão de Vagas o aviso não vira link", async () => {
+    auth.jobs = false;
+    api.previewAttendance.mockResolvedValue({
+      warnings: [
+        {
+          enrollmentId: "e2",
+          futureAcceptedVacancies: [{ vacancyId: "vac-1", startTime: "2026-11-17T22:00:00.000Z", contractorName: "Coco Bambu Jundiaí" }],
+        },
+      ],
+    });
+    renderPage();
+    await screen.findByText("Bruno");
+    mark("Bruno", "Reprovado");
+    await screen.findByText(/Esta pessoa tem 1 vaga aceita/);
+    expect(screen.queryByRole("link", { name: "ver" })).not.toBeInTheDocument();
+  });
+
+  it("detalhe que volta encerrado apaga o rascunho", async () => {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ e1: { result: "APPROVED", notes: "" } }));
+    api.getOrientationSession.mockResolvedValue(detail({ status: "FINISHED" }));
+    renderPage();
+    await screen.findByRole("heading", { name: /segunda, 16\/11/ });
+    await waitFor(() => expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull());
   });
 
   it("encerrar fica bloqueado até marcar todos, anotar o reprovado e a aula começar", async () => {
@@ -258,7 +291,9 @@ describe("Chamada da turma", () => {
       within(dialog).getByText("Encerrar chamada de segunda, 16/11, 9h: 1 aprovado, 1 não aprovado, 1 faltou."),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByText("Os resultados valem na hora. Dá para reabrir a chamada por 10 minutos."),
+      within(dialog).getByText(
+        "Os resultados ficam registrados na hora. Dá para reabrir a chamada por 10 minutos. Por enquanto ninguém perde vagas.",
+      ),
     ).toBeInTheDocument();
     expect(dialog.textContent).not.toMatch(/mensagens saem/);
     fireEvent.click(within(dialog).getByRole("button", { name: "Encerrar agora" }));

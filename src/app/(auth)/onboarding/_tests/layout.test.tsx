@@ -11,6 +11,10 @@ vi.mock("@/modules/auth/application/use-area-guard", () => ({
     return guard.value;
   },
 }));
+const settings = vi.hoisted(() => ({ data: undefined as { gateWired?: boolean } | undefined }));
+vi.mock("@/modules/admin/application/use-orientation", () => ({
+  useOrientationSettings: () => settings,
+}));
 vi.mock("next/navigation", () => ({ usePathname: () => "/onboarding" }));
 
 import OnboardingLayout from "../layout";
@@ -19,6 +23,20 @@ describe("layout do Onboarding", () => {
   beforeEach(() => {
     guard.value = { isChecking: false, allowed: true };
     useAreaGuard.mockClear();
+    settings.data = { gateWired: true };
+  });
+
+  const BANNER = /A trava de vagas ainda não está ligada: reprovar fica registrado/;
+
+  it("trava ligada: sem faixa", () => {
+    render(<OnboardingLayout><p>filho</p></OnboardingLayout>);
+    expect(screen.queryByText(BANNER)).not.toBeInTheDocument();
+  });
+
+  it.each([{ gateWired: false }, {}])("trava não ligada %o: mostra a faixa", (data) => {
+    settings.data = data;
+    render(<OnboardingLayout><p>filho</p></OnboardingLayout>);
+    expect(screen.getByText(BANNER)).toBeInTheDocument();
   });
 
   it("pede a permissão ORIENTATION", () => {

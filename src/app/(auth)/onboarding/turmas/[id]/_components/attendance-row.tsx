@@ -35,7 +35,16 @@ function vacancyLabel(v: FutureVacancy): string {
   return v.contractorName ? `${when} · ${v.contractorName}` : when;
 }
 
-function VacancyWarning({ vacancies }: { vacancies: FutureVacancy[] }) {
+function VacancyLink({ href, canOpen }: { href: string; canOpen: boolean }) {
+  if (!canOpen) return <span>ver na área de Vagas</span>;
+  return (
+    <Link href={href} target="_blank" rel="noopener noreferrer" className="font-medium underline">
+      ver
+    </Link>
+  );
+}
+
+function VacancyWarning({ vacancies, canOpen }: { vacancies: FutureVacancy[]; canOpen: boolean }) {
   if (vacancies.length === 0) return null;
   const href = (v: FutureVacancy) => `/jobs?vaga=${encodeURIComponent(v.vacancyId)}`;
   const box = "mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900";
@@ -46,9 +55,7 @@ function VacancyWarning({ vacancies }: { vacancies: FutureVacancy[] }) {
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         <span>
           Esta pessoa tem 1 vaga aceita ({vacancyLabel(v)}) —{" "}
-          <Link href={href(v)} className="font-medium underline">
-            ver
-          </Link>
+          <VacancyLink href={href(v)} canOpen={canOpen} />
         </span>
       </p>
     );
@@ -62,9 +69,7 @@ function VacancyWarning({ vacancies }: { vacancies: FutureVacancy[] }) {
           {vacancies.map((v) => (
             <li key={v.vacancyId}>
               {vacancyLabel(v)} —{" "}
-              <Link href={href(v)} className="font-medium underline">
-                ver
-              </Link>
+              <VacancyLink href={href(v)} canOpen={canOpen} />
             </li>
           ))}
         </ul>
@@ -77,6 +82,7 @@ interface Props {
   enrollee: OrientationEnrollee;
   mark: { result: AttendanceResult; notes: string } | undefined;
   vacancies: FutureVacancy[];
+  canOpenVacancy: boolean;
   disabled: boolean;
   onMark: (enrollmentId: string, result: AttendanceResult) => void;
   onNotes: (enrollmentId: string, notes: string) => void;
@@ -89,6 +95,7 @@ function AttendanceRowImpl({
   enrollee: e,
   mark,
   vacancies,
+  canOpenVacancy,
   disabled,
   onMark,
   onNotes,
@@ -201,7 +208,7 @@ function AttendanceRowImpl({
         </div>
       )}
 
-      {mark?.result === "REJECTED" && <VacancyWarning vacancies={vacancies} />}
+      {mark?.result === "REJECTED" && <VacancyWarning vacancies={vacancies} canOpen={canOpenVacancy} />}
     </li>
   );
 }

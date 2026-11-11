@@ -216,6 +216,7 @@ function SessionFormBody({
         <textarea
           id="session-notes"
           rows={2}
+          maxLength={1000}
           value={form.notes}
           onChange={(e) => set("notes", e.target.value)}
           className="w-full rounded-lg border border-[#e5e5e5] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"

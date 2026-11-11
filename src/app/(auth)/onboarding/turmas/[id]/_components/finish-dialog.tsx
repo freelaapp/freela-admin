@@ -14,12 +14,13 @@ import {
 interface Props {
   summary: string;
   reopenMinutes: number;
+  gateWired: boolean;
   pending: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }
 
-export function FinishDialog({ summary, reopenMinutes, pending, onConfirm, onClose }: Props) {
+export function FinishDialog({ summary, reopenMinutes, gateWired, pending, onConfirm, onClose }: Props) {
   return (
     <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
       <DialogContent role="dialog" aria-modal="true" className="max-h-[55vh] overflow-y-auto">
@@ -30,7 +31,8 @@ export function FinishDialog({ summary, reopenMinutes, pending, onConfirm, onClo
         <div className="space-y-2 text-sm text-[#1d1d1b]">
           <p className="font-medium">{summary}</p>
           <p className="text-[#525252]">
-            Os resultados valem na hora. Dá para reabrir a chamada por {reopenMinutes} minutos.
+            Os resultados ficam registrados na hora. Dá para reabrir a chamada por {reopenMinutes} minutos.{" "}
+            {!gateWired && "Por enquanto ninguém perde vagas."}
           </p>
         </div>
         <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 mt-4 rounded-b-xl border-t border-[#e5e5e5] bg-white p-4">

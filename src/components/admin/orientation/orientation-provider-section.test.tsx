@@ -279,7 +279,7 @@ describe("OrientationProviderSection", () => {
         ],
         events: [
           { id: "v1", action: "booked", actorType: "ADMIN", actorId: "a1", actorName: "Rebeca", detail: null, createdAt: "2026-11-10T13:30:00.000Z" },
-          { id: "v2", action: "no_show_reset", actorType: "PROVIDER", actorId: null, detail: null, createdAt: "2026-11-10T14:00:00.000Z" },
+          { id: "v2", action: "no_show_reset", actorType: "FREELANCER", actorId: null, detail: null, createdAt: "2026-11-10T14:00:00.000Z" },
           { id: "v3", action: "result_set", actorType: "SYSTEM", actorId: null, detail: null, createdAt: "2026-11-10T15:00:00.000Z" },
         ],
       }),

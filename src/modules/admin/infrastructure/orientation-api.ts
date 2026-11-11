@@ -53,6 +53,8 @@ export interface OrientationSettingsView extends OrientationSettings {
   updatedAt?: string | null;
   updatedByAdminId?: string | null;
   updatedByAdminName?: string | null;
+  /** Ausente = trava de vagas não ligada no servidor. */
+  gateWired?: boolean;
 }
 
 /** Só campos do DTO: a API recusa (400) `newSignupsSince` e `updated*`. */
@@ -217,7 +219,7 @@ export interface OrientationEnrollmentRow {
 export interface OrientationEventRow {
   id: string;
   action: string;
-  actorType: string;
+  actorType: "ADMIN" | "FREELANCER" | "SYSTEM";
   actorId: string | null;
   actorName?: string | null;
   detail: unknown;

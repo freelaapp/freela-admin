@@ -45,6 +45,7 @@ describe("buildSettingsPatch", () => {
   });
   it("fora da faixa da API → erro", () => {
     expect(buildSettingsPatch({ ...settingsToForm(current), defaultDurationMin: "0" }, current).ok).toBe(false);
+    expect(buildSettingsPatch({ ...settingsToForm(current), defaultDurationMin: "4" }, current).ok).toBe(false);
     expect(buildSettingsPatch({ ...settingsToForm(current), defaultDurationMin: "481" }, current).ok).toBe(false);
   });
   it("nunca manda gateMode nem gateFixedJobs", () => {

@@ -36,7 +36,7 @@ export const SETTING_FIELDS: SettingField[] = [
   {
     key: "defaultDurationMin",
     label: "Duração da aula (min)",
-    min: 1,
+    min: 5,
     max: 480,
     hint: "Conta Gmail pessoal corta a chamada em grupo aos 60 minutos.",
   },

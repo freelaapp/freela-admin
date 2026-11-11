@@ -90,7 +90,7 @@ describe("rótulos", () => {
     expect(approvedViaLabel(null)).toBe("—");
   });
   it("evento do histórico", () => {
-    const base = { id: "1", actorType: "ADMIN", actorId: "a", detail: null, createdAt: "2026-11-16T12:00:00.000Z" };
+    const base = { id: "1", actorType: "ADMIN" as const, actorId: "a", detail: null, createdAt: "2026-11-16T12:00:00.000Z" };
     expect(orientationEventLabel({ ...base, action: "booked" })).toBe("Marcou a aula");
     expect(orientationEventLabel({ ...base, action: "algo_novo" })).toBe("algo_novo");
   });
@@ -102,6 +102,15 @@ describe("rótulos", () => {
 });
 
 describe("orientationErrorMessage", () => {
+  it("FORBIDDEN, SUPER_ADMIN_REQUIRED e GATE_NOT_WIRED têm texto próprio", () => {
+    expect(orientationErrorMessage(axios409("FORBIDDEN", "x"), "f")).toBe("Você não tem permissão para isso.");
+    expect(orientationErrorMessage(axios409("SUPER_ADMIN_REQUIRED", "x"), "f")).toBe(
+      "Só super administradores podem fazer isso.",
+    );
+    expect(orientationErrorMessage(axios409("GATE_NOT_WIRED", "x"), "f")).toBe(
+      "O bloqueio de vagas ainda não está ligado nesta versão; só dá para manter desligado.",
+    );
+  });
   it("traduz código da tabela", () => {
     expect(orientationErrorMessage(axios409("SESSION_FULL", "Lotou agora…"), "x")).toBe(
       "Esta turma lotou. Escolha outra.",

@@ -25,19 +25,24 @@ import type {
 import { SUPER_ADMIN_ONLY_HINT } from "../../../configuracoes/_components/super-admin-hint";
 import { ModeChangeDialog } from "./mode-change-dialog";
 
+export const GATE_NOT_WIRED_HINT = "Disponível quando a trava de vagas for ligada no servidor.";
+
 function Card({
   card,
   source,
   canChange,
   busy,
+  gateWired,
   onChoose,
 }: {
   card: CardView;
   source: string;
   canChange: boolean;
   busy: boolean;
+  gateWired: boolean;
   onChoose: (mode: OrientationGateMode) => void;
 }) {
+  const lockedByGate = !gateWired && card.mode !== "OFF";
   return (
     <div
       className={`flex flex-col rounded-xl border bg-white p-5 ${
@@ -68,9 +73,22 @@ function Card({
         </details>
       )}
       {canChange && !card.isCurrent && (
-        <Button className="mt-4 min-h-11" variant="outline" disabled={busy} onClick={() => onChoose(card.mode)}>
-          Usar este modo
-        </Button>
+        <>
+          <Button
+            className="mt-4 min-h-11"
+            variant="outline"
+            disabled={busy || lockedByGate}
+            aria-describedby={lockedByGate ? `gate-lock-${card.mode}` : undefined}
+            onClick={() => onChoose(card.mode)}
+          >
+            Usar este modo
+          </Button>
+          {lockedByGate && (
+            <p id={`gate-lock-${card.mode}`} className="mt-1 text-xs text-[#737373]">
+              {GATE_NOT_WIRED_HINT}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
@@ -82,6 +100,7 @@ export function GateModeSection({ settings }: { settings: OrientationSettingsVie
   const update = useUpdateOrientationSettings();
   const [target, setTarget] = useState<OrientationGateMode | null>(null);
 
+  const gateWired = settings.gateWired === true;
   const info = target ? modeChangeDialog(settings.gateMode, target, summary.data ?? null, new Date()) : null;
 
   const confirm = () => {
@@ -115,8 +134,8 @@ export function GateModeSection({ settings }: { settings: OrientationSettingsVie
       {summary.isLoading && <Loader2 className="mt-4 h-5 w-5 animate-spin text-neutral-400" />}
       <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
         {(summary.data
-          ? modeCards(summary.data, settings.gateMode)
-          : modeCardsWithoutNumbers(settings.gateMode, settings.newSignupsSince)
+          ? modeCards(summary.data, settings.gateMode, gateWired)
+          : modeCardsWithoutNumbers(settings.gateMode, settings.newSignupsSince, gateWired)
         ).map((card) => (
           <Card
             key={card.mode}
@@ -124,6 +143,7 @@ export function GateModeSection({ settings }: { settings: OrientationSettingsVie
             source={summary.data ? summarySource(summary.data) : ""}
             canChange={isSuperAdmin}
             busy={update.isPending}
+            gateWired={gateWired}
             onChoose={setTarget}
           />
         ))}

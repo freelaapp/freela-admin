@@ -125,6 +125,13 @@ export function useCancelOrientationSession() {
   );
 }
 
+/** Só conta (dryRun): não relê nada. */
+export function useCountSeriesCancellation() {
+  return useMutation({
+    mutationFn: (seriesId: string) => cancelOrientationSeries(seriesId, { dryRun: true }),
+  });
+}
+
 export function useCancelOrientationSeries() {
   return useInvalidatingMutation(
     (v: { seriesId: string; dryRun: boolean }) => cancelOrientationSeries(v.seriesId, { dryRun: v.dryRun }),

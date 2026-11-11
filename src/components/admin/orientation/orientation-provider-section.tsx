@@ -82,7 +82,7 @@ function formatDateTime(iso: string): string {
 
 function actorOf(e: OrientationEventRow): string {
   if (e.actorName) return e.actorName;
-  if (e.actorType === "PROVIDER") return "Freelancer";
+  if (e.actorType === "FREELANCER") return "Freelancer";
   if (e.actorType === "SYSTEM") return "Sistema";
   return "Admin";
 }

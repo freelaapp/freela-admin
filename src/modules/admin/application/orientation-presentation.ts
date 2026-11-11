@@ -178,7 +178,9 @@ const ERROR_TEXTS: Record<string, string> = {
   ORIENTATION_LINKS_NOT_CONFIGURED:
     'Os links de agendamento ainda não estão ligados no servidor. Use "Agendar por ele" e mande o link do Meet.',
   SUPER_ADMIN_REQUIRED: "Só super administradores podem fazer isso.",
-  FORBIDDEN: "Só super administradores podem fazer isso.",
+  FORBIDDEN: "Você não tem permissão para isso.",
+  GATE_NOT_WIRED:
+    "O bloqueio de vagas ainda não está ligado nesta versão; só dá para manter desligado.",
 };
 
 /** Texto do admin para um erro da API do Onboarding (tabela "Erros" do contrato). */

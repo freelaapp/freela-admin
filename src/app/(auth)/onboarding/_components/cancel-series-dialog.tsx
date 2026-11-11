@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { orientationErrorMessage } from "@/modules/admin/application/orientation-presentation";
-import { useCancelOrientationSeries } from "@/modules/admin/application/use-orientation";
+import { useCancelOrientationSeries, useCountSeriesCancellation } from "@/modules/admin/application/use-orientation";
 
 interface Props {
   seriesId: string;
@@ -24,12 +24,12 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 /** Primeiro pede a conta (`dryRun`), depois cancela de verdade. */
 export function CancelSeriesDialog({ seriesId, onClose }: Props) {
-  const count = useCancelOrientationSeries();
+  const count = useCountSeriesCancellation();
   const run = useCancelOrientationSeries();
   const { mutate: countMutate } = count;
 
   useEffect(() => {
-    countMutate({ seriesId, dryRun: true });
+    countMutate(seriesId);
   }, [countMutate, seriesId]);
 
   const counts = count.data;

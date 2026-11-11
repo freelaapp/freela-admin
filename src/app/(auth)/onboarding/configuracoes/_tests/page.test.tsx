@@ -34,6 +34,7 @@ const settings = {
   dailyMessageCap: 200,
   updatedAt: null,
   updatedByAdminName: null,
+  gateWired: true,
 };
 const summary = {
   generatedAt: "2026-11-11T15:30:00.000Z",
@@ -61,6 +62,34 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+describe("Configurações do Onboarding — trava não ligada", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    auth.isSuperAdmin = true;
+    api.getOrientationSummary.mockResolvedValue(summary);
+  });
+
+  it.each([{ gateWired: false }, { gateWired: undefined }])(
+    "gateWired %o: Só cadastros novos e Todos ficam desativados com o motivo",
+    async (over) => {
+      api.getOrientationSettings.mockResolvedValue({ ...settings, ...over });
+      renderPage();
+      const buttons = await screen.findAllByRole("button", { name: "Usar este modo" });
+      expect(buttons).toHaveLength(2);
+      buttons.forEach((b) => expect(b).toBeDisabled());
+      expect(screen.getAllByText("Disponível quando a trava de vagas for ligada no servidor.")).toHaveLength(2);
+      expect(await screen.findByText("Ninguém é barrado: o resultado da aula só fica registrado.")).toBeInTheDocument();
+    },
+  );
+
+  it("OFF continua disponível quando já está em outro modo", async () => {
+    api.getOrientationSettings.mockResolvedValue({ ...settings, gateMode: "ALL", gateWired: false });
+    renderPage();
+    const buttons = await screen.findAllByRole("button", { name: "Usar este modo" });
+    expect(buttons[0]).toBeEnabled();
+  });
+});
 
 describe("Configurações do Onboarding", () => {
   beforeEach(() => {

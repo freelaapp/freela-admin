@@ -66,6 +66,11 @@ describe("buildCreateSessionPayload", () => {
     expect(buildCreateSessionPayload({ ...form, meetUrl: "meet.google.com/x" }, limits, now).ok).toBe(false);
   });
 
+  it("recusa duração abaixo de 5 minutos", () => {
+    const r = buildCreateSessionPayload({ ...form, durationMin: "4" }, limits, now);
+    expect(r).toEqual({ ok: false, error: "Duração: use um valor entre 5 e 480 minutos." });
+    expect(buildCreateSessionPayload({ ...form, durationMin: "5" }, limits, now).ok).toBe(true);
+  });
   it("recusa capacidade acima do teto", () => {
     const r = buildCreateSessionPayload({ ...form, capacity: "101" }, limits, now);
     expect(r.ok).toBe(false);

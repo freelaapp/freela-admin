@@ -37,7 +37,10 @@ function people(n: number): string {
   return `${formatCount(n)} ${n === 1 ? "pessoa" : "pessoas"}`;
 }
 
-export function modeCards(summary: OrientationSummary, current: OrientationGateMode): ModeCard[] {
+const OFF_EFFECT = "Todos veem vagas, menos os reprovados.";
+const OFF_EFFECT_NOT_WIRED = "Ninguém é barrado: o resultado da aula só fica registrado.";
+
+export function modeCards(summary: OrientationSummary, current: OrientationGateMode, gateWired = true): ModeCard[] {
   const { active, approved, rejected, pendingSinceCutoff } = summary.freelancers;
   const blocked = summary.blockedByMode;
   const a = formatCount(active);
@@ -45,7 +48,7 @@ export function modeCards(summary: OrientationSummary, current: OrientationGateM
     {
       mode: "OFF",
       title: MODE_TITLES.OFF,
-      effect: "Todos veem vagas, menos os reprovados.",
+      effect: gateWired ? OFF_EFFECT : OFF_EFFECT_NOT_WIRED,
       seeing: active - blocked.OFF,
       blocked: blocked.OFF,
       calc: `${a} ativos − ${formatCount(rejected)} reprovados`,
@@ -73,10 +76,14 @@ export function modeCards(summary: OrientationSummary, current: OrientationGateM
 }
 
 /** Cartões sem números (a contagem falhou ou ainda carrega): só título e efeito. */
-export function modeCardsWithoutNumbers(current: OrientationGateMode, cutoff: string | null): CardView[] {
+export function modeCardsWithoutNumbers(
+  current: OrientationGateMode,
+  cutoff: string | null,
+  gateWired = true,
+): CardView[] {
   const when = cutoff ? formatInstantDate(cutoff) : "a data de corte";
   return [
-    { mode: "OFF", title: MODE_TITLES.OFF, effect: "Todos veem vagas, menos os reprovados.", seeing: null, blocked: null, calc: "", isCurrent: current === "OFF" },
+    { mode: "OFF", title: MODE_TITLES.OFF, effect: gateWired ? OFF_EFFECT : OFF_EFFECT_NOT_WIRED, seeing: null, blocked: null, calc: "", isCurrent: current === "OFF" },
     { mode: "NEW_ONLY", title: MODE_TITLES.NEW_ONLY, effect: `Quem virar freelancer a partir de ${when} precisa da aula.`, seeing: null, blocked: null, calc: "", isCurrent: current === "NEW_ONLY" },
     { mode: "ALL", title: MODE_TITLES.ALL, effect: "Só os aprovados veem vagas.", seeing: null, blocked: null, calc: "", isCurrent: current === "ALL" },
   ];
@@ -135,6 +142,9 @@ export function modeChangeDialog(
     lines.push(`A data de corte será hoje, ${formatInstantDate(today)}, e não muda depois.`);
   } else {
     lines.push(`A data de corte continua ${formatInstantDate(summary.cutoff)}.`);
+  }
+  if (from === "OFF" && to === "NEW_ONLY") {
+    lines.push("A partir de agora, todo cadastro novo só vê vagas depois da aula.");
   }
   if (to === "ALL") {
     lines.push("Antes de ligar, confira: o app mínimo já é 1.0.50 e há aprovados nas cidades com vaga aberta.");

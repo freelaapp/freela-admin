@@ -85,6 +85,7 @@ export function CancelSessionDialog({ session, onClose }: Props) {
             <textarea
               id="cancel-session-reason"
               rows={2}
+              maxLength={500}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full rounded-lg border border-[#e5e5e5] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#eca826]/30"

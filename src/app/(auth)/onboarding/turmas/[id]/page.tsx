@@ -29,6 +29,7 @@ import type {
   OrientationEnrollee,
 } from "@/modules/admin/infrastructure/orientation-api";
 import { AttendanceRow, type FutureVacancy } from "./_components/attendance-row";
+import { useAuth } from "@/modules/auth/application/use-auth";
 import { CorrectionDialog, type CorrectionKind } from "./_components/correction-dialog";
 import { FinishDialog } from "./_components/finish-dialog";
 import {
@@ -76,6 +77,8 @@ export default function ChamadaPage() {
   const { id } = useParams<{ id: string }>();
   const session = useOrientationSession(id);
   const settings = useOrientationSettings();
+  const { hasPermission } = useAuth();
+  const canOpenVacancy = hasPermission("JOBS");
   const preview = usePreviewAttendance(id);
   const finish = useFinishAttendance(id);
   const reopen = useReopenAttendance(id);
@@ -99,6 +102,14 @@ export default function ChamadaPage() {
   useEffect(() => {
     if (open) setMarks((prev) => pruneMarks(prev, booked));
   }, [open, booked]);
+
+  // Detalhe que voltou encerrado/cancelado: o rascunho não vale mais.
+  useEffect(() => {
+    if (!detail || detail.status === "OPEN") return;
+    const s = storage();
+    if (s) clearDraft(s, id);
+    setMarks({});
+  }, [detail, id]);
 
   // Rascunho no aparelho: celular que bloqueia ou recarrega não perde as marcas.
   useEffect(() => {
@@ -463,6 +474,7 @@ export default function ChamadaPage() {
                   enrollee={e}
                   mark={marks[e.enrollmentId]}
                   vacancies={vacancies[e.enrollmentId] ?? []}
+                  canOpenVacancy={canOpenVacancy}
                   disabled={finish.isPending}
                   onMark={setResult}
                   onNotes={setNotes}
@@ -498,6 +510,7 @@ export default function ChamadaPage() {
         <FinishDialog
           summary={finishSummary(detail.startsAt, marks)}
           reopenMinutes={reopenMinutes}
+          gateWired={settings.data?.gateWired === true}
           pending={finish.isPending}
           onConfirm={confirmFinish}
           onClose={() => setFinishing(false)}
