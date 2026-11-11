@@ -28,10 +28,20 @@ describe("filtro da Fila na URL", () => {
     });
   });
 
-  it("situacao=TODAS tira o filtro de situação; jaTrabalhou=nao vira false", () => {
+  it("situacao=TODAS não existe: cai em pendente; jaTrabalhou=nao vira false", () => {
     const f = queueFilterFromParams(new URLSearchParams("situacao=TODAS&jaTrabalhou=nao"));
-    expect(f.status).toBeUndefined();
+    expect(f.status).toBe("PENDING");
     expect(f.workedBefore).toBe(false);
+  });
+
+  it("ativoEm fica entre 1 e 365 (0 = sem filtro); UF só com 2 letras", () => {
+    const days = (v: string) => queueFilterFromParams(new URLSearchParams(`ativoEm=${v}`)).activeWithinDays;
+    expect(days("0")).toBe(0);
+    expect(days("999")).toBe(365);
+    expect(days("365")).toBe(365);
+    expect(days("45")).toBe(45);
+    expect(queueFilterFromParams(new URLSearchParams("uf=SPX")).uf).toBeUndefined();
+    expect(queueFilterFromParams(new URLSearchParams("uf=s1")).uf).toBeUndefined();
   });
 
   it("valor inválido cai no padrão", () => {
@@ -53,6 +63,5 @@ describe("filtro da Fila na URL", () => {
     };
     const back = queueFilterFromParams(queueFilterToParams(f));
     expect(back).toEqual(f);
-    expect(queueFilterToParams({ activeWithinDays: 30 }).get("situacao")).toBe("TODAS");
   });
 });

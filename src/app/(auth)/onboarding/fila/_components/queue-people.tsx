@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { formatCount, whatsappUrlFromPhone } from "@/modules/admin/application/orientation-presentation";
+import { brasiliaDateKey, formatCount, whatsappUrlFromPhone } from "@/modules/admin/application/orientation-presentation";
 import type { QueueRow, QueueStatus } from "@/modules/admin/infrastructure/orientation-api";
 
 const STATUS_TEXT: Record<QueueStatus, string> = {
@@ -17,6 +17,8 @@ function dayBr(key: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
+const NO_INVITE = "Sem convite: cadastro antigo";
+
 function place(r: QueueRow): string {
   return [r.city, r.uf].filter(Boolean).join(" - ") || "—";
 }
@@ -27,6 +29,8 @@ interface Props {
   page: number;
   pageSize: number;
   isFetching: boolean;
+  /** Lista ainda trocando (mostrando a anterior): ninguém marca nada até chegar a nova. */
+  busy: boolean;
   selected: Set<string>;
   onToggle: (id: string) => void;
   onToggleAll: (checked: boolean) => void;
@@ -34,9 +38,12 @@ interface Props {
 }
 
 /** Pessoas da página atual. Tabela no computador, cartões no celular. Seleção só dentro da página. */
-export function QueuePeople({ rows, total, page, pageSize, isFetching, selected, onToggle, onToggleAll, onPage }: Props) {
+export function QueuePeople({ rows, total, page, pageSize, isFetching, busy, selected, onToggle, onToggleAll, onPage }: Props) {
   const selectable = rows.filter((r) => r.providerGlobalId).map((r) => r.providerGlobalId as string);
-  const allChecked = selectable.length > 0 && selectable.every((id) => selected.has(id));
+  const selectedOnPage = selectable.filter((id) => selected.has(id)).length;
+  const allChecked = selectable.length > 0 && selectedOnPage === selectable.length;
+  const partial = selectedOnPage > 0 && !allChecked;
+  const selectAllOff = busy || selectable.length === 0;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const name = (r: QueueRow) => r.name?.trim() || "Sem nome";
 
@@ -45,11 +52,18 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, selected,
       type="checkbox"
       className="h-5 w-5 md:h-4 md:w-4"
       aria-label={`Selecionar ${name(r)}`}
-      disabled={!r.providerGlobalId}
+      disabled={busy || !r.providerGlobalId}
+      aria-describedby={r.providerGlobalId ? undefined : `sem-convite-${r.userId}`}
       checked={!!r.providerGlobalId && selected.has(r.providerGlobalId)}
       onChange={() => r.providerGlobalId && onToggle(r.providerGlobalId)}
     />
   );
+  const reason = (r: QueueRow) =>
+    r.providerGlobalId ? null : (
+      <p id={`sem-convite-${r.userId}`} className="text-xs text-[#a16207]">
+        {NO_INVITE}
+      </p>
+    );
   const whats = (r: QueueRow) => {
     const url = whatsappUrlFromPhone(r.phone);
     return url ? (
@@ -80,6 +94,10 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, selected,
                 <input
                   type="checkbox"
                   aria-label="Selecionar todos"
+                  ref={(el) => {
+                    if (el) el.indeterminate = partial;
+                  }}
+                  disabled={selectAllOff}
                   checked={allChecked}
                   onChange={(e) => onToggleAll(e.target.checked)}
                 />
@@ -99,11 +117,11 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, selected,
             {rows.map((r) => (
               <tr key={r.userId}>
                 <td className="px-3 py-2">{check(r)}</td>
-                <td className="px-3 py-2 font-medium text-[#1d1d1b]">{name(r)}</td>
+                <td className="px-3 py-2 font-medium text-[#1d1d1b]">{name(r)}{reason(r)}</td>
                 <td className="px-3 py-2">{whats(r)}</td>
                 <td className="px-3 py-2">{place(r)}</td>
                 <td className="px-3 py-2">{r.roles.join(", ") || "—"}</td>
-                <td className="px-3 py-2">{dayBr(r.signedUpAt ? r.signedUpAt.slice(0, 10) : null)}</td>
+                <td className="px-3 py-2">{dayBr(brasiliaDateKey(r.signedUpAt) || null)}</td>
                 <td className="px-3 py-2 tabular-nums">{r.totalCompletedServices}</td>
                 <td className="px-3 py-2">{dayBr(r.lastActiveDay)}</td>
                 <td className="px-3 py-2 tabular-nums">{r.noShows}</td>
@@ -120,6 +138,10 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, selected,
             type="checkbox"
             className="h-5 w-5"
             aria-label="Selecionar todos da página"
+            ref={(el) => {
+              if (el) el.indeterminate = partial;
+            }}
+            disabled={selectAllOff}
             checked={allChecked}
             onChange={(e) => onToggleAll(e.target.checked)}
           />
@@ -137,6 +159,7 @@ export function QueuePeople({ rows, total, page, pageSize, isFetching, selected,
               <p>Serviços: {r.totalCompletedServices} · Faltas: {r.noShows}</p>
               <p>Último acesso: {dayBr(r.lastActiveDay)}</p>
               <p>{STATUS_TEXT[r.status] ?? r.status}</p>
+              {reason(r)}
             </div>
           </div>
         ))}

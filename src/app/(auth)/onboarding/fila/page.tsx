@@ -2,6 +2,7 @@
 
 import { Suspense, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { isAxiosError } from "axios";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -32,12 +33,14 @@ function FilaScreen() {
   const filterKey = searchParams.toString();
   const filter = useMemo(() => queueFilterFromParams(new URLSearchParams(filterKey)), [filterKey]);
 
-  // Página e seleção valem só para o filtro e a página em que foram feitas: mudou um deles, voltam ao início.
-  const [pageState, setPageState] = useState({ key: filterKey, page: 1 });
-  const page = pageState.key === filterKey ? pageState.page : 1;
-  const selectionKey = `${filterKey}|${page}`;
-  const [selection, setSelection] = useState<{ key: string; ids: Set<string> }>({ key: selectionKey, ids: new Set() });
-  const selected = selection.key === selectionKey ? selection.ids : new Set<string>();
+  // Página e seleção valem só para o filtro em que foram feitas. Qualquer mudança de filtro
+  // (inclusive voltar a um filtro anterior) zera os dois: nada de seleção que sobra.
+  const fresh = (key: string) => ({ key, page: 1, ids: new Set<string>() });
+  const [view, setView] = useState(() => fresh(filterKey));
+  if (view.key !== filterKey) setView(fresh(filterKey));
+  const cur = view.key === filterKey ? view : fresh(filterKey);
+  const page = cur.page;
+  const selected = cur.ids;
   const [exportNote, setExportNote] = useState<string | null>(null);
 
   const counters = useOrientationQueueCounters();
@@ -54,13 +57,13 @@ function FilaScreen() {
   const toggle = (id: string) => {
     const ids = new Set(selected);
     if (!ids.delete(id)) ids.add(id);
-    setSelection({ key: selectionKey, ids });
+    setView({ ...cur, ids });
   };
   const toggleAll = (checked: boolean) => {
     const ids = checked
       ? new Set((people.data?.rows ?? []).flatMap((r) => (r.providerGlobalId ? [r.providerGlobalId] : [])))
       : new Set<string>();
-    setSelection({ key: selectionKey, ids });
+    setView({ ...cur, ids });
   };
 
   const exportCsv = async () => {
@@ -77,7 +80,11 @@ function FilaScreen() {
         toast.success(`${formatCount(res.rows.length)} pessoas exportadas.`);
       }
     } catch (err) {
-      toast.error(orientationErrorMessage(err, "Não consegui exportar. Tente de novo."));
+      toast.error(
+        isAxiosError(err) && err.response?.status === 429
+          ? "Muitos pedidos em pouco tempo (a exportação aceita 3 por minuto). Espere 1 minuto e tente de novo."
+          : orientationErrorMessage(err, "Não consegui exportar. Tente de novo."),
+      );
     }
   };
 
@@ -141,10 +148,11 @@ function FilaScreen() {
           page={page}
           pageSize={people.data.pageSize}
           isFetching={people.isFetching}
+          busy={people.isFetching}
           selected={selected}
           onToggle={toggle}
           onToggleAll={toggleAll}
-          onPage={(p) => setPageState({ key: filterKey, page: p })}
+          onPage={(p) => setView({ key: filterKey, page: p, ids: new Set() })}
         />
       )}
     </div>

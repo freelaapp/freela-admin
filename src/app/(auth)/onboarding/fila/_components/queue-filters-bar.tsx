@@ -14,12 +14,11 @@ interface Props {
 const FIELD = "flex flex-col gap-1 text-xs font-medium text-[#525252]";
 const CONTROL = "min-h-11 md:min-h-9";
 
-const STATUS_OPTIONS: Array<{ value: QueueStatus | "TODAS"; label: string }> = [
+const STATUS_OPTIONS: Array<{ value: QueueStatus; label: string }> = [
   { value: "PENDING", label: "Pendente" },
   { value: "BOOKED", label: "Aula marcada" },
   { value: "APPROVED", label: "Aprovado" },
   { value: "REJECTED", label: "Reprovado" },
-  { value: "TODAS", label: "Todas" },
 ];
 const ACTIVE_OPTIONS = [
   { value: "7", label: "7 dias" },
@@ -86,8 +85,8 @@ export function QueueFiltersBar({ filter, onChange }: Props) {
           Situação
           <NativeSelect
             className={CONTROL}
-            value={filter.status ?? "TODAS"}
-            onChange={(e) => set({ status: e.target.value === "TODAS" ? undefined : (e.target.value as QueueStatus) })}
+            value={filter.status ?? "PENDING"}
+            onChange={(e) => set({ status: e.target.value as QueueStatus })}
           >
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>

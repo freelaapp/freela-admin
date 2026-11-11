@@ -194,7 +194,7 @@ const ERROR_TEXTS: Record<string, string> = {
 export function orientationErrorMessage(err: unknown, fallback: string): string {
   const { code, message, status } = apiErrorOf(err);
   if (status === 429) {
-    return "Muitos pedidos em pouco tempo (a exportação aceita 3 por minuto). Espere 1 minuto e tente de novo.";
+    return "Muitos pedidos em pouco tempo. Espere 1 minuto e tente de novo.";
   }
   if (code === "BAD_REQUEST") {
     return message ? `Algum campo está fora do formato: ${message}` : fallback;

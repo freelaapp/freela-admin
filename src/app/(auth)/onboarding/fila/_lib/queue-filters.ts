@@ -21,19 +21,19 @@ function yesNo(sp: URLSearchParams, key: string): boolean | undefined {
 
 export function queueFilterFromParams(sp: URLSearchParams): OrientationQueueFilter {
   const s = sp.get("situacao");
-  const status: QueueStatus | undefined =
-    s === "TODAS" ? undefined : STATUSES.includes(s as QueueStatus) ? (s as QueueStatus) : "PENDING";
+  const status: QueueStatus = STATUSES.includes(s as QueueStatus) ? (s as QueueStatus) : "PENDING";
   const days = sp.get("ativoEm");
-  const activeWithinDays = days !== null && /^\d{1,3}$/.test(days) ? Number(days) : DEFAULT_ACTIVE_DAYS;
+  const n = days !== null && /^\d{1,3}$/.test(days) ? Number(days) : DEFAULT_ACTIVE_DAYS;
+  // 0 = sem filtro de atividade; o resto fica entre 1 e 365 dias.
+  const activeWithinDays = n === 0 ? 0 : Math.min(365, n);
   const from = text(sp, "cadastroDe");
   const to = text(sp, "cadastroAte");
   const noShows = sp.get("faltas");
   const convoked = sp.get("convocado");
 
   const f: OrientationQueueFilter = { status, activeWithinDays };
-  if (status === undefined) delete f.status;
-  const uf = text(sp, "uf")?.toUpperCase();
-  if (uf) f.uf = uf;
+  const uf = text(sp, "uf");
+  if (uf && /^[A-Za-z]{2}$/.test(uf)) f.uf = uf.toUpperCase();
   const city = text(sp, "cidade");
   if (city) f.city = city;
   const role = text(sp, "funcao");
@@ -50,8 +50,7 @@ export function queueFilterFromParams(sp: URLSearchParams): OrientationQueueFilt
 
 export function queueFilterToParams(f: OrientationQueueFilter): URLSearchParams {
   const sp = new URLSearchParams();
-  if (f.status === undefined) sp.set("situacao", "TODAS");
-  else if (f.status !== "PENDING") sp.set("situacao", f.status);
+  if (f.status && f.status !== "PENDING") sp.set("situacao", f.status);
   if (f.activeWithinDays !== undefined && f.activeWithinDays !== DEFAULT_ACTIVE_DAYS) {
     sp.set("ativoEm", String(f.activeWithinDays));
   }

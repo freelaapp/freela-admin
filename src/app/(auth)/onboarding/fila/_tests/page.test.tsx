@@ -147,6 +147,83 @@ describe("Fila", () => {
     expect(nav.replace.mock.calls[0][0]).toContain("cidade=Jund");
   });
 
+  it('situação não tem "Todas"', async () => {
+    renderPage();
+    await screen.findAllByText("Pessoa 1");
+    const opts = within(screen.getByLabelText(/Situação/)).getAllByRole("option").map((o) => o.textContent);
+    expect(opts).toEqual(["Pendente", "Aula marcada", "Aprovado", "Reprovado"]);
+  });
+
+  it("sem providerGlobalId: checkbox desabilitado com o motivo visível", async () => {
+    api.getOrientationQueuePeople.mockResolvedValue({
+      rows: [row(1), row(2, { providerGlobalId: null })],
+      total: 2,
+      page: 1,
+      pageSize: 30,
+    });
+    renderPage();
+    await screen.findAllByText("Pessoa 2");
+    const box = within(screen.getByRole("table")).getByLabelText("Selecionar Pessoa 2");
+    expect(box).toBeDisabled();
+    const id = box.getAttribute("aria-describedby") as string;
+    expect(document.getElementById(id)).toHaveTextContent("Sem convite: cadastro antigo");
+    const all = within(screen.getByRole("table")).getByLabelText("Selecionar todos");
+    fireEvent.click(all);
+    expect(within(screen.getByRole("table")).getByLabelText("Selecionar Pessoa 1")).toBeChecked();
+    expect(box).not.toBeChecked();
+    expect(all).toBeChecked();
+  });
+
+  it("selecionar todos fica desabilitado quando ninguém pode ser marcado; parcial = indeterminado", async () => {
+    api.getOrientationQueuePeople.mockResolvedValue({
+      rows: [row(1, { providerGlobalId: null })],
+      total: 1,
+      page: 1,
+      pageSize: 30,
+    });
+    const first = renderPage();
+    await screen.findAllByText("Pessoa 1");
+    expect(within(screen.getByRole("table")).getByLabelText("Selecionar todos")).toBeDisabled();
+    first.unmount();
+    api.getOrientationQueuePeople.mockResolvedValue(people);
+    renderPage();
+    await screen.findAllByText("Pessoa 1");
+    const table = screen.getByRole("table");
+    fireEvent.click(within(table).getByLabelText("Selecionar Pessoa 1"));
+    expect((within(table).getByLabelText("Selecionar todos") as HTMLInputElement).indeterminate).toBe(true);
+  });
+
+  it("cadastro mostra o dia de Brasília (perto da meia-noite UTC)", async () => {
+    api.getOrientationQueuePeople.mockResolvedValue({
+      rows: [row(1, { signedUpAt: "2026-10-11T01:30:00.000Z" })],
+      total: 1,
+      page: 1,
+      pageSize: 30,
+    });
+    renderPage();
+    await screen.findAllByText("Pessoa 1");
+    expect(within(screen.getByRole("table")).getByText("10/10/2026")).toBeInTheDocument();
+  });
+
+  it("voltar a um filtro anterior não traz a seleção antiga", async () => {
+    const view = renderPage();
+    await screen.findAllByText("Pessoa 1");
+    fireEvent.click(within(screen.getByRole("table")).getByLabelText("Selecionar Pessoa 1"));
+    expect(screen.getByText("1 selecionado nesta página")).toBeInTheDocument();
+    const rerenderWith = (search: string) => {
+      nav.search = search;
+      view.rerender(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <FilaPage />
+        </QueryClientProvider>,
+      );
+    };
+    rerenderWith("situacao=APPROVED");
+    rerenderWith("");
+    await screen.findAllByText("Pessoa 1");
+    expect(screen.queryByText(/selecionado/)).not.toBeInTheDocument();
+  });
+
   it("filtros vêm da URL", async () => {
     nav.search = "situacao=BOOKED&faltas=NONE&ativoEm=0";
     renderPage();

@@ -42,11 +42,12 @@ export function queueCounterLines(
     },
     {
       label: "Semanas para atender",
-      value: weeks.value === null ? "sem conta" : `${formatCount(weeks.value)} semanas`,
-      explanation:
-        weeks.value === null
+      value: !since ? "sem medida" : weeks.value === null ? "sem conta" : `${formatCount(weeks.value)} semanas`,
+      explanation: !since
+        ? "Depende dos pendentes ativos, que ainda não têm registro de acessos para medir."
+        : weeks.value === null
           ? "Não há lugar livre nas próximas 4 semanas, então não dá para calcular. Crie turmas."
-          : `${formatCount(c.pendingActive30.value)} ÷ ${formatCount(weeks.perWeek)} por semana = ${formatCount(weeks.value)} semanas. ${formatCount(weeks.perWeek)} = ${formatCount(c.freeSeats4w.value)} lugares livres nas próximas 4 semanas ÷ 4.`,
+          : `${formatCount(c.pendingActive30.value)} ÷ ${formatCount(weeks.perWeek)} por semana = ${formatCount(weeks.value)} semanas (arredondado para cima). ${formatCount(weeks.perWeek)} = ${formatCount(c.freeSeats4w.value)} lugares livres nas próximas 4 semanas ÷ 4.`,
     },
     {
       label: "Aprovados",

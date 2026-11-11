@@ -144,6 +144,6 @@ describe("erros da Fila", () => {
   it("429 da exportação vira aviso amigável", () => {
     const err = new AxiosError("x");
     err.response = { status: 429, data: {}, statusText: "", headers: {}, config: {} as never };
-    expect(orientationErrorMessage(err, "f")).toContain("3 por minuto");
+    expect(orientationErrorMessage(err, "f")).toContain("Muitos pedidos");
   });
 });

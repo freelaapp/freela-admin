@@ -68,8 +68,17 @@ describe("queueCounterLines", () => {
   });
   it("semanas para atender mostra a divisão", () => {
     expect(queueCounterLines(c)[3].explanation).toBe(
-      "11.032 ÷ 300 por semana = 37 semanas. 300 = 1.200 lugares livres nas próximas 4 semanas ÷ 4.",
+      "11.032 ÷ 300 por semana = 37 semanas (arredondado para cima). 300 = 1.200 lugares livres nas próximas 4 semanas ÷ 4.",
     );
+  });
+  it("sem medida de acesso: semanas também ficam sem medida", () => {
+    const l = queueCounterLines({
+      ...c,
+      pendingActive30: { value: 0, measuredSince: null },
+      weeksToServe: { value: 0, perWeek: 300 },
+    })[3];
+    expect(l.value).toBe("sem medida");
+    expect(l.explanation).toContain("registro de acessos");
   });
   it("sem lugar não há conta", () => {
     const l = queueCounterLines({ ...c, weeksToServe: { value: null, perWeek: 0 } })[3];
