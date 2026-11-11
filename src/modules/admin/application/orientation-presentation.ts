@@ -50,6 +50,12 @@ function clock(p: Parts): string {
   return p.minute === 0 ? `${p.hour}h` : `${p.hour}h${String(p.minute).padStart(2, "0")}`;
 }
 
+/** "9h" / "9h30" (Brasília) */
+export function formatSessionClock(iso: string): string {
+  const p = partsOf(iso);
+  return p ? clock(p) : NO_DATE;
+}
+
 /** "segunda, 16/11" */
 export function formatSessionDay(iso: string): string {
   const p = partsOf(iso);

@@ -121,6 +121,8 @@ export interface OrientationEnrollee {
   roles: string[];
   totalCompletedServices: number;
   previousNoShows: number;
+  /** Opcional: API velha não manda. "SESSION_CANCELLED" = a turma foi cancelada. */
+  cancelledReason?: OrientationCancelReason | null;
 }
 
 export type OrientationSessionDetail = OrientationSessionView & {
