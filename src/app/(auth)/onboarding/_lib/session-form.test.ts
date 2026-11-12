@@ -66,6 +66,13 @@ describe("buildCreateSessionPayload", () => {
     expect(buildCreateSessionPayload({ ...form, meetUrl: "meet.google.com/x" }, limits, now).ok).toBe(false);
   });
 
+  it("recusa http:// (só https)", () => {
+    expect(buildCreateSessionPayload({ ...form, meetUrl: "http://meet.google.com/abc" }, limits, now)).toEqual({
+      ok: false,
+      error: "Cole o link do Meet (https://…).",
+    });
+  });
+
   it("recusa duração abaixo de 5 minutos", () => {
     const r = buildCreateSessionPayload({ ...form, durationMin: "4" }, limits, now);
     expect(r).toEqual({ ok: false, error: "Duração: use um valor entre 5 e 480 minutos." });

@@ -48,7 +48,8 @@ const MEET_ERROR = "Cole o link do Meet (https://…).";
 const err = (error: string) => ({ ok: false as const, error });
 
 function isHttpUrl(v: string): boolean {
-  return /^https?:\/\/\S+$/i.test(v);
+  // Só https (P5-R41): o site e a API recusam http.
+  return /^https:\/\/\S+$/i.test(v);
 }
 
 function parseDuration(raw: string): number | string | undefined {
