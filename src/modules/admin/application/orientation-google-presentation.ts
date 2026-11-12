@@ -28,9 +28,13 @@ export function googleSyncBadge(s: {
 }): { label: string; tone: GoogleSyncTone } {
   switch (s.googleSyncStatus) {
     case "SYNCED":
-      return { label: "Meet criado no Google", tone: "ok" };
+      return s.meetSource === "MANUAL"
+        ? { label: "Link colado, na agenda do Google", tone: "ok" }
+        : { label: "Meet criado no Google", tone: "ok" };
     case "PENDING":
     case "SYNCING":
+      if (s.meetSource === "MANUAL") return { label: "Pondo o link colado na agenda do Google…", tone: "wait" };
+      return { label: "Criando o Meet no Google…", tone: "wait" };
     case "DELETE_PENDING":
       return { label: "Criando o Meet no Google…", tone: "wait" };
     case "FAILED":

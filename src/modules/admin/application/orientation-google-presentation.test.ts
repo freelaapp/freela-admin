@@ -36,6 +36,22 @@ describe("googleCardState", () => {
 
 describe("googleSyncBadge", () => {
   const base = { googleSyncError: null, meetSource: null } as const;
+  it("MANUAL: SYNCED mostra link colado na agenda (ok); PENDING/SYNCING pondo o link (wait); GOOGLE segue igual", () => {
+    expect(googleSyncBadge({ ...base, googleSyncStatus: "SYNCED", meetSource: "MANUAL" })).toEqual({
+      label: "Link colado, na agenda do Google",
+      tone: "ok",
+    });
+    for (const st of ["PENDING", "SYNCING"] as const) {
+      expect(googleSyncBadge({ ...base, googleSyncStatus: st, meetSource: "MANUAL" })).toEqual({
+        label: "Pondo o link colado na agenda do Google…",
+        tone: "wait",
+      });
+    }
+    expect(googleSyncBadge({ ...base, googleSyncStatus: "SYNCED", meetSource: "GOOGLE" }).label).toBe(
+      "Meet criado no Google",
+    );
+  });
+
   it("Meet do Google, link colado e falha", () => {
     expect(googleSyncBadge({ ...base, googleSyncStatus: "SYNCED", meetSource: "GOOGLE" })).toEqual({
       label: "Meet criado no Google",
