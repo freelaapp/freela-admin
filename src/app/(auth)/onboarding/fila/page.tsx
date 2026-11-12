@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { downloadCsv } from "@/lib/csv";
+import { useAuth } from "@/modules/auth/application/use-auth";
 import {
   brasiliaDateKey,
   formatCount,
@@ -21,6 +22,7 @@ import {
 } from "@/modules/admin/application/use-orientation";
 import type { OrientationQueueFilter } from "@/modules/admin/infrastructure/orientation-api";
 import { ConvocationDialog, type ConvocationTarget } from "./_components/convocation-dialog";
+import { HistoryApprovalDialog } from "./_components/history-approval-dialog";
 import { ConvocationsProgress } from "./_components/convocations-progress";
 import { QueueCounters } from "./_components/queue-counters";
 import { QueueFiltersBar } from "./_components/queue-filters-bar";
@@ -45,6 +47,8 @@ function FilaScreen() {
   const selected = cur.ids;
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [limitText, setLimitText] = useState("");
+  const { isSuperAdmin } = useAuth();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [convoke, setConvoke] = useState<{ target: ConvocationTarget; filter: OrientationQueueFilter; requestKey: string } | null>(null);
 
   const counters = useOrientationQueueCounters();
@@ -103,14 +107,21 @@ function FilaScreen() {
     <div className="mx-auto max-w-6xl space-y-4 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-[#1d1d1b]">Fila</h1>
-        <Button
-          variant="outline"
-          className="min-h-11 md:min-h-9"
-          onClick={() => void exportCsv()}
-          disabled={exporter.isPending}
-        >
-          Exportar CSV
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {isSuperAdmin && (
+            <Button variant="outline" className="min-h-11 md:min-h-9" onClick={() => setHistoryOpen(true)}>
+              Aprovar por histórico
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            className="min-h-11 md:min-h-9"
+            onClick={() => void exportCsv()}
+            disabled={exporter.isPending}
+          >
+            Exportar CSV
+          </Button>
+        </div>
       </div>
       {exportNote && (
         <p role="status" className="rounded-lg border border-[#eca826] bg-[#fff8e6] p-3 text-sm text-[#1d1d1b]">
@@ -215,6 +226,8 @@ function FilaScreen() {
       )}
 
       <ConvocationsProgress />
+
+      {isSuperAdmin && <HistoryApprovalDialog open={historyOpen} onClose={() => setHistoryOpen(false)} />}
 
       {convoke && (
         <ConvocationDialog

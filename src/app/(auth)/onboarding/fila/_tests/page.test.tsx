@@ -26,6 +26,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/onboarding/fila",
 }));
 
+vi.mock("@/modules/auth/application/use-auth", () => ({ useAuth: () => ({ isSuperAdmin: false }) }));
+
 import FilaPage from "../page";
 
 const counters = {
