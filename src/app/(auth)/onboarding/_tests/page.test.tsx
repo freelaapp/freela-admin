@@ -291,4 +291,45 @@ describe("Turmas do Onboarding", () => {
     expect(toast.error).toHaveBeenCalledWith("Cole o link do Meet (https://…).");
     expect(api.createOrientationSession).not.toHaveBeenCalled();
   });
+
+  describe("Google", () => {
+    it("host com googleConnected: campo opcional com o nome e criar sem link", async () => {
+      api.getOrientationHosts.mockResolvedValue([{ id: "me", name: "Rebeca", email: "r@freela.com", googleConnected: true }]);
+      api.createOrientationSession.mockResolvedValue({});
+      renderPage();
+      await screen.findAllByText("7/10");
+      fireEvent.click(screen.getByRole("button", { name: "Nova turma" }));
+      expect(await screen.findByText("Opcional: o link do Meet é criado na agenda de Rebeca")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Criar turma" }));
+      await waitFor(() => expect(api.createOrientationSession).toHaveBeenCalled());
+      expect("meetUrl" in api.createOrientationSession.mock.calls[0][0]).toBe(false);
+    });
+
+    it("API velha (hosts sem googleConnected): link obrigatório, como hoje", async () => {
+      renderPage();
+      await screen.findAllByText("7/10");
+      fireEvent.click(screen.getByRole("button", { name: "Nova turma" }));
+      await act(async () => {});
+      expect(screen.queryByText(/Opcional: o link do Meet/)).not.toBeInTheDocument();
+      expect(screen.getByText("Crie a reunião no Google Meet e cole o link aqui.")).toBeInTheDocument();
+    });
+
+    it("cartão mostra o selo do Google com o erro e mantém o alerta de link", async () => {
+      api.listOrientationSessions.mockResolvedValue([
+        makeSession({
+          id: "s9",
+          meetUrl: null,
+          meetSource: null,
+          googleSyncStatus: "FAILED",
+          googleSyncError: "A conexão com o Google precisa ser refeita.",
+          alerts: ["NO_LINK_24H"],
+        }),
+      ]);
+      renderPage();
+      const badge = await screen.findByTestId("google-sync-badge");
+      expect(badge).toHaveTextContent("A conexão com o Google precisa ser refeita.");
+      expect(badge).toHaveAttribute("data-tone", "error");
+      expect(screen.getByText("Falta o link do Meet e a aula é em menos de 24 horas.")).toBeInTheDocument();
+    });
+  });
 });

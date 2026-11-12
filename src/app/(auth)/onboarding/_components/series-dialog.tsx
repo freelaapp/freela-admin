@@ -28,7 +28,7 @@ import type {
 } from "@/modules/admin/infrastructure/orientation-api";
 import { buildSeriesPayload, type SeriesFormState } from "../_lib/session-form";
 import { AudiencePicker } from "./audience-picker";
-import { HostSelect, MeetField, NumberField, useDefaultHostId } from "./common-fields";
+import { HostSelect, MeetField, NumberField, useDefaultHostId, useHostLink } from "./common-fields";
 
 const WEEKDAYS: { value: number; label: string }[] = [
   { value: 1, label: "Seg" },
@@ -98,6 +98,8 @@ function SeriesBody({
   };
   const sending = useRef(false);
   const defaultHost = useDefaultHostId();
+  const hostLink = useHostLink(form.hostAdminId);
+  const linkOpts = { linkOptional: hostLink.linkOptional };
   const previewMutation = useCreateOrientationSeries();
   const createMutation = useCreateOrientationSeries();
   const limits = { maxCapacity: settings.maxCapacity };
@@ -117,7 +119,7 @@ function SeriesBody({
       dryRun: true,
       skipDates: [],
       seriesId: idFor([]),
-    });
+    }, linkOpts);
     if (!built.ok) {
       toast.error(built.error);
       return;
@@ -149,7 +151,7 @@ function SeriesBody({
       dryRun: false,
       skipDates,
       seriesId: idFor(skipDates),
-    });
+    }, linkOpts);
     if (!built.ok) {
       toast.error(built.error);
       return;
@@ -268,7 +270,11 @@ function SeriesBody({
         />
       </div>
       <HostSelect value={form.hostAdminId} onChange={(v) => change({ hostAdminId: v })} />
-      <MeetField value={form.meetUrl} onChange={(v) => change({ meetUrl: v })} />
+      <MeetField
+        value={form.meetUrl}
+        onChange={(v) => change({ meetUrl: v })}
+        optionalHostName={hostLink.linkOptional ? hostLink.hostName : undefined}
+      />
       <AudiencePicker
         ufs={form.audienceUfs}
         cities={form.audienceCities}

@@ -4,6 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   allowNewClass,
   applyHistoryApproval,
+  completeGoogleConnect,
+  disconnectGoogle,
+  getGoogleConnection,
+  startGoogleConnect,
   approveWithoutClass,
   bookProvider,
   cancelOrientationSeries,
@@ -54,6 +58,7 @@ const KEYS = {
   settings: [...ORIENTATION_QUERY_ROOT, "settings"] as const,
   summary: [...ORIENTATION_QUERY_ROOT, "summary"] as const,
   hosts: [...ORIENTATION_QUERY_ROOT, "hosts"] as const,
+  google: [...ORIENTATION_QUERY_ROOT, "google"] as const,
   sessions: (from: string, to: string) => [...ORIENTATION_QUERY_ROOT, "sessions", from, to] as const,
   session: (id: string) => [...ORIENTATION_QUERY_ROOT, "session", id] as const,
   queue: (f: OrientationQueueFilter) => [...ORIENTATION_QUERY_ROOT, "queue", f] as const,
@@ -287,4 +292,34 @@ export function useOrientationReadiness(enabled: boolean) {
     staleTime: 0,
     gcTime: 0,
   });
+}
+
+// ----- conta Google (etapa 6) -----
+
+export function useGoogleConnection() {
+  return useQuery({ queryKey: KEYS.google, queryFn: getGoogleConnection, staleTime: 60_000 });
+}
+
+/** Só pede a URL de consentimento; quem navega é a tela. */
+export function useStartGoogleConnect() {
+  return useMutation({ mutationFn: startGoogleConnect });
+}
+
+function useGoogleMutation<TInput, TOutput>(fn: (input: TInput) => Promise<TOutput>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: KEYS.google });
+      void qc.invalidateQueries({ queryKey: KEYS.hosts });
+    },
+  });
+}
+
+export function useCompleteGoogleConnect() {
+  return useGoogleMutation(completeGoogleConnect);
+}
+
+export function useDisconnectGoogle() {
+  return useGoogleMutation(() => disconnectGoogle());
 }

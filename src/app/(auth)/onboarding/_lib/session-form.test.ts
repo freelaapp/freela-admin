@@ -198,3 +198,49 @@ describe("buildSeriesPayload", () => {
     });
   });
 });
+
+describe("link opcional (Google do anfitrião conectado)", () => {
+  const series: SeriesFormState = {
+    weekdays: [1],
+    time: "09:00",
+    fromDate: "2026-11-16",
+    toDate: "2026-11-30",
+    durationMin: "60",
+    capacity: "10",
+    hostAdminId: "",
+    meetUrl: "https://meet.google.com/abc-defg-hij",
+    audienceUfs: [],
+    audienceCities: [],
+  };
+  const sOpts = { dryRun: true, skipDates: [], seriesId: "x" };
+
+  it("com linkOptional e campo vazio, o payload não leva meetUrl", () => {
+    const r = buildCreateSessionPayload({ ...form, meetUrl: "" }, limits, now, { linkOptional: true });
+    expect(r.ok).toBe(true);
+    expect(r.ok && "meetUrl" in r.payload).toBe(false);
+  });
+  it("padrão: link obrigatório", () => {
+    expect(buildCreateSessionPayload({ ...form, meetUrl: "" }, limits, now).ok).toBe(false);
+  });
+  it("preenchido continua validado como https (P5-R41)", () => {
+    expect(buildCreateSessionPayload({ ...form, meetUrl: "ftp://x" }, limits, now, { linkOptional: true }).ok).toBe(false);
+    expect(buildCreateSessionPayload({ ...form, meetUrl: "http://x.com" }, limits, now, { linkOptional: true }).ok).toBe(false);
+  });
+  it("série: vazio passa sem meetUrl; sem a opção, falha", () => {
+    const r = buildSeriesPayload({ ...series, meetUrl: "" }, limits, sOpts, { linkOptional: true });
+    expect(r.ok && "meetUrl" in r.payload).toBe(false);
+    expect(buildSeriesPayload({ ...series, meetUrl: "" }, limits, sOpts).ok).toBe(false);
+    expect(buildSeriesPayload({ ...series, meetUrl: "http://x" }, limits, sOpts, { linkOptional: true }).ok).toBe(false);
+  });
+  it("edição: esvaziar o campo com linkOptional não manda meetUrl; preenchido inválido falha", () => {
+    const original = {
+      id: "s1", startsAt: "2026-11-16T12:00:00.000Z", endsAt: "2026-11-16T13:00:00.000Z", capacity: 10, bookedCount: 0,
+      hostAdminId: "h1", meetUrl: "https://meet.google.com/abc", notes: null, audience: { ufs: [], cities: [] },
+    } as unknown as OrientationSessionView;
+    const f = { ...sessionToForm(original), meetUrl: "", notes: "oi" };
+    const r = buildUpdateSessionPayload(f, original, limits, { linkOptional: true });
+    expect(r).toEqual({ ok: true, payload: { notes: "oi" } });
+    expect(buildUpdateSessionPayload({ ...f, meetUrl: "" }, original, limits).ok).toBe(false);
+    expect(buildUpdateSessionPayload({ ...f, meetUrl: "http://x" }, original, limits, { linkOptional: true }).ok).toBe(false);
+  });
+});

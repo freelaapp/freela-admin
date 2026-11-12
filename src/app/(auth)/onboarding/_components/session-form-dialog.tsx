@@ -31,7 +31,7 @@ import {
   type SessionFormState,
 } from "../_lib/session-form";
 import { AudiencePicker } from "./audience-picker";
-import { HostSelect, MeetField, NumberField, useDefaultHostId } from "./common-fields";
+import { HostSelect, MeetField, NumberField, useDefaultHostId, useHostLink } from "./common-fields";
 
 export type SessionFormMode = { kind: "create" } | { kind: "edit"; session: OrientationSessionView };
 
@@ -92,6 +92,8 @@ function SessionFormBody({
   );
   const [moved, setMoved] = useState<{ booked: number; sessionId: string } | null>(null);
   const defaultHost = useDefaultHostId();
+  const hostLink = useHostLink(form.hostAdminId);
+  const linkOpts = { linkOptional: hostLink.linkOptional };
   const create = useCreateOrientationSession();
   const update = useUpdateOrientationSession();
   const pending = create.isPending || update.isPending;
@@ -120,7 +122,7 @@ function SessionFormBody({
     e.preventDefault();
     if (pending) return;
     if (base) {
-      const built = buildUpdateSessionPayload(form, base, limits);
+      const built = buildUpdateSessionPayload(form, base, limits, linkOpts);
       if (!built.ok) {
         toast.error(built.error);
         return;
@@ -145,6 +147,7 @@ function SessionFormBody({
       { ...form, hostAdminId: form.hostAdminId || defaultHost },
       limits,
       new Date(),
+      linkOpts,
     );
     if (!built.ok) {
       toast.error(built.error);
@@ -205,7 +208,11 @@ function SessionFormBody({
         />
       </div>
       <HostSelect value={form.hostAdminId} onChange={(v) => set("hostAdminId", v)} />
-      <MeetField value={form.meetUrl} onChange={(v) => set("meetUrl", v)} />
+      <MeetField
+        value={form.meetUrl}
+        onChange={(v) => set("meetUrl", v)}
+        optionalHostName={hostLink.linkOptional ? hostLink.hostName : undefined}
+      />
       <AudiencePicker
         ufs={form.audienceUfs}
         cities={form.audienceCities}
