@@ -82,6 +82,25 @@ describe("GoogleAccountCard", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it("Conectar com URL fora de accounts.google.com: erro genérico, sem redirecionar", async () => {
+    api.getGoogleConnection.mockResolvedValue(conn());
+    api.startGoogleConnect.mockResolvedValue({ url: "https://evil.example.com/auth" });
+    renderCard();
+    fireEvent.click(await screen.findByRole("button", { name: "Conectar Google Agenda" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Não deu para conectar o Google agora. Tente de novo."));
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("googleEmail nulo: 'Conectado.' e diálogo sem e-mail", async () => {
+    api.getGoogleConnection.mockResolvedValue(conn({ connection: { ...active, googleEmail: null } }));
+    renderCard();
+    expect(await screen.findByText("Conectado.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Desconectar" }));
+    expect(
+      await screen.findByText("Desconectar a conta Google? As turmas já criadas continuam com o link."),
+    ).toBeVisible();
+  });
+
   it("connected: e-mail, nota do Gmail e Desconectar", async () => {
     api.getGoogleConnection.mockResolvedValue(conn({ connection: active }));
     renderCard();

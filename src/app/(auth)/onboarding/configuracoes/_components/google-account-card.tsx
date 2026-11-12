@@ -41,6 +41,10 @@ export function GoogleAccountCard() {
   const handleConnect = async () => {
     try {
       const { url } = await start.mutateAsync(undefined);
+      if (typeof url !== "string" || !url.startsWith("https://accounts.google.com/")) {
+        toast.error(googleErrorMessage(undefined));
+        return;
+      }
       window.location.assign(url);
     } catch {
       toast.error(googleErrorMessage(undefined));
@@ -78,7 +82,7 @@ export function GoogleAccountCard() {
           )}
           {state === "connected" && (
             <>
-              <p className="mt-1 text-sm text-[#1d1d1b]">Conectado como {email}.</p>
+              <p className="mt-1 text-sm text-[#1d1d1b]">{email ? `Conectado como ${email}.` : "Conectado."}</p>
               <p className="mt-1 text-xs text-[#737373]">{WORKSPACE_NOTE}</p>
             </>
           )}
@@ -111,7 +115,9 @@ export function GoogleAccountCard() {
           <DialogHeader>
             <DialogTitle>Desconectar a conta Google?</DialogTitle>
             <DialogDescription>
-              Desconectar a conta {email}? As turmas já criadas continuam com o link.
+              {email
+                ? `Desconectar a conta ${email}? As turmas já criadas continuam com o link.`
+                : "Desconectar a conta Google? As turmas já criadas continuam com o link."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
