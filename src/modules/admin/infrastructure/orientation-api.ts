@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 
 /**
@@ -83,6 +84,8 @@ export interface OrientationHost {
   id: string;
   name: string | null;
   email: string;
+  /** Conta Google conectada e pronta. Ausente em API velha. */
+  googleConnected?: boolean;
 }
 
 export interface OrientationSessionView {
@@ -570,5 +573,52 @@ export async function createConvocation(
 
 export async function listConvocations(): Promise<ConvocationProgress[]> {
   const res = await api.get("/queue/convocations");
+  return res.data.data;
+}
+
+// ----- conta Google (etapa 6) -----
+
+export type GoogleCalendarScope = "app.created" | "events.owned" | "events";
+
+/** Espelho de `GoogleConnectionView` da API (datas como string). */
+export interface GoogleConnectionView {
+  enabled: boolean;
+  configured: boolean;
+  scope: GoogleCalendarScope;
+  connection: null | {
+    googleEmail: string | null;
+    status: "ACTIVE" | "REVOKED" | "ERROR";
+    lastError: string | null;
+    connectedAt: string;
+    calendarMode: "SECONDARY" | "PRIMARY";
+  };
+}
+
+/** 404 = API sem as rotas do Google: devolve `null` e o cartão some. */
+export async function getGoogleConnection(): Promise<GoogleConnectionView | null> {
+  try {
+    const res = await api.get("/google/connection");
+    return res.data.data;
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function startGoogleConnect(): Promise<{ url: string }> {
+  const res = await api.post("/google/connect");
+  return res.data.data;
+}
+
+export async function completeGoogleConnect(input: {
+  code: string;
+  state: string;
+}): Promise<GoogleConnectionView> {
+  const res = await api.post("/google/callback", { code: input.code, state: input.state });
+  return res.data.data;
+}
+
+export async function disconnectGoogle(): Promise<{ revokedAtGoogle: boolean }> {
+  const res = await api.delete("/google/connection");
   return res.data.data;
 }

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { get, post, put, patch } = vi.hoisted(() => ({
+const { get, post, put, patch, del } = vi.hoisted(() => ({
   get: vi.fn(),
+  del: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
   patch: vi.fn(),
@@ -11,11 +12,15 @@ const factory = vi.hoisted(() => vi.fn());
 vi.mock("@/modules/shared/infrastructure/authed-client", () => ({
   createAuthedClient: (base: string) => {
     factory(base);
-    return { get, post, put, patch };
+    return { get, post, put, patch, delete: del };
   },
 }));
 
 import {
+  completeGoogleConnect,
+  disconnectGoogle,
+  getGoogleConnection,
+  startGoogleConnect,
   createConvocation,
   exportOrientationQueue,
   getOrientationQueue,
@@ -44,6 +49,7 @@ describe("orientation-api", () => {
     post.mockReset();
     put.mockReset();
     patch.mockReset();
+    del.mockReset();
   });
 
   it("usa a base /v1/admins/orientation", () => {
@@ -168,5 +174,41 @@ describe("orientation-api", () => {
     get.mockResolvedValueOnce(ok([{ id: "c" }]));
     await expect(listConvocations()).resolves.toEqual([{ id: "c" }]);
     expect(get).toHaveBeenCalledWith("/queue/convocations");
+  });
+
+  describe("conta Google", () => {
+    it("getGoogleConnection com 404 devolve null (API sem as rotas)", async () => {
+      get.mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+      await expect(getGoogleConnection()).resolves.toBeNull();
+      expect(get).toHaveBeenCalledWith("/google/connection");
+    });
+
+    it("getGoogleConnection relança outros erros e devolve a visão em sucesso", async () => {
+      get.mockRejectedValueOnce({ isAxiosError: true, response: { status: 500 } });
+      await expect(getGoogleConnection()).rejects.toBeTruthy();
+      const view = { enabled: true, configured: true, scope: "app.created", connection: null };
+      get.mockResolvedValueOnce(ok(view));
+      await expect(getGoogleConnection()).resolves.toEqual(view);
+    });
+
+    it("startGoogleConnect faz POST /google/connect", async () => {
+      post.mockResolvedValue(ok({ url: "https://accounts.google.com/x" }));
+      await expect(startGoogleConnect()).resolves.toEqual({ url: "https://accounts.google.com/x" });
+      expect(post).toHaveBeenCalledWith("/google/connect");
+    });
+
+    it("completeGoogleConnect manda só { code, state }", async () => {
+      const view = { enabled: true, configured: true, scope: "app.created", connection: null };
+      post.mockResolvedValue(ok(view));
+      const input = { code: "c", state: "s", extra: "x" } as { code: string; state: string };
+      await expect(completeGoogleConnect(input)).resolves.toEqual(view);
+      expect(post).toHaveBeenCalledWith("/google/callback", { code: "c", state: "s" });
+    });
+
+    it("disconnectGoogle faz DELETE /google/connection", async () => {
+      del.mockResolvedValue(ok({ revokedAtGoogle: true }));
+      await expect(disconnectGoogle()).resolves.toEqual({ revokedAtGoogle: true });
+      expect(del).toHaveBeenCalledWith("/google/connection");
+    });
   });
 });
