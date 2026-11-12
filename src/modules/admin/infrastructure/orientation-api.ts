@@ -140,7 +140,7 @@ export interface CreateOrientationSessionInput {
   durationMin?: number;
   capacity?: number;
   hostAdminId?: string;
-  meetUrl: string;
+  meetUrl?: string;
   audienceUfs?: string[];
   audienceCities?: string[];
   notes?: string;
@@ -157,7 +157,7 @@ export interface OrientationSeriesInput {
   durationMin?: number;
   capacity?: number;
   hostAdminId?: string;
-  meetUrl: string;
+  meetUrl?: string;
   audienceUfs?: string[];
   audienceCities?: string[];
   skipDates?: string[];

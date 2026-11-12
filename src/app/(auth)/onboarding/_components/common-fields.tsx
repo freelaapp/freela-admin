@@ -19,6 +19,14 @@ export function useDefaultHostId(): string {
   return hosts.data?.some((h) => h.id === me) ? me : "";
 }
 
+/** O anfitrião escolhido (ou eu, se vazio) tem o Google conectado? Então o link do Meet é opcional. */
+export function useHostLink(hostAdminId: string): { linkOptional: boolean; hostName: string } {
+  const defaultHost = useDefaultHostId();
+  const hosts = useOrientationHosts();
+  const host = hosts.data?.find((h) => h.id === (hostAdminId || defaultHost));
+  return { linkOptional: host?.googleConnected === true, hostName: host ? host.name || host.email : "" };
+}
+
 export function HostSelect({ value, onChange }: HostSelectProps) {
   const { user } = useAuth();
   const hosts = useOrientationHosts();
@@ -60,9 +68,11 @@ export function NumberField({ id, label, value, onChange, hint }: NumberFieldPro
 interface MeetFieldProps {
   value: string;
   onChange: (v: string) => void;
+  /** Preenchido quando o Google de quem dá a aula está conectado: o campo é opcional. */
+  optionalHostName?: string;
 }
 
-export function MeetField({ value, onChange }: MeetFieldProps) {
+export function MeetField({ value, onChange, optionalHostName }: MeetFieldProps) {
   return (
     <div className="space-y-1">
       <Label htmlFor="session-meet">Link do Meet</Label>
@@ -74,7 +84,11 @@ export function MeetField({ value, onChange }: MeetFieldProps) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
-      <p className="text-xs text-[#737373]">Crie a reunião no Google Meet e cole o link aqui.</p>
+      <p className="text-xs text-[#737373]">
+        {optionalHostName !== undefined
+          ? `Opcional: o link do Meet é criado na agenda de ${optionalHostName}`
+          : "Crie a reunião no Google Meet e cole o link aqui."}
+      </p>
     </div>
   );
 }

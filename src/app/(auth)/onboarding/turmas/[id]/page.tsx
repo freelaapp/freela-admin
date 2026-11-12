@@ -1,5 +1,6 @@
 "use client";
 
+import { googleSyncBadge } from "@/modules/admin/application/orientation-google-presentation";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
@@ -315,6 +316,11 @@ export default function ChamadaPage() {
             <dd className="inline">{formatSessionClock(detail.startsAt)}</dd>
           </div>
         </dl>
+        {googleSyncBadge(detail).tone !== "none" && (
+          <p data-testid="google-sync-badge" className="mt-2 text-sm text-[#525252]">
+            {googleSyncBadge(detail).label}
+          </p>
+        )}
         {detail.meetUrl && (
           <Button variant="outline" size="sm" className="mt-3 min-h-11 md:min-h-9" onClick={() => void copyLink()}>
             <Copy className="mr-1.5 h-4 w-4" aria-hidden />

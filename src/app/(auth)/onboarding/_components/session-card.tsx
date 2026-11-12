@@ -9,6 +9,7 @@ import {
   formatSessionTimeRange,
   sessionAlertText,
 } from "@/modules/admin/application/orientation-presentation";
+import { googleSyncBadge } from "@/modules/admin/application/orientation-google-presentation";
 import type { OrientationSessionView } from "@/modules/admin/infrastructure/orientation-api";
 
 type StatusInfo = { label: string; variant: "success" | "warning" | "muted" | "destructive" };
@@ -38,6 +39,8 @@ interface Props {
 export function SessionCard({ session: s, onEdit, onCancel, onCancelSeries }: Props) {
   const status = sessionStatusInfo(s);
   const open = s.status === "OPEN";
+  // Só o que o Google fez (ok, esperando, erro). "Link colado" e "Sem link" não viram selo.
+  const google = googleSyncBadge(s);
 
   const copyLink = async () => {
     if (!s.meetUrl) return;
@@ -74,6 +77,17 @@ export function SessionCard({ session: s, onEdit, onCancel, onCancelSeries }: Pr
           <dd className="inline">{audienceText(s.audience)}</dd>
         </div>
       </dl>
+      {google.tone !== "none" && (
+        <p
+          data-testid="google-sync-badge"
+          data-tone={google.tone}
+          className={`mt-2 text-sm ${
+            google.tone === "error" ? "text-red-700" : google.tone === "wait" ? "text-[#737373]" : "text-emerald-700"
+          }`}
+        >
+          {google.label}
+        </p>
+      )}
       {s.alerts.length > 0 && (
         <ul className="mt-3 space-y-1.5">
           {s.alerts.map((a) => (

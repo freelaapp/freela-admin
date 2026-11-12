@@ -45,6 +45,21 @@ const MIN_DURATION_MIN = 5;
 const MAX_DURATION_MIN = 480;
 const MEET_ERROR = "Cole o link do Meet (https://…).";
 
+export interface LinkOpts {
+  /** Com o Google do anfitrião conectado, o link do Meet é criado na agenda dele: o campo pode ficar vazio. */
+  linkOptional: boolean;
+}
+
+const DEFAULT_LINK_OPTS: LinkOpts = { linkOptional: false };
+
+/** Vazio + opcional: sem link no payload. Preenchido: continua só https. */
+function parseMeet(raw: string, linkOptional: boolean): string | undefined | { error: string } {
+  const v = raw.trim();
+  if (!v && linkOptional) return undefined;
+  if (!isHttpUrl(v)) return { error: MEET_ERROR };
+  return v;
+}
+
 const err = (error: string) => ({ ok: false as const, error });
 
 function isHttpUrl(v: string): boolean {
@@ -97,6 +112,7 @@ export function buildCreateSessionPayload(
   form: SessionFormState,
   limits: FormLimits,
   now: Date,
+  linkOpts: LinkOpts = DEFAULT_LINK_OPTS,
 ): BuildResult<CreateOrientationSessionInput> {
   if (!DATE_RE.test(form.date)) return err("Escolha o dia da aula.");
   if (!TIME_RE.test(form.time)) return err("Escolha o horário da aula.");
@@ -104,14 +120,15 @@ export function buildCreateSessionPayload(
   if (new Date(startsAt).getTime() <= now.getTime()) {
     return err("Esse horário já passou. Escolha uma data e hora futuras.");
   }
-  const meetUrl = form.meetUrl.trim();
-  if (!isHttpUrl(meetUrl)) return err(MEET_ERROR);
+  const meetUrl = parseMeet(form.meetUrl, linkOpts.linkOptional);
+  if (typeof meetUrl === "object") return err(meetUrl.error);
   const durationMin = parseDuration(form.durationMin);
   if (typeof durationMin === "string") return err(durationMin);
   const capacity = parseCapacity(form.capacity, limits);
   if (typeof capacity === "string") return err(capacity);
 
-  const payload: CreateOrientationSessionInput = { startsAt, meetUrl };
+  const payload: CreateOrientationSessionInput = { startsAt };
+  if (meetUrl !== undefined) payload.meetUrl = meetUrl;
   if (durationMin !== undefined) payload.durationMin = durationMin;
   if (capacity !== undefined) payload.capacity = capacity;
   if (form.hostAdminId) payload.hostAdminId = form.hostAdminId;
@@ -127,6 +144,7 @@ export function buildUpdateSessionPayload(
   form: SessionFormState,
   original: OrientationSessionView,
   limits: FormLimits,
+  linkOpts: LinkOpts = DEFAULT_LINK_OPTS,
 ): BuildResult<UpdateOrientationSessionInput> {
   const base = sessionToForm(original);
   const payload: UpdateOrientationSessionInput = {};
@@ -152,8 +170,11 @@ export function buildUpdateSessionPayload(
   if (form.hostAdminId && form.hostAdminId !== base.hostAdminId) payload.hostAdminId = form.hostAdminId;
   const meetUrl = form.meetUrl.trim();
   if (meetUrl !== base.meetUrl) {
-    if (!isHttpUrl(meetUrl)) return err(MEET_ERROR);
-    payload.meetUrl = meetUrl;
+    // Esvaziar o campo com o Google conectado não manda nada (a API não apaga link).
+    if (meetUrl || !linkOpts.linkOptional) {
+      if (!isHttpUrl(meetUrl)) return err(MEET_ERROR);
+      payload.meetUrl = meetUrl;
+    }
   }
   if (!sameSet(form.audienceUfs, base.audienceUfs) || !sameSet(form.audienceCities, base.audienceCities)) {
     payload.audienceUfs = form.audienceUfs;
@@ -169,14 +190,15 @@ export function buildSeriesPayload(
   form: SeriesFormState,
   limits: FormLimits,
   opts: { dryRun: boolean; skipDates: string[]; seriesId: string },
+  linkOpts: LinkOpts = DEFAULT_LINK_OPTS,
 ): BuildResult<OrientationSeriesInput> {
   if (form.weekdays.length === 0) return err("Marque pelo menos um dia da semana.");
   if (!TIME_RE.test(form.time)) return err("Escolha o horário da aula.");
   if (!DATE_RE.test(form.fromDate)) return err("Escolha a data inicial.");
   if (!DATE_RE.test(form.toDate)) return err("Escolha a data final.");
   if (form.toDate < form.fromDate) return err("A data final vem antes da inicial.");
-  const meetUrl = form.meetUrl.trim();
-  if (!isHttpUrl(meetUrl)) return err(MEET_ERROR);
+  const meetUrl = parseMeet(form.meetUrl, linkOpts.linkOptional);
+  if (typeof meetUrl === "object") return err(meetUrl.error);
   const durationMin = parseDuration(form.durationMin);
   if (typeof durationMin === "string") return err(durationMin);
   const capacity = parseCapacity(form.capacity, limits);
@@ -187,10 +209,10 @@ export function buildSeriesPayload(
     time: form.time,
     fromDate: form.fromDate,
     toDate: form.toDate,
-    meetUrl,
     dryRun: opts.dryRun,
     seriesId: opts.seriesId,
   };
+  if (meetUrl !== undefined) payload.meetUrl = meetUrl;
   if (durationMin !== undefined) payload.durationMin = durationMin;
   if (capacity !== undefined) payload.capacity = capacity;
   if (form.hostAdminId) payload.hostAdminId = form.hostAdminId;
