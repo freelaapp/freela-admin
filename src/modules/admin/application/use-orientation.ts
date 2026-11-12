@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   allowNewClass,
+  applyHistoryApproval,
   approveWithoutClass,
   bookProvider,
   cancelOrientationSeries,
@@ -18,6 +19,7 @@ import {
   getOrientationHosts,
   getOrientationProvider,
   getOrientationQueue,
+  getOrientationReadiness,
   getOrientationQueueCounters,
   getOrientationQueuePeople,
   getOrientationSession,
@@ -27,6 +29,7 @@ import {
   listOrientationSessions,
   previewAttendance,
   previewConvocation,
+  previewHistoryApproval,
   reopenAttendance,
   rescheduleProvider,
   resetChanges,
@@ -37,6 +40,7 @@ import {
   type ConvocationInput,
   type CreateConvocationInput,
   type CreateOrientationSessionInput,
+  type HistoryCriteria,
   type OrientationQueueFilter,
   type OrientationSeriesInput,
   type OrientationSettingsPatch,
@@ -57,6 +61,7 @@ const KEYS = {
   queuePeople: (f: OrientationQueueFilter, page: number) =>
     [...ORIENTATION_QUERY_ROOT, "queue-people", f, page] as const,
   convocations: [...ORIENTATION_QUERY_ROOT, "convocations"] as const,
+  readiness: [...ORIENTATION_QUERY_ROOT, "readiness"] as const,
   provider: (pgId: string | null) => [...ORIENTATION_QUERY_ROOT, "provider", pgId] as const,
 };
 
@@ -257,4 +262,29 @@ export function useCreateConvocation() {
 /** Exportação: só leitura (grava o registro no servidor, nada a reler). */
 export function useExportOrientationQueue() {
   return useMutation({ mutationFn: (f: OrientationQueueFilter) => exportOrientationQueue(f) });
+}
+
+/** Só leitura (dryRun): mutação, não consulta. Cada clique em "Ver quantos" é uma conta nova. */
+export function useHistoryPreview() {
+  return useMutation({ mutationFn: (c: HistoryCriteria) => previewHistoryApproval(c) });
+}
+
+/** Aprova por histórico: ao terminar relê resumo e fila (e a lista de freelancers). */
+export function useApplyHistoryApproval() {
+  return useInvalidatingMutation(
+    (i: HistoryCriteria & { reason: string; confirmCount: number }) => applyHistoryApproval(i),
+    { providers: true },
+  );
+}
+
+/** Conferências do modo "Todos". Sem retry e sem cache longo: erro vira "Não deu para conferir". */
+export function useOrientationReadiness(enabled: boolean) {
+  return useQuery({
+    queryKey: KEYS.readiness,
+    queryFn: getOrientationReadiness,
+    enabled,
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+  });
 }

@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import { createAuthedClient } from "@/modules/shared/infrastructure/authed-client";
 
 /**
@@ -571,4 +572,101 @@ export async function createConvocation(
 export async function listConvocations(): Promise<ConvocationProgress[]> {
   const res = await api.get("/queue/convocations");
   return res.data.data;
+}
+
+// ----- virada: aprovar por histórico e conferências do modo "Todos" -----
+
+/** Espelha `HistoryCriteria` da API (V1). */
+export interface HistoryCriteria {
+  /** Inteiro de 1 a 1000. */
+  minCompletedServices: number;
+  /** De 0 a 5, passo 0,1. */
+  minRating: number;
+}
+
+export interface HistorySampleRow {
+  providerGlobalId: string;
+  name: string | null;
+  city: string | null;
+  uf: string | null;
+  totalCompletedServices: number;
+  averageRating: number;
+}
+
+/** Espelha `HistoryPreview` da API (V1). */
+export interface HistoryPreview {
+  eligible: number;
+  withBooking: number;
+  noRatings: number;
+  lowRating: number;
+  alreadyApproved: number;
+  rejected: number;
+  sample: HistorySampleRow[];
+  formula: string;
+  formulas: {
+    eligible: string;
+    withBooking: string;
+    noRatings: string;
+    lowRating: string;
+    alreadyApproved: string;
+    rejected: string;
+  };
+  source: string;
+}
+
+export interface ReadinessCity {
+  uf: string | null;
+  city: string | null;
+  openVacancies: number;
+  approvedRecentApplicants: number;
+  ok: boolean;
+}
+
+/** Espelha `Readiness` da API (V2). */
+export interface Readiness {
+  generatedAt?: string;
+  appMinimum: { value: string | null; required: string; ok: boolean; source: string };
+  supply: {
+    windowDays: number;
+    recentDays: number;
+    cities: ReadinessCity[];
+    openWithoutCity: number;
+    citiesWithGap: number;
+    ok: boolean;
+    formula: string;
+    source: string;
+  };
+}
+
+export async function previewHistoryApproval(c: HistoryCriteria): Promise<HistoryPreview> {
+  const res = await api.post("/history-approval", {
+    minCompletedServices: c.minCompletedServices,
+    minRating: c.minRating,
+    dryRun: true,
+  });
+  return res.data.data;
+}
+
+export async function applyHistoryApproval(
+  i: HistoryCriteria & { reason: string; confirmCount: number },
+): Promise<{ batchId: string; approved: number; skipped: number }> {
+  const res = await api.post("/history-approval", {
+    minCompletedServices: i.minCompletedServices,
+    minRating: i.minRating,
+    dryRun: false,
+    reason: i.reason,
+    confirmCount: i.confirmCount,
+  });
+  return res.data.data;
+}
+
+/** 404 = API velha sem a rota: `null` (a tela mostra "Não deu para conferir"). 503 e o resto passam como erro. */
+export async function getOrientationReadiness(): Promise<Readiness | null> {
+  try {
+    const res = await api.get("/readiness");
+    return res.data.data;
+  } catch (err) {
+    if (isAxiosError(err) && err.response?.status === 404) return null;
+    throw err;
+  }
 }

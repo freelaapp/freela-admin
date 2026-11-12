@@ -16,6 +16,9 @@ vi.mock("@/modules/shared/infrastructure/authed-client", () => ({
 }));
 
 import {
+  applyHistoryApproval,
+  getOrientationReadiness,
+  previewHistoryApproval,
   createConvocation,
   exportOrientationQueue,
   getOrientationQueue,
@@ -168,5 +171,45 @@ describe("orientation-api", () => {
     get.mockResolvedValueOnce(ok([{ id: "c" }]));
     await expect(listConvocations()).resolves.toEqual([{ id: "c" }]);
     expect(get).toHaveBeenCalledWith("/queue/convocations");
+  });
+
+  describe("virada (aprovar por histórico e conferências)", () => {
+    it("previewHistoryApproval manda os critérios com dryRun true", async () => {
+      post.mockResolvedValue(ok({ eligible: 1 }));
+      await previewHistoryApproval({ minCompletedServices: 2, minRating: 4.5 });
+      expect(post).toHaveBeenCalledWith("/history-approval", { minCompletedServices: 2, minRating: 4.5, dryRun: true });
+    });
+
+    it("applyHistoryApproval manda só { minCompletedServices, minRating, dryRun: false, reason, confirmCount }", async () => {
+      post.mockResolvedValue(ok({ batchId: "b", approved: 158, skipped: 0 }));
+      const res = await applyHistoryApproval({
+        minCompletedServices: 1,
+        minRating: 4,
+        reason: "Já trabalham",
+        confirmCount: 158,
+        extra: "não vai",
+      } as never);
+      expect(post).toHaveBeenCalledWith("/history-approval", {
+        minCompletedServices: 1,
+        minRating: 4,
+        dryRun: false,
+        reason: "Já trabalham",
+        confirmCount: 158,
+      });
+      expect(res).toEqual({ batchId: "b", approved: 158, skipped: 0 });
+    });
+
+    it("getOrientationReadiness devolve os dados e trata 404 (API velha) como null", async () => {
+      get.mockResolvedValueOnce(ok({ appMinimum: {} }));
+      expect(await getOrientationReadiness()).toEqual({ appMinimum: {} });
+      expect(get).toHaveBeenCalledWith("/readiness");
+      get.mockRejectedValueOnce(Object.assign(new Error("nf"), { isAxiosError: true, response: { status: 404 } }));
+      expect(await getOrientationReadiness()).toBeNull();
+    });
+
+    it("getOrientationReadiness deixa o 503 passar (a tela mostra Não deu para conferir)", async () => {
+      get.mockRejectedValueOnce(Object.assign(new Error("x"), { isAxiosError: true, response: { status: 503 } }));
+      await expect(getOrientationReadiness()).rejects.toBeTruthy();
+    });
   });
 });
