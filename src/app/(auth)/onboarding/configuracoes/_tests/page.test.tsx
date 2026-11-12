@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   getOrientationSettings: vi.fn(),
   getOrientationSummary: vi.fn(),
   updateOrientationSettings: vi.fn(),
+  getOrientationReadiness: vi.fn(),
 }));
 vi.mock("@/modules/admin/infrastructure/orientation-api", async (orig) => ({ ...(await orig<object>()), ...api }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -98,6 +99,7 @@ describe("Configurações do Onboarding", () => {
     api.getOrientationSettings.mockResolvedValue(settings);
     api.getOrientationSummary.mockResolvedValue(summary);
     api.updateOrientationSettings.mockResolvedValue(settings);
+    api.getOrientationReadiness.mockResolvedValue(null);
   });
 
   it("admin comum vê os 3 cartões sem botão de mudar e com a dica", async () => {
