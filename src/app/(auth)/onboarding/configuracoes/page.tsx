@@ -5,6 +5,7 @@ import { formatInstantDateTime } from "@/lib/date.utils";
 import { useOrientationSettings } from "@/modules/admin/application/use-orientation";
 import { DefaultsForm } from "./_components/defaults-form";
 import { GateModeSection } from "./_components/gate-mode-section";
+import { GoogleAccountCard } from "./_components/google-account-card";
 
 export default function ConfiguracoesOnboardingPage() {
   const settings = useOrientationSettings();
@@ -38,6 +39,7 @@ export default function ConfiguracoesOnboardingPage() {
       <p className="mb-4 text-xs text-[#737373]">{changedBy}</p>
       <GateModeSection settings={s} />
       <DefaultsForm settings={s} />
+      <GoogleAccountCard />
     </div>
   );
 }

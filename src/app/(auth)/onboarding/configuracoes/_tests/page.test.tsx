@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   getOrientationSettings: vi.fn(),
   getOrientationSummary: vi.fn(),
   updateOrientationSettings: vi.fn(),
+  getGoogleConnection: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/modules/admin/infrastructure/orientation-api", async (orig) => ({ ...(await orig<object>()), ...api }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
