@@ -1,11 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, MapPin, Store, Loader2, MessageCircle, Check } from "lucide-react";
+import { Search, MapPin, Store, Loader2, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useCrmPipeline, usePipelineWhatsApp } from "@/modules/admin/application/use-admin-crm";
+import {
+  useCrmPipeline,
+  useCrmPipelineSettings,
+  usePipelineWhatsApp,
+} from "@/modules/admin/application/use-admin-crm";
 import type { PipelineCard } from "@/modules/admin/infrastructure/crm-api";
 import {
   FUNNEL_PRESETS,
@@ -13,10 +17,14 @@ import {
   MODULE_LABEL,
   activeFunnelPreset,
   filterPipelineCards,
-  formatSentAt,
+  isContacted,
+  messageStatusOf,
+  sendConfirmQuestion,
   waLink,
   type FunnelRange,
 } from "./funnel-helpers";
+import { MessageStatusInfo } from "./message-status";
+import { PipelineMessageBar } from "./pipeline-message-bar";
 
 /**
  * Kanban do funil de contratantes: Cadastro novo → 1ª/2ª/3ª contratação →
@@ -28,6 +36,9 @@ export function FunnelBoard() {
   const [range, setRange] = useState<FunnelRange>(() => FUNNEL_PRESETS[3].compute());
   const { data: board, isLoading, isFetching, isError, refetch } = useCrmPipeline(range);
   const sendWhatsApp = usePipelineWhatsApp();
+  // Só para dizer, na confirmação, por onde a mensagem sai. Sem a configuração
+  // (API antiga), a pergunta fica como sempre foi.
+  const { data: settings } = useCrmPipelineSettings();
   const [q, setQ] = useState("");
   const activePreset = activeFunnelPreset(range);
 
@@ -40,7 +51,7 @@ export function FunnelBoard() {
         cards,
         // Conta sobre os cards VISÍVEIS: com busca ativa, "3 enviadas" tem que
         // bater com o que está na tela, senão o número parece errado.
-        contactedCount: cards.filter((c) => c.lastMessageSentAt).length,
+        contactedCount: cards.filter(isContacted).length,
       };
     });
   }, [board, q]);
@@ -48,10 +59,7 @@ export function FunnelBoard() {
   function onSendWhatsApp(card: PipelineCard) {
     // Reenvio pede confirmação DIFERENTE: mandar de novo para quem já recebeu é
     // o erro que o amarelo existe para evitar, e insistir queima o número.
-    const pergunta = card.lastMessageSentAt
-      ? `${card.name} já recebeu a mensagem ${formatSentAt(card.lastMessageSentAt)}` +
-        `${card.messagesSentCount > 1 ? ` (${card.messagesSentCount} envios)` : ""}. Enviar de novo?`
-      : `Enviar a mensagem automática de WhatsApp para ${card.name}?`;
+    const pergunta = sendConfirmQuestion(card, { templateName: settings?.template?.name });
     if (!confirm(pergunta)) return;
     sendWhatsApp.mutate(card.userId);
   }
@@ -73,6 +81,8 @@ export function FunnelBoard() {
 
   return (
     <div>
+      <PipelineMessageBar />
+
       {/* Período do CADASTRO: atalhos + calendário (editar as datas = personalizado). */}
       <div className="flex flex-col lg:flex-row lg:items-end gap-3 mb-4">
         <div className="flex flex-wrap gap-1.5">
@@ -173,16 +183,20 @@ export function FunnelBoard() {
                     // Amarelo = já falamos com essa pessoa. O card cinza é
                     // trabalho a fazer; o amarelo é trabalho feito — dá para
                     // varrer a coluna com o olho sem abrir card nenhum.
-                    const contacted = Boolean(card.lastMessageSentAt);
-                    return (
-                      <div
-                        key={card.userId}
-                        className={`rounded-lg p-3 ${
-                          contacted
+                    // Vermelho = a mensagem não chegou; laranja = a Meta não
+                    // respondeu e ela PODE ter chegado (olhar antes de reenviar).
+                    const contacted = isContacted(card);
+                    const status = messageStatusOf(card);
+                    const tone =
+                      status === "FAILED"
+                        ? "bg-red-50 border border-red-200"
+                        : status === "UNCERTAIN"
+                          ? "bg-orange-50 border border-orange-200"
+                          : contacted
                             ? "bg-[#fdf6e3] border border-[#eca826]/40"
-                            : "bg-[#f7f7f7]/50"
-                        }`}
-                      >
+                            : "bg-[#f7f7f7]/50";
+                    return (
+                      <div key={card.userId} className={`rounded-lg p-3 ${tone}`}>
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-medium text-[#1d1d1b]">{card.name}</p>
                           <div className="flex gap-1 shrink-0">
@@ -225,13 +239,9 @@ export function FunnelBoard() {
                           )}
                         </div>
 
-                        {contacted && (
-                          <p className="mt-2 text-[11px] text-[#8a6d1f] flex items-center gap-1">
-                            <Check className="w-3 h-3 shrink-0" />
-                            Enviada {formatSentAt(card.lastMessageSentAt!)}
-                            {card.messagesSentCount > 1 && ` · ${card.messagesSentCount}x`}
-                          </p>
-                        )}
+                        <div className="mt-2 empty:hidden">
+                          <MessageStatusInfo card={card} />
+                        </div>
 
                         <Button
                           size="sm"
@@ -248,7 +258,11 @@ export function FunnelBoard() {
                           ) : (
                             <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
                           )}
-                          {contacted ? "Enviar de novo" : "Enviar msg automática"}
+                          {contacted || status === "UNCERTAIN"
+                            ? "Enviar de novo"
+                            : status === "FAILED"
+                              ? "Tentar de novo"
+                              : "Enviar msg automática"}
                         </Button>
                       </div>
                     );

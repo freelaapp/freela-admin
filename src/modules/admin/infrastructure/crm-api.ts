@@ -217,7 +217,38 @@ export interface PipelineCard {
   lastMessageSentAt: string | null;
   /** Quantas vezes já mandamos — insistência demais queima o número. */
   messagesSentCount: number;
+  // ── Situação da mensagem (aditivo: a API anterior a 16/11/2026 não manda) ──
+  /** O que aconteceu com a última mensagem do Pipeline. */
+  messageStatus?: PipelineMessageStatus;
+  /** Por onde saiu: número oficial (`META`) ou chip de campanha (`LEGACY`). */
+  messageChannel?: "META" | "LEGACY" | null;
+  /** Por que a última tentativa não chegou (em `FAILED` e `UNCERTAIN`). */
+  messageFailureReason?: string | null;
+  messageDeliveredAt?: string | null;
+  messageReadAt?: string | null;
+  /** Resposta do contratante no número oficial, depois do último envio. */
+  messageRepliedAt?: string | null;
+  messageReplyText?: string | null;
+  /** Tocou em "Não quero receber": campanha para ele não sai mais. */
+  messageOptedOutAt?: string | null;
+  /** Última campanha (fora do Pipeline) que ele recebeu por WhatsApp. */
+  lastCampaign?: { name: string; sentAt: string } | null;
+  /** Outra conta com o MESMO telefone já recebeu a mensagem do Pipeline. */
+  samePhoneSentAt?: string | null;
 }
+
+/**
+ * `UNCERTAIN` = a Meta não respondeu e a mensagem PODE ter chegado. Não é
+ * "não enviada": mandar de novo sem olhar arrisca a mesma mensagem duas vezes.
+ */
+export type PipelineMessageStatus =
+  | "NONE"
+  | "SENT"
+  | "DELIVERED"
+  | "READ"
+  | "REPLIED"
+  | "FAILED"
+  | "UNCERTAIN";
 
 export interface PipelineColumn {
   stage: PipelineStage;
@@ -245,7 +276,82 @@ export async function getCrmPipeline(params?: PipelinePeriodParams): Promise<Pip
 
 export async function sendPipelineWhatsApp(
   userId: string,
-): Promise<{ ok: boolean; phone: string; sentAt: string }> {
+): Promise<{ ok: boolean; phone: string; sentAt: string; channel?: "META" | "LEGACY" }> {
   const res = await crmApi.post(`/pipeline/${userId}/whatsapp`);
+  return res.data.data;
+}
+
+// ─── Cadastros antigos (aba do Pipeline) ──────────────────────────────────
+
+export interface PipelineOldSignups {
+  /** "Cadastrado há mais de N dias". */
+  days: number;
+  /** Último dia de cadastro incluído, `YYYY-MM-DD` (Brasília, inclusivo). */
+  registeredUntil: string;
+  total: number;
+  cards: PipelineCard[];
+}
+
+export async function getCrmOldSignups(days?: number): Promise<PipelineOldSignups> {
+  const res = await crmApi.get("/pipeline/old-signups", { params: days ? { days } : undefined });
+  return res.data.data;
+}
+
+// ─── Mensagem do Pipeline (modelo da Meta + WhatsApp do marketing) ────────
+
+export interface PipelineTemplateOption {
+  id: string;
+  name: string;
+  /** Texto do modelo, com as variáveis como o time escreve (`{primeiro_nome}`). */
+  body: string;
+  /** Tem botão de link — é por ele que o contratante chega ao marketing. */
+  hasLinkButton: boolean;
+}
+
+export interface PipelineMarketingWhatsapp {
+  whatsappE164: string;
+  /** "(11) 97177-7563". */
+  display: string;
+  whatsappUrl: string;
+  /** Ninguém configurou número: está valendo o WhatsApp de suporte. */
+  isFallback: boolean;
+}
+
+export interface PipelineSettings {
+  /** `META` = modelo escolhido; `LEGACY` = texto fixo pelo chip de campanha. */
+  mode: "META" | "LEGACY";
+  template: (PipelineTemplateOption & { status: string; statusLabel: string }) | null;
+  /** Modelos aprovados pela Meta, para escolher. */
+  availableTemplates: PipelineTemplateOption[];
+  marketingWhatsapp: PipelineMarketingWhatsapp;
+  /** Texto salvo da resposta automática; `null` = vale o padrão. */
+  replyText: string | null;
+  defaultReplyText: string;
+  /** Como a resposta sai hoje, com o link já no lugar. */
+  replyPreview: string;
+  replyAlertEmail: string | null;
+  /** Link para colocar no botão do modelo (leva ao WhatsApp do marketing). */
+  marketingContactUrl: string;
+  updatedAt: string | null;
+  updatedBy: { id: string; name: string | null } | null;
+}
+
+/** Campo ausente = não mexe; vazio ou `null` = limpa. */
+export interface UpdatePipelineSettingsInput {
+  marketingTemplateId?: string | null;
+  marketingWhatsapp?: string | null;
+  replyText?: string | null;
+  replyAlertEmail?: string | null;
+}
+
+export async function getCrmPipelineSettings(): Promise<PipelineSettings> {
+  const res = await crmApi.get("/pipeline/settings");
+  return res.data.data;
+}
+
+export async function updateCrmPipelineSettings(
+  input: UpdatePipelineSettingsInput,
+): Promise<PipelineSettings> {
+  const res = await crmApi.put("/pipeline/settings", input);
   return res.data.data;
 }

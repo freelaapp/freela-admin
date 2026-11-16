@@ -1,5 +1,9 @@
 import { Inbox, Sparkles, Repeat, TrendingUp, Crown, type LucideIcon } from "lucide-react";
-import type { PipelineCard, PipelineStage } from "@/modules/admin/infrastructure/crm-api";
+import type {
+  PipelineCard,
+  PipelineMessageStatus,
+  PipelineStage,
+} from "@/modules/admin/infrastructure/crm-api";
 
 /** Ícone por coluna do funil — os títulos vêm prontos da API. */
 export const FUNNEL_STAGE_ICONS: Record<PipelineStage, LucideIcon> = {
@@ -103,4 +107,185 @@ export function activeFunnelPreset(range: FunnelRange, now?: Date): string | und
     const r = p.compute(now);
     return r.from === range.from && r.to === range.to;
   })?.label;
+}
+
+// ─── Situação da mensagem (funil e cadastros antigos) ───────────────────────
+
+/**
+ * Situação da última mensagem. A API anterior a 16/11/2026 não manda o campo:
+ * nela, "tem data de envio" é tudo o que se sabe.
+ */
+export function messageStatusOf(card: PipelineCard): PipelineMessageStatus {
+  return card.messageStatus ?? (card.lastMessageSentAt ? "SENT" : "NONE");
+}
+
+export const MESSAGE_STATUS_LABEL: Record<PipelineMessageStatus, string> = {
+  NONE: "Sem mensagem",
+  SENT: "Enviada",
+  DELIVERED: "Entregue",
+  READ: "Lida",
+  REPLIED: "Respondeu",
+  FAILED: "Não chegou",
+  UNCERTAIN: "Pode ter sido enviada",
+};
+
+/** A mensagem saiu (o card amarelo). Falha e dúvida NÃO contam como contato feito. */
+export function isContacted(card: PipelineCard): boolean {
+  const status = messageStatusOf(card);
+  return status === "SENT" || status === "DELIVERED" || status === "READ" || status === "REPLIED";
+}
+
+/**
+ * O que o contratante já recebeu de nós, para o filtro dos cadastros antigos:
+ * - `NEVER`: nada — nem Pipeline, nem campanha, nem outra conta com o mesmo telefone;
+ * - `OTHER`: não recebeu a mensagem do Pipeline, mas recebeu campanha ou o
+ *   telefone dele já recebeu por outra conta;
+ * - `CONTACTED`: a mensagem do Pipeline saiu;
+ * - `PROBLEM`: a última tentativa não chegou, ou ficou em dúvida.
+ */
+export type ContactState = "NEVER" | "OTHER" | "CONTACTED" | "PROBLEM";
+
+export function contactStateOf(card: PipelineCard): ContactState {
+  const status = messageStatusOf(card);
+  if (status === "FAILED" || status === "UNCERTAIN") return "PROBLEM";
+  if (status !== "NONE") return "CONTACTED";
+  return card.lastCampaign || card.samePhoneSentAt ? "OTHER" : "NEVER";
+}
+
+/** Uma linha dizendo o que houve com a última mensagem, ou `null` se não houve nenhuma. */
+export function messageStatusLine(card: PipelineCard, now: Date = new Date()): string | null {
+  const status = messageStatusOf(card);
+  const vezes = card.messagesSentCount > 1 ? ` · ${card.messagesSentCount}x` : "";
+  switch (status) {
+    case "NONE":
+      return null;
+    case "FAILED":
+      return `Não chegou: ${card.messageFailureReason ?? "a Meta não entregou."}`;
+    case "UNCERTAIN":
+      return "A Meta não respondeu: a mensagem pode ter sido enviada. Confira antes de mandar de novo.";
+    case "REPLIED":
+      return `Respondeu ${card.messageRepliedAt ? formatSentAt(card.messageRepliedAt, now) : ""}`.trim() + vezes;
+    case "READ":
+      return `Lida ${card.messageReadAt ? formatSentAt(card.messageReadAt, now) : ""}`.trim() + vezes;
+    case "DELIVERED":
+      return (
+        `Entregue ${card.messageDeliveredAt ? formatSentAt(card.messageDeliveredAt, now) : ""}`.trim() +
+        vezes
+      );
+    default:
+      return (
+        `Enviada ${card.lastMessageSentAt ? formatSentAt(card.lastMessageSentAt, now) : ""}`.trim() + vezes
+      );
+  }
+}
+
+/**
+ * Pergunta de confirmação antes de enviar. Muda conforme o que a pessoa já
+ * recebeu: mandar de novo para quem já recebeu é o erro que o amarelo existe
+ * para evitar, e insistir queima o número.
+ */
+export function sendConfirmQuestion(
+  card: PipelineCard,
+  opts: { templateName?: string | null; now?: Date } = {},
+): string {
+  const now = opts.now ?? new Date();
+  const status = messageStatusOf(card);
+  const canal = opts.templateName
+    ? ` Sai pelo WhatsApp oficial, com o modelo "${opts.templateName}".`
+    : "";
+
+  if (status === "UNCERTAIN") {
+    return (
+      `A última tentativa para ${card.name} ficou sem resposta da Meta, e a mensagem PODE ter chegado. ` +
+      `Enviar de novo mesmo assim?${canal}`
+    );
+  }
+  if (isContacted(card) && card.lastMessageSentAt) {
+    const envios = card.messagesSentCount > 1 ? ` (${card.messagesSentCount} envios)` : "";
+    return `${card.name} já recebeu a mensagem ${formatSentAt(card.lastMessageSentAt, now)}${envios}. Enviar de novo?${canal}`;
+  }
+  if (card.samePhoneSentAt) {
+    return (
+      `Outro cadastro com o MESMO telefone de ${card.name} já recebeu esta mensagem ` +
+      `${formatSentAt(card.samePhoneSentAt, now)}. Enviar mesmo assim?${canal}`
+    );
+  }
+  if (card.lastCampaign) {
+    return (
+      `${card.name} recebeu a campanha "${card.lastCampaign.name}" ` +
+      `${formatSentAt(card.lastCampaign.sentAt, now)}. Enviar a mensagem do Pipeline também?${canal}`
+    );
+  }
+  return `Enviar a mensagem automática de WhatsApp para ${card.name}?${canal}`;
+}
+
+// ─── Cadastros antigos: filtros ─────────────────────────────────────────────
+
+export type ContactFilter = "ALL" | ContactState | "REPLIED";
+
+export const CONTACT_FILTERS: { value: ContactFilter; label: string }[] = [
+  { value: "ALL", label: "Todos" },
+  { value: "NEVER", label: "Nunca recebeu nada" },
+  { value: "OTHER", label: "Só campanha" },
+  { value: "CONTACTED", label: "Mensagem enviada" },
+  { value: "REPLIED", label: "Respondeu" },
+  { value: "PROBLEM", label: "Não chegou" },
+];
+
+export interface OldSignupFilters {
+  q: string;
+  /** UF, ou "" para todas. */
+  state: string;
+  /** Cidade, ou "" para todas. */
+  city: string;
+  contact: ContactFilter;
+}
+
+function matchesContact(card: PipelineCard, filter: ContactFilter): boolean {
+  if (filter === "ALL") return true;
+  if (filter === "REPLIED") return messageStatusOf(card) === "REPLIED";
+  return contactStateOf(card) === filter;
+}
+
+/** Aplica busca, estado, cidade e situação. `ignore` deixa um filtro de fora (para as contagens). */
+export function filterOldSignups(
+  cards: PipelineCard[],
+  filters: OldSignupFilters,
+  ignore?: "contact",
+): PipelineCard[] {
+  return filterPipelineCards(cards, filters.q).filter(
+    (card) =>
+      (!filters.state || card.state === filters.state) &&
+      (!filters.city || card.city === filters.city) &&
+      (ignore === "contact" || matchesContact(card, filters.contact)),
+  );
+}
+
+/** Quantos cards cada opção de situação traria, com os OUTROS filtros aplicados. */
+export function countByContactFilter(
+  cards: PipelineCard[],
+  filters: OldSignupFilters,
+): Record<ContactFilter, number> {
+  const base = filterOldSignups(cards, filters, "contact");
+  const counts = { ALL: base.length, NEVER: 0, OTHER: 0, CONTACTED: 0, REPLIED: 0, PROBLEM: 0 };
+  for (const card of base) {
+    counts[contactStateOf(card)] += 1;
+    if (messageStatusOf(card) === "REPLIED") counts.REPLIED += 1;
+  }
+  return counts;
+}
+
+/** Estados e cidades que existem na lista, em ordem alfabética. Cidade depende do estado escolhido. */
+export function locationOptions(
+  cards: PipelineCard[],
+  state: string,
+): { states: string[]; cities: string[] } {
+  const states = new Set<string>();
+  const cities = new Set<string>();
+  for (const card of cards) {
+    if (card.state) states.add(card.state);
+    if (card.city && (!state || card.state === state)) cities.add(card.city);
+  }
+  const sort = (values: Set<string>) => [...values].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  return { states: sort(states), cities: sort(cities) };
 }

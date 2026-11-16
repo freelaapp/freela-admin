@@ -422,7 +422,13 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
                   <p className="flex flex-wrap items-center gap-2">
                     <CampaignStatusBadge status={campaign.status} />
                     <span>
-                      {campaign.audience === "EXTERNAL_LIST" ? "Lista externa (planilha)" : "Recorte da base"}
+                      {campaign.audience === "EXTERNAL_LIST"
+                        ? "Lista externa (planilha)"
+                        : campaign.audience === "CRM_PIPELINE"
+                          ? // Campanha de sistema: reúne as mensagens enviadas uma a
+                            // uma pelo Pipeline. Não dispara sozinha.
+                            "Pipeline (mensagens enviadas uma a uma)"
+                          : "Recorte da base"}
                     </span>
                   </p>
                   {campaign.marketingTemplate && (

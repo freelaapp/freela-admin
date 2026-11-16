@@ -13,13 +13,16 @@ import {
   deleteCrmNote,
   deleteCrmTask,
   getCrmCompany,
+  getCrmOldSignups,
   getCrmPipeline,
+  getCrmPipelineSettings,
   listCrmCompanies,
   listCrmTasks,
   moveCrmCompany,
   searchCrmContractors,
   sendPipelineWhatsApp,
   updateCrmCompany,
+  updateCrmPipelineSettings,
   updateCrmTask,
   type CreateCompanyInput,
   type CreateContactInput,
@@ -27,6 +30,7 @@ import {
   type CrmCompanyStatus,
   type CrmPriority,
   type PipelinePeriodParams,
+  type UpdatePipelineSettingsInput,
   type UpdateCompanyInput,
   type UpdateTaskInput,
 } from "../infrastructure/crm-api";
@@ -66,19 +70,60 @@ export function useCrmPipeline(params?: PipelinePeriodParams) {
   });
 }
 
+/**
+ * Cadastros antigos: contratantes cadastrados há mais de N dias (padrão 30, o
+ * que fica para trás da janela do funil). A chave começa por "pipeline" de
+ * propósito: o envio de mensagem invalida o funil E esta lista de uma vez.
+ */
+export function useCrmOldSignups(days?: number) {
+  return useQuery({
+    queryKey: [...ROOT, "pipeline", "old-signups", days ?? null],
+    queryFn: () => getCrmOldSignups(days),
+    staleTime: 30_000,
+  });
+}
+
+/** Mensagem do Pipeline: modelo da Meta, WhatsApp do marketing e resposta automática. */
+export function useCrmPipelineSettings() {
+  return useQuery({
+    queryKey: [...ROOT, "pipeline", "settings"],
+    queryFn: getCrmPipelineSettings,
+    staleTime: 30_000,
+    // API antiga (sem a rota) responde 404: tentar de novo só atrasa a tela.
+    retry: false,
+  });
+}
+
+export function useUpdateCrmPipelineSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdatePipelineSettingsInput) => updateCrmPipelineSettings(input),
+    onSuccess: (settings) => {
+      qc.setQueryData([...ROOT, "pipeline", "settings"], settings);
+    },
+  });
+}
+
 /** Botão do card: dispara a mensagem automática de WhatsApp ao contratante. */
 export function usePipelineWhatsApp() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) => sendPipelineWhatsApp(userId),
     onSuccess: (r) => {
-      toast.success(`Mensagem enviada para ${r.phone}.`);
-      // Recarrega o funil para o card virar "contatado" na hora. Sem isto o
-      // amarelo só apareceria no próximo F5 — e quem está mandando mensagem em
-      // série continuaria sem saber onde parou.
-      qc.invalidateQueries({ queryKey: [...ROOT, "pipeline"] });
+      toast.success(
+        r.channel === "META"
+          ? `Mensagem enviada pelo WhatsApp oficial para ${r.phone}.`
+          : `Mensagem enviada para ${r.phone}.`,
+      );
     },
     onError: (e) => toast.error(getAxiosErrorMessage(e, "Erro ao enviar a mensagem de WhatsApp.")),
+    // Recarrega o funil e os cadastros antigos TAMBÉM quando falha: a recusa
+    // muda o card ("não chegou", "pode ter sido enviada"), e é isso que impede
+    // a segunda tentativa às cegas. Sem recarregar, o amarelo e o motivo só
+    // apareceriam no próximo F5.
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: [...ROOT, "pipeline"] });
+    },
   });
 }
 
