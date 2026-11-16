@@ -9,9 +9,10 @@ import {
   ShieldCheck,
   Undo2,
   UserCheck,
+  UserRound,
   XCircle,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { VacancyCandidacyItem } from "@/modules/admin/infrastructure/admin-api";
 import {
   choiceSlotOf,
@@ -20,6 +21,12 @@ import {
 } from "@/modules/admin/application/selection-round-presentation";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
 import { PrestartCheckStatus } from "./prestart-check-status";
+import { CandidateProfileDialog } from "./candidate-profile-dialog";
+import { CandidateAvatar, CandidateFacts } from "./candidate-summary";
+import { MatchBadge } from "./match-badge";
+
+// Mantém o caminho antigo de importação do selo.
+export { MatchBadge } from "./match-badge";
 
 /**
  * Lista de candidatos de uma vaga, no modal de detalhes do painel.
@@ -102,39 +109,6 @@ function canReinstate(c: { status: string; acceptedAt?: string | null }): boolea
   );
 }
 
-/**
- * Selo de compatibilidade candidato × vaga, espelhando o painel do contratante.
- *
- * Só aparece quando o backend manda a nota (flag `FREELA_CANDIDATE_MATCH_ENABLED`
- * ligada). `null` = a vaga não tem dado para comparar → texto explícito, nunca
- * "0%". `undefined` = recurso desligado → não renderiza nada. Faixas iguais às
- * dos cards do contratante: ≥70 verde, ≥40 âmbar, abaixo cinza.
- */
-export function MatchBadge({ score }: { score?: number | null }) {
-  if (score === undefined) return null;
-  if (score === null) {
-    return (
-      <span className="text-[10px] text-[#a3a3a3]">
-        Sem dados desta vaga para comparar
-      </span>
-    );
-  }
-  const tone =
-    score >= 70
-      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-      : score >= 40
-        ? "bg-amber-100 text-amber-700 border-amber-200"
-        : "bg-slate-100 text-slate-600 border-slate-200";
-  return (
-    <span
-      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${tone}`}
-      title="Compatibilidade do candidato com a vaga (mesmo cálculo do contratante)"
-    >
-      {score}% compatível
-    </span>
-  );
-}
-
 export function VacancyCandidacyList({
   candidacies,
   loading,
@@ -156,6 +130,10 @@ export function VacancyCandidacyList({
 }: VacancyCandidacyListProps) {
   const nameOf = (id: string | null) =>
     id ? (candidacies?.find((c) => c.id === id)?.providerName ?? "Sem nome") : null;
+  // Perfil aberto (foto grande, currículo, vídeo, avaliações). Guarda o id: se a
+  // lista recarregar, o diálogo mostra o dado novo em vez de uma cópia velha.
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const profileOf = candidacies?.find((c) => c.id === profileId) ?? null;
   return (
     <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
       <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
@@ -213,6 +191,7 @@ export function VacancyCandidacyList({
                   candidacy={c}
                   statusLabel={statusLabel}
                   mode={chooseMode}
+                  onOpenProfile={() => setProfileId(c.id)}
                 />
               );
             }
@@ -221,20 +200,48 @@ export function VacancyCandidacyList({
                 key={c.id}
                 className="bg-white border border-[#e5e5e5] rounded-md p-2.5"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium text-[#1d1d1b]">
-                    {c.providerName ?? "Sem nome"}
-                  </p>
-                  <span
-                    className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${statusColor}`}
-                  >
-                    {statusLabel}
-                  </span>
-                </div>
-                {c.matchScore !== undefined && (
-                  <div className="mt-1">
-                    <MatchBadge score={c.matchScore} />
+                <div className="flex items-start gap-3">
+                  {/* Foto e dados só quando a API manda (Vagas Empresa); sem eles o
+                      cartão fica como sempre foi. */}
+                  {c.provider && (
+                    <CandidateAvatar name={c.providerName} src={c.provider.profileImage} />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p
+                        className={`break-words font-medium text-[#1d1d1b] ${
+                          c.provider ? "text-base" : "text-sm"
+                        }`}
+                      >
+                        {c.providerName ?? "Sem nome"}
+                      </p>
+                      <span
+                        className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${statusColor}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+                    {c.provider && (
+                      <div className="mt-1">
+                        <CandidateFacts provider={c.provider} />
+                      </div>
+                    )}
+                    {c.matchScore !== undefined && (
+                      <div className="mt-1.5">
+                        <MatchBadge score={c.matchScore} />
+                      </div>
+                    )}
                   </div>
+                </div>
+                {c.provider && (
+                  <button
+                    type="button"
+                    onClick={() => setProfileId(c.id)}
+                    className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[#e5e5e5] bg-white px-2.5 py-1 text-xs font-semibold text-[#1d1d1b] transition-colors hover:bg-[#f7f7f7]"
+                  >
+                    <UserRound className="h-3.5 w-3.5" />
+                    Ver perfil
+                  </button>
                 )}
                 <div className="mt-1.5 flex flex-col gap-0.5">
                   {c.providerPhone && (
@@ -459,6 +466,7 @@ export function VacancyCandidacyList({
           reserveNames={[nameOf(chooseMode.selection.reserves[0]), nameOf(chooseMode.selection.reserves[1])]}
         />
       )}
+      <CandidateProfileDialog candidacy={profileOf} onClose={() => setProfileId(null)} />
     </div>
   );
 }
@@ -471,10 +479,12 @@ function ChooseCard({
   candidacy: c,
   statusLabel,
   mode,
+  onOpenProfile,
 }: {
   candidacy: VacancyCandidacyItem;
   statusLabel: string;
   mode: CandidacyChooseMode;
+  onOpenProfile: () => void;
 }) {
   const name = c.providerName ?? "Sem nome";
   if (c.status !== "PENDING") {
@@ -497,6 +507,7 @@ function ChooseCard({
     slot === null && free !== null && free !== "principal" && !mode.reserveEligibleIds.has(c.id);
   const blocked = full || onlyPrincipal;
   return (
+    <div className="space-y-1">
     <button
       type="button"
       role="checkbox"
@@ -520,15 +531,24 @@ function ChooseCard({
       >
         {slot === "principal" ? 1 : slot === 1 ? 2 : slot === 2 ? 3 : null}
       </span>
+      {c.provider && <CandidateAvatar name={c.providerName} src={c.provider.profileImage} size={48} />}
       <span className="min-w-0 flex-1">
         <span className="flex items-start justify-between gap-2">
-          <span className="text-sm font-medium text-[#1d1d1b]">{name}</span>
+          <span className={`font-medium text-[#1d1d1b] ${c.provider ? "text-base" : "text-sm"}`}>
+            {name}
+          </span>
           {slot !== null && (
             <span className="shrink-0 rounded bg-[#eca826] px-2 py-0.5 text-xs font-bold text-[#1d1d1b]">
               {SLOT_BADGE[slot]}
             </span>
           )}
         </span>
+        {/* É AQUI que se escolhe: os dados que decidem ficam no próprio cartão. */}
+        {c.provider && (
+          <span className="mt-1 block">
+            <CandidateFacts provider={c.provider} />
+          </span>
+        )}
         {c.matchScore !== undefined && (
           <span className="mt-1 block">
             <MatchBadge score={c.matchScore} />
@@ -546,6 +566,18 @@ function ChooseCard({
         )}
       </span>
     </button>
+    {/* Fora do cartão: ele é um botão de marcar, e botão dentro de botão não vale. */}
+    {c.provider && (
+      <button
+        type="button"
+        onClick={onOpenProfile}
+        className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[#1d1d1b] underline-offset-2 hover:underline"
+      >
+        <UserRound className="h-3.5 w-3.5" />
+        Ver perfil de {name}
+      </button>
+    )}
+    </div>
   );
 }
 

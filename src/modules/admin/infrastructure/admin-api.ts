@@ -711,12 +711,53 @@ export interface VacancyCandidacyApprovedBy {
   employeeLabel: string | null;
 }
 
+/**
+ * Quem é o candidato, para decidir sem abrir outra tela: o que a empresa vê na
+ * lista dela e mais o que só o painel vê (score e baixa prioridade).
+ */
+export interface VacancyCandidacyProvider {
+  /** Foto do perfil (URL assinada do S3; vence — não guardar). */
+  profileImage: string | null;
+  jobTitle: string | null;
+  bio: string | null;
+  /** BRONZE | PRATA | OURO. */
+  tier: string;
+  tierLabel: string;
+  /** Média das avaliações recebidas; `null` enquanto não há nenhuma. */
+  averageRating: number | null;
+  totalRatings: number;
+  /** Serviços concluídos na janela recente (o "N jobs" da lista da empresa). */
+  completedServices: number;
+  totalCompletedServices: number;
+  age: number | null;
+  /** Score de reputação (0–100); `null` sem histórico. */
+  reputationScore: number | null;
+  /** Baixa prioridade (avaliação abaixo de 3⭐): vai para o fim da lista da empresa. */
+  lowPriority: boolean;
+  /** Km em linha reta até a vaga; `null` quando seria aproximado (aí vale o bairro). */
+  distanceInKm: number | null;
+  distanceApprox: boolean;
+  neighborhood: string | null;
+  city: string | null;
+  uf: string | null;
+  /** Currículo preenchido pelo freelancer (formato livre; ver `parseCurriculum`). */
+  curriculum: unknown | null;
+  /** Vídeo de apresentação (URL assinada do S3). */
+  presentationVideoUrl: string | null;
+  providerGlobalId: string | null;
+}
+
 export interface VacancyCandidacyItem {
   id: string;
   providerId: string;
   providerName: string | null;
   providerPhone: string | null;
   providerEmail: string | null;
+  /**
+   * Dados do freelancer para decidir. Ausente = API anterior a 16/11/2026 ou
+   * vertical que ainda não manda (Casa): o cartão fica como era.
+   */
+  provider?: VacancyCandidacyProvider;
   status: string;
   createdAt: string;
   // Opcionais: só presentes após o deploy da API de autoria do aceite (2026-07-17).
