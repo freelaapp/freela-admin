@@ -15,7 +15,13 @@ export interface SubscriptionRow {
   organizationId: string;
   organizationName: string;
   contractorUserId: string;
+  /** Nome dado à loja na criação (muitas vezes a razão social). */
   name: string;
+  /**
+   * Nome fantasia do cadastro da empresa — o que Empresas, Vagas e Pipeline
+   * mostram. `null` = cadastro sem nome fantasia; ausente = API anterior a 16/11/2026.
+   */
+  tradeName?: string | null;
   cnpj: string | null;
   taxRegime: string | null;
   planCode: PlanCode;
@@ -94,6 +100,7 @@ export interface SubscriptionDetail {
     taxRegime: string | null;
     contractorUserId: string;
     organizationName: string;
+    tradeName?: string | null;
   };
   plan: { code: PlanCode; name: string; monthlyPriceInCents: number; serviceFeePercent: number };
   subscription: {
@@ -190,4 +197,20 @@ export async function updateFixedJobTrial(
 export async function revokeFixedJobTrial(storeId: string, note?: string): Promise<FixedJobTrialAdmin> {
   const res = await subscriptionsApi.delete(`/${storeId}/fixed-job-trial`, { data: { note } });
   return res.data.data;
+}
+
+/**
+ * Como a loja aparece no painel: o nome fantasia na frente (é o nome que as
+ * outras telas usam) e, quando o nome da loja é outro, ele como linha de baixo —
+ * para quem conhece a empresa pela razão social achar também.
+ */
+export function storeDisplayName(row: { name: string; tradeName?: string | null }): {
+  primary: string;
+  secondary: string | null;
+} {
+  const trade = row.tradeName?.trim();
+  const store = row.name?.trim() ?? "";
+  if (!trade) return { primary: store || "Sem nome", secondary: null };
+  const same = trade.localeCompare(store, "pt-BR", { sensitivity: "base" }) === 0;
+  return { primary: trade, secondary: same || !store ? null : store };
 }

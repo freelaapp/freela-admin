@@ -40,6 +40,7 @@ import {
   useSubscriptions,
 } from "@/modules/admin/application/use-admin-subscriptions";
 import { PLAN_LABEL, assignablePlanOptions } from "@/modules/admin/domain/assignable-plans";
+import { storeDisplayName } from "@/modules/admin/infrastructure/subscriptions-api";
 import type {
   AdminActionType,
   PlanCode,
@@ -166,7 +167,7 @@ export default function AssinaturasPage() {
               id="busca"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Nome ou CNPJ"
+              placeholder="Nome fantasia, nome da loja ou CNPJ"
               className="pl-9"
             />
           </div>
@@ -228,7 +229,11 @@ export default function AssinaturasPage() {
 
             {rows.map((row) => (
               <TableRow key={row.storeId}>
-                <TableCell className="font-medium">{row.name}</TableCell>
+                <TableCell className="font-medium">
+                  {/* Nome fantasia na frente (o mesmo de Empresas, Vagas e Pipeline);
+                      o nome da loja embaixo só quando é outro. */}
+                  <StoreName row={row} />
+                </TableCell>
                 <TableCell className="tabular-nums text-neutral-600">{fmtCnpj(row.cnpj)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -334,8 +339,9 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
     <Dialog open={!!row} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{row.name}</DialogTitle>
+          <DialogTitle>{storeDisplayName(row).primary}</DialogTitle>
           <DialogDescription>
+            {storeDisplayName(row).secondary && `Loja cadastrada como ${storeDisplayName(row).secondary} · `}
             {fmtCnpj(row.cnpj)} · {row.organizationName}
           </DialogDescription>
         </DialogHeader>
@@ -591,5 +597,19 @@ function ManageDialog({ row, onClose }: { row: SubscriptionRow | null; onClose: 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function StoreName({ row }: { row: { name: string; tradeName?: string | null } }) {
+  const { primary, secondary } = storeDisplayName(row);
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="break-words">{primary}</span>
+      {secondary && (
+        <span className="break-words text-xs font-normal text-neutral-500" title="Nome dado à loja na criação">
+          {secondary}
+        </span>
+      )}
+    </span>
   );
 }
