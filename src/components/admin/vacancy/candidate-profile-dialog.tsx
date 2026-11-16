@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Mail, MessageCircle, Phone, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,12 @@ export function CandidateProfileDialog({ candidacy, onClose }: Props) {
   // Fechado não monta nada: a busca das avaliações (e a exigência do provedor de
   // consultas) só existe enquanto um perfil está aberto.
   if (!candidacy?.provider) return null;
-  return <OpenProfile candidacy={candidacy} provider={candidacy.provider} onClose={onClose} />;
+  // Direto no <body>: a lista vive dentro do modal da vaga (que corta o que passa
+  // dele e tem rolagem própria). Fora dali o perfil cobre a tela inteira, sempre.
+  return createPortal(
+    <OpenProfile candidacy={candidacy} provider={candidacy.provider} onClose={onClose} />,
+    document.body,
+  );
 }
 
 function OpenProfile({
