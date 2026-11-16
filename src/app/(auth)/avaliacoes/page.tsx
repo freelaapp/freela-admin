@@ -24,6 +24,7 @@ import {
   type AuthorProfile,
 } from "@/components/shared/author-profile-dialog";
 import { formatInstantDate } from "@/lib/date.utils";
+import { RatingAverages } from "./_components/rating-averages";
 
 const formatDate = formatInstantDate;
 
@@ -308,47 +309,56 @@ export default function AvaliacoesPage() {
               <p className="text-red-500">Erro ao carregar avaliações.</p>
             </div>
           ) : (
-            <DataTable
-              key={feedbackModule}
-              columns={columns}
-              data={rows}
-              searchPlaceholder="Buscar por autor..."
-              searchKey="freelancer"
-              filters={
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-[#737373]">Nota:</span>
-                  <button
-                    type="button"
-                    onClick={() => setNotaFiltro(null)}
-                    className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                      notaFiltro === null
-                        ? "border-[#eca826] bg-[#eca826]/10 text-[#1d1d1b]"
-                        : "border-[#e5e5e5] bg-white text-[#737373] hover:bg-[#f5f5f5]"
-                    }`}
-                  >
-                    Todas ({todasAsLinhas.length})
-                  </button>
-                  {/* Da pior para a melhor: nota baixa é o que se procura aqui.
-                      Freelancer abaixo de 3 cai em baixa prioridade, então 1 e 2
-                      são as que exigem alguém olhando. */}
-                  {[1, 2, 3, 4, 5].map((n) => (
+            <>
+              {/* Nota média de cada lado, do módulo selecionado. Usa a lista inteira
+                  (não as linhas filtradas): filtrar por 1 estrela não pode fazer a
+                  média virar 1,00. */}
+              <RatingAverages
+                feedbacks={feedbacks ?? []}
+                moduleLabel={FEEDBACK_MODULES.find((m) => m.id === feedbackModule)?.label ?? ""}
+              />
+              <DataTable
+                key={feedbackModule}
+                columns={columns}
+                data={rows}
+                searchPlaceholder="Buscar por autor..."
+                searchKey="freelancer"
+                filters={
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium text-[#737373]">Nota:</span>
                     <button
-                      key={n}
                       type="button"
-                      onClick={() => setNotaFiltro(n)}
-                      className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        notaFiltro === n
+                      onClick={() => setNotaFiltro(null)}
+                      className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        notaFiltro === null
                           ? "border-[#eca826] bg-[#eca826]/10 text-[#1d1d1b]"
                           : "border-[#e5e5e5] bg-white text-[#737373] hover:bg-[#f5f5f5]"
                       }`}
                     >
-                      <Star className="h-3.5 w-3.5 fill-[#eca826] text-[#eca826]" />
-                      {n} ({porNota[n] ?? 0})
+                      Todas ({todasAsLinhas.length})
                     </button>
-                  ))}
-                </div>
-              }
-            />
+                    {/* Da pior para a melhor: nota baixa é o que se procura aqui.
+                        Freelancer abaixo de 3 cai em baixa prioridade, então 1 e 2
+                        são as que exigem alguém olhando. */}
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setNotaFiltro(n)}
+                        className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          notaFiltro === n
+                            ? "border-[#eca826] bg-[#eca826]/10 text-[#1d1d1b]"
+                            : "border-[#e5e5e5] bg-white text-[#737373] hover:bg-[#f5f5f5]"
+                        }`}
+                      >
+                        <Star className="h-3.5 w-3.5 fill-[#eca826] text-[#eca826]" />
+                        {n} ({porNota[n] ?? 0})
+                      </button>
+                    ))}
+                  </div>
+                }
+              />
+            </>
           )}
         </>
       ) : (
