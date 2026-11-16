@@ -38,6 +38,7 @@ import {
 import { CampaignStatusBadge } from "./campaign-status-badge";
 import { CampaignResultsPanel } from "./campaign-results-panel";
 import { MarketingStatusBadge } from "./marketing-status-badge";
+import { PIPELINE_AUDIENCE, PIPELINE_AUDIENCE_LABEL } from "../_lib/campaign-wizard";
 
 const PAGE_SIZE = 50;
 
@@ -424,10 +425,8 @@ export function CampaignDetailDialog({ campaignId, onClose }: Props) {
                     <span>
                       {campaign.audience === "EXTERNAL_LIST"
                         ? "Lista externa (planilha)"
-                        : campaign.audience === "CRM_PIPELINE"
-                          ? // Campanha de sistema: reúne as mensagens enviadas uma a
-                            // uma pelo Pipeline. Não dispara sozinha.
-                            "Pipeline (mensagens enviadas uma a uma)"
+                        : campaign.audience === PIPELINE_AUDIENCE
+                          ? PIPELINE_AUDIENCE_LABEL
                           : "Recorte da base"}
                     </span>
                   </p>

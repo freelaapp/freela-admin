@@ -28,7 +28,7 @@ import {
   useUnscheduleCampaign,
 } from "@/modules/admin/application/use-admin-referrals";
 import type { Campaign } from "@/modules/admin/infrastructure/referrals-api";
-import { audienceLabel, type WizardAudience } from "./_lib/campaign-wizard";
+import { PIPELINE_AUDIENCE, audienceLabel, type WizardAudience } from "./_lib/campaign-wizard";
 import { CampaignCancelDialog } from "./_components/campaign-cancel-dialog";
 import { CampaignDetailDialog } from "./_components/campaign-detail-dialog";
 import { CampaignStatusBadge } from "./_components/campaign-status-badge";
@@ -222,12 +222,17 @@ function CampanhasScreen() {
     },
     {
       header: "Ritmo",
-      accessor: (row: Campaign) => (
-        <span className="text-xs">
-          {row.messagesPerHour}/h · teto {row.dailyCap}/dia · {row.windowStartHour}h–{row.windowEndHour}h
-          {row.weekdaysOnly ? " · dias úteis" : ""}
-        </span>
-      ),
+      accessor: (row: Campaign) =>
+        // A campanha de sistema do Pipeline não tem ritmo: cada mensagem sai quando
+        // alguém aperta enviar. Mostrar "20/h · 9h–18h" aqui seria inventar uma regra.
+        row.audience === PIPELINE_AUDIENCE ? (
+          <span className="text-xs">Envio manual, um a um</span>
+        ) : (
+          <span className="text-xs">
+            {row.messagesPerHour}/h · teto {row.dailyCap}/dia · {row.windowStartHour}h–{row.windowEndHour}h
+            {row.weekdaysOnly ? " · dias úteis" : ""}
+          </span>
+        ),
     },
     {
       header: "Próximo envio",

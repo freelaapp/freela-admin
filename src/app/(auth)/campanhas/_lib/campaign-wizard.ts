@@ -72,7 +72,16 @@ export function audienceOptionsFor(kind: WizardKind): WizardAudience[] {
     : [...BASE_AUDIENCES];
 }
 
+/**
+ * Campanha de SISTEMA: reúne as mensagens que o time manda uma a uma pelo
+ * Pipeline (uma por modelo). Nasce concluída e nunca dispara sozinha — está na
+ * lista para dar os resultados (entregue, lida, respostas, cliques).
+ */
+export const PIPELINE_AUDIENCE = "CRM_PIPELINE";
+export const PIPELINE_AUDIENCE_LABEL = "Pipeline (mensagens enviadas uma a uma)";
+
 export function audienceLabel(audience: string): string {
+  if (audience === PIPELINE_AUDIENCE) return PIPELINE_AUDIENCE_LABEL;
   return (AUDIENCE_LABELS as Record<string, string>)[audience] ?? audience;
 }
 

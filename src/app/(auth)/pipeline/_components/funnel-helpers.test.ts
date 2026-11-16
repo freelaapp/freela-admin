@@ -273,3 +273,15 @@ describe("filtros dos cadastros antigos", () => {
     expect(locationOptions(cards, "RJ").cities).toEqual(["Niterói"]);
   });
 });
+
+describe("campanha de sistema do Pipeline na tela de Campanhas", () => {
+  it("tem nome próprio em vez do código cru do público", async () => {
+    const { audienceLabel, PIPELINE_AUDIENCE } = await import(
+      "../../campanhas/_lib/campaign-wizard"
+    );
+    expect(PIPELINE_AUDIENCE).toBe("CRM_PIPELINE");
+    expect(audienceLabel("CRM_PIPELINE")).toBe("Pipeline (mensagens enviadas uma a uma)");
+    // Os públicos de sempre não mudam.
+    expect(audienceLabel("CONTRACTORS_ALL")).toBe("Todos os contratantes");
+  });
+});

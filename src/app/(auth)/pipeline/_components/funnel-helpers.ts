@@ -162,7 +162,8 @@ export function messageStatusLine(card: PipelineCard, now: Date = new Date()): s
     case "FAILED":
       return `Não chegou: ${card.messageFailureReason ?? "a Meta não entregou."}`;
     case "UNCERTAIN":
-      return "A Meta não respondeu: a mensagem pode ter sido enviada. Confira antes de mandar de novo.";
+      // Sem resposta da Meta não há o que acompanhar depois: só o contratante sabe se chegou.
+      return "A Meta não respondeu: a mensagem pode ter sido enviada. Confirme com o contratante antes de mandar de novo.";
     case "REPLIED":
       return `Respondeu ${card.messageRepliedAt ? formatSentAt(card.messageRepliedAt, now) : ""}`.trim() + vezes;
     case "READ":
@@ -196,8 +197,8 @@ export function sendConfirmQuestion(
 
   if (status === "UNCERTAIN") {
     return (
-      `A última tentativa para ${card.name} ficou sem resposta da Meta, e a mensagem PODE ter chegado. ` +
-      `Enviar de novo mesmo assim?${canal}`
+      `A última tentativa para ${card.name} ficou sem resposta da Meta, e a mensagem PODE ter chegado ` +
+      `(o painel não tem como saber). Enviar de novo mesmo assim?${canal}`
     );
   }
   if (isContacted(card) && card.lastMessageSentAt) {
