@@ -26,13 +26,21 @@ export function ageLabel(age: number | null): string | null {
 /**
  * Onde o candidato mora em relação à vaga. O km só aparece quando a API mandou
  * (os dois endereços são de rua); senão fica o bairro, que é o que se sabe.
+ * Com a distância nova (`distance`, quando a API liga os níveis), vale o mesmo
+ * texto que a empresa vê; `distance: null` = sem distância, só o bairro.
  */
 export function locationLabel(
-  p: Pick<VacancyCandidacyProvider, "distanceInKm" | "neighborhood" | "city" | "uf">,
+  p: Pick<VacancyCandidacyProvider, "distanceInKm" | "neighborhood" | "city" | "uf"> &
+    Partial<Pick<VacancyCandidacyProvider, "distance">>,
 ): string | null {
   const place = [p.neighborhood?.trim(), [p.city?.trim(), p.uf?.trim()].filter(Boolean).join(" – ")]
     .filter(Boolean)
     .join(", ");
+  if (p.distance !== undefined) {
+    if (p.distance === null) return place || null;
+    const text = `${p.distance.label} até a vaga`;
+    return place ? `${place} · ${text}` : text;
+  }
   if (p.distanceInKm !== null) {
     const km = `${decimal(p.distanceInKm)} km da vaga`;
     return place ? `${place} · ${km}` : km;

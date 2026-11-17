@@ -715,6 +715,14 @@ export interface VacancyCandidacyApprovedBy {
  * Quem é o candidato, para decidir sem abrir outra tela: o que a empresa vê na
  * lista dela e mais o que só o painel vê (score e baixa prioridade).
  */
+/** A distância como a lista da empresa mostra (API: `provider.distance`). */
+export interface CandidateDistance {
+  km: number;
+  kind: "ROUTE" | "ESTIMATE" | "STRAIGHT";
+  approx: boolean;
+  label: string;
+}
+
 export interface VacancyCandidacyProvider {
   /** Foto do perfil (URL assinada do S3; vence — não guardar). */
   profileImage: string | null;
@@ -737,6 +745,12 @@ export interface VacancyCandidacyProvider {
   /** Km em linha reta até a vaga; `null` quando seria aproximado (aí vale o bairro). */
   distanceInKm: number | null;
   distanceApprox: boolean;
+  /**
+   * "Distância real" (com DISTANCE_LEVELS_ENABLED na API): o mesmo texto que a empresa vê
+   * ("15,4 km em linha reta", "cerca de 19 km em linha reta"); `null` = sem distância a mostrar.
+   * Ausente com a chave desligada: vale `distanceInKm`.
+   */
+  distance?: CandidateDistance | null;
   neighborhood: string | null;
   city: string | null;
   uf: string | null;

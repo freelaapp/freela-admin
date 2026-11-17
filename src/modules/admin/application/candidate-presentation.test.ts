@@ -39,6 +39,28 @@ describe("textos do candidato", () => {
     expect(locationLabel({ distanceInKm: null, neighborhood: " ", city: null, uf: null })).toBeNull();
   });
 
+  it("distância nova (níveis ligados na API): o mesmo texto que a empresa vê", () => {
+    const base = { neighborhood: "Bela Vista", city: "São Paulo", uf: "SP" };
+    expect(
+      locationLabel({
+        ...base,
+        distanceInKm: 15.4,
+        distance: { km: 15.4, kind: "STRAIGHT", approx: false, label: "15,4 km em linha reta" },
+      }),
+    ).toBe("Bela Vista, São Paulo – SP · 15,4 km em linha reta até a vaga");
+    expect(
+      locationLabel({
+        ...base,
+        distanceInKm: null,
+        distance: { km: 19, kind: "STRAIGHT", approx: true, label: "cerca de 19 km em linha reta" },
+      }),
+    ).toBe("Bela Vista, São Paulo – SP · cerca de 19 km em linha reta até a vaga");
+    // Sem distância a mostrar (ponto não conferido): só o bairro, mesmo que viesse um km.
+    expect(locationLabel({ ...base, distanceInKm: null, distance: null })).toBe(
+      "Bela Vista, São Paulo – SP",
+    );
+  });
+
   it("faixas do score e iniciais do avatar", () => {
     expect(scoreTone(87)).toBe("good");
     expect(scoreTone(60)).toBe("warn");
