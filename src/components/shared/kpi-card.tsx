@@ -22,6 +22,10 @@ interface KpiCardProps {
    * `help` só aparece no hover, que não existe no celular.
    */
   details?: { calc: string; source: string };
+  /** Linha curta logo abaixo do número (ex.: "12 de 37", "12 avaliações"). */
+  caption?: string;
+  /** Aviso curto em destaque (ex.: "amostra pequena"). */
+  badge?: string;
 }
 
 export function KpiCard({
@@ -36,6 +40,8 @@ export function KpiCard({
   help,
   breakdown,
   details,
+  caption,
+  badge,
 }: KpiCardProps) {
   return (
     <Card className={cn("p-4 flex flex-col gap-1", className)}>
@@ -58,6 +64,16 @@ export function KpiCard({
       >
         {value}
       </p>
+      {(caption || badge) && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {caption && <span className="text-sm text-[#525252]">{caption}</span>}
+          {badge && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+              {badge}
+            </span>
+          )}
+        </div>
+      )}
       {breakdown && breakdown.length > 0 && (
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           {breakdown.map((b) => (
