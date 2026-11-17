@@ -294,7 +294,7 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
           "percent",
           (r) =>
             `Dos ${formatInteger(r.denominator)} contratantes cadastrados em ${label}, ${formatInteger(r.numerator)} já publicaram ao menos uma vaga = ${formatPercent(r.value)}. Quem se cadastrou nos últimos dias ainda pode publicar.`,
-          `Contratantes cadastrados no período (data do primeiro cadastro de contratante) com ao menos uma vaga publicada até agora, em qualquer produto; ${EXCLUSION_NOTE}.`,
+          `Contratantes cadastrados no período (data do primeiro cadastro de contratante) com ao menos uma vaga publicada até agora, em qualquer produto. A safra do período anterior teve mais tempo para publicar, então a variação tende a sair menor; ${EXCLUSION_NOTE}.`,
           (r) => `${ratioCaption(r)} cadastrados`,
         ),
         ratioCard(
@@ -304,7 +304,7 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
           "percent",
           (r) =>
             `Dos ${formatInteger(r.denominator)} freelancers cadastrados em ${label}, ${formatInteger(r.numerator)} já se candidataram a ao menos uma vaga = ${formatPercent(r.value)}. Quem se cadastrou nos últimos dias ainda pode se candidatar.`,
-          `Freelancers cadastrados no período com ao menos uma candidatura até agora, em qualquer produto e em qualquer situação; ${EXCLUSION_NOTE}.`,
+          `Freelancers cadastrados no período com ao menos uma candidatura até agora, em qualquer produto e em qualquer situação. A safra do período anterior teve mais tempo para se candidatar, então a variação tende a sair menor; ${EXCLUSION_NOTE}.`,
           (r) => `${ratioCaption(r)} cadastrados`,
         ),
         ratioCard(
@@ -432,7 +432,10 @@ export const STAGE_DEFINITIONS: Record<
 };
 
 export const STAGE_SCOPE_LABELS: Record<"today" | "upcoming", { label: string; description: string }> = {
-  today: { label: "Hoje", description: "vagas com serviço marcado para hoje" },
+  today: {
+    label: "Hoje",
+    description: "vagas com serviço hoje (inclusive o turno que começou ontem e ainda não terminou)",
+  },
   upcoming: { label: "A acontecer", description: "vagas de hoje em diante que ainda não terminaram" },
 };
 
