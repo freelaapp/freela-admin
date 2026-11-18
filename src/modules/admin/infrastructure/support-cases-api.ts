@@ -15,7 +15,9 @@ export type SupportCaseReason =
   | "ALL_FAILED"
   | "QUEUE_EMPTY"
   | "DAILY_CUTOFF"
-  | "NO_SHOW";
+  | "NO_SHOW"
+  /** Pré-seleção curada (05/11): a janela fechou sem candidato. */
+  | "NO_CANDIDATES";
 export type SupportCaseRisk =
   | "NO_PRINCIPAL"
   | "PRINCIPAL_UNCONFIRMED"

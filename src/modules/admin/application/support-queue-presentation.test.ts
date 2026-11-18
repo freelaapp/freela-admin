@@ -6,7 +6,13 @@ import {
   supportCaseItem,
 } from "./support-queue.test-fixtures";
 import {
+  actionLabel,
   contactsLabel,
+  countSupportCasesByDay,
+  filterSupportCasesByDay,
+  otherDaysNotice,
+  supportCaseDay,
+  updatedAgoLabel,
   groupSupportCases,
   lotGroupLabel,
   isSupportQueueDisabled,
@@ -245,5 +251,114 @@ describe("fila do suporte: casos do mesmo lote (fatia 6)", () => {
     expect(lotGroupLabel({ casesInLot: 3 }, 3)).toBe("Lote: 3 casos");
     expect(lotGroupLabel({ casesInLot: 3 }, 2)).toBe("Lote: 3 casos (2 nesta lista)");
     expect(lotGroupLabel({ casesInLot: 1 }, 1)).toBe("Lote: 1 caso");
+  });
+});
+
+describe("só o do dia (noite 17→18/11, C3)", () => {
+  // Agora: quarta 18/11/2026, 10h em Brasília.
+  const now = brt("2026-11-18T10:00:00");
+  const at = (start: string, over: Parameters<typeof caseItem>[0] = {}) =>
+    caseItem({
+      id: start,
+      startTime: brt(start).toISOString(),
+      openedAt: brt("2026-11-17T09:00:00").toISOString(),
+      ...over,
+    });
+
+  it("o dia é o do início da vaga em Brasília, não em UTC", () => {
+    expect(supportCaseDay(at("2026-11-18T00:00:00"), now)).toBe("today");
+    // 23h30 de Brasília = 02h30 UTC do dia seguinte: continua sendo de hoje.
+    expect(supportCaseDay(at("2026-11-18T23:30:00"), now)).toBe("today");
+    expect(supportCaseDay(at("2026-11-17T23:59:00"), now)).toBe("overdue");
+    expect(supportCaseDay(at("2026-11-19T00:00:00"), now)).toBe("upcoming");
+    expect(supportCaseDay(at("2026-12-02T18:00:00"), now)).toBe("upcoming");
+    expect(supportCaseDay(at("2026-10-30T18:00:00"), now)).toBe("overdue");
+  });
+
+  it("o corte diário aberto hoje é de hoje, mesmo com a vaga de madrugada; aberto ontem segue o dia da vaga", () => {
+    const dawn = {
+      reason: "DAILY_CUTOFF" as const,
+      risk: "NO_PRINCIPAL" as const,
+    };
+    expect(
+      supportCaseDay(
+        at("2026-11-19T06:00:00", {
+          ...dawn,
+          openedAt: brt("2026-11-18T16:30:00").toISOString(),
+        }),
+        brt("2026-11-18T17:00:00"),
+      ),
+    ).toBe("today");
+    expect(
+      supportCaseDay(
+        at("2026-11-19T06:00:00", {
+          ...dawn,
+          openedAt: brt("2026-11-17T16:30:00").toISOString(),
+        }),
+        now,
+      ),
+    ).toBe("upcoming");
+  });
+
+  it("contadores e filtro por dia; Todos devolve a lista inteira", () => {
+    const items = [
+      at("2026-11-16T18:00:00"),
+      at("2026-11-18T18:00:00"),
+      at("2026-11-18T21:00:00"),
+      at("2026-11-20T18:00:00"),
+    ];
+    expect(countSupportCasesByDay(items, now)).toEqual({
+      today: 2,
+      overdue: 1,
+      upcoming: 1,
+      all: 4,
+    });
+    expect(
+      filterSupportCasesByDay(items, "today", now).map((i) => i.id),
+    ).toEqual(["2026-11-18T18:00:00", "2026-11-18T21:00:00"]);
+    expect(
+      filterSupportCasesByDay(items, "overdue", now).map((i) => i.id),
+    ).toEqual(["2026-11-16T18:00:00"]);
+    expect(
+      filterSupportCasesByDay(items, "upcoming", now).map((i) => i.id),
+    ).toEqual(["2026-11-20T18:00:00"]);
+    expect(filterSupportCasesByDay(items, "all", now)).toBe(items);
+  });
+
+  it("aviso dos casos de outros dias: nada some sem aviso", () => {
+    const counts = (overdue: number, upcoming: number) => ({
+      today: 1,
+      overdue,
+      upcoming,
+      all: 1 + overdue + upcoming,
+    });
+    expect(otherDaysNotice(counts(0, 0))).toBeNull();
+    expect(otherDaysNotice(counts(1, 0))).toBe(
+      "1 caso de outros dias: 1 atrasado.",
+    );
+    expect(otherDaysNotice(counts(0, 2))).toBe(
+      "2 casos de outros dias: 2 dos próximos dias.",
+    );
+    expect(otherDaysNotice(counts(2, 1))).toBe(
+      "3 casos de outros dias: 2 atrasados e 1 dos próximos dias.",
+    );
+  });
+
+  it("atualizado há X s, pela última resposta da API", () => {
+    const t = now.getTime();
+    expect(updatedAgoLabel(0, now)).toBeNull();
+    expect(updatedAgoLabel(t - 2_000, now)).toBe("Atualizado agora");
+    expect(updatedAgoLabel(t - 12_000, now)).toBe("Atualizado há 12 s");
+    expect(updatedAgoLabel(t - 3 * 60_000, now)).toBe("Atualizado há 3 min");
+    expect(updatedAgoLabel(brt("2026-11-18T08:05:00").getTime(), now)).toBe(
+      "Atualizado às 8h05",
+    );
+  });
+
+  it("motivo NO_CANDIDATES com selo e ação (faltava no admin)", () => {
+    expect(
+      reasonLabel({ reason: "NO_CANDIDATES", risk: null }, "16h30"),
+    ).toBe("Ninguém se candidatou");
+    expect(actionLabel("NO_CANDIDATES")).toBe("Convidar compatíveis; resgate");
   });
 });

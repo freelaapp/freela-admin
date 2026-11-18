@@ -1,5 +1,9 @@
 import "@testing-library/jest-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  focusManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import {
   fireEvent,
   render,
@@ -47,6 +51,7 @@ import {
   recordSupportContact,
 } from "@/modules/admin/infrastructure/support-cases-api";
 import {
+  brt,
   supportCaseDetail,
   supportCaseItem,
   supportCaseList,
@@ -76,6 +81,9 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Os casos de exemplo são de sáb 07/11; a fila mostra por padrão só os de hoje (C3). Só o
+  // relógio de datas é falso: os timers seguem reais (TanStack e findBy).
+  vi.useFakeTimers({ toFake: ["Date"], now: brt("2026-11-07T10:00:00") });
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -141,6 +149,7 @@ describe("Fila do suporte (admin)", () => {
   });
 
   it("um caso: motivo, relógio, contatos, abrir a vaga, ligar e a faixa fora do horário", async () => {
+    vi.useRealTimers(); // o relógio só de datas do beforeEach sai; este teste usa o seu
     vi.useFakeTimers({
       shouldAdvanceTime: true,
       now: new Date("2026-11-07T17:18:00Z"),
@@ -436,5 +445,132 @@ describe("Fila do suporte: casos do mesmo lote (fatia 6)", () => {
     renderPage();
     expect(await screen.findAllByRole("article")).toHaveLength(1);
     expect(screen.queryByTestId("support-lot-group")).toBeNull();
+  });
+});
+
+describe("Fila do suporte: só o do dia e tempo real (noite 17→18/11, C3)", () => {
+  const titled = (
+    id: string,
+    title: string,
+    start: string,
+    over: Parameters<typeof supportCaseItem>[0] = {},
+  ) =>
+    supportCaseItem({
+      id,
+      startTime: brt(start).toISOString(),
+      vacancy: { ...supportCaseItem().vacancy, title },
+      ...over,
+    });
+  const threeDays = [
+    titled("c-old", "Cumim", "2026-11-05T18:00:00", { status: "IN_PROGRESS" }),
+    titled("c-today", "Garçom", "2026-11-07T18:00:00"),
+    titled("c-next", "Barman", "2026-11-09T18:00:00"),
+  ];
+
+  afterEach(() => {
+    focusManager.setFocused(undefined);
+  });
+
+  it("padrão: só os casos de hoje, com contadores e o aviso dos outros dias; dá para ver atrasados, próximos e todos", async () => {
+    vi.mocked(listSupportCases).mockResolvedValue(
+      supportCaseList({
+        items: threeDays,
+        counts: { open: 3, mine: 0, closedToday: 0 },
+      }),
+    );
+    renderPage();
+    expect(
+      await screen.findByRole("article", { name: /^Garçom · / }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /^Cumim · / })).toBeNull();
+    expect(screen.queryByRole("article", { name: /^Barman · / })).toBeNull();
+    const group = screen.getByRole("group", { name: "Dia das vagas" });
+    expect(within(group).getByRole("button", { name: "Hoje 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    for (const name of ["Atrasados 1", "Próximos dias 1", "Todos 3"]) {
+      expect(within(group).getByRole("button", { name })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    }
+    expect(screen.getByTestId("support-other-days")).toHaveTextContent(
+      "2 casos de outros dias: 1 atrasado e 1 dos próximos dias.",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver atrasados" }));
+    expect(
+      await screen.findByRole("article", { name: /^Cumim · / }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /^Garçom · / })).toBeNull();
+    expect(screen.queryByTestId("support-other-days")).toBeNull();
+
+    fireEvent.click(within(group).getByRole("button", { name: "Próximos dias 1" }));
+    expect(
+      await screen.findByRole("article", { name: /^Barman · / }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(group).getByRole("button", { name: "Todos 3" }));
+    expect(await screen.findAllByRole("article")).toHaveLength(3);
+  });
+
+  it("sem caso de hoje: diz isso e aponta os outros dias (nada some sem aviso)", async () => {
+    vi.mocked(listSupportCases).mockResolvedValue(
+      supportCaseList({
+        items: [threeDays[0], threeDays[2]],
+        counts: { open: 2, mine: 0, closedToday: 0 },
+      }),
+    );
+    renderPage();
+    expect(await screen.findByText("Nenhum caso de hoje.")).toBeInTheDocument();
+    expect(screen.getByTestId("support-other-days")).toHaveTextContent(
+      "2 casos de outros dias: 1 atrasado e 1 dos próximos dias.",
+    );
+    expect(screen.queryByRole("article")).toBeNull();
+  });
+
+  it("Fechados hoje não tem filtro de dia", async () => {
+    vi.mocked(listSupportCases).mockResolvedValue(
+      supportCaseList({
+        items: [],
+        counts: { open: 0, mine: 0, closedToday: 0 },
+      }),
+    );
+    renderPage();
+    expect(
+      await screen.findByRole("group", { name: "Dia das vagas" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Fechados hoje 0" }));
+    expect(
+      await screen.findByText("Nenhum caso fechado hoje."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Dia das vagas" })).toBeNull();
+  });
+
+  it('"Atualizado agora" e, ao voltar para a aba do navegador com a lista velha, recarrega sozinha', async () => {
+    vi.mocked(listSupportCases).mockResolvedValue(supportCaseList());
+    renderPage();
+    expect(await screen.findByTestId("support-updated-ago")).toHaveTextContent(
+      "Atualizado agora",
+    );
+    expect(listSupportCases).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(brt("2026-11-07T10:00:20"));
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+    await waitFor(() => expect(listSupportCases).toHaveBeenCalledTimes(2));
+  });
+
+  it("lista cortada em 200: avisa que os contadores por dia podem estar incompletos", async () => {
+    const many = Array.from({ length: 200 }, (_, i) =>
+      titled(`c-${i}`, "Garçom", "2026-11-07T18:00:00"),
+    );
+    vi.mocked(listSupportCases).mockResolvedValue(
+      supportCaseList({ items: many, counts: { open: 230, mine: 0, closedToday: 0 } }),
+    );
+    renderPage();
+    expect(
+      await screen.findByText(/A lista veio cortada em 200 casos/),
+    ).toBeInTheDocument();
   });
 });

@@ -15,9 +15,17 @@ import {
   useSupportCases,
 } from "@/modules/admin/application/use-support-cases";
 import {
+  countSupportCasesByDay,
+  dayEmptyLabel,
+  dayFilterLabel,
+  filterSupportCasesByDay,
   groupSupportCases,
   isSupportQueueDisabled,
   lotGroupLabel,
+  otherDaysNotice,
+  SUPPORT_CASE_DAY_FILTERS,
+  updatedAgoLabel,
+  type SupportCaseDayFilter,
 } from "@/modules/admin/application/support-queue-presentation";
 import type {
   SupportCaseFilter,
@@ -38,6 +46,9 @@ const EMPTY: Record<SupportCaseFilter, string> = {
   closed_today: "Nenhum caso fechado hoje.",
 };
 
+/** A API devolve no máximo isto por aba (`LIMIT 200`, pela hora de início). */
+const API_LIST_LIMIT = 200;
+
 /** O relógio da notícia anda sozinho entre as atualizações da lista. */
 function useNow(intervalMs: number): Date {
   const [now, setNow] = useState(() => new Date());
@@ -48,16 +59,31 @@ function useNow(intervalMs: number): Date {
   return now;
 }
 
+/** "Atualizado há 12 s": relógio próprio, para não redesenhar os cartões a cada 5 s. */
+function UpdatedAgo({ updatedAt }: { updatedAt: number }) {
+  const now = useNow(5_000);
+  const label = updatedAgoLabel(updatedAt, now);
+  if (!label) return null;
+  return (
+    <span className="text-xs text-[#737373]" data-testid="support-updated-ago">
+      {label}
+    </span>
+  );
+}
+
 /**
  * Fila do suporte (fluxo de vagas v2, fatia C2; designer, lote 2 §5.3): as vagas que o sistema
- * não resolveu sozinho, a de início mais próximo em cima. Atualiza a cada 60 s, como a
- * Confirmação do dia. Com a chave da API desligada (404 `FEATURE_DISABLED`), avisa que a fila
- * ainda não está ligada, sem tela de erro.
+ * não resolveu sozinho, a de início mais próximo em cima. Atualiza sozinha a cada 30 s e na volta
+ * para a aba do navegador, com "Atualizado há X s" (noite 17→18/11, C3). Abertos e Comigo mostram
+ * por padrão só os casos de hoje (Brasília), com contadores e o aviso dos casos de outros dias.
+ * Com a chave da API desligada (404 `FEATURE_DISABLED`), avisa que a fila ainda não está ligada,
+ * sem tela de erro.
  */
 export default function FilaDoSuportePage() {
   const { isChecking, allowed } = useAreaGuard("JOBS");
   const { user } = useAuth();
   const [filter, setFilter] = useState<SupportCaseFilter>("open");
+  const [dayFilter, setDayFilter] = useState<SupportCaseDayFilter>("today");
   const [dialog, setDialog] = useState<{
     kind: SupportCaseDialog;
     item: SupportCaseItem;
@@ -91,17 +117,20 @@ export default function FilaDoSuportePage() {
       title="Fila do suporte"
       description={`Vagas que o sistema não resolveu sozinho. A de início mais próximo fica em cima. A empresa nunca fica mais de ${firstNewsMinutes} min sem notícia.`}
       action={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => cases.refetch()}
-          disabled={cases.isFetching}
-        >
-          <RefreshCw
-            className={`mr-1.5 h-3.5 w-3.5 ${cases.isFetching ? "animate-spin" : ""}`}
-          />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-3">
+          <UpdatedAgo updatedAt={cases.dataUpdatedAt} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => cases.refetch()}
+            disabled={cases.isFetching}
+          >
+            <RefreshCw
+              className={`mr-1.5 h-3.5 w-3.5 ${cases.isFetching ? "animate-spin" : ""}`}
+            />
+            Atualizar
+          </Button>
+        </div>
       }
     />
   );
@@ -125,6 +154,13 @@ export default function FilaDoSuportePage() {
     ["closed_today", `Fechados hoje${counts ? ` ${counts.closedToday}` : ""}`],
   ];
   const items = data?.items ?? [];
+  // "Só o do dia" vale para os abertos e os meus; "Fechados hoje" já é de hoje.
+  const byDay = filter !== "closed_today";
+  const dayCounts = countSupportCasesByDay(items, now);
+  const visible = byDay
+    ? filterSupportCasesByDay(items, dayFilter, now)
+    : items;
+  const notice = byDay && dayFilter === "today" ? otherDaysNotice(dayCounts) : null;
 
   return (
     <div>
@@ -150,6 +186,65 @@ export default function FilaDoSuportePage() {
           </button>
         ))}
       </div>
+
+      {data && byDay && (
+        <div
+          className="mb-4 flex flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label="Dia das vagas"
+          data-testid="support-day-filter"
+        >
+          {SUPPORT_CASE_DAY_FILTERS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={dayFilter === value}
+              onClick={() => setDayFilter(value)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                dayFilter === value
+                  ? "border-[#1d1d1b] bg-[#1d1d1b] text-white"
+                  : "border-[#e5e5e5] bg-white text-[#737373] hover:text-[#1d1d1b]"
+              } ${value === "overdue" && dayCounts.overdue > 0 && dayFilter !== value ? "border-[#eca826] text-[#c97b0e]" : ""}`}
+            >
+              {dayFilterLabel(value)} {dayCounts[value]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {data && notice && (
+        <p
+          className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-[#eca826]/50 bg-[#fffaf0] p-3 text-sm text-[#1d1d1b]"
+          data-testid="support-other-days"
+        >
+          <span>{notice}</span>
+          {dayCounts.overdue > 0 && (
+            <button
+              type="button"
+              className="font-semibold text-[#c97b0e] hover:underline"
+              onClick={() => setDayFilter("overdue")}
+            >
+              Ver atrasados
+            </button>
+          )}
+          {dayCounts.upcoming > 0 && (
+            <button
+              type="button"
+              className="font-semibold text-[#c97b0e] hover:underline"
+              onClick={() => setDayFilter("upcoming")}
+            >
+              Ver próximos dias
+            </button>
+          )}
+        </p>
+      )}
+
+      {data && items.length >= API_LIST_LIMIT && (
+        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          A lista veio cortada em {API_LIST_LIMIT} casos (os de início mais antigo). Os
+          contadores por dia podem estar incompletos: feche os casos antigos.
+        </p>
+      )}
 
       {data && !data.supportHours.open && (
         <p
@@ -207,15 +302,17 @@ export default function FilaDoSuportePage() {
         </div>
       )}
 
-      {data && items.length === 0 && (
+      {data && visible.length === 0 && (
         <p className="rounded-lg bg-[#f7f7f7] p-4 text-sm text-[#737373]">
-          {EMPTY[filter]}
+          {items.length === 0 || dayFilter === "all"
+            ? EMPTY[filter]
+            : dayEmptyLabel(dayFilter)}
         </p>
       )}
 
-      {data && items.length > 0 && (
+      {data && visible.length > 0 && (
         <div className="grid gap-3">
-          {groupSupportCases(items).map((group) => {
+          {groupSupportCases(visible).map((group) => {
             const cards = group.items.map((item) => (
               <SupportCaseCard
                 key={item.id}
