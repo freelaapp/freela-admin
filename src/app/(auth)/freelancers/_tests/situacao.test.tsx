@@ -139,6 +139,9 @@ describe("Freelancers — situação da conta (D5, fatia B)", () => {
     const caio = rowOf("Caio Reis");
     expect(within(caio).getByText("Banida")).toBeInTheDocument();
     expect(within(caio).getByTitle("Desbanir")).toBeEnabled();
+    // "Ver perfil" mostra a mesma situação (não "Inativo").
+    fireEvent.click(within(bia).getByTitle("Ver perfil"));
+    expect(screen.getByText("Conta: Exclusão pedida")).toBeInTheDocument();
   });
 
   it("faixa de contadores: legenda com a conta, cada número filtra, Excluídas é link", () => {

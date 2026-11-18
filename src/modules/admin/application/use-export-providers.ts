@@ -12,6 +12,7 @@ import { getAxiosErrorMessage } from "./use-admin-cancel-vacancy";
 import { downloadCsv } from "@/lib/csv";
 import { formatInstantDate } from "@/lib/date.utils";
 import { formatPhoneBr } from "@/lib/utils";
+import { ACCOUNT_LABEL } from "./freelancers-status-presentation";
 
 /** "garcom_bartender" → "Garcom Bartender" (mesma regra da tabela). */
 export function formatCargo(value: string): string {
@@ -49,6 +50,8 @@ const CSV_HEADER = [
 ];
 
 function statusLabel(p: ProviderExportItem): string {
+  // D5, fatia B: com a API nova, a situação da conta (quem pediu exclusão não é "Banido").
+  if (p.accountStatus) return ACCOUNT_LABEL[p.accountStatus];
   if (p.banned === true) return "Banido";
   return p.isActive ? "Ativo" : "Inativo";
 }

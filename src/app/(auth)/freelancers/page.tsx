@@ -656,7 +656,14 @@ export default function FreelancersPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <User className="w-4 h-4 text-[#737373]" />
-                  <StatusBadge status={selectedItem.status} />
+                  {selectedItem.accountStatus ? (
+                    <span title={ACCOUNT_HINT[selectedItem.accountStatus]} className="inline-flex rounded-full bg-[#f0f0f0] px-2 py-0.5 text-xs font-semibold text-[#1d1d1b]">
+                      Conta: {ACCOUNT_LABEL[selectedItem.accountStatus]}
+                      {selectedItem.suspensionTag ? ` · ${selectedItem.suspensionTag}` : ""}
+                    </span>
+                  ) : (
+                    <StatusBadge status={selectedItem.status} />
+                  )}
                 </div>
               </div>
 
