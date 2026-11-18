@@ -90,7 +90,9 @@ describe("Candidatos da vaga: dados do freelancer", () => {
     expect(card.getByText("4,8 · 8 avaliações")).toBeInTheDocument();
     expect(card.getByText("6 serviços")).toBeInTheDocument();
     expect(card.getByText("24 anos")).toBeInTheDocument();
-    expect(card.getByText("Bela Vista, São Paulo – SP · 6,3 km da vaga")).toBeInTheDocument();
+    // Lugar e distância em linhas separadas; a distância com o texto da empresa.
+    expect(card.getByText("Bela Vista, São Paulo – SP")).toBeInTheDocument();
+    expect(card.getByText("6,3 km em linha reta até o trabalho")).toBeInTheDocument();
     expect(card.getByText("Score 87")).toBeInTheDocument();
     expect(card.getByText("74% compatível")).toBeInTheDocument();
     expect(card.queryByText("Baixa prioridade")).not.toBeInTheDocument();
@@ -115,7 +117,9 @@ describe("Candidatos da vaga: dados do freelancer", () => {
     const card = within(screen.getByTestId("lista-candidatos"));
 
     expect(card.getByText("Parque Bologne, São Paulo – SP")).toBeInTheDocument();
-    expect(card.queryByText(/km da vaga/)).not.toBeInTheDocument();
+    expect(card.queryByText(/km/)).not.toBeInTheDocument();
+    // Sem os dois endereços de rua: "Distância indisponível", nunca "0 km".
+    expect(card.getByText("Distância indisponível")).toBeInTheDocument();
     expect(card.getByText("Sem avaliações")).toBeInTheDocument();
     expect(card.getByText("Nenhum serviço ainda")).toBeInTheDocument();
     expect(card.getByText("Baixa prioridade")).toBeInTheDocument();
@@ -213,7 +217,8 @@ describe("Candidatos da vaga: dados do freelancer", () => {
 
     const caixa = within(screen.getByRole("checkbox", { name: "Ester Amaral" }));
     expect(caixa.getByText("4,8 · 8 avaliações")).toBeInTheDocument();
-    expect(caixa.getByText("Bela Vista, São Paulo – SP · 6,3 km da vaga")).toBeInTheDocument();
+    expect(caixa.getByText("Bela Vista, São Paulo – SP")).toBeInTheDocument();
+    expect(caixa.getByText("6,3 km em linha reta até o trabalho")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Ver perfil de Ester Amaral" }));
 

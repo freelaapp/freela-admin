@@ -1093,6 +1093,14 @@ export default function JobsPage() {
                 candidacies={candidacies}
                 loading={loadingCandidacies}
                 scrollable={false}
+                // O "zoom" do candidato (foto clicada) mostra o trabalho junto com a pessoa.
+                vacancy={{
+                  role: modalDetalhes.cargo,
+                  company: modalDetalhes.empresa,
+                  when: `${modalDetalhes.data} · ${modalDetalhes.horario}`,
+                  address: modalDetalhes.cidade !== "N/A" ? modalDetalhes.cidade : null,
+                  value: modalDetalhes.valor,
+                }}
                 actions={
                   modalDetalhes.raw?.id ? (
                     <AccelerateVacancyBar
