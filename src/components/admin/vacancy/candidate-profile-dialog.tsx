@@ -2,7 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Mail, MessageCircle, Phone, Star } from "lucide-react";
+import { Loader2, Mail, MessageCircle, Navigation, Phone, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,7 +13,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatInstantDate } from "@/lib/date.utils";
-import { parseCurriculum } from "@/modules/admin/application/candidate-presentation";
+import {
+  DISTANCE_UNAVAILABLE_HINT,
+  candidateDistance,
+  parseCurriculum,
+} from "@/modules/admin/application/candidate-presentation";
 import {
   getProviderHistory,
   type VacancyCandidacyItem,
@@ -22,9 +26,26 @@ import {
 import { CandidateAvatar, CandidateFacts } from "./candidate-summary";
 import { MatchBadge } from "./match-badge";
 
+/** A vaga, já formatada pela tela que abriu a lista (o perfil não formata nada). */
+export interface CandidateVacancySummary {
+  /** Cargo ("Garçom"). */
+  role: string;
+  company: string;
+  /** Dia e horário ("21/11/2026 · 18:00 - 02:00"). */
+  when: string;
+  /** Endereço do trabalho; `null` = não informado. */
+  address: string | null;
+  /** O que a empresa paga ("R$ 180,00"); `null` = não mostrar. */
+  value: string | null;
+  /** Rótulo do valor, o mesmo do detalhe da vaga ("Contratante paga à plataforma"). */
+  valueLabel?: string;
+}
+
 interface Props {
   /** `null` = fechado. Só abre para candidato que veio com os dados (`provider`). */
   candidacy: VacancyCandidacyItem | null;
+  /** A vaga, para o "zoom" mostrar o trabalho junto com a pessoa. */
+  vacancy?: CandidateVacancySummary;
   onClose: () => void;
 }
 
@@ -48,14 +69,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * serviços, score, distância), o que ele escreveu (sobre, currículo), o vídeo
  * de apresentação e as avaliações que já recebeu das empresas.
  */
-export function CandidateProfileDialog({ candidacy, onClose }: Props) {
+export function CandidateProfileDialog({ candidacy, vacancy, onClose }: Props) {
   // Fechado não monta nada: a busca das avaliações (e a exigência do provedor de
   // consultas) só existe enquanto um perfil está aberto.
   if (!candidacy?.provider) return null;
   // Direto no <body>: a lista vive dentro do modal da vaga (que corta o que passa
   // dele e tem rolagem própria). Fora dali o perfil cobre a tela inteira, sempre.
   return createPortal(
-    <OpenProfile candidacy={candidacy} provider={candidacy.provider} onClose={onClose} />,
+    <OpenProfile
+      candidacy={candidacy}
+      provider={candidacy.provider}
+      vacancy={vacancy}
+      onClose={onClose}
+    />,
     document.body,
   );
 }
@@ -63,10 +89,12 @@ export function CandidateProfileDialog({ candidacy, onClose }: Props) {
 function OpenProfile({
   candidacy,
   provider,
+  vacancy,
   onClose,
 }: {
   candidacy: VacancyCandidacyItem;
   provider: VacancyCandidacyProvider;
+  vacancy?: CandidateVacancySummary;
   onClose: () => void;
 }) {
   // Avaliações recebidas: são por freelancer, não por vaga, e a lista de
@@ -81,6 +109,7 @@ function OpenProfile({
   const name = candidacy.providerName ?? "Sem nome";
   const curriculum = parseCurriculum(provider.curriculum);
   const reviews = (history.data ?? []).filter((job) => job.rating !== null);
+  const distance = candidateDistance(provider);
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()} className="max-w-2xl">
@@ -91,13 +120,32 @@ function OpenProfile({
         </DialogHeader>
 
         {/* O Dialog do admin não limita a altura: sem isto o rodapé some em tela baixa. */}
-        <div className="max-h-[65vh] space-y-5 overflow-y-auto pr-1">
+        <div className="max-h-[55vh] space-y-5 overflow-y-auto pr-1">
           <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:text-left">
-            <CandidateAvatar name={candidacy.providerName} src={provider.profileImage} size={96} />
+            {/* O "zoom": foto grande (128 px no celular, 160 px a partir de sm). */}
+            <CandidateAvatar
+              name={candidacy.providerName}
+              src={provider.profileImage}
+              sizeClassName="h-32 w-32 text-4xl sm:h-40 sm:w-40 sm:text-5xl"
+            />
             <div className="min-w-0 flex-1 space-y-2">
               <p className="break-words text-lg font-semibold text-[#1d1d1b]">{name}</p>
+              <p
+                className={`flex items-start justify-center gap-1.5 text-base sm:justify-start ${
+                  distance.available ? "font-semibold text-[#1d1d1b]" : "text-[#737373]"
+                }`}
+                data-testid="distancia-zoom"
+              >
+                <Navigation className="mt-1 h-4 w-4 shrink-0 text-[#eca826]" />
+                <span className="min-w-0 break-words">
+                  {distance.text}
+                  {!distance.available && (
+                    <span className="block text-xs font-normal">{DISTANCE_UNAVAILABLE_HINT}</span>
+                  )}
+                </span>
+              </p>
               <div className="flex justify-center sm:justify-start">
-                <CandidateFacts provider={provider} large />
+                <CandidateFacts provider={provider} large hideDistance />
               </div>
               {candidacy.matchScore !== undefined && (
                 <div>
@@ -106,6 +154,25 @@ function OpenProfile({
               )}
             </div>
           </div>
+
+          {vacancy && (
+            <Section title="Vaga">
+              <div className="space-y-1 rounded-lg bg-[#f7f7f7] px-3 py-2 text-sm text-[#1d1d1b]">
+                <p className="break-words font-medium">
+                  {vacancy.role} · {vacancy.company}
+                </p>
+                <p className="text-[#525252]">{vacancy.when}</p>
+                <p className="break-words text-[#525252]">
+                  {vacancy.address?.trim() || "Endereço não informado"}
+                </p>
+                {vacancy.value && (
+                  <p className="font-semibold">
+                    {vacancy.valueLabel ? `${vacancy.valueLabel}: ${vacancy.value}` : vacancy.value}
+                  </p>
+                )}
+              </div>
+            </Section>
+          )}
 
           <Section title="Contato">
             <div className="flex flex-col gap-1.5 text-sm">

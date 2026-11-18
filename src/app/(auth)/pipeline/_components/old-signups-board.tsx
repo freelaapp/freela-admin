@@ -12,6 +12,7 @@ import {
   useCrmPipelineSettings,
   usePipelineWhatsApp,
 } from "@/modules/admin/application/use-admin-crm";
+import { toast } from "sonner";
 import type { PipelineCard } from "@/modules/admin/infrastructure/crm-api";
 import {
   CONTACT_FILTERS,
@@ -22,6 +23,7 @@ import {
   locationOptions,
   messageStatusOf,
   sendConfirmQuestion,
+  stageSendCheck,
   waLink,
   type OldSignupFilters,
 } from "./funnel-helpers";
@@ -49,7 +51,7 @@ function formatYmd(ymd: string): string {
 export function OldSignupsBoard() {
   const { data, isLoading, isError, isFetching, refetch } = useCrmOldSignups();
   const { data: settings } = useCrmPipelineSettings();
-  const sendWhatsApp = usePipelineWhatsApp();
+  const sendWhatsApp = usePipelineWhatsApp("OLD_SIGNUPS");
   const [filters, setFilters] = useState<OldSignupFilters>(NO_FILTERS);
   const [limit, setLimit] = useState(PAGE_SIZE);
 
@@ -69,7 +71,16 @@ export function OldSignupsBoard() {
   );
 
   function onSend(card: PipelineCard) {
-    const pergunta = sendConfirmQuestion(card, { templateName: settings?.template?.name });
+    // A aba tem a sua mensagem ("Cadastros antigos"); só texto livre = nem pergunta.
+    const check = stageSendCheck(settings, "CADASTROS_ANTIGOS");
+    if (check?.blocked) {
+      toast.error(check.note);
+      return;
+    }
+    const pergunta = sendConfirmQuestion(card, {
+      templateName: settings?.template?.name,
+      messageNote: check?.note,
+    });
     if (!confirm(pergunta)) return;
     sendWhatsApp.mutate(card.userId);
   }

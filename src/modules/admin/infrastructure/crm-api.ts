@@ -274,10 +274,23 @@ export async function getCrmPipeline(params?: PipelinePeriodParams): Promise<Pip
   return res.data.data;
 }
 
+/** De qual aba saiu o clique: os cadastros antigos têm a mensagem da aba. */
+export type PipelineSendSource = "FUNNEL" | "OLD_SIGNUPS";
+
 export async function sendPipelineWhatsApp(
   userId: string,
-): Promise<{ ok: boolean; phone: string; sentAt: string; channel?: "META" | "LEGACY" }> {
-  const res = await crmApi.post(`/pipeline/${userId}/whatsapp`);
+  source?: PipelineSendSource,
+): Promise<{
+  ok: boolean;
+  phone: string;
+  sentAt: string;
+  channel?: "META" | "LEGACY";
+  /** Etapa cuja mensagem saiu; `null` = a mensagem geral (API de 18/11/2026 em diante). */
+  stage?: PipelineMessageKey | null;
+  messageKind?: "GENERAL" | "TEMPLATE" | "FREE_TEXT";
+}> {
+  // A API anterior a 18/11/2026 não lê o corpo; mandar a origem é inofensivo para ela.
+  const res = await crmApi.post(`/pipeline/${userId}/whatsapp`, source ? { source } : undefined);
   return res.data.data;
 }
 
@@ -317,6 +330,18 @@ export interface PipelineMarketingWhatsapp {
   isFallback: boolean;
 }
 
+/** As colunas do funil + a aba dos cadastros antigos: cada uma pode ter a sua mensagem. */
+export type PipelineMessageKey = PipelineStage | "CADASTROS_ANTIGOS";
+
+export interface PipelineStageMessage {
+  key: PipelineMessageKey;
+  label: string;
+  templateId: string | null;
+  /** Nome e situação do modelo da etapa (mesmo que tenha deixado de estar aprovado). */
+  template: { id: string; name: string; status: string; statusLabel: string } | null;
+  freeText: string | null;
+}
+
 export interface PipelineSettings {
   /** `META` = modelo escolhido; `LEGACY` = texto fixo pelo chip de campanha. */
   mode: "META" | "LEGACY";
@@ -334,6 +359,15 @@ export interface PipelineSettings {
   marketingContactUrl: string;
   updatedAt: string | null;
   updatedBy: { id: string; name: string | null } | null;
+  // ── Mensagem por etapa (aditivo: a API anterior a 18/11/2026 não manda) ──
+  /** Sempre as 6 etapas; etapa sem nada = vale a mensagem geral. */
+  stageMessages?: PipelineStageMessage[];
+  /** "{primeiro_nome}", "{nome}", "{cidade}", "{link_marketing}". */
+  stageFreeTextVariables?: string[];
+  stageFreeTextMax?: number;
+  serviceWindowHours?: number;
+  /** `false` = o texto livre é salvo, mas o botão ainda não o envia. */
+  stageFreeTextSends?: boolean;
 }
 
 /** Campo ausente = não mexe; vazio ou `null` = limpa. */
@@ -342,6 +376,10 @@ export interface UpdatePipelineSettingsInput {
   marketingWhatsapp?: string | null;
   replyText?: string | null;
   replyAlertEmail?: string | null;
+  /** Substitui o mapa inteiro. Só mandar para a API que devolveu `stageMessages` no GET. */
+  stageMessages?: Partial<
+    Record<PipelineMessageKey, { templateId: string | null; freeText: string | null }>
+  >;
 }
 
 export async function getCrmPipelineSettings(): Promise<PipelineSettings> {

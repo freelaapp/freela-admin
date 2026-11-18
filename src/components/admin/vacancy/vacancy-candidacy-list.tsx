@@ -20,8 +20,9 @@ import {
   type ChoiceSelection,
 } from "@/modules/admin/application/selection-round-presentation";
 import { formatInstantDate, formatVacancyTime } from "@/lib/date.utils";
+import { candidateDistance, sortByDistance } from "@/modules/admin/application/candidate-presentation";
 import { PrestartCheckStatus } from "./prestart-check-status";
-import { CandidateProfileDialog } from "./candidate-profile-dialog";
+import { CandidateProfileDialog, type CandidateVacancySummary } from "./candidate-profile-dialog";
 import { CandidateAvatar, CandidateFacts } from "./candidate-summary";
 import { MatchBadge } from "./match-badge";
 
@@ -99,6 +100,11 @@ export interface VacancyCandidacyListProps {
    */
   onPrestartConfirm?: (candidacyId: string, providerName: string) => void;
   prestartConfirming?: boolean;
+  /**
+   * A vaga, para o "zoom" do candidato (perfil aberto pela foto) mostrar o trabalho junto.
+   * Ausente ⇒ o perfil abre só com os dados do freelancer.
+   */
+  vacancy?: CandidateVacancySummary;
 }
 
 /** Quem o "Recolocar" atende — aprovado e desalocado. */
@@ -127,6 +133,7 @@ export function VacancyCandidacyList({
   scrollable = true,
   actions,
   chooseMode,
+  vacancy,
 }: VacancyCandidacyListProps) {
   const nameOf = (id: string | null) =>
     id ? (candidacies?.find((c) => c.id === id)?.providerName ?? "Sem nome") : null;
@@ -134,12 +141,52 @@ export function VacancyCandidacyList({
   // lista recarregar, o diálogo mostra o dado novo em vez de uma cópia velha.
   const [profileId, setProfileId] = useState<string | null>(null);
   const profileOf = candidacies?.find((c) => c.id === profileId) ?? null;
+  // "Mais perto primeiro": só na tela (a ordem da API continua a mesma); quem não tem
+  // distância vai para o fim. Só aparece quando a lista traz os dados do candidato.
+  const [order, setOrder] = useState<"api" | "distance">("api");
+  const hasProviderData = !!candidacies?.some((c) => c.provider);
+  const anyDistance = !!candidacies?.some((c) => c.provider && candidateDistance(c.provider).available);
+  // Se ninguém mais tem distância (a lista recarregou), volta à ordem atual de verdade.
+  const effectiveOrder = order === "distance" && anyDistance ? "distance" : "api";
+  const shown =
+    candidacies && effectiveOrder === "distance" ? sortByDistance(candidacies) : candidacies;
   return (
     <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
       <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
         Candidatos {candidacies ? `(${candidacies.length})` : ""}
       </p>
       {actions && <div data-testid="candidatos-acoes">{actions}</div>}
+      {!loading && hasProviderData && (candidacies?.length ?? 0) > 1 && (
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Ordenar candidatos">
+          <span className="text-xs text-[#737373]">Ordenar por</span>
+          {(
+            [
+              ["api", "Ordem atual"],
+              ["distance", "Mais perto primeiro"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={effectiveOrder === value}
+              disabled={value === "distance" && !anyDistance}
+              onClick={() => setOrder(value)}
+              className={`min-h-9 rounded-md border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                effectiveOrder === value
+                  ? "border-[#1d1d1b] bg-[#1d1d1b] text-white"
+                  : "border-[#e5e5e5] bg-white text-[#1d1d1b] hover:bg-[#f7f7f7]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {!anyDistance ? (
+            <span className="text-xs text-[#a3a3a3]">Nenhum candidato com distância calculada.</span>
+          ) : effectiveOrder === "distance" ? (
+            <span className="text-xs text-[#a3a3a3]">Quem não tem distância fica no fim da lista.</span>
+          ) : null}
+        </div>
+      )}
       {loading && (
         <div className="flex items-center gap-2 text-xs text-[#737373]">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -156,7 +203,7 @@ export function VacancyCandidacyList({
           data-testid="lista-candidatos"
           className={`flex flex-col gap-2 ${scrollable ? "max-h-[55vh] overflow-y-auto pr-1" : ""}`}
         >
-          {candidacies.map((c) => {
+          {(shown ?? candidacies).map((c) => {
             // Nunca rotular status desconhecido como "Pendente": WITHDRAWN e
             // CANCELLED_BY_CONTRACTOR caíam no fallback e o admin mostrava
             // candidato "PENDENTE" que o contratante não via (caso Simone).
@@ -203,8 +250,17 @@ export function VacancyCandidacyList({
                 <div className="flex items-start gap-3">
                   {/* Foto e dados só quando a API manda (Vagas Empresa); sem eles o
                       cartão fica como sempre foi. */}
+                  {/* A foto abre o "zoom" (perfil grande com a vaga junto) — pedido do Diego. */}
                   {c.provider && (
-                    <CandidateAvatar name={c.providerName} src={c.provider.profileImage} />
+                    <button
+                      type="button"
+                      onClick={() => setProfileId(c.id)}
+                      aria-label={c.providerName ? `Ver perfil de ${c.providerName}` : "Ver perfil do candidato"}
+                      title="Ver perfil"
+                      className="shrink-0 cursor-zoom-in rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#eca826] focus-visible:ring-offset-2"
+                    >
+                      <CandidateAvatar name={c.providerName} src={c.provider.profileImage} />
+                    </button>
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
@@ -466,7 +522,11 @@ export function VacancyCandidacyList({
           reserveNames={[nameOf(chooseMode.selection.reserves[0]), nameOf(chooseMode.selection.reserves[1])]}
         />
       )}
-      <CandidateProfileDialog candidacy={profileOf} onClose={() => setProfileId(null)} />
+      <CandidateProfileDialog
+        candidacy={profileOf}
+        vacancy={vacancy}
+        onClose={() => setProfileId(null)}
+      />
     </div>
   );
 }

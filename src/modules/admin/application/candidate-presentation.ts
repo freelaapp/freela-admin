@@ -48,6 +48,71 @@ export function locationLabel(
   return place || null;
 }
 
+/** Só o lugar ("Bela Vista, São Paulo – SP"), sem a distância — ela tem a linha própria. */
+export function placeLabel(
+  p: Pick<VacancyCandidacyProvider, "neighborhood" | "city" | "uf">,
+): string | null {
+  const place = [p.neighborhood?.trim(), [p.city?.trim(), p.uf?.trim()].filter(Boolean).join(" – ")]
+    .filter(Boolean)
+    .join(", ");
+  return place || null;
+}
+
+export const DISTANCE_UNAVAILABLE_TEXT = "Distância indisponível";
+export const DISTANCE_UNAVAILABLE_HINT =
+  "Falta o endereço completo do freelancer ou da vaga para calcular.";
+
+export interface CandidateDistanceInfo {
+  /** Km para ordenar; `null` = sem distância (vai para o fim da ordem por distância). */
+  km: number | null;
+  /** "15,4 km em linha reta até o trabalho" ou "Distância indisponível". */
+  text: string;
+  available: boolean;
+}
+
+const UNAVAILABLE: CandidateDistanceInfo = { km: null, text: DISTANCE_UNAVAILABLE_TEXT, available: false };
+
+/**
+ * A distância do candidato até o lugar do trabalho, com a MESMA regra da lista da empresa:
+ * - com a distância nova (`distance`), vale o texto da API ("15,4 km em linha reta", "cerca de
+ *   19 km em linha reta", "menos de 100 m em linha reta"); `distance: null` = indisponível;
+ * - sem ela (API com os níveis desligados), o km legado só existe quando os dois endereços são
+ *   de rua; ausente = indisponível (um dos lados é só o centro da cidade).
+ * Nunca "0 km": ponto que não se conhece não vira distância.
+ */
+export function candidateDistance(
+  p: Pick<VacancyCandidacyProvider, "distanceInKm"> & Partial<Pick<VacancyCandidacyProvider, "distance">>,
+): CandidateDistanceInfo {
+  if (p.distance !== undefined) {
+    if (p.distance === null || !Number.isFinite(p.distance.km)) return UNAVAILABLE;
+    return { km: p.distance.km, text: `${p.distance.label} até o trabalho`, available: true };
+  }
+  if (p.distanceInKm === null || !Number.isFinite(p.distanceInKm) || p.distanceInKm < 0) {
+    return UNAVAILABLE;
+  }
+  const label =
+    p.distanceInKm < 0.1 ? "menos de 100 m em linha reta" : `${decimal(p.distanceInKm)} km em linha reta`;
+  return { km: p.distanceInKm, text: `${label} até o trabalho`, available: true };
+}
+
+/**
+ * "Mais perto primeiro": por km, crescente; quem não tem distância (ou não tem os dados do
+ * candidato) vai para o fim, na ordem em que já estava. Não muda a lista original.
+ */
+export function sortByDistance<T extends { provider?: VacancyCandidacyProvider | null }>(
+  items: readonly T[],
+): T[] {
+  return items
+    .map((item, index) => ({ item, index, km: item.provider ? candidateDistance(item.provider).km : null }))
+    .sort((a, b) => {
+      if (a.km === null && b.km === null) return a.index - b.index;
+      if (a.km === null) return 1;
+      if (b.km === null) return -1;
+      return a.km - b.km || a.index - b.index;
+    })
+    .map(({ item }) => item);
+}
+
 /** Faixa do score, igual à da página Freelancers: ≥80 bom, ≥60 atenção, abaixo ruim. */
 export function scoreTone(score: number): "good" | "warn" | "bad" {
   return score >= 80 ? "good" : score >= 60 ? "warn" : "bad";

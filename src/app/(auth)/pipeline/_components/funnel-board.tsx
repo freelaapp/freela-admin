@@ -10,7 +10,8 @@ import {
   useCrmPipelineSettings,
   usePipelineWhatsApp,
 } from "@/modules/admin/application/use-admin-crm";
-import type { PipelineCard } from "@/modules/admin/infrastructure/crm-api";
+import { toast } from "sonner";
+import type { PipelineCard, PipelineStage } from "@/modules/admin/infrastructure/crm-api";
 import {
   FUNNEL_PRESETS,
   FUNNEL_STAGE_ICONS,
@@ -20,6 +21,7 @@ import {
   isContacted,
   messageStatusOf,
   sendConfirmQuestion,
+  stageSendCheck,
   waLink,
   type FunnelRange,
 } from "./funnel-helpers";
@@ -35,7 +37,7 @@ export function FunnelBoard() {
   // Padrão "30 dias" — o filtro roda no banco, para não puxar a base inteira.
   const [range, setRange] = useState<FunnelRange>(() => FUNNEL_PRESETS[3].compute());
   const { data: board, isLoading, isFetching, isError, refetch } = useCrmPipeline(range);
-  const sendWhatsApp = usePipelineWhatsApp();
+  const sendWhatsApp = usePipelineWhatsApp("FUNNEL");
   // Só para dizer, na confirmação, por onde a mensagem sai. Sem a configuração
   // (API antiga), a pergunta fica como sempre foi.
   const { data: settings } = useCrmPipelineSettings();
@@ -56,10 +58,19 @@ export function FunnelBoard() {
     });
   }, [board, q]);
 
-  function onSendWhatsApp(card: PipelineCard) {
+  function onSendWhatsApp(card: PipelineCard, stage: PipelineStage) {
+    // Mensagem da etapa: se a etapa só tem texto livre, nem pergunta — a API recusaria.
+    const check = stageSendCheck(settings, stage);
+    if (check?.blocked) {
+      toast.error(check.note);
+      return;
+    }
     // Reenvio pede confirmação DIFERENTE: mandar de novo para quem já recebeu é
     // o erro que o amarelo existe para evitar, e insistir queima o número.
-    const pergunta = sendConfirmQuestion(card, { templateName: settings?.template?.name });
+    const pergunta = sendConfirmQuestion(card, {
+      templateName: settings?.template?.name,
+      messageNote: check?.note,
+    });
     if (!confirm(pergunta)) return;
     sendWhatsApp.mutate(card.userId);
   }
@@ -251,7 +262,7 @@ export function FunnelBoard() {
                               : "bg-[#25D366] text-white hover:bg-[#1fb457]"
                           }`}
                           disabled={!card.whatsappPhone || sending}
-                          onClick={() => onSendWhatsApp(card)}
+                          onClick={() => onSendWhatsApp(card, col.stage)}
                         >
                           {sending ? (
                             <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />

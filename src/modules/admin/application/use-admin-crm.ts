@@ -30,6 +30,7 @@ import {
   type CrmCompanyStatus,
   type CrmPriority,
   type PipelinePeriodParams,
+  type PipelineSendSource,
   type UpdatePipelineSettingsInput,
   type UpdateCompanyInput,
   type UpdateTaskInput,
@@ -104,15 +105,19 @@ export function useUpdateCrmPipelineSettings() {
   });
 }
 
-/** Botão do card: dispara a mensagem automática de WhatsApp ao contratante. */
-export function usePipelineWhatsApp() {
+/**
+ * Botão do card: dispara a mensagem automática de WhatsApp ao contratante. `source` diz de
+ * qual aba saiu o clique (os cadastros antigos têm a mensagem da aba).
+ */
+export function usePipelineWhatsApp(source?: PipelineSendSource) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (userId: string) => sendPipelineWhatsApp(userId),
+    mutationFn: (userId: string) => sendPipelineWhatsApp(userId, source),
     onSuccess: (r) => {
+      const etapa = r.stage ? ` (mensagem da etapa)` : "";
       toast.success(
         r.channel === "META"
-          ? `Mensagem enviada pelo WhatsApp oficial para ${r.phone}.`
+          ? `Mensagem enviada pelo WhatsApp oficial para ${r.phone}${etapa}.`
           : `Mensagem enviada para ${r.phone}.`,
       );
     },
