@@ -445,7 +445,7 @@ describe("generateContractorReportPdf — legenda do INSS (por fora)", () => {
     } as unknown as ContractorReportResult);
 
     const legenda = textCalls.map((c) => c.text).find((t) => t.includes("INSS:"));
-    expect(legenda).toContain("INSS: 11% do bruto (repasse ÷ 0,89; nas vagas antigas, 11% do repasse),");
+    expect(legenda).toContain("INSS: 11% do bruto (repasse ÷ 0,89),");
     expect(legenda).not.toMatch(/descontad|retid|retém/i);
   });
 });

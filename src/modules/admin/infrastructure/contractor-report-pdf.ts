@@ -193,6 +193,8 @@ export function generateContractorReportPdf(
   // Alguma vaga com o INSS pela conta inversa: a legenda diz a base certa. Sem
   // nenhuma (chave da API desligada), a legenda de hoje, byte a byte.
   const anyInssGrossUp = linhas.some((r) => r.inssGrossUp);
+  // Relatório que mistura vagas de antes da virada (11% do repasse): a legenda diz as duas.
+  const anyInssOnRepasse = linhas.some((r) => !r.inssGrossUp && (r.inssCents ?? 0) > 0);
   const cols = anyDecomposition ? COLS_DECOMP : COLS;
 
   let totRepasse = 0;
@@ -389,7 +391,7 @@ export function generateContractorReportPdf(
       ? [`† Valor pago líquido de ${brl(totEstorno)} estornados à carteira (corte por atraso/ajuste).`]
       : []),
     anyDecomposition
-      ? `* repasse ainda não confirmado (pendente/falhou). Taxa serviço + Pix + Seguro + Repasse líquido = Você paga (o que a plataforma cobra) · INSS: 11% do ${anyInssGrossUp ? "bruto (repasse ÷ 0,89; nas vagas antigas, 11% do repasse)" : "repasse"}, provisionado em nome do freelancer e recolhido À PARTE por você (guia/eSocial), fora da plataforma — não entra no Você paga e não sai do repasse · "—" = vaga anterior à decomposição (modelo antigo).`
+      ? `* repasse ainda não confirmado (pendente/falhou). Taxa serviço + Pix + Seguro + Repasse líquido = Você paga (o que a plataforma cobra) · INSS: 11% do ${anyInssGrossUp ? `bruto (repasse ÷ 0,89${anyInssOnRepasse ? "; nas vagas antigas, 11% do repasse" : ""})` : "repasse"}, provisionado em nome do freelancer e recolhido À PARTE por você (guia/eSocial), fora da plataforma — não entra no Você paga e não sai do repasse · "—" = vaga anterior à decomposição (modelo antigo).`
       : "* repasse ainda não confirmado (pendente/falhou). Repasse = pago ao freelancer · Taxa = valor pago líquido de estornos - repasse · Valor pago = pago pelo contratante, líquido de estornos à carteira (uma vez por vaga).",
   ];
   if (y + 4 * notas.length > PH - 12) {
