@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   assumeSupportCase,
   closeSupportCase,
@@ -28,7 +33,15 @@ const SUPPORT_QUEUE_STALE_MS = 15_000;
  * que a fila ainda não está ligada.
  */
 export function useSupportCases(filter: SupportCaseFilter, enabled: boolean) {
-  return useQuery({
+  return useQuery(supportCasesQueryOptions(filter, enabled));
+}
+
+/** As opções da lista (exportadas para o teste do ritmo de atualização). */
+export function supportCasesQueryOptions(
+  filter: SupportCaseFilter,
+  enabled: boolean,
+) {
+  return queryOptions({
     queryKey: [...KEY, "list", filter],
     queryFn: () => listSupportCases(filter),
     enabled,

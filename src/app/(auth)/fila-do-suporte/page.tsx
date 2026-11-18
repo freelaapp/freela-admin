@@ -203,8 +203,10 @@ export default function FilaDoSuportePage() {
               className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                 dayFilter === value
                   ? "border-[#1d1d1b] bg-[#1d1d1b] text-white"
-                  : "border-[#e5e5e5] bg-white text-[#737373] hover:text-[#1d1d1b]"
-              } ${value === "overdue" && dayCounts.overdue > 0 && dayFilter !== value ? "border-[#eca826] text-[#c97b0e]" : ""}`}
+                  : value === "overdue" && dayCounts.overdue > 0
+                    ? "border-[#eca826] bg-white text-[#8a5300] hover:text-[#1d1d1b]"
+                    : "border-[#e5e5e5] bg-white text-[#737373] hover:text-[#1d1d1b]"
+              }`}
             >
               {dayFilterLabel(value)} {dayCounts[value]}
             </button>
@@ -215,13 +217,14 @@ export default function FilaDoSuportePage() {
       {data && notice && (
         <p
           className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-[#eca826]/50 bg-[#fffaf0] p-3 text-sm text-[#1d1d1b]"
+          aria-live="polite"
           data-testid="support-other-days"
         >
           <span>{notice}</span>
           {dayCounts.overdue > 0 && (
             <button
               type="button"
-              className="font-semibold text-[#c97b0e] hover:underline"
+              className="font-semibold text-[#8a5300] hover:underline"
               onClick={() => setDayFilter("overdue")}
             >
               Ver atrasados
@@ -230,7 +233,7 @@ export default function FilaDoSuportePage() {
           {dayCounts.upcoming > 0 && (
             <button
               type="button"
-              className="font-semibold text-[#c97b0e] hover:underline"
+              className="font-semibold text-[#8a5300] hover:underline"
               onClick={() => setDayFilter("upcoming")}
             >
               Ver próximos dias
@@ -241,8 +244,9 @@ export default function FilaDoSuportePage() {
 
       {data && items.length >= API_LIST_LIMIT && (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          A lista veio cortada em {API_LIST_LIMIT} casos (os de início mais antigo). Os
-          contadores por dia podem estar incompletos: feche os casos antigos.
+          A lista veio cortada em {API_LIST_LIMIT} casos: a API manda primeiro os de início mais
+          antigo, então casos de hoje e dos próximos dias podem ter ficado de fora desta lista e
+          dos contadores por dia. Feche os casos atrasados para eles aparecerem.
         </p>
       )}
 
