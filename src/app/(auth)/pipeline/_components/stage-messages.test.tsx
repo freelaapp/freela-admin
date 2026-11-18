@@ -73,7 +73,7 @@ function settings(over: Partial<PipelineSettings> = {}): PipelineSettings {
     stageMessages: stages(),
     stageFreeTextVariables: ["{nome}", "{primeiro_nome}", "{cidade}", "{link_marketing}"],
     stageFreeTextMax: 1000,
-    serviceWindowHours: 23,
+    serviceWindowHours: 24,
     stageFreeTextSends: false,
     ...over,
   };
