@@ -92,6 +92,10 @@ describe("mensagem por etapa — regras do formulário", () => {
     expect(stageSummary({ templateId: "tpl-1", freeText: "Oi" }, nome).text).toBe(
       "Modelo: Boas-vindas + texto livre",
     );
+    expect(stageSummary({ templateId: "apagado", freeText: "" }, nome)).toEqual({
+      text: "Modelo não encontrado: escolha outro",
+      warn: true,
+    });
     expect(stageSummary({ templateId: "", freeText: "Oi" }, nome)).toEqual({
       text: "Só texto livre: fora das 24 h não envia",
       warn: true,
@@ -220,7 +224,9 @@ describe("Configurar mensagem › Mensagem por etapa", () => {
     fireEvent.change(within(novo).getByLabelText(/Texto livre/), {
       target: { value: "Oi {empresa}" },
     });
-    expect(within(novo).getByText(/Variável desconhecida/)).toBeInTheDocument();
+    expect(within(novo).getAllByText(/Variável desconhecida/).length).toBeGreaterThan(0);
+    // O erro aparece também no resumo, visível com a etapa fechada.
+    expect(within(novo).getByText(/^Texto livre com erro:/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Salvar" })).toBeDisabled();
   });
 });

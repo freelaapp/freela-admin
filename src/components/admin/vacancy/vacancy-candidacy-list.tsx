@@ -146,8 +146,10 @@ export function VacancyCandidacyList({
   const [order, setOrder] = useState<"api" | "distance">("api");
   const hasProviderData = !!candidacies?.some((c) => c.provider);
   const anyDistance = !!candidacies?.some((c) => c.provider && candidateDistance(c.provider).available);
+  // Se ninguém mais tem distância (a lista recarregou), volta à ordem atual de verdade.
+  const effectiveOrder = order === "distance" && anyDistance ? "distance" : "api";
   const shown =
-    candidacies && order === "distance" && anyDistance ? sortByDistance(candidacies) : candidacies;
+    candidacies && effectiveOrder === "distance" ? sortByDistance(candidacies) : candidacies;
   return (
     <div className="bg-[#f7f7f7] rounded-lg p-3 space-y-2">
       <p className="text-[#737373] text-xs font-medium uppercase tracking-wide">
@@ -166,11 +168,11 @@ export function VacancyCandidacyList({
             <button
               key={value}
               type="button"
-              aria-pressed={order === value}
+              aria-pressed={effectiveOrder === value}
               disabled={value === "distance" && !anyDistance}
               onClick={() => setOrder(value)}
               className={`min-h-9 rounded-md border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                order === value
+                effectiveOrder === value
                   ? "border-[#1d1d1b] bg-[#1d1d1b] text-white"
                   : "border-[#e5e5e5] bg-white text-[#1d1d1b] hover:bg-[#f7f7f7]"
               }`}
@@ -180,7 +182,7 @@ export function VacancyCandidacyList({
           ))}
           {!anyDistance ? (
             <span className="text-xs text-[#a3a3a3]">Nenhum candidato com distância calculada.</span>
-          ) : order === "distance" ? (
+          ) : effectiveOrder === "distance" ? (
             <span className="text-xs text-[#a3a3a3]">Quem não tem distância fica no fim da lista.</span>
           ) : null}
         </div>

@@ -63,6 +63,7 @@ const VAGA = {
   when: "21/11/2026 · 18:00 - 02:00",
   address: "Rua Augusta, 100, São Paulo – SP",
   value: "R$ 180,00",
+  valueLabel: "Contratante paga à plataforma",
 };
 
 function renderList(candidacies: VacancyCandidacyItem[], vacancy: typeof VAGA | undefined = VAGA) {
@@ -163,11 +164,13 @@ describe("Modo painel › candidatos da vaga: zoom e ordem por distância", () =
     expect(zoom.getByText("4,9 · 12 avaliações")).toBeInTheDocument();
     expect(zoom.getByText("9 serviços")).toBeInTheDocument();
     expect(zoom.getByTestId("distancia-zoom")).toHaveTextContent("8,2 km em linha reta até o trabalho");
+    // A distância aparece uma vez só no zoom (em destaque), sem repetir na lista de dados.
+    expect(zoom.queryByTestId("distancia-candidato")).not.toBeInTheDocument();
     expect(zoom.getByText("Vaga")).toBeInTheDocument();
     expect(zoom.getByText("Garçom · Bar do Zé")).toBeInTheDocument();
     expect(zoom.getByText("21/11/2026 · 18:00 - 02:00")).toBeInTheDocument();
     expect(zoom.getByText("Rua Augusta, 100, São Paulo – SP")).toBeInTheDocument();
-    expect(zoom.getByText("R$ 180,00")).toBeInTheDocument();
+    expect(zoom.getByText("Contratante paga à plataforma: R$ 180,00")).toBeInTheDocument();
   });
 
   it("sem coordenada, o zoom diz por que não há distância", () => {

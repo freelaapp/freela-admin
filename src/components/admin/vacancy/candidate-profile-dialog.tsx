@@ -37,6 +37,8 @@ export interface CandidateVacancySummary {
   address: string | null;
   /** O que a empresa paga ("R$ 180,00"); `null` = não mostrar. */
   value: string | null;
+  /** Rótulo do valor, o mesmo do detalhe da vaga ("Contratante paga à plataforma"). */
+  valueLabel?: string;
 }
 
 interface Props {
@@ -143,7 +145,7 @@ function OpenProfile({
                 </span>
               </p>
               <div className="flex justify-center sm:justify-start">
-                <CandidateFacts provider={provider} large />
+                <CandidateFacts provider={provider} large hideDistance />
               </div>
               {candidacy.matchScore !== undefined && (
                 <div>
@@ -163,7 +165,11 @@ function OpenProfile({
                 <p className="break-words text-[#525252]">
                   {vacancy.address?.trim() || "Endereço não informado"}
                 </p>
-                {vacancy.value && <p className="font-semibold">{vacancy.value}</p>}
+                {vacancy.value && (
+                  <p className="font-semibold">
+                    {vacancy.valueLabel ? `${vacancy.valueLabel}: ${vacancy.value}` : vacancy.value}
+                  </p>
+                )}
               </div>
             </Section>
           )}

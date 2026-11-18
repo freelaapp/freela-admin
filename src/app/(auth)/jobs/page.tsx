@@ -1100,6 +1100,7 @@ export default function JobsPage() {
                   when: `${modalDetalhes.data} · ${modalDetalhes.horario}`,
                   address: modalDetalhes.cidade !== "N/A" ? modalDetalhes.cidade : null,
                   value: modalDetalhes.valor,
+                  valueLabel: modalDetalhes.valorTitulo,
                 }}
                 actions={
                   modalDetalhes.raw?.id ? (

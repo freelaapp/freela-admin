@@ -72,10 +72,13 @@ export function CandidateAvatar({
 export function CandidateFacts({
   provider,
   large = false,
+  hideDistance = false,
 }: {
   provider: VacancyCandidacyProvider;
   /** No perfil os textos crescem; na lista ficam compactos. */
   large?: boolean;
+  /** O zoom mostra a distância em destaque, no topo: aqui ela não se repete. */
+  hideDistance?: boolean;
 }) {
   const size = large ? "text-sm" : "text-xs";
   const age = ageLabel(provider.age);
@@ -129,16 +132,18 @@ export function CandidateFacts({
 
       {/* Distância até o lugar do trabalho, sempre numa linha própria: com o km (mesmo texto
           que a empresa vê) ou "Distância indisponível" — nunca "0 km". */}
-      <span
-        className={`inline-flex items-start gap-1 ${
-          distance.available ? "font-medium text-[#1d1d1b]" : "text-[#737373]"
-        }`}
-        title={distance.available ? undefined : DISTANCE_UNAVAILABLE_HINT}
-        data-testid="distancia-candidato"
-      >
-        <Navigation className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#a3a3a3]" />
-        <span className="min-w-0 break-words">{distance.text}</span>
-      </span>
+      {!hideDistance && (
+        <span
+          className={`inline-flex items-start gap-1 ${
+            distance.available ? "font-medium text-[#1d1d1b]" : "text-[#737373]"
+          }`}
+          title={distance.available ? undefined : DISTANCE_UNAVAILABLE_HINT}
+          data-testid="distancia-candidato"
+        >
+          <Navigation className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#a3a3a3]" />
+          <span className="min-w-0 break-words">{distance.text}</span>
+        </span>
+      )}
 
       {(provider.reputationScore !== null || provider.lowPriority) && (
         <span className="flex flex-wrap items-center gap-1.5">

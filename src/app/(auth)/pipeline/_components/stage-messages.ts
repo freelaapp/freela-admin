@@ -69,7 +69,9 @@ export function stageSummary(
   const freeText = draft?.freeText.trim() ?? "";
   if (!templateId && !freeText) return { text: "Usa a mensagem geral", warn: false };
   if (!templateId) return { text: "Só texto livre: fora das 24 h não envia", warn: true };
-  const nome = templateName(templateId) ?? "modelo escolhido";
+  const nome = templateName(templateId);
+  // Modelo apagado depois de escolhido: o envio seria recusado; diz já na lista fechada.
+  if (!nome) return { text: "Modelo não encontrado: escolha outro", warn: true };
   return { text: freeText ? `Modelo: ${nome} + texto livre` : `Modelo: ${nome}`, warn: false };
 }
 

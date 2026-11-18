@@ -97,7 +97,7 @@ export function StageMessagesSection({ settings, stages, drafts, onChange }: Pro
               className="group rounded-lg border border-[#e5e5e5] bg-white"
               data-testid={`etapa-${stage.key}`}
             >
-              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
                 <span className="min-w-0 flex-1">
                   {stage.key === "CADASTROS_ANTIGOS" && (
                     <span className="block text-[10px] uppercase tracking-wide text-[#a3a3a3]">
@@ -105,13 +105,15 @@ export function StageMessagesSection({ settings, stages, drafts, onChange }: Pro
                     </span>
                   )}
                   <span className="block text-sm font-medium text-[#1d1d1b]">{stage.label}</span>
+                  {/* Erro no texto aparece JÁ no resumo: com a etapa fechada, o "Salvar"
+                      desligado não teria explicação à vista. */}
                   <span
                     className={`flex items-start gap-1 text-xs ${
-                      summary.warn ? "text-[#b45309]" : "text-[#737373]"
+                      problem ? "text-red-600" : summary.warn ? "text-[#b45309]" : "text-[#737373]"
                     }`}
                   >
-                    {summary.warn && <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />}
-                    {summary.text}
+                    {(problem || summary.warn) && <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />}
+                    {problem ? `Texto livre com erro: ${problem}` : summary.text}
                   </span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-[#737373] transition-transform group-open:rotate-180" />
