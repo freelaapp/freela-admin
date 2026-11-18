@@ -26,6 +26,7 @@ import type { AdminMetricsPeriodPreset } from "@/modules/admin/infrastructure/ad
 import { PeriodBar, isoDayBrasilia } from "./_components/period-bar";
 import { VacancyStagesSection } from "./_components/vacancy-stages-section";
 import { TopContractorsTable } from "./_components/top-contractors-table";
+import { VacancyOutcomesSection } from "./_components/vacancy-outcomes-section";
 
 const TOTAL_ICONS = { T1: UserCheck, T2: Building2, T3: DollarSign } as const;
 const GROUP_ICONS: Record<DashboardCardGroup["id"], React.ElementType> = {
@@ -46,7 +47,11 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<AdminMetricsPeriodPreset>("this_month");
   const [from, setFrom] = useState(() => isoDayBrasilia(29));
   const [to, setTo] = useState(() => isoDayBrasilia(0));
-  const { data, isLoading, isError, error, isFetching } = useAdminDashboard({ period, from, to });
+  const { data, isLoading, isError, error, isFetching } = useAdminDashboard({
+    period,
+    from,
+    to,
+  });
   const unavailable = error instanceof DashboardUnavailableError;
 
   return (
@@ -70,10 +75,16 @@ export default function DashboardPage() {
         </div>
       ) : unavailable ? (
         <div className="mb-8 rounded-xl border border-[#e5e5e5] bg-white p-4 text-sm text-[#525252]">
-          <p className="font-medium text-[#1d1d1b]">O dashboard novo ainda não chegou à API.</p>
+          <p className="font-medium text-[#1d1d1b]">
+            O dashboard novo ainda não chegou à API.
+          </p>
           <p className="mt-1">
-            Enquanto a API não é atualizada, os indicadores de sempre continuam na página{" "}
-            <Link href="/dashboard/operacao" className="font-medium underline hover:text-[#eca826]">
+            Enquanto a API não é atualizada, os indicadores de sempre continuam
+            na página{" "}
+            <Link
+              href="/dashboard/operacao"
+              className="font-medium underline hover:text-[#eca826]"
+            >
               Operação
             </Link>
             .
@@ -81,8 +92,8 @@ export default function DashboardPage() {
         </div>
       ) : isError || !data ? (
         <div className="mb-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          Não foi possível carregar os números do dashboard. A tela tenta de novo sozinha; se
-          continuar, abra a página{" "}
+          Não foi possível carregar os números do dashboard. A tela tenta de
+          novo sozinha; se continuar, abra a página{" "}
           <Link href="/dashboard/operacao" className="font-medium underline">
             Operação
           </Link>
@@ -124,14 +135,22 @@ export default function DashboardPage() {
       {data && !unavailable && (
         <>
           <p className="mb-4 text-xs text-[#737373]">
-            Os números abaixo medem <strong>{data.period?.label ?? "o período escolhido"}</strong>{" "}
-            e comparam com <strong>{data.period?.previousLabel ?? "o período anterior"}</strong>,
-            cada indicador pela data do próprio evento (horário de Brasília).
+            Os números abaixo medem{" "}
+            <strong>{data.period?.label ?? "o período escolhido"}</strong> e
+            comparam com{" "}
+            <strong>
+              {data.period?.previousLabel ?? "o período anterior"}
+            </strong>
+            , cada indicador pela data do próprio evento (horário de Brasília).
             {isFetching && " Atualizando…"}
           </p>
 
           {buildPeriodGroups(data).map((group) => (
-            <section key={group.id} aria-labelledby={`grupo-${group.id}`} className="mb-6">
+            <section
+              key={group.id}
+              aria-labelledby={`grupo-${group.id}`}
+              className="mb-6"
+            >
               <h2
                 id={`grupo-${group.id}`}
                 className="mb-3 text-base font-semibold text-[#1d1d1b]"
@@ -155,6 +174,8 @@ export default function DashboardPage() {
               </div>
             </section>
           ))}
+
+          <VacancyOutcomesSection data={data} />
 
           <TopContractorsTable
             rows={data.topContractors}
