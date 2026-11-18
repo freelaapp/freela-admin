@@ -29,6 +29,7 @@ const REASON_LABEL: Record<SupportCaseReason, string> = {
   QUEUE_EMPTY: "Fila sem suplentes",
   DAILY_CUTOFF: "Corte diário",
   NO_SHOW: "Não chegou",
+  NO_CANDIDATES: "Ninguém se candidatou",
 };
 
 const RISK_LABEL: Record<SupportCaseRisk, string> = {
@@ -45,6 +46,7 @@ const ACTION_LABEL: Record<SupportCaseReason, string> = {
   QUEUE_EMPTY: "Convidar compatíveis",
   DAILY_CUTOFF: "Resolver antes do fim do expediente",
   NO_SHOW: "Ligar uma vez para o freelancer; sem resposta, resgate",
+  NO_CANDIDATES: "Convidar compatíveis; resgate",
 };
 
 /** Selo do motivo: "Ninguém aceitou o chamado", "Corte das 16h30: sem confirmar". */
@@ -325,4 +327,117 @@ export function groupSupportCases(items: SupportCaseItem[]): SupportCaseGroup[] 
 export function lotGroupLabel(lot: { casesInLot: number }, shown: number): string {
   const total = `Lote: ${lot.casesInLot} ${lot.casesInLot === 1 ? "caso" : "casos"}`;
   return shown < lot.casesInLot ? `${total} (${shown} nesta lista)` : total;
+}
+
+// ─── Só o do dia (noite 17→18/11, frente C3) ────────────────────────────────
+
+/** De que dia é o caso, em Brasília: de hoje, atrasado (dias anteriores, ainda aberto) ou dos próximos dias. */
+export type SupportCaseDay = "today" | "overdue" | "upcoming";
+export type SupportCaseDayFilter = SupportCaseDay | "all";
+
+export const SUPPORT_CASE_DAY_FILTERS: readonly SupportCaseDayFilter[] = [
+  "today",
+  "overdue",
+  "upcoming",
+  "all",
+];
+
+const DAY_FILTER_LABEL: Record<SupportCaseDayFilter, string> = {
+  today: "Hoje",
+  overdue: "Atrasados",
+  upcoming: "Próximos dias",
+  all: "Todos",
+};
+
+export function dayFilterLabel(filter: SupportCaseDayFilter): string {
+  return DAY_FILTER_LABEL[filter];
+}
+
+/**
+ * O dia do caso é o dia do início da vaga em Brasília (`America/Sao_Paulo`). Exceção: o caso do
+ * corte diário aberto hoje é de hoje, mesmo com a vaga na madrugada seguinte ou no domingo: o
+ * corte só abre vaga que começa antes da próxima abertura do suporte, e a ação dele é "resolver
+ * antes do fim do expediente".
+ */
+export function supportCaseDay(
+  item: Pick<SupportCaseItem, "startTime" | "reason" | "openedAt">,
+  now: Date,
+): SupportCaseDay {
+  const today = brasiliaDayKey(now);
+  if (
+    item.reason === "DAILY_CUTOFF" &&
+    brasiliaDayKey(new Date(item.openedAt)) === today
+  ) {
+    return "today";
+  }
+  const day = brasiliaDayKey(new Date(item.startTime));
+  if (day === today) return "today";
+  // "AAAA-MM-DD" ordena como texto.
+  return day < today ? "overdue" : "upcoming";
+}
+
+export type SupportCaseDayCounts = Record<SupportCaseDayFilter, number>;
+
+export function countSupportCasesByDay(
+  items: SupportCaseItem[],
+  now: Date,
+): SupportCaseDayCounts {
+  const counts: SupportCaseDayCounts = {
+    today: 0,
+    overdue: 0,
+    upcoming: 0,
+    all: items.length,
+  };
+  for (const item of items) counts[supportCaseDay(item, now)]++;
+  return counts;
+}
+
+export function filterSupportCasesByDay(
+  items: SupportCaseItem[],
+  filter: SupportCaseDayFilter,
+  now: Date,
+): SupportCaseItem[] {
+  if (filter === "all") return items;
+  return items.filter((item) => supportCaseDay(item, now) === filter);
+}
+
+/**
+ * Nada some sem aviso: no filtro "Hoje", quantos casos ficaram de fora e de que dias.
+ * "3 casos de outros dias: 1 atrasado e 2 dos próximos dias." Sem casos de outros dias: null.
+ */
+export function otherDaysNotice(counts: SupportCaseDayCounts): string | null {
+  const others = counts.overdue + counts.upcoming;
+  if (others === 0) return null;
+  const parts: string[] = [];
+  if (counts.overdue > 0) {
+    parts.push(
+      `${counts.overdue} ${counts.overdue === 1 ? "atrasado" : "atrasados"}`,
+    );
+  }
+  if (counts.upcoming > 0) parts.push(`${counts.upcoming} dos próximos dias`);
+  return `${others} ${others === 1 ? "caso" : "casos"} de outros dias: ${parts.join(" e ")}.`;
+}
+
+const DAY_EMPTY: Record<SupportCaseDay, string> = {
+  today: "Nenhum caso de hoje.",
+  overdue: "Nenhum caso atrasado de dias anteriores.",
+  upcoming: "Nenhum caso dos próximos dias.",
+};
+
+/** Vazio no filtro de dia (com casos em outros dias; sem nenhum caso, vale o vazio da aba). */
+export function dayEmptyLabel(filter: SupportCaseDay): string {
+  return DAY_EMPTY[filter];
+}
+
+/**
+ * "Atualizado agora" / "Atualizado há 12 s" / "Atualizado há 3 min" / "Atualizado às 14h05",
+ * pela hora da última resposta da API (`dataUpdatedAt` do TanStack Query; 0 = nunca).
+ */
+export function updatedAgoLabel(updatedAt: number, now: Date): string | null {
+  if (!updatedAt) return null;
+  const seconds = Math.max(0, Math.floor((now.getTime() - updatedAt) / 1000));
+  if (seconds < 5) return "Atualizado agora";
+  if (seconds < 60) return `Atualizado há ${seconds} s`;
+  if (seconds < 60 * 60) return `Atualizado há ${Math.floor(seconds / 60)} min`;
+  return `Atualizado às ${hourLabel(new Date(updatedAt))}`;
 }
