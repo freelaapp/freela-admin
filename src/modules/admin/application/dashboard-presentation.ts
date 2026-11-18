@@ -272,7 +272,7 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
               : `Vagas de Empresa + Casa pela data de criação, sem as apagadas; ${EXCLUSION_NOTE}.`,
           ),
           vo
-            ? `${formatInteger(vo.current.official)} oficiais = ${formatInteger(vo.current.total)} criadas no total − ${formatInteger(vo.current.fake)} falsas − ${formatInteger(vo.current.test)} de teste. Pela regra de antes (só sem as apagadas, as de QA e as das contas internas): ${formatInteger(vo.previousRule.vacanciesCreated)}.`
+            ? `${formatInteger(vo.current.official)} oficiais = ${formatInteger(vo.current.total)} criadas no total − ${formatInteger(vo.current.fake)} falsas − ${formatInteger(vo.current.test)} de teste. Pela regra de antes (só sem as apagadas, as de QA e as das contas internas): ${formatInteger(vo.previousRule.vacanciesCreated)}. A vaga apagada depois de a empresa já ter escolhido alguém agora conta como oficial (antes ficava fora).`
             : undefined,
         ),
         share(
