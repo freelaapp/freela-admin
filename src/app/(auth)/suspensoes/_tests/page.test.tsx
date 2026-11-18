@@ -57,6 +57,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.history.replaceState(null, "", "/suspensoes");
 });
 
 /** Fluxo v2, fatia G: a página "Suspensões" do admin (designer, lote 2 §5.5). */
@@ -80,13 +81,15 @@ describe("Suspensões (admin)", () => {
     vi.mocked(listSuspensions).mockRejectedValue(new Error("Network Error"));
     renderPage();
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Não foi possível carregar as suspensões. Tente de novo.");
+    expect(alert).toHaveTextContent(
+      "Não conseguimos carregar as suspensões. Verifique a conexão e clique em Tentar de novo. Seus filtros continuam aqui.",
+    );
     vi.mocked(listSuspensions).mockResolvedValue(suspensionList([]));
     fireEvent.click(within(alert).getByRole("button", { name: "Tentar de novo" }));
     expect(await screen.findByText("Ninguém está sem poder se candidatar agora.")).toBeInTheDocument();
   });
 
-  it("lista: as colunas, o aviso do jurídico e as abas", async () => {
+  it("lista: as colunas, o aviso do jurídico e a situação", async () => {
     vi.mocked(listSuspensions).mockResolvedValue(suspensionList());
     renderPage();
     expect(await screen.findByText("Ana Souza")).toBeInTheDocument();
@@ -96,7 +99,7 @@ describe("Suspensões (admin)", () => {
     expect(within(row).getByText("sáb 14/11, depois da conversa")).toBeInTheDocument();
     expect(within(row).getByText("Pendente")).toBeInTheDocument();
     expect(within(row).getByText("Garçom, sáb 07/11 · pode contestar até ter 10/11 às 18h")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "Todas" }));
+    fireEvent.change(screen.getByLabelText("Situação"), { target: { value: "all" } });
     await waitFor(() => expect(listSuspensions).toHaveBeenLastCalledWith("all"));
   });
 
@@ -236,5 +239,116 @@ describe("Suspensões (admin)", () => {
         reason: "Desrespeitou a equipe da loja.",
       }),
     );
+  });
+
+  describe("D5, fatia A1: filtros e detalhe", () => {
+    const caio = () =>
+      suspensionItem({
+        id: "susp-2",
+        person: { providerGlobalId: "g-caio", name: "Caio Reis", email: "caio@x.test", phone: null },
+        reasonKey: "MANUAL",
+        manualReason: "Briga na loja",
+        source: null,
+        vacancy: null,
+        createdByKind: "ADMIN",
+        requiresConversation: false,
+        state: "DATED",
+        startsAt: "2026-11-12T15:00:00.000Z",
+      });
+
+    it("o pedido à API não muda: só a situação, sem limit", async () => {
+      vi.mocked(listSuspensions).mockResolvedValue(suspensionList());
+      renderPage();
+      await screen.findByText("Ana Souza");
+      expect(vi.mocked(listSuspensions).mock.calls[0]).toEqual(["active"]);
+      // As "Valendo…" filtram no navegador, sem novo pedido.
+      fireEvent.change(screen.getByLabelText("Situação"), { target: { value: "active_overdue" } });
+      expect(listSuspensions).toHaveBeenCalledTimes(1);
+    });
+
+    it("busca, motivo, contador e Limpar filtros", async () => {
+      vi.mocked(listSuspensions).mockResolvedValue(suspensionList([suspensionItem(), caio()]));
+      renderPage();
+      await screen.findByText("Ana Souza");
+      expect(screen.getByText("Mostrando 2 de 2 suspensões carregadas.")).toBeInTheDocument();
+      expect(screen.getByText(/A lista carrega até 100 suspensões/)).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "caio" } });
+      expect(screen.queryByText("Ana Souza")).not.toBeInTheDocument();
+      expect(screen.getByText("Caio Reis")).toBeInTheDocument();
+      expect(screen.getByText("Mostrando 1 de 2 suspensões carregadas.")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "no_show" } });
+      expect(screen.getByText("Nenhuma suspensão com esses filtros entre as 2 carregadas.")).toBeInTheDocument();
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Limpar filtros" })[0]);
+      expect(screen.getByText("Ana Souza")).toBeInTheDocument();
+      expect(screen.getByText("Caio Reis")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Limpar filtros" })).not.toBeInTheDocument();
+    });
+
+    it("ordem: 'Mais recentes primeiro' reordena pelo início", async () => {
+      vi.mocked(listSuspensions).mockResolvedValue(suspensionList([suspensionItem(), caio()]));
+      renderPage();
+      await screen.findByText("Ana Souza");
+      let rows = screen.getAllByRole("row").slice(1);
+      expect(within(rows[0]).getByText("Ana Souza")).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Ordem"), { target: { value: "newest" } });
+      rows = screen.getAllByRole("row").slice(1);
+      expect(within(rows[0]).getByText("Caio Reis")).toBeInTheDocument();
+    });
+
+    it("ao bater 100 linhas, avisa que as mais antigas não aparecem", async () => {
+      const many = Array.from({ length: 100 }, (_, i) => suspensionItem({ id: `s-${i}` }));
+      vi.mocked(listSuspensions).mockResolvedValue(suspensionList(many));
+      renderPage();
+      expect(
+        await screen.findByText("Chegou ao limite de 100: as suspensões mais antigas não aparecem aqui."),
+      ).toBeInTheDocument();
+    });
+
+    it("detalhe: abre pelo botão, grava ?s= e mostra a vaga com o link do /jobs", async () => {
+      vi.mocked(listSuspensions).mockResolvedValue(suspensionList([suspensionItem(), caio()]));
+      renderPage();
+      fireEvent.click(await screen.findByRole("button", { name: "Ver detalhe de Ana Souza" }));
+      const panel = screen.getByRole("complementary", { name: "Detalhe da suspensão" });
+      expect(window.location.search).toBe("?s=susp-1");
+      expect(within(panel).getByText("Automática, pela regra de faltas e desistências")).toBeInTheDocument();
+      expect(within(panel).getByText("Falta sem aviso, registrada em sáb 07/11 às 18h")).toBeInTheDocument();
+      expect(within(panel).getByText("Pode contestar até ter 10/11 às 18h")).toBeInTheDocument();
+      expect(within(panel).getByText("Garçom · sáb 07/11, 18h")).toBeInTheDocument();
+      expect(within(panel).getByRole("link", { name: /Abrir a vaga em outra aba/ })).toHaveAttribute(
+        "href",
+        "/jobs?vaga=v1",
+      );
+      // A ação do painel abre o mesmo diálogo da linha.
+      fireEvent.click(within(panel).getByRole("button", { name: "Levantar suspensão" }));
+      expect(screen.getByRole("dialog", { name: "Levantar suspensão?" })).toBeInTheDocument();
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancelar" }));
+
+      fireEvent.click(within(panel).getByRole("button", { name: "Fechar o detalhe" }));
+      expect(screen.queryByRole("complementary", { name: "Detalhe da suspensão" })).not.toBeInTheDocument();
+      expect(window.location.search).toBe("");
+    });
+
+    it("detalhe pelo endereço (?s=), e a suspensão sem vaga", async () => {
+      window.history.replaceState(null, "", "/suspensoes?s=susp-2");
+      vi.mocked(listSuspensions).mockResolvedValue(suspensionList([suspensionItem(), caio()]));
+      renderPage();
+      const panel = await screen.findByRole("complementary", { name: "Detalhe da suspensão" });
+      expect(within(panel).getByText("Feita pelo suporte: “Briga na loja”")).toBeInTheDocument();
+      expect(within(panel).getByText("Feita pelo suporte, sem vaga ligada.")).toBeInTheDocument();
+      expect(within(panel).queryByRole("link")).not.toBeInTheDocument();
+    });
+
+    it("?s= fora das carregadas: oferece procurar em Todas", async () => {
+      window.history.replaceState(null, "", "/suspensoes?s=levantada-1");
+      vi.mocked(listSuspensions).mockResolvedValue(suspensionList());
+      renderPage();
+      const panel = await screen.findByRole("complementary", { name: "Detalhe da suspensão" });
+      expect(within(panel).getByText(/não está entre as carregadas/)).toBeInTheDocument();
+      fireEvent.click(within(panel).getByRole("button", { name: "Procurar em Todas" }));
+      await waitFor(() => expect(listSuspensions).toHaveBeenLastCalledWith("all"));
+    });
   });
 });
