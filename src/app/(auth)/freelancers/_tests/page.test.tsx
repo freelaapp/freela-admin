@@ -47,6 +47,10 @@ vi.mock("@/modules/admin/application/use-admin-providers", () => ({
   useClearLowPriority: mutation,
 }));
 vi.mock("@/modules/admin/application/use-admin-update-provider", () => ({ useAdminUpdateProvider: mutation }));
+// D5, fatia B: sem a rota de contadores (API antiga) neste teste.
+vi.mock("@/modules/admin/application/use-providers-status-counts", () => ({
+  useProvidersStatusCounts: () => ({ data: undefined }),
+}));
 vi.mock("@/modules/admin/application/use-cities-catalog", () => ({ useCitiesCatalog: () => ({ data: [] }) }));
 vi.mock("@/modules/admin/application/use-admin-catalog", () => ({ useCatalogRoles: () => ({ data: [] }) }));
 vi.mock("@/modules/admin/application/use-export-providers", async (importOriginal) => ({
