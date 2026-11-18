@@ -130,6 +130,6 @@ describe("Funil: situação da mensagem no cartão", () => {
     fireEvent.click((await cardOf("Cantina Sul")).getByRole("button"));
 
     expect(confirmar.mock.calls[0][0]).toContain("PODE ter chegado");
-    await waitFor(() => expect(api.sendPipelineWhatsApp).toHaveBeenCalledWith("u4"));
+    await waitFor(() => expect(api.sendPipelineWhatsApp).toHaveBeenCalledWith("u4", "FUNNEL"));
   });
 });

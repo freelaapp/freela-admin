@@ -196,7 +196,7 @@ describe("Cadastros antigos", () => {
     expect(confirmar).toHaveBeenCalledWith(
       'Enviar a mensagem automática de WhatsApp para Bar do Zé? Sai pelo WhatsApp oficial, com o modelo "Boas-vindas do Pipeline".',
     );
-    await waitFor(() => expect(api.sendPipelineWhatsApp).toHaveBeenCalledWith("u1"));
+    await waitFor(() => expect(api.sendPipelineWhatsApp).toHaveBeenCalledWith("u1", "OLD_SIGNUPS"));
     await waitFor(() => expect(api.getCrmOldSignups).toHaveBeenCalledTimes(2));
     expect(toast.success).toHaveBeenCalledWith(
       "Mensagem enviada pelo WhatsApp oficial para 5511999990000.",

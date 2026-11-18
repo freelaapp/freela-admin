@@ -1,7 +1,9 @@
 import { Inbox, Sparkles, Repeat, TrendingUp, Crown, type LucideIcon } from "lucide-react";
 import type {
   PipelineCard,
+  PipelineMessageKey,
   PipelineMessageStatus,
+  PipelineSettings,
   PipelineStage,
 } from "@/modules/admin/infrastructure/crm-api";
 
@@ -187,13 +189,16 @@ export function messageStatusLine(card: PipelineCard, now: Date = new Date()): s
  */
 export function sendConfirmQuestion(
   card: PipelineCard,
-  opts: { templateName?: string | null; now?: Date } = {},
+  opts: { templateName?: string | null; now?: Date; messageNote?: string | null } = {},
 ): string {
   const now = opts.now ?? new Date();
   const status = messageStatusOf(card);
-  const canal = opts.templateName
-    ? ` Sai pelo WhatsApp oficial, com o modelo "${opts.templateName}".`
-    : "";
+  // Com mensagem por etapa configurada, a frase da etapa (`stageSendCheck`) diz o que sai.
+  const canal = opts.messageNote
+    ? ` ${opts.messageNote}`
+    : opts.templateName
+      ? ` Sai pelo WhatsApp oficial, com o modelo "${opts.templateName}".`
+      : "";
 
   if (status === "UNCERTAIN") {
     return (
@@ -218,6 +223,47 @@ export function sendConfirmQuestion(
     );
   }
   return `Enviar a mensagem automática de WhatsApp para ${card.name}?${canal}`;
+}
+
+// ─── Mensagem por etapa ─────────────────────────────────────────────────────
+
+/**
+ * O que sai para um card, conforme a mensagem da etapa (espelho da regra da API):
+ * - nenhuma etapa configurada (ou API antiga): `null` — a confirmação fica como sempre foi;
+ * - etapa com modelo: o modelo dela;
+ * - etapa só com texto livre: bloqueado — fora da janela de 24 h a Meta só aceita modelo, e o
+ *   painel ainda não envia o texto livre (a API recusaria);
+ * - etapa sem nada: a mensagem geral.
+ */
+export function stageSendCheck(
+  settings: PipelineSettings | undefined,
+  key: PipelineMessageKey,
+): { note: string; blocked: boolean } | null {
+  const stages = settings?.stageMessages;
+  if (!stages || !stages.some((s) => s.templateId || s.freeText)) return null;
+  const stage = stages.find((s) => s.key === key);
+  const label = stage?.label ?? key;
+  if (stage?.templateId) {
+    const nome = stage.template?.name ?? "da etapa";
+    return {
+      note: `Sai o modelo "${nome}" da etapa ${label}, pelo WhatsApp oficial.`,
+      blocked: false,
+    };
+  }
+  if (stage?.freeText) {
+    return {
+      note:
+        `A etapa ${label} só tem texto livre, e fora da janela de 24 h a Meta só aceita modelo ` +
+        `aprovado. Escolha um modelo para essa etapa em "Configurar mensagem".`,
+      blocked: true,
+    };
+  }
+  return {
+    note: settings?.template
+      ? `A etapa ${label} não tem mensagem própria: sai a mensagem geral, o modelo "${settings.template.name}".`
+      : `A etapa ${label} não tem mensagem própria: sai o texto fixo pelo chip de campanha.`,
+    blocked: false,
+  };
 }
 
 // ─── Cadastros antigos: filtros ─────────────────────────────────────────────

@@ -23,7 +23,17 @@ import {
   normalizeSupportWhatsapp,
   whatsappTestUrl,
 } from "@/modules/admin/application/support-whatsapp";
-import type { PipelineSettings } from "@/modules/admin/infrastructure/crm-api";
+import type { PipelineMessageKey, PipelineSettings } from "@/modules/admin/infrastructure/crm-api";
+import { StageMessagesSection } from "./stage-messages-section";
+import {
+  STAGE_FREE_TEXT_MAX_DEFAULT,
+  draftsFrom,
+  freeTextProblem,
+  hasStageMessages,
+  stageMessagesPayload,
+  type StageDraft,
+  type StageDrafts,
+} from "./stage-messages";
 
 const REPLY_MAX = 400;
 const LINK_TOKEN = "{link_marketing}";
@@ -75,6 +85,19 @@ function SettingsForm({
   );
   const [replyText, setReplyText] = useState(settings.replyText ?? "");
   const [alertEmail, setAlertEmail] = useState(settings.replyAlertEmail ?? "");
+  // Mensagem por etapa: só existe com a API de 18/11/2026 em diante. Sem ela, nem aparece
+  // nem vai no PUT (a API antiga recusaria o campo desconhecido e o "Salvar" quebraria).
+  const stages = hasStageMessages(settings) ? settings.stageMessages : null;
+  const [stageDrafts, setStageDrafts] = useState<StageDrafts>(() =>
+    stages ? draftsFrom(stages) : {},
+  );
+  const setStageDraft = (key: PipelineMessageKey, next: StageDraft) =>
+    setStageDrafts((current) => ({ ...current, [key]: next }));
+  const stageTextInvalid = Object.values(stageDrafts).some(
+    (d) =>
+      !!d?.freeText.trim() &&
+      !!freeTextProblem(d.freeText, settings.stageFreeTextMax ?? STAGE_FREE_TEXT_MAX_DEFAULT),
+  );
 
   // O modelo escolhido pode ter deixado de estar aprovado: continua na lista, com a situação.
   const current = settings.template;
@@ -113,6 +136,7 @@ function SettingsForm({
         marketingWhatsapp: e164 ?? "",
         replyText: replyText.trim() || null,
         replyAlertEmail: alertEmail.trim() || null,
+        ...(stages ? { stageMessages: stageMessagesPayload(stages, stageDrafts) } : {}),
       });
       toast.success("Mensagem do Pipeline atualizada.");
       onClose();
@@ -142,7 +166,7 @@ function SettingsForm({
       </DialogHeader>
 
       {/* O Dialog do admin não limita a altura: sem isto, em tela baixa o rodapé some. */}
-      <div className="max-h-[60vh] space-y-5 overflow-y-auto pr-1">
+      <div className="max-h-[55vh] space-y-5 overflow-y-auto pr-1">
         {/* ── Por onde sai ── */}
         <section className="space-y-2">
           <Label htmlFor="pipeline-template">Mensagem enviada</Label>
@@ -312,6 +336,15 @@ function SettingsForm({
           )}
         </section>
 
+        {stages && (
+          <StageMessagesSection
+            settings={settings}
+            stages={stages}
+            drafts={stageDrafts}
+            onChange={setStageDraft}
+          />
+        )}
+
         {/* ── Link para o botão do modelo ── */}
         <section className="space-y-2">
           <Label htmlFor="pipeline-contact-url">
@@ -350,7 +383,11 @@ function SettingsForm({
         <Button
           onClick={handleSave}
           disabled={
-            save.isPending || whatsappInvalid || replyTooLong || emailInvalid
+            save.isPending ||
+            whatsappInvalid ||
+            replyTooLong ||
+            emailInvalid ||
+            stageTextInvalid
           }
         >
           {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
