@@ -56,6 +56,11 @@ export interface SuspensionItem {
     title: string | null;
     date: string | null;
     startTime: string | null;
+    /** D5, fatia A2a: onde foi. Ausentes na API antiga; nulos quando não se sabe. */
+    jobId?: string | null;
+    company?: { userId: string; name: string | null } | null;
+    city?: string | null;
+    uf?: string | null;
   } | null;
   source: {
     infractionId: string;
@@ -66,6 +71,8 @@ export interface SuspensionItem {
     justification: string | null;
     contestReason: string | null;
     contest: { status: "OPEN" | "SENT" | "CLOSED"; until: string | null };
+    /** D5, fatia A2a: quando a ocorrência foi decidida. Ausente na API antiga. */
+    resolvedAt?: string | null;
   } | null;
   createdByKind: "SYSTEM" | "ADMIN";
   createdByAdminId: string | null;
@@ -73,6 +80,13 @@ export interface SuspensionItem {
   liftedBy: string | null;
   liftedReason: string | null;
   liftedNote: string | null;
+  /**
+   * D5, fatia A2a: nome (ou e-mail) do admin. Sempre presentes na API nova (nulos = sistema);
+   * ausentes na antiga, e é assim que a tela sabe se mostra os filtros de empresa e cidade.
+   */
+  liftedByName?: string | null;
+  conversationByName?: string | null;
+  createdByAdminName?: string | null;
 }
 
 export interface SuspensionList {

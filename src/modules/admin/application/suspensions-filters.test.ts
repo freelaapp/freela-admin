@@ -126,7 +126,15 @@ describe("Suspensões — filtros e detalhe (D5, fatia A1)", () => {
     expect(hasActiveFilters({ ...DEFAULT_FILTERS, q: "ana" })).toBe(true);
     expect(hasActiveFilters({ ...DEFAULT_FILTERS, situation: "ended" })).toBe(true);
     expect(
-      clearFilters({ situation: "ended", q: "ana", period: "7d", reason: "manual", order: "newest" }),
+      clearFilters({
+        situation: "ended",
+        q: "ana",
+        period: "7d",
+        reason: "manual",
+        order: "newest",
+        company: "u-coco",
+        city: "Osasco|SP",
+      }),
     ).toEqual({ ...DEFAULT_FILTERS, situation: "all", order: "newest" });
     expect(clearFilters({ ...DEFAULT_FILTERS, situation: "active_overdue" }).situation).toBe("active");
   });

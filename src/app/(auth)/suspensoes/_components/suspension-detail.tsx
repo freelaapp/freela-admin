@@ -12,6 +12,7 @@ import {
   isActive,
   liftedText,
   occurrenceText,
+  placeText,
   reasonLabel,
   returnLabel,
   stateLabel,
@@ -137,6 +138,7 @@ export function SuspensionDetailPanel({
             {item.vacancy ? (
               <>
                 <p>{vacancy}</p>
+                {"company" in item.vacancy && <p className="text-[#737373]">{placeText(item)}</p>}
                 <a
                   href={vacancyHref(item.vacancy.id)}
                   target="_blank"

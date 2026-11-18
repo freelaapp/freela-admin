@@ -236,6 +236,10 @@ export interface SuspensionFilters {
   period: SuspensionPeriod;
   reason: SuspensionReasonGroup;
   order: SuspensionOrder;
+  /** D5, fatia A2b: `userId` da empresa ("" = todas). */
+  company: string;
+  /** D5, fatia A2b: chave da cidade (`placeKey`; "" = todas). */
+  city: string;
 }
 
 export const DEFAULT_FILTERS: SuspensionFilters = {
@@ -244,6 +248,8 @@ export const DEFAULT_FILTERS: SuspensionFilters = {
   period: "any",
   reason: "all",
   order: "pending_first",
+  company: "",
+  city: "",
 };
 
 /** Há filtro além da base ("Valendo agora" ou "Todas")? A ordem não conta como filtro. */
@@ -252,7 +258,9 @@ export function hasActiveFilters(f: SuspensionFilters): boolean {
     (f.situation !== "active" && f.situation !== "all") ||
     f.q.trim() !== "" ||
     f.period !== "any" ||
-    f.reason !== "all"
+    f.reason !== "all" ||
+    f.company !== "" ||
+    f.city !== ""
   );
 }
 
@@ -351,7 +359,8 @@ export function applySuspensionFilters(
       matchesSituation(item, f.situation) &&
       matchesReason(item, f.reason) &&
       matchesPeriod(item, f.period, now) &&
-      matchesSearch(item, f.q),
+      matchesSearch(item, f.q) &&
+      matchesPlace(item, f.company, f.city),
   );
   if (f.order === "newest") {
     out.sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
@@ -392,10 +401,11 @@ export function timeLabel(iso: string): string {
 
 /** Bloco "Por quê": quem criou a suspensão. */
 export function createdByText(
-  item: Pick<SuspensionItem, "createdByKind" | "manualReason">,
+  item: Pick<SuspensionItem, "createdByKind" | "manualReason" | "createdByAdminName">,
 ): string {
   if (item.createdByKind === "SYSTEM") return "Automática, pela regra de faltas e desistências";
-  return item.manualReason ? `Feita pelo suporte: “${item.manualReason}”` : "Feita pelo suporte";
+  const who = item.createdByAdminName ? `Feita pelo suporte (${item.createdByAdminName})` : "Feita pelo suporte";
+  return item.manualReason ? `${who}: “${item.manualReason}”` : who;
 }
 
 /** Bloco "A ocorrência": "Falta sem aviso, registrada em sáb 07/11 às 23h40". */
@@ -420,7 +430,8 @@ export function contestText(item: Pick<SuspensionItem, "source">): string | null
     return `Contestou${when}.${why}${quote}`;
   }
   if (s.status === "RESOLVED") {
-    return s.contestedAt ? "Contestação negada" : "Ocorrência mantida pelo suporte";
+    const when = s.resolvedAt ? ` em ${shortDate(s.resolvedAt)}` : "";
+    return s.contestedAt ? `Contestação negada${when}` : `Ocorrência mantida pelo suporte${when}`;
   }
   if (s.contest.status === "OPEN") {
     return s.contest.until
@@ -434,13 +445,19 @@ export function contestText(item: Pick<SuspensionItem, "source">): string | null
 export function conversationDetail(
   item: Pick<
     SuspensionItem,
-    "requiresConversation" | "conversationAt" | "conversationNote" | "conversationOverdue" | "endsAt"
+    | "requiresConversation"
+    | "conversationAt"
+    | "conversationNote"
+    | "conversationOverdue"
+    | "endsAt"
+    | "conversationByName"
   >,
 ): string {
   if (!item.requiresConversation) return "Não exigida";
   if (item.conversationAt) {
+    const by = item.conversationByName ? ` por ${item.conversationByName}` : "";
     const note = item.conversationNote ? `: “${item.conversationNote}”` : "";
-    return `Feita em ${shortDate(item.conversationAt)}${note}`;
+    return `Feita em ${shortDate(item.conversationAt)}${by}${note}`;
   }
   if (item.conversationOverdue) {
     return item.endsAt
@@ -459,14 +476,15 @@ const LIFTED_REASON_LABEL: Record<string, string> = {
 
 /** Bloco "Levantada": "Levantada em 11/11. Motivo: Erro do sistema. “…”". Nulo se não foi. */
 export function liftedText(
-  item: Pick<SuspensionItem, "liftedAt" | "liftedReason" | "liftedNote">,
+  item: Pick<SuspensionItem, "liftedAt" | "liftedReason" | "liftedNote" | "liftedByName">,
 ): string | null {
   if (!item.liftedAt) return null;
+  const by = item.liftedByName ? ` por ${item.liftedByName}` : "";
   const reason = item.liftedReason
     ? ` Motivo: ${LIFTED_REASON_LABEL[item.liftedReason] ?? item.liftedReason}.`
     : "";
   const note = item.liftedNote ? ` “${item.liftedNote}”` : "";
-  return `Levantada em ${shortDate(item.liftedAt)}.${reason}${note}`;
+  return `Levantada em ${shortDate(item.liftedAt)}${by}.${reason}${note}`;
 }
 
 /** Bloco "Vaga": "Garçom · sáb 07/11, 18h". Nulo sem vaga (suspensão feita pelo suporte). */
@@ -483,4 +501,73 @@ export const NO_VACANCY_TEXT = "Feita pelo suporte, sem vaga ligada.";
 /** "Abrir a vaga em outra aba": o link pronto do `/jobs` (o mesmo da Fila do suporte). */
 export function vacancyHref(vacancyId: string): string {
   return `/jobs?vaga=${encodeURIComponent(vacancyId)}`;
+}
+
+// ------------------------------------------------------------ empresa e cidade (D5, fatia A2b)
+
+/**
+ * A API já manda empresa, cidade e nomes (fatia A2a)? A presença de `liftedByName` (chave de topo,
+ * sempre presente na API nova, mesmo nula) diz que sim. Com a API antiga, os filtros de empresa e
+ * cidade ficam escondidos e o resto funciona.
+ */
+export function hasPlaceFields(items: SuspensionItem[]): boolean {
+  return items.some((item) => "liftedByName" in item);
+}
+
+export const OLD_API_PLACE_TEXT =
+  "Empresa e cidade ainda não chegam do servidor. Os outros filtros funcionam.";
+export const PLACE_FILTER_NOTICE =
+  "Com empresa ou cidade escolhida, as suspensões feitas pelo suporte sem vaga não aparecem.";
+
+/** Chave da cidade: "Osasco|SP". Nula sem cidade. */
+export function placeKey(item: Pick<SuspensionItem, "vacancy">): string | null {
+  const city = item.vacancy?.city;
+  return city ? `${city}|${item.vacancy?.uf ?? ""}` : null;
+}
+
+function cityName(key: string): string {
+  const [city, uf] = key.split("|");
+  return uf ? `${city}/${uf}` : city;
+}
+
+export function matchesPlace(
+  item: Pick<SuspensionItem, "vacancy">,
+  company: string,
+  city: string,
+): boolean {
+  if (company && item.vacancy?.company?.userId !== company) return false;
+  if (city && placeKey(item) !== city) return false;
+  return true;
+}
+
+/** As empresas presentes nas linhas carregadas, em ordem alfabética. */
+export function companyOptions(items: SuspensionItem[]): Array<{ value: string; label: string }> {
+  const byId = new Map<string, string>();
+  for (const item of items) {
+    const c = item.vacancy?.company;
+    if (c && !byId.has(c.userId)) byId.set(c.userId, c.name ?? "Empresa sem nome");
+  }
+  return [...byId.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+}
+
+/** As cidades presentes nas linhas carregadas, em ordem alfabética ("Osasco/SP"). */
+export function cityOptions(items: SuspensionItem[]): Array<{ value: string; label: string }> {
+  const keys = new Set<string>();
+  for (const item of items) {
+    const key = placeKey(item);
+    if (key) keys.add(key);
+  }
+  return [...keys]
+    .map((value) => ({ value, label: cityName(value) }))
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+}
+
+/** Coluna "Empresa · cidade": "Coco Bambu Osasco · Osasco/SP"; "—" sem nada. */
+export function placeText(item: Pick<SuspensionItem, "vacancy">): string {
+  const company = item.vacancy?.company?.name ?? null;
+  const key = placeKey(item);
+  const city = key ? cityName(key) : null;
+  return [company, city].filter(Boolean).join(" · ") || "—";
 }

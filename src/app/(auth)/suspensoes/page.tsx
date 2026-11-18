@@ -16,7 +16,9 @@ import {
   LIMIT_LEGEND,
   LIMIT_REACHED_TEXT,
   LIST_LIMIT,
+  OLD_API_PLACE_TEXT,
   ORDER_OPTIONS,
+  PLACE_FILTER_NOTICE,
   PERIOD_OPTIONS,
   REASON_GROUP_OPTIONS,
   SITUATION_OPTIONS,
@@ -24,7 +26,9 @@ import {
   applySuspensionFilters,
   canKeepOccurrence,
   canRegisterConversation,
+  cityOptions,
   clearFilters,
+  companyOptions,
   contestReasonLabel,
   conversationLabel,
   conversationOverdueLabel,
@@ -32,9 +36,11 @@ import {
   dayLabel,
   emptyText,
   hasActiveFilters,
+  hasPlaceFields,
   isActive,
   isPenaltyLadderDisabled,
   originLabel,
+  placeText,
   reasonLabel,
   returnLabel,
   stateLabel,
@@ -151,6 +157,10 @@ export default function SuspensoesPage() {
     writeDetailParam(null);
   };
   const detailItem = detailId ? (items.find((i) => i.id === detailId) ?? null) : null;
+  // D5, fatia A2b: empresa e cidade só com a API nova (A2a); com a antiga, ficam escondidas.
+  const withPlace = hasPlaceFields(items);
+  const companies = withPlace ? companyOptions(items) : [];
+  const cities = withPlace ? cityOptions(items) : [];
 
   return (
     <div>
@@ -230,6 +240,33 @@ export default function SuspensoesPage() {
         </label>
       </div>
 
+      {withPlace && (
+        <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className={FILTER_LABEL}>
+            Empresa
+            <NativeSelect value={filters.company} onChange={(e) => set("company", e.target.value)}>
+              <option value="">Todas</option>
+              {companies.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+          <label className={FILTER_LABEL}>
+            Cidade
+            <NativeSelect value={filters.city} onChange={(e) => set("city", e.target.value)}>
+              <option value="">Todas</option>
+              {cities.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+        </div>
+      )}
+
       {data && (
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#737373]">
           <span className="font-semibold text-[#1d1d1b]">{countText(shown.length, items.length)}</span>
@@ -243,6 +280,8 @@ export default function SuspensoesPage() {
             </button>
           )}
           <span className="w-full">{LIMIT_LEGEND}</span>
+          {(filters.company || filters.city) && <span className="w-full">{PLACE_FILTER_NOTICE}</span>}
+          {items.length > 0 && !withPlace && <span className="w-full">{OLD_API_PLACE_TEXT}</span>}
           {items.length >= LIST_LIMIT && (
             <span className="w-full font-semibold text-amber-800">{LIMIT_REACHED_TEXT}</span>
           )}
@@ -288,6 +327,7 @@ export default function SuspensoesPage() {
                 <th scope="col" className={TH}>Volta em</th>
                 <th scope="col" className={TH}>Conversa</th>
                 <th scope="col" className={TH}>Origem (ocorrência)</th>
+                {withPlace && <th scope="col" className={TH}>Empresa · cidade</th>}
                 <th scope="col" className={TH}>Situação</th>
                 <th scope="col" className={TH}>
                   <span className="sr-only">Ações</span>
@@ -326,6 +366,7 @@ export default function SuspensoesPage() {
                       </p>
                     )}
                   </td>
+                  {withPlace && <td className={TD}>{placeText(item)}</td>}
                   <td className={TD}>{stateLabel(item)}</td>
                   <td className={TD}>
                     <div className="flex flex-col items-start gap-1.5">

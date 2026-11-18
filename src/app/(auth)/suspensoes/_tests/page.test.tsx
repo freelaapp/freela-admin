@@ -351,4 +351,57 @@ describe("Suspensões (admin)", () => {
       await waitFor(() => expect(listSuspensions).toHaveBeenLastCalledWith("all"));
     });
   });
+
+  describe("D5, fatia A2b: empresa e cidade", () => {
+    const novo = (id: string, name: string, company: { userId: string; name: string } | null, city: string | null) => {
+      const base = suspensionItem({ id, person: { providerGlobalId: `g-${id}`, name, email: null, phone: null } });
+      return {
+        ...base,
+        vacancy: { ...base.vacancy!, jobId: `job-${id}`, company, city, uf: city ? "SP" : null },
+        liftedByName: null,
+        conversationByName: null,
+        createdByAdminName: null,
+      };
+    };
+
+    it("API antiga: sem filtros de empresa e cidade, com o aviso; o resto funciona", async () => {
+      vi.mocked(listSuspensions).mockResolvedValue(suspensionList());
+      renderPage();
+      await screen.findByText("Ana Souza");
+      expect(screen.queryByLabelText("Empresa")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Cidade")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Empresa e cidade ainda não chegam do servidor. Os outros filtros funcionam."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Empresa · cidade")).not.toBeInTheDocument();
+    });
+
+    it("API nova: filtra por empresa e cidade, com a coluna e o aviso das sem vaga", async () => {
+      vi.mocked(listSuspensions).mockResolvedValue(
+        suspensionList([
+          novo("1", "Ana Souza", { userId: "u-coco", name: "Coco Bambu Osasco" }, "Osasco"),
+          novo("2", "Bia Lima", { userId: "u-spo", name: "Spoleto Campinas" }, "Campinas"),
+        ]),
+      );
+      renderPage();
+      await screen.findByText("Ana Souza");
+      expect(screen.getByText("Empresa · cidade")).toBeInTheDocument();
+      expect(screen.getByText("Coco Bambu Osasco · Osasco/SP")).toBeInTheDocument();
+      expect(screen.queryByText(/ainda não chegam do servidor/)).not.toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Empresa"), { target: { value: "u-spo" } });
+      expect(screen.queryByText("Ana Souza")).not.toBeInTheDocument();
+      expect(screen.getByText("Bia Lima")).toBeInTheDocument();
+      expect(
+        screen.getByText("Com empresa ou cidade escolhida, as suspensões feitas pelo suporte sem vaga não aparecem."),
+      ).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Empresa"), { target: { value: "" } });
+      fireEvent.change(screen.getByLabelText("Cidade"), { target: { value: "Osasco|SP" } });
+      expect(screen.getByText("Ana Souza")).toBeInTheDocument();
+      expect(screen.queryByText("Bia Lima")).not.toBeInTheDocument();
+      // O pedido continua o mesmo: sem limit.
+      expect(vi.mocked(listSuspensions).mock.calls.every((c) => c.length === 1)).toBe(true);
+    });
+  });
 });
