@@ -436,6 +436,43 @@ export interface ProviderItem {
   signupOrigin?: SignupOrigin | null;
   /** Situação na aula obrigatória (null = sem identidade global). Ausente = API anterior ao campo. */
   orientationStatus?: OrientationStatus | null;
+  /**
+   * D5, fatia B: situação da conta, uma por pessoa (exclusão pedida → banida → perfil desativado
+   * → ativa). Ausente = API antiga (a tela cai no `banned`/`isActive` de antes).
+   */
+  accountStatus?: ProviderAccountStatus;
+  /** D5, fatia B: suspensa agora (só ativas); nulo = não. Ausente = API antiga. */
+  suspension?: { endsAt: string | null; requiresConversation: boolean } | null;
+}
+
+export type ProviderAccountStatus = "ACTIVE" | "BANNED" | "DELETION_REQUESTED" | "PROFILE_INACTIVE";
+
+/** D5, fatia B: os filtros de situação (os novos só com a API nova). */
+export type ProviderStatusFilter =
+  | "active"
+  | "inactive"
+  | "banned"
+  | "deletion_requested"
+  | "profile_inactive"
+  | "suspended";
+
+/** D5, fatia B: `GET /providers/status-counts` (cache de 5 min na API). */
+export interface ProvidersStatusCounts {
+  active: number;
+  banned: number;
+  deletionRequested: number;
+  profileInactive: number;
+  inactive: number;
+  suspended: number;
+  noOrientation: number;
+  deleted: number;
+  total: number;
+  computedAt: string;
+}
+
+export async function getProvidersStatusCounts(): Promise<ProvidersStatusCounts> {
+  const res = await adminApi.get("/providers/status-counts");
+  return res.data.data;
 }
 
 export interface GetAdminProvidersParams {
@@ -445,7 +482,7 @@ export interface GetAdminProvidersParams {
   uf?: string;
   city?: string;
   service?: string;
-  status?: "active" | "inactive";
+  status?: ProviderStatusFilter;
   /** Situação na aula obrigatória (filtro no servidor). */
   orientation?: OrientationStatus;
 }

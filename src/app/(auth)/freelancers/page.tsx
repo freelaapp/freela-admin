@@ -9,6 +9,16 @@ import type { OrientationStatus } from "@/modules/admin/infrastructure/orientati
 import { OrientationProviderSection } from "@/components/admin/orientation/orientation-provider-section";
 import { PixKeyReplaceSection } from "@/components/admin/provider/pix-key-replace-section";
 import { CompletenessCard } from "./_components/completeness-card";
+import { StatusCountsStrip } from "./_components/status-counts-strip";
+import { useProvidersStatusCounts } from "@/modules/admin/application/use-providers-status-counts";
+import {
+  ACCOUNT_HINT,
+  ACCOUNT_LABEL,
+  DELETION_BAN_HINT,
+  statusFilterOptions,
+  suspensionTagText,
+} from "@/modules/admin/application/freelancers-status-presentation";
+import type { ProviderStatusFilter } from "@/modules/admin/infrastructure/admin-api";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { SignupOriginBadges } from "@/components/admin/signup-origin-badges";
@@ -108,6 +118,10 @@ function mapProviderToRow(p: ProviderExportItem) {
     // banned vem de shared.users (o ban não toca o perfil BR) — sem ele o
     // banido aparecia "Ativo". Ausente = API antiga → cai no isActive.
     banned: p.banned === true,
+    // D5, fatia B: com a API nova, a situação da conta (quem pediu exclusão deixa de sair como
+    // "Bloqueado"). Ausente = API antiga → o rótulo de antes.
+    accountStatus: p.accountStatus ?? null,
+    suspensionTag: p.accountStatus ? suspensionTagText(p.suspension) : null,
     status: p.banned
       ? ("blocked" as const)
       : p.isActive
@@ -203,7 +217,7 @@ export default function FreelancersPage() {
     uf: estadoFilter || undefined,
     city: cidadeFilter || undefined,
     service: cargoFilter || undefined,
-    status: (statusFilter as "active" | "inactive") || undefined,
+    status: (statusFilter as ProviderStatusFilter) || undefined,
     orientation: (orientationFilter as OrientationStatus) || undefined,
   };
 
@@ -213,6 +227,10 @@ export default function FreelancersPage() {
     ...serverFilters,
   });
   const { data: filterOptions } = useProvidersFilterOptions();
+  // D5, fatia B: contadores e filtros novos só com a API nova (a antiga responde 404 na rota).
+  const statusCounts = useProvidersStatusCounts(isAreaAllowed);
+  const newStatusApi =
+    Boolean(statusCounts.data) || (data?.data ?? []).some((p) => p.accountStatus !== undefined);
   const { data: catalogRoles } = useCatalogRoles();
   const { data: citiesCatalog } = useCitiesCatalog();
 
@@ -503,10 +521,35 @@ export default function FreelancersPage() {
       className: "hidden lg:table-cell",
     },
     {
-      header: "Status",
-      accessor: (row: Row) => <StatusBadge status={row.status} />,
+      header: newStatusApi ? "Conta" : "Status",
+      accessor: (row: Row) =>
+        row.accountStatus ? (
+          <div className="flex flex-col items-start gap-1">
+            <span
+              title={ACCOUNT_HINT[row.accountStatus]}
+              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                row.accountStatus === "ACTIVE"
+                  ? "bg-green-50 text-green-700"
+                  : row.accountStatus === "BANNED"
+                    ? "bg-red-50 text-red-700"
+                    : row.accountStatus === "DELETION_REQUESTED"
+                      ? "bg-amber-50 text-amber-800"
+                      : "bg-[#f0f0f0] text-[#525252]"
+              }`}
+            >
+              {ACCOUNT_LABEL[row.accountStatus]}
+            </span>
+            {row.suspensionTag && (
+              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                {row.suspensionTag}
+              </span>
+            )}
+          </div>
+        ) : (
+          <StatusBadge status={row.status} />
+        ),
       sortable: true,
-      sortAccessor: (row: Row) => row.status,
+      sortAccessor: (row: Row) => row.accountStatus ?? row.status,
     },
     {
       header: "Prioridade",
@@ -544,7 +587,13 @@ export default function FreelancersPage() {
         <div className="flex items-center gap-1">
           <button onClick={() => openModal("view", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Ver perfil"><Eye className="w-4 h-4" /></button>
           <button onClick={() => openModal("edit", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Editar"><Pencil className="w-4 h-4" /></button>
-          <button onClick={() => openModal("ban", row)} className={`p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors ${row.banned ? "text-red-500" : ""}`} title={row.banned ? "Desbanir" : "Bloquear"}><Ban className="w-4 h-4" /></button>
+          {row.accountStatus === "DELETION_REQUESTED" ? (
+            // D5, fatia B: quem pediu exclusão não pode ser banido nem desbanido (a API recusa o
+            // desbanir com 409: devolveria o login no meio da carência da exclusão).
+            <button disabled aria-label={DELETION_BAN_HINT} className="p-1.5 rounded-md text-[#d4d4d4] cursor-not-allowed" title={DELETION_BAN_HINT}><Ban className="w-4 h-4" /></button>
+          ) : (
+            <button onClick={() => openModal("ban", row)} className={`p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors ${row.banned ? "text-red-500" : ""}`} title={row.banned ? "Desbanir" : "Bloquear"}><Ban className="w-4 h-4" /></button>
+          )}
           <button onClick={() => openModal("history", row)} className="p-1.5 rounded-md hover:bg-[#eca826]/10 hover:text-[#eca826] cursor-pointer transition-colors" title="Histórico"><History className="w-4 h-4" /></button>
           {row.lowPriority && (
             <button
@@ -607,7 +656,14 @@ export default function FreelancersPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#1d1d1b]">
                   <User className="w-4 h-4 text-[#737373]" />
-                  <StatusBadge status={selectedItem.status} />
+                  {selectedItem.accountStatus ? (
+                    <span title={ACCOUNT_HINT[selectedItem.accountStatus]} className="inline-flex rounded-full bg-[#f0f0f0] px-2 py-0.5 text-xs font-semibold text-[#1d1d1b]">
+                      Conta: {ACCOUNT_LABEL[selectedItem.accountStatus]}
+                      {selectedItem.suspensionTag ? ` · ${selectedItem.suspensionTag}` : ""}
+                    </span>
+                  ) : (
+                    <StatusBadge status={selectedItem.status} />
+                  )}
                 </div>
               </div>
 
@@ -1004,6 +1060,22 @@ export default function FreelancersPage() {
 
       <CompletenessCard />
 
+      {statusCounts.data && (
+        <StatusCountsStrip
+          counts={statusCounts.data}
+          statusFilter={statusFilter}
+          orientationFilter={orientationFilter}
+          onPickStatus={(status) => {
+            setStatusFilter(status);
+            setOrientationFilter("");
+          }}
+          onPickNoOrientation={() => {
+            setStatusFilter("active");
+            setOrientationFilter("PENDING");
+          }}
+        />
+      )}
+
       <DataTable
         columns={columns}
         data={rows}
@@ -1018,11 +1090,8 @@ export default function FreelancersPage() {
             <FilterSelect
               value={statusFilter}
               onChange={setStatusFilter}
-              options={[
-                { value: "active", label: "Ativo" },
-                { value: "inactive", label: "Inativo" },
-              ]}
-              placeholder="Status"
+              options={statusFilterOptions(newStatusApi)}
+              placeholder={newStatusApi ? "Situação" : "Status"}
             />
             <FilterSelect
               value={prioridadeFilter}
