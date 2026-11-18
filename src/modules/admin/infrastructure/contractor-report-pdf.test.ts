@@ -35,6 +35,7 @@ vi.mock("jspdf", () => {
 });
 
 import { generateContractorReportPdf } from "./contractor-report-pdf";
+import { isGrossUpInss } from "../domain/vacancy-money";
 
 // Posição x (borda direita) das colunas numéricas do layout LEGADO: COLS[i].x + w − 1.
 const X_REPASSE = 174 + 34 - 1;
@@ -397,5 +398,64 @@ describe("generateContractorReportPdf — legenda do INSS (por fora)", () => {
     expect(legenda).toMatch(/À PARTE/);
     expect(legenda).toMatch(/não sai do repasse/);
     expect(legenda).not.toMatch(/descontad|retid|retém/i);
+    // INSS gravado = 11% do repasse (1320 de 12000): a legenda de hoje.
+    expect(legenda).toContain("INSS: 11% do repasse,");
+  });
+
+  it("INSS pela conta inversa (17/11/2026): a legenda diz 11% do bruto (repasse ÷ 0,89)", () => {
+    const row = {
+      vacancy_id: "v-gu",
+      title: "Garçom",
+      vacancy_service: "garcom",
+      vacancy_status: "CLOSED",
+      date: "2026-11-20",
+      start_time: null,
+      end_time: null,
+      created_at: "2026-11-18T00:00:00Z",
+      base_amount_in_cents: 14785,
+      freelancer_amount_in_cents: 13000,
+      platform_fee_in_cents: 1300,
+      taxa_servico_in_cents: 1300,
+      seguro_in_cents: 300,
+      total_freelance_in_cents: 13000,
+      inss_in_cents: 1607, // 130 ÷ 0,89 = 146,07 → 16,07
+      repasse_liquido_in_cents: 13000,
+      provides_meal: null,
+      contractor_payment: { status: "COMPLETED", value: 14785 },
+      candidacy_id: "c2",
+      candidacy_status: "ACCEPTED",
+      freelancer_name: "Bia",
+      freelancer_email: null,
+      freelancer_phone: null,
+      freelancer_cpf_casa: null,
+      candidacy_role: null,
+      repasse: { amount: 13000, status: "COMPLETED", pixKey: null, pixKeyType: null },
+    } as unknown as ContractorReportRow;
+
+    generateContractorReportPdf({
+      contractor: {
+        companyName: "Bar X",
+        contactName: null,
+        contactPhone: null,
+        city: null,
+        uf: null,
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+      rows: [row],
+    } as unknown as ContractorReportResult);
+
+    const legenda = textCalls.map((c) => c.text).find((t) => t.includes("INSS:"));
+    expect(legenda).toContain("INSS: 11% do bruto (repasse ÷ 0,89; nas vagas antigas, 11% do repasse),");
+    expect(legenda).not.toMatch(/descontad|retid|retém/i);
+  });
+});
+
+describe("isGrossUpInss (admin, espelho da API)", () => {
+  it("lê a conta inversa do dado gravado e não confunde o modelo de 02–07/09", () => {
+    expect(isGrossUpInss(13000, 1607)).toBe(true);
+    expect(isGrossUpInss(13000, 1430)).toBe(false);
+    expect(isGrossUpInss(11275, 1240)).toBe(false);
+    expect(isGrossUpInss(null, 1607)).toBe(false);
+    expect(isGrossUpInss(13000, 0)).toBe(false);
   });
 });

@@ -33,6 +33,27 @@
 /** Alíquota do INSS provisionado. Espelha INSS_RATE_PERCENT do backend/web/app. */
 export const INSS_RATE_PERCENT = 11;
 
+/**
+ * O INSS gravado na vaga saiu pela conta inversa (INSS_GROSS_UP_ENABLED da API,
+ * 17/11/2026)? Bruto = valor do freelancer ÷ 0,89 (inteiros, meio para cima) e
+ * INSS = bruto − valor. Lido do DADO gravado (`total_freelance_in_cents` +
+ * `inss_in_cents`), como a API (`isGrossUpInss`): `true` só quando o INSS é o da
+ * conta inversa E difere dos 11 % do valor. Base = o total-freelance, nunca o
+ * repasse do modelo de 02–07/09 (que tem a mesma aritmética).
+ */
+export function isGrossUpInss(
+  baseCents: number | null | undefined,
+  inssCents: number | null | undefined,
+): boolean {
+  if (baseCents == null || inssCents == null) return false;
+  if (!Number.isFinite(baseCents) || !Number.isFinite(inssCents)) return false;
+  if (baseCents <= 0 || inssCents <= 0) return false;
+  const net = Math.trunc(baseCents);
+  const denom = 100 - INSS_RATE_PERCENT;
+  const grossUp = Math.floor((net * 200 + denom) / (2 * denom)) - net;
+  return inssCents === grossUp && grossUp !== Math.round((net * INSS_RATE_PERCENT) / 100);
+}
+
 export type VacancyMoneyInput = {
   /** Valor da vaga (total do serviço) em centavos. */
   payment: number;
