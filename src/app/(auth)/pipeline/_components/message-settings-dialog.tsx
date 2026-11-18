@@ -26,9 +26,7 @@ import {
 import type { PipelineMessageKey, PipelineSettings } from "@/modules/admin/infrastructure/crm-api";
 import { StageMessagesSection } from "./stage-messages-section";
 import {
-  STAGE_FREE_TEXT_MAX_DEFAULT,
   draftsFrom,
-  freeTextProblem,
   hasStageMessages,
   stageMessagesPayload,
   type StageDraft,
@@ -93,11 +91,6 @@ function SettingsForm({
   );
   const setStageDraft = (key: PipelineMessageKey, next: StageDraft) =>
     setStageDrafts((current) => ({ ...current, [key]: next }));
-  const stageTextInvalid = Object.values(stageDrafts).some(
-    (d) =>
-      !!d?.freeText.trim() &&
-      !!freeTextProblem(d.freeText, settings.stageFreeTextMax ?? STAGE_FREE_TEXT_MAX_DEFAULT),
-  );
 
   // O modelo escolhido pode ter deixado de estar aprovado: continua na lista, com a situação.
   const current = settings.template;
@@ -383,11 +376,7 @@ function SettingsForm({
         <Button
           onClick={handleSave}
           disabled={
-            save.isPending ||
-            whatsappInvalid ||
-            replyTooLong ||
-            emailInvalid ||
-            stageTextInvalid
+            save.isPending || whatsappInvalid || replyTooLong || emailInvalid
           }
         >
           {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

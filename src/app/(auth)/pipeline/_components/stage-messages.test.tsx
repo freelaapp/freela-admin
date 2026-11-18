@@ -22,15 +22,11 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 
 import { MessageSettingsDialog } from "./message-settings-dialog";
 import { sendConfirmQuestion, stageSendCheck } from "./funnel-helpers";
-import {
-  freeTextPreview,
-  freeTextProblem,
-  stageMessagesPayload,
-  stageSummary,
-} from "./stage-messages";
+import { stageMessagesPayload, stageSummary } from "./stage-messages";
 
 const MODELO = { id: "tpl-1", name: "Boas-vindas", body: "Olá!", hasLinkButton: true };
 const VOLTA = { id: "tpl-2", name: "Volta a contratar", body: "Oi!", hasLinkButton: true };
+const APROVADO = { status: "APPROVED", statusLabel: "Aprovado" };
 
 const ETAPAS: Array<[PipelineStageMessage["key"], string]> = [
   ["CADASTRO_NOVO", "Cadastro novo"],
@@ -41,7 +37,13 @@ const ETAPAS: Array<[PipelineStageMessage["key"], string]> = [
   ["CADASTROS_ANTIGOS", "Cadastros antigos"],
 ];
 
-function stages(over: Partial<Record<string, Partial<PipelineStageMessage>>> = {}) {
+/**
+ * As 6 etapas como o GET da API devolve. A API ainda manda `freeText` (texto salvo antes de
+ * 18/11, se houver): o admin ignora o campo.
+ */
+function stages(
+  over: Partial<Record<string, Partial<PipelineStageMessage> & { freeText?: string | null }>> = {},
+) {
   return ETAPAS.map(([key, label]) => ({
     key,
     label,
@@ -49,7 +51,7 @@ function stages(over: Partial<Record<string, Partial<PipelineStageMessage>>> = {
     template: null,
     freeText: null,
     ...over[key],
-  })) as PipelineStageMessage[];
+  })) as unknown as PipelineStageMessage[];
 }
 
 function settings(over: Partial<PipelineSettings> = {}): PipelineSettings {
@@ -71,10 +73,6 @@ function settings(over: Partial<PipelineSettings> = {}): PipelineSettings {
     updatedAt: null,
     updatedBy: null,
     stageMessages: stages(),
-    stageFreeTextVariables: ["{nome}", "{primeiro_nome}", "{cidade}", "{link_marketing}"],
-    stageFreeTextMax: 1000,
-    serviceWindowHours: 24,
-    stageFreeTextSends: false,
     ...over,
   };
 }
@@ -84,49 +82,32 @@ function wrap(ui: React.ReactElement) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
-describe("mensagem por etapa — regras do formulário", () => {
+describe("mensagem por etapa — regras do formulário (só modelo, 18/11)", () => {
   it("resumo de cada etapa", () => {
     const nome = (id: string) => (id === "tpl-1" ? "Boas-vindas" : null);
     expect(stageSummary(undefined, nome)).toEqual({ text: "Usa a mensagem geral", warn: false });
-    expect(stageSummary({ templateId: "tpl-1", freeText: "" }, nome).text).toBe("Modelo: Boas-vindas");
-    expect(stageSummary({ templateId: "tpl-1", freeText: "Oi" }, nome).text).toBe(
-      "Modelo: Boas-vindas + texto livre",
-    );
-    expect(stageSummary({ templateId: "apagado", freeText: "" }, nome)).toEqual({
+    expect(stageSummary({ templateId: "" }, nome)).toEqual({ text: "Usa a mensagem geral", warn: false });
+    expect(stageSummary({ templateId: "tpl-1" }, nome)).toEqual({ text: "Modelo: Boas-vindas", warn: false });
+    expect(stageSummary({ templateId: "apagado" }, nome)).toEqual({
       text: "Modelo não encontrado: escolha outro",
       warn: true,
     });
-    expect(stageSummary({ templateId: "", freeText: "Oi" }, nome)).toEqual({
-      text: "Só texto livre: fora das 24 h não envia",
-      warn: true,
-    });
   });
 
-  it("texto livre: variável desconhecida e tamanho", () => {
-    expect(freeTextProblem("Oi, {primeiro_nome}! {link_marketing}")).toBeNull();
-    expect(freeTextProblem("Oi, {empresa}")).toContain("{empresa}");
-    expect(freeTextProblem("x".repeat(1001))).toContain("1001 de 1000");
-  });
-
-  it("prévia com os valores de exemplo", () => {
-    expect(freeTextPreview("Oi, {primeiro_nome} de {cidade}: {link_marketing}", "https://wa.me/1")).toBe(
-      "Oi, Maria de Campinas: https://wa.me/1",
-    );
-  });
-
-  it("o PUT leva as 6 etapas; vazio vira null (etapa vazia = mensagem geral)", () => {
-    const payload = stageMessagesPayload(stages(), {
-      CADASTRO_NOVO: { templateId: "tpl-1", freeText: "  " },
-      PRIMEIRA_CONTRATACAO: { templateId: "", freeText: " Oi! " },
+  it("o PUT leva as 6 etapas, só com o modelo (vazio vira null) e nunca o texto livre", () => {
+    const payload = stageMessagesPayload(stages({ CADASTROS_ANTIGOS: { freeText: "Oi!" } }), {
+      CADASTRO_NOVO: { templateId: "tpl-1" },
+      PRIMEIRA_CONTRATACAO: { templateId: "  " },
     });
     expect(Object.keys(payload)).toHaveLength(6);
-    expect(payload.CADASTRO_NOVO).toEqual({ templateId: "tpl-1", freeText: null });
-    expect(payload.PRIMEIRA_CONTRATACAO).toEqual({ templateId: null, freeText: "Oi!" });
-    expect(payload.CLIENTE_FIDELIZADO).toEqual({ templateId: null, freeText: null });
+    expect(payload.CADASTRO_NOVO).toEqual({ templateId: "tpl-1" });
+    expect(payload.PRIMEIRA_CONTRATACAO).toEqual({ templateId: null });
+    expect(payload.CLIENTE_FIDELIZADO).toEqual({ templateId: null });
+    for (const entry of Object.values(payload)) expect(entry).not.toHaveProperty("freeText");
   });
 });
 
-describe("confirmação antes de enviar, com mensagem por etapa", () => {
+describe("confirmação antes de enviar, com modelo por etapa", () => {
   const card = {
     userId: "u1",
     name: "Bar do Zé",
@@ -135,36 +116,37 @@ describe("confirmação antes de enviar, com mensagem por etapa", () => {
     messagesSentCount: 0,
   } as unknown as PipelineCard;
 
-  it("nenhuma etapa configurada: a confirmação fica como sempre foi", () => {
+  it("nenhuma etapa com modelo: a confirmação fica como sempre foi (texto livre salvo não conta)", () => {
     expect(stageSendCheck(settings(), "CADASTRO_NOVO")).toBeNull();
     expect(stageSendCheck(settings({ stageMessages: undefined }), "CADASTRO_NOVO")).toBeNull();
+    expect(
+      stageSendCheck(settings({ stageMessages: stages({ CADASTROS_ANTIGOS: { freeText: "Oi!" } }) }), "CADASTROS_ANTIGOS"),
+    ).toBeNull();
   });
 
-  it("etapa com modelo, sem nada e só com texto livre", () => {
+  it("etapa com modelo diz o modelo; etapa sem modelo (mesmo com texto livre salvo) diz a mensagem geral", () => {
     const s = settings({
-      template: { ...MODELO, status: "APPROVED", statusLabel: "Aprovado" },
+      template: { ...MODELO, ...APROVADO },
       stageMessages: stages({
         PRIMEIRA_CONTRATACAO: {
           templateId: "tpl-2",
-          template: { id: "tpl-2", name: "Volta a contratar", status: "APPROVED", statusLabel: "Aprovado" },
+          template: { id: "tpl-2", name: "Volta a contratar", ...APROVADO },
         },
         CADASTROS_ANTIGOS: { freeText: "Oi!" },
       }),
     });
 
     const modelo = stageSendCheck(s, "PRIMEIRA_CONTRATACAO");
-    expect(modelo).toEqual({
-      note: 'Sai o modelo "Volta a contratar" da etapa 1ª contratação, pelo WhatsApp oficial.',
-      blocked: false,
-    });
-    expect(sendConfirmQuestion(card, { templateName: "Boas-vindas", messageNote: modelo!.note })).toBe(
+    expect(modelo).toBe('Sai o modelo "Volta a contratar" da etapa 1ª contratação, pelo WhatsApp oficial.');
+    expect(sendConfirmQuestion(card, { templateName: "Boas-vindas", messageNote: modelo })).toBe(
       'Enviar a mensagem automática de WhatsApp para Bar do Zé? Sai o modelo "Volta a contratar" da etapa 1ª contratação, pelo WhatsApp oficial.',
     );
-
-    expect(stageSendCheck(s, "CADASTRO_NOVO")?.note).toBe(
+    expect(stageSendCheck(s, "CADASTRO_NOVO")).toBe(
       'A etapa Cadastro novo não tem mensagem própria: sai a mensagem geral, o modelo "Boas-vindas".',
     );
-    expect(stageSendCheck(s, "CADASTROS_ANTIGOS")?.blocked).toBe(true);
+    expect(stageSendCheck(s, "CADASTROS_ANTIGOS")).toBe(
+      'A etapa Cadastros antigos não tem mensagem própria: sai a mensagem geral, o modelo "Boas-vindas".',
+    );
   });
 });
 
@@ -187,46 +169,84 @@ describe("Configurar mensagem › Mensagem por etapa", () => {
     expect(api.updateCrmPipelineSettings.mock.calls[0][0]).not.toHaveProperty("stageMessages");
   });
 
-  it("escolhe o modelo de uma etapa, escreve o texto de outra e salva as 6", async () => {
-    api.updateCrmPipelineSettings.mockResolvedValue(settings());
-    wrap(<MessageSettingsDialog open onOpenChange={vi.fn()} settings={settings()} />);
+  it("cada etapa só tem o seletor de modelo, com \"Usar a mensagem geral\" em 1º; nada de texto livre", () => {
+    wrap(
+      <MessageSettingsDialog
+        open
+        onOpenChange={vi.fn()}
+        settings={settings({ stageMessages: stages({ CADASTROS_ANTIGOS: { freeText: "Oi, {primeiro_nome}" } }) })}
+      />,
+    );
 
-    expect(screen.getByText("Mensagem por etapa")).toBeInTheDocument();
-    // A regra das 24 h e o aviso de que o texto livre ainda não sai.
-    expect(screen.getByText(/só deixa sair modelo aprovado pela Meta/)).toBeInTheDocument();
-    expect(screen.getByText(/ainda não envia o texto livre/)).toBeInTheDocument();
+    const secao = screen.getByRole("region", { name: "Mensagem por etapa" });
+    for (const [key] of ETAPAS) {
+      const etapa = within(secao).getByTestId(`etapa-${key}`);
+      const select = within(etapa).getByLabelText("Modelo aprovado") as HTMLSelectElement;
+      expect(select.options[0]).toHaveTextContent("Usar a mensagem geral");
+      expect(select.options[0].value).toBe("");
+      expect(within(etapa).queryByRole("textbox")).not.toBeInTheDocument();
+    }
+    expect(within(secao).queryByText(/Texto livre/i)).not.toBeInTheDocument();
+    expect(within(secao).queryByText(/24 h|24 horas/)).not.toBeInTheDocument();
+    expect(within(secao).queryByText(/ainda não envia o texto livre/)).not.toBeInTheDocument();
+    expect(within(secao).queryByText(/só tem texto livre/)).not.toBeInTheDocument();
+    expect(within(secao).queryByRole("button", { name: "{primeiro_nome}" })).not.toBeInTheDocument();
+    expect(within(secao).queryByText(/Como a pessoa recebe/)).not.toBeInTheDocument();
+    // A etapa com texto salvo e sem modelo aparece como ela sai: a mensagem geral.
+    expect(within(within(secao).getByTestId("etapa-CADASTROS_ANTIGOS")).getByText("Usa a mensagem geral")).toBeInTheDocument();
+  });
+
+  it("salvar: os modelos salvos voltam iguais, a etapa trocada vai com o novo e nenhuma leva texto livre", async () => {
+    api.updateCrmPipelineSettings.mockResolvedValue(settings());
+    const salvas = settings({
+      stageMessages: stages({
+        CADASTRO_NOVO: { templateId: "tpl-1", template: { id: "tpl-1", name: "Boas-vindas", ...APROVADO } },
+        CLIENTE_FIDELIZADO: {
+          templateId: "tpl-2",
+          template: { id: "tpl-2", name: "Volta a contratar", ...APROVADO },
+          freeText: "texto salvo antes",
+        },
+        CADASTROS_ANTIGOS: { freeText: "Oi, {primeiro_nome}" },
+      }),
+    });
+    wrap(<MessageSettingsDialog open onOpenChange={vi.fn()} settings={salvas} />);
 
     const primeira = screen.getByTestId("etapa-PRIMEIRA_CONTRATACAO");
     fireEvent.change(within(primeira).getByLabelText("Modelo aprovado"), {
       target: { value: "tpl-2" },
     });
-    const antigos = screen.getByTestId("etapa-CADASTROS_ANTIGOS");
-    fireEvent.change(within(antigos).getByLabelText(/Texto livre/), {
-      target: { value: "Oi," },
-    });
-    fireEvent.click(within(antigos).getByRole("button", { name: "{primeiro_nome}" }));
-    // Só texto livre: o aviso e a prévia aparecem.
-    expect(within(antigos).getByText(/Esta etapa só tem texto livre/)).toBeInTheDocument();
-    expect(within(antigos).getByText("Oi, Maria")).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
 
     await waitFor(() => expect(api.updateCrmPipelineSettings).toHaveBeenCalled());
     const payload = api.updateCrmPipelineSettings.mock.calls[0][0].stageMessages;
-    expect(payload.PRIMEIRA_CONTRATACAO).toEqual({ templateId: "tpl-2", freeText: null });
-    expect(payload.CADASTROS_ANTIGOS).toEqual({ templateId: null, freeText: "Oi, {primeiro_nome}" });
-    expect(payload.CADASTRO_NOVO).toEqual({ templateId: null, freeText: null });
+    expect(payload).toEqual({
+      CADASTRO_NOVO: { templateId: "tpl-1" },
+      PRIMEIRA_CONTRATACAO: { templateId: "tpl-2" },
+      SEGUNDA_CONTRATACAO: { templateId: null },
+      TERCEIRA_CONTRATACAO: { templateId: null },
+      CLIENTE_FIDELIZADO: { templateId: "tpl-2" },
+      CADASTROS_ANTIGOS: { templateId: null },
+    });
+    for (const entry of Object.values(payload)) expect(entry).not.toHaveProperty("freeText");
   });
 
-  it("variável desconhecida no texto trava o Salvar", () => {
-    wrap(<MessageSettingsDialog open onOpenChange={vi.fn()} settings={settings()} />);
-    const novo = screen.getByTestId("etapa-CADASTRO_NOVO");
-    fireEvent.change(within(novo).getByLabelText(/Texto livre/), {
-      target: { value: "Oi {empresa}" },
+  it("voltar uma etapa para \"Usar a mensagem geral\" manda templateId null", async () => {
+    api.updateCrmPipelineSettings.mockResolvedValue(settings());
+    const salvas = settings({
+      stageMessages: stages({
+        CADASTRO_NOVO: { templateId: "tpl-1", template: { id: "tpl-1", name: "Boas-vindas", ...APROVADO } },
+      }),
     });
-    expect(within(novo).getAllByText(/Variável desconhecida/).length).toBeGreaterThan(0);
-    // O erro aparece também no resumo, visível com a etapa fechada.
-    expect(within(novo).getByText(/^Texto livre com erro:/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Salvar" })).toBeDisabled();
+    wrap(<MessageSettingsDialog open onOpenChange={vi.fn()} settings={salvas} />);
+
+    const novo = screen.getByTestId("etapa-CADASTRO_NOVO");
+    expect(within(novo).getByText("Modelo: Boas-vindas")).toBeInTheDocument();
+    fireEvent.change(within(novo).getByLabelText("Modelo aprovado"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(api.updateCrmPipelineSettings).toHaveBeenCalled());
+    expect(api.updateCrmPipelineSettings.mock.calls[0][0].stageMessages.CADASTRO_NOVO).toEqual({
+      templateId: null,
+    });
   });
 });

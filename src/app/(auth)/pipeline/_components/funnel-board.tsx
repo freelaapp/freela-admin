@@ -10,7 +10,6 @@ import {
   useCrmPipelineSettings,
   usePipelineWhatsApp,
 } from "@/modules/admin/application/use-admin-crm";
-import { toast } from "sonner";
 import type { PipelineCard, PipelineStage } from "@/modules/admin/infrastructure/crm-api";
 import {
   FUNNEL_PRESETS,
@@ -59,17 +58,12 @@ export function FunnelBoard() {
   }, [board, q]);
 
   function onSendWhatsApp(card: PipelineCard, stage: PipelineStage) {
-    // Mensagem da etapa: se a etapa só tem texto livre, nem pergunta — a API recusaria.
-    const check = stageSendCheck(settings, stage);
-    if (check?.blocked) {
-      toast.error(check.note);
-      return;
-    }
     // Reenvio pede confirmação DIFERENTE: mandar de novo para quem já recebeu é
     // o erro que o amarelo existe para evitar, e insistir queima o número.
     const pergunta = sendConfirmQuestion(card, {
       templateName: settings?.template?.name,
-      messageNote: check?.note,
+      // Com modelo por etapa, a confirmação diz qual modelo sai.
+      messageNote: stageSendCheck(settings, stage),
     });
     if (!confirm(pergunta)) return;
     sendWhatsApp.mutate(card.userId);

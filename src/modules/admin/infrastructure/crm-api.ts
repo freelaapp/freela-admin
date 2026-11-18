@@ -339,7 +339,6 @@ export interface PipelineStageMessage {
   templateId: string | null;
   /** Nome e situação do modelo da etapa (mesmo que tenha deixado de estar aprovado). */
   template: { id: string; name: string; status: string; statusLabel: string } | null;
-  freeText: string | null;
 }
 
 export interface PipelineSettings {
@@ -360,14 +359,8 @@ export interface PipelineSettings {
   updatedAt: string | null;
   updatedBy: { id: string; name: string | null } | null;
   // ── Mensagem por etapa (aditivo: a API anterior a 18/11/2026 não manda) ──
-  /** Sempre as 6 etapas; etapa sem nada = vale a mensagem geral. */
+  /** Sempre as 6 etapas; etapa sem modelo = vale a mensagem geral. */
   stageMessages?: PipelineStageMessage[];
-  /** "{primeiro_nome}", "{nome}", "{cidade}", "{link_marketing}". */
-  stageFreeTextVariables?: string[];
-  stageFreeTextMax?: number;
-  serviceWindowHours?: number;
-  /** `false` = o texto livre é salvo, mas o botão ainda não o envia. */
-  stageFreeTextSends?: boolean;
 }
 
 /** Campo ausente = não mexe; vazio ou `null` = limpa. */
@@ -376,10 +369,12 @@ export interface UpdatePipelineSettingsInput {
   marketingWhatsapp?: string | null;
   replyText?: string | null;
   replyAlertEmail?: string | null;
-  /** Substitui o mapa inteiro. Só mandar para a API que devolveu `stageMessages` no GET. */
-  stageMessages?: Partial<
-    Record<PipelineMessageKey, { templateId: string | null; freeText: string | null }>
-  >;
+  /**
+   * Substitui o mapa de modelos (as 6 etapas). Só mandar para a API que devolveu
+   * `stageMessages` no GET. Só o modelo: o texto livre por etapa não é enviado (18/11/2026), e a
+   * API guarda o que já estiver salvo quando o campo não vem.
+   */
+  stageMessages?: Partial<Record<PipelineMessageKey, { templateId: string | null }>>;
 }
 
 export async function getCrmPipelineSettings(): Promise<PipelineSettings> {

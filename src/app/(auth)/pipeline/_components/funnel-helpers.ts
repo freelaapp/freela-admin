@@ -228,42 +228,27 @@ export function sendConfirmQuestion(
 // ─── Mensagem por etapa ─────────────────────────────────────────────────────
 
 /**
- * O que sai para um card, conforme a mensagem da etapa (espelho da regra da API):
- * - nenhuma etapa configurada (ou API antiga): `null` — a confirmação fica como sempre foi;
+ * A frase da confirmação que diz o que sai para um card, conforme o modelo da etapa (espelho da
+ * regra da API; o produto é "um modelo aprovado por etapa", 18/11/2026):
+ * - nenhuma etapa com modelo (ou API antiga): `null` — a confirmação fica como sempre foi;
  * - etapa com modelo: o modelo dela;
- * - etapa só com texto livre: bloqueado — fora da janela de 24 h a Meta só aceita modelo, e o
- *   painel ainda não envia o texto livre (a API recusaria);
- * - etapa sem nada: a mensagem geral.
+ * - etapa sem modelo: a mensagem geral.
  */
 export function stageSendCheck(
   settings: PipelineSettings | undefined,
   key: PipelineMessageKey,
-): { note: string; blocked: boolean } | null {
+): string | null {
   const stages = settings?.stageMessages;
-  if (!stages || !stages.some((s) => s.templateId || s.freeText)) return null;
+  if (!stages || !stages.some((s) => s.templateId)) return null;
   const stage = stages.find((s) => s.key === key);
   const label = stage?.label ?? key;
   if (stage?.templateId) {
     const nome = stage.template?.name ?? "da etapa";
-    return {
-      note: `Sai o modelo "${nome}" da etapa ${label}, pelo WhatsApp oficial.`,
-      blocked: false,
-    };
+    return `Sai o modelo "${nome}" da etapa ${label}, pelo WhatsApp oficial.`;
   }
-  if (stage?.freeText) {
-    return {
-      note:
-        `A etapa ${label} só tem texto livre, e fora da janela de 24 h a Meta só aceita modelo ` +
-        `aprovado. Escolha um modelo para essa etapa em "Configurar mensagem".`,
-      blocked: true,
-    };
-  }
-  return {
-    note: settings?.template
-      ? `A etapa ${label} não tem mensagem própria: sai a mensagem geral, o modelo "${settings.template.name}".`
-      : `A etapa ${label} não tem mensagem própria: sai o texto fixo pelo chip de campanha.`,
-    blocked: false,
-  };
+  return settings?.template
+    ? `A etapa ${label} não tem mensagem própria: sai a mensagem geral, o modelo "${settings.template.name}".`
+    : `A etapa ${label} não tem mensagem própria: sai o texto fixo pelo chip de campanha.`;
 }
 
 // ─── Cadastros antigos: filtros ─────────────────────────────────────────────
