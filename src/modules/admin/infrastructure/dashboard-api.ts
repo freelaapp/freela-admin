@@ -69,8 +69,7 @@ const ratingIndicatorSchema = z.object({
 });
 
 /** Bloco opcional: ausente ou malformado vira `undefined` sem derrubar o resto. */
-const optional = <T extends z.ZodTypeAny>(schema: T) =>
-  schema.optional().catch(undefined);
+const optional = <T extends z.ZodTypeAny>(schema: T) => schema.optional().catch(undefined);
 
 const periodSchema = z.object({
   preset: z.string(),
@@ -87,11 +86,7 @@ const topContractorSchema = z.object({
   contractorUserId: z.string(),
   name: z.string().nullable(),
   city: z.string().nullable(),
-  uf: z
-    .string()
-    .nullable()
-    .optional()
-    .transform((v) => v ?? null),
+  uf: z.string().nullable().optional().transform((v) => v ?? null),
   vacanciesCreated: count,
   vacanciesCompleted: count,
   hiresCompleted: count,
@@ -128,9 +123,10 @@ const outcomeCountsSchema = z
   .record(z.string(), z.number().finite())
   .transform(
     (raw) =>
-      Object.fromEntries(
-        VACANCY_OUTCOME_KEYS.map((key) => [key, raw[key] ?? 0]),
-      ) as Record<VacancyOutcomeKey, number>,
+      Object.fromEntries(VACANCY_OUTCOME_KEYS.map((key) => [key, raw[key] ?? 0])) as Record<
+        VacancyOutcomeKey,
+        number
+      >,
   );
 
 const outcomeSummarySchema = z.object({
@@ -172,9 +168,7 @@ const noShowsSchema = z.object({
 const dashboardSchema = z.object({
   generatedAt: z.string(),
   period: optional(periodSchema),
-  exclusions: optional(
-    z.object({ excludedAccounts: count, qaServiceType: z.string() }),
-  ),
+  exclusions: optional(z.object({ excludedAccounts: count, qaServiceType: z.string() })),
   totals: z
     .object({
       freelancers: optional(count),
@@ -228,14 +222,11 @@ export interface AdminDashboardParams {
 }
 
 function unavailableOr(error: unknown): never {
-  if (isAxiosError(error) && error.response?.status === 404)
-    throw new DashboardUnavailableError();
+  if (isAxiosError(error) && error.response?.status === 404) throw new DashboardUnavailableError();
   throw error;
 }
 
-export async function getAdminDashboard(
-  params: AdminDashboardParams = {},
-): Promise<AdminDashboard> {
+export async function getAdminDashboard(params: AdminDashboardParams = {}): Promise<AdminDashboard> {
   const custom = params.period === "custom";
   try {
     const res = await adminApi.get("/dashboard", {
@@ -254,15 +245,7 @@ export async function getAdminDashboard(
 // ─── Status das vagas (S1–S7) ───────────────────────────────────────────────
 
 export type VacancyStagesScope = "today" | "upcoming";
-export const VACANCY_STAGE_KEYS = [
-  "S1",
-  "S2",
-  "S3",
-  "S4",
-  "S5",
-  "S6",
-  "S7",
-] as const;
+export const VACANCY_STAGE_KEYS = ["S1", "S2", "S3", "S4", "S5", "S6", "S7"] as const;
 export type VacancyStageKey = (typeof VACANCY_STAGE_KEYS)[number];
 
 const stageVacancySchema = z.object({
@@ -305,13 +288,9 @@ export type StageVacancy = z.infer<typeof stageVacancySchema>;
 export type StageSummary = z.infer<typeof stageSummarySchema>;
 export type VacancyStages = z.infer<typeof vacancyStagesSchema>;
 
-export async function getVacancyStages(
-  scope: VacancyStagesScope,
-): Promise<VacancyStages> {
+export async function getVacancyStages(scope: VacancyStagesScope): Promise<VacancyStages> {
   try {
-    const res = await adminApi.get("/dashboard/vacancy-stages", {
-      params: { scope },
-    });
+    const res = await adminApi.get("/dashboard/vacancy-stages", { params: { scope } });
     return vacancyStagesSchema.parse(res.data?.data);
   } catch (error) {
     return unavailableOr(error);

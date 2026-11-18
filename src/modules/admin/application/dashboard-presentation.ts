@@ -31,15 +31,9 @@ export function formatInteger(value: number | null | undefined): string {
   return isNumber(value) ? Math.round(value).toLocaleString("pt-BR") : DASH;
 }
 
-export function formatDecimal(
-  value: number | null | undefined,
-  digits = 1,
-): string {
+export function formatDecimal(value: number | null | undefined, digits = 1): string {
   return isNumber(value)
-    ? value.toLocaleString("pt-BR", {
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits,
-      })
+    ? value.toLocaleString("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits })
     : DASH;
 }
 
@@ -50,10 +44,7 @@ export function formatPercent(fraction: number | null | undefined): string {
 
 export function formatCurrencyCents(cents: number | null | undefined): string {
   return isNumber(cents)
-    ? new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      }).format(cents / 100)
+    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100)
     : DASH;
 }
 
@@ -87,18 +78,14 @@ export function changeText(
     return `${signed(formatDecimal(absolute, 1), absolute)}${vs}`;
   }
   if (percent === null) {
-    const text =
-      kind === "count" ? formatInteger(absolute) : formatDecimal(absolute, 1);
+    const text = kind === "count" ? formatInteger(absolute) : formatDecimal(absolute, 1);
     return `${signed(text, absolute)}; antes 0${vs}`;
   }
   return `${signed(formatDecimal(percent, 0), percent)}%${vs}`;
 }
 
 /** Verde quando melhora, vermelho quando piora, cinza no empate ou sem comparação. */
-export function changeTone(
-  change: DashboardChange | undefined,
-  higherIsBetter = true,
-): string {
+export function changeTone(change: DashboardChange | undefined, higherIsBetter = true): string {
   if (!change || change.absolute === 0) return "text-[#737373]";
   const up = change.absolute > 0;
   return up === higherIsBetter ? "text-green-600" : "text-red-600";
@@ -127,24 +114,16 @@ export interface DashboardCardGroup {
 }
 
 const EXCLUSION_NOTE = "contas internas e vagas de QA (cargo Teste) ficam fora";
-const OFFICIAL_NOTE =
-  "Só vagas oficiais: as vagas falsas ficam fora (desde 18/11/2026).";
+const OFFICIAL_NOTE = "Só vagas oficiais: as vagas falsas ficam fora (desde 18/11/2026).";
 
 /** Junta uma frase à conta do card ("Ver a conta"), sem mexer no resto. */
-function withExtraCalc(
-  card: DashboardCardModel,
-  extra: string | undefined,
-): DashboardCardModel {
+function withExtraCalc(card: DashboardCardModel, extra: string | undefined): DashboardCardModel {
   return extra
-    ? {
-        ...card,
-        details: { ...card.details, calc: `${card.details.calc} ${extra}` },
-      }
+    ? { ...card, details: { ...card.details, calc: `${card.details.calc} ${extra}` } }
     : card;
 }
 
-const pluralize = (n: number, one: string, many: string) =>
-  n === 1 ? one : many;
+const pluralize = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
   const label = data.period?.label ?? "o período";
@@ -154,11 +133,7 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
   const vo = data.vacancyOutcomes;
   const official = vo ? ` ${OFFICIAL_NOTE}` : "";
 
-  const meta = (
-    kind: ChangeKind,
-    change: DashboardChange | undefined,
-    higherIsBetter = true,
-  ) => ({
+  const meta = (kind: ChangeKind, change: DashboardChange | undefined, higherIsBetter = true) => ({
     meta: `${label} · ${changeText(kind, change, previousLabel)}`,
     metaColor: changeTone(change, higherIsBetter),
   });
@@ -195,15 +170,12 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
       id,
       title,
       value: formatInteger(indicator?.current),
-      caption: cur
-        ? `${formatPercent(cur.value)} das vagas criadas`
-        : undefined,
+      caption: cur ? `${formatPercent(cur.value)} das vagas criadas` : undefined,
       ...meta("count", indicator?.change ?? undefined, higherIsBetter),
       details: {
-        calc:
-          indicator && cur
-            ? `${formatInteger(indicator.current)} ${what} em ${label}. ${formatInteger(cur.numerator)} ÷ ${formatInteger(cur.denominator)} vagas criadas no período = ${formatPercent(cur.value)}. Em ${prevText}: ${formatInteger(indicator.previous)}.`
-            : "Esta versão da API ainda não devolve este número.",
+        calc: indicator && cur
+          ? `${formatInteger(indicator.current)} ${what} em ${label}. ${formatInteger(cur.numerator)} ÷ ${formatInteger(cur.denominator)} vagas criadas no período = ${formatPercent(cur.value)}. Em ${prevText}: ${formatInteger(indicator.previous)}.`
+          : "Esta versão da API ainda não devolve este número.",
         source,
       },
     };
@@ -219,15 +191,9 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
     caption: (r: DashboardRatio) => string,
   ): DashboardCardModel => {
     const cur = indicator?.current;
-    const value =
-      kind === "percent"
-        ? formatPercent(cur?.value)
-        : formatDecimal(cur?.value, 1);
+    const value = kind === "percent" ? formatPercent(cur?.value) : formatDecimal(cur?.value, 1);
     const prev = indicator?.previous;
-    const prevValue =
-      kind === "percent"
-        ? formatPercent(prev?.value)
-        : formatDecimal(prev?.value, 1);
+    const prevValue = kind === "percent" ? formatPercent(prev?.value) : formatDecimal(prev?.value, 1);
     return {
       id,
       title,
@@ -235,10 +201,9 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
       caption: cur ? caption(cur) : undefined,
       ...meta(kind, indicator?.change ?? undefined),
       details: {
-        calc:
-          cur && prev
-            ? `${calc(cur)} Em ${prevText}: ${prevValue} (${caption(prev)}).`
-            : "Esta versão da API ainda não devolve este número.",
+        calc: cur && prev
+          ? `${calc(cur)} Em ${prevText}: ${prevValue} (${caption(prev)}).`
+          : "Esta versão da API ainda não devolve este número.",
         source,
       },
     };
@@ -263,10 +228,9 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
       badge: cur?.smallSample ? "amostra pequena" : undefined,
       ...meta("rating", indicator?.change ?? undefined),
       details: {
-        calc:
-          cur && prev
-            ? `Média de ${formatInteger(cur.count)} ${pluralize(cur.count, "nota", "notas")} ${what} em ${label} = ${formatDecimal(cur.average, 2)}. Em ${prevText}: ${formatDecimal(prev.average, 2)} (${formatInteger(prev.count)}). Menos de 5 avaliações = amostra pequena.`
-            : "Esta versão da API ainda não devolve este número.",
+        calc: cur && prev
+          ? `Média de ${formatInteger(cur.count)} ${pluralize(cur.count, "nota", "notas")} ${what} em ${label} = ${formatDecimal(cur.average, 2)}. Em ${prevText}: ${formatDecimal(prev.average, 2)} (${formatInteger(prev.count)}). Menos de 5 avaliações = amostra pequena.`
+          : "Esta versão da API ainda não devolve este número.",
         source,
       },
     };
@@ -304,11 +268,11 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
             i.vacanciesCreated,
             vo ? "vagas oficiais criadas" : "vagas publicadas",
             vo
-              ? `Vagas de Empresa + Casa pela data de criação, sem as vagas falsas e as de teste (a lista de cada tipo está em "Destino das vagas criadas", logo abaixo); ${EXCLUSION_NOTE}.`
+              ? `Vagas de Empresa + Casa pela data de criação, sem as vagas falsas e as de teste (cada tipo está em "Destino das vagas criadas", logo abaixo); ${EXCLUSION_NOTE}.`
               : `Vagas de Empresa + Casa pela data de criação, sem as apagadas; ${EXCLUSION_NOTE}.`,
           ),
           vo
-            ? `${formatInteger(vo.current.official)} oficiais = ${formatInteger(vo.current.total)} criadas no total − ${formatInteger(vo.current.fake)} falsas − ${formatInteger(vo.current.test)} de teste. Pela regra de antes (só sem as apagadas e as de QA): ${formatInteger(vo.previousRule.vacanciesCreated)}.`
+            ? `${formatInteger(vo.current.official)} oficiais = ${formatInteger(vo.current.total)} criadas no total − ${formatInteger(vo.current.fake)} falsas − ${formatInteger(vo.current.test)} de teste. Pela regra de antes (só sem as apagadas, as de QA e as das contas internas): ${formatInteger(vo.previousRule.vacanciesCreated)}.`
             : undefined,
         ),
         share(
@@ -326,12 +290,12 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
             i.vacanciesEndedWithoutProvider,
             "vagas criadas no período encerraram sem freelancer",
             vo
-              ? `Vagas oficiais criadas no período, na situação de agora: ninguém se candidatou (ou todos os candidatos desistiram) e a vaga passou do horário ou foi cancelada. Não entram as vagas falsas (a empresa tinha candidato e não escolheu, ou apagou/cancelou rápido). Vaga ainda aberta e no prazo não entra. Empresa + Casa; ${EXCLUSION_NOTE}.`
+              ? `Vagas oficiais criadas no período, na situação de agora: ninguém se candidatou (ou todos os candidatos desistiram ou foram recusados) e a vaga passou do horário ou foi cancelada pela empresa ou pelo sistema. Vaga ainda aberta e no prazo não entra. Empresa + Casa; ${EXCLUSION_NOTE}.`
               : `Vagas criadas no período, na situação de agora: canceladas ou com o horário de fim já passado (expiradas), sem nenhum freelancer escolhido. Vaga ainda aberta e no prazo não entra. Empresa + Casa; ${EXCLUSION_NOTE}.`,
             false,
           ),
           vo
-            ? `Pela regra de antes (toda vaga encerrada sem escolhido, com as falsas): ${formatInteger(vo.previousRule.endedWithoutProvider)}.`
+            ? `Pela regra de antes (toda vaga encerrada sem escolhido no fim): ${formatInteger(vo.previousRule.endedWithoutProvider)}. Saíram deste número: as vagas falsas (a empresa tinha candidato esperando e não escolheu, ou apagou/cancelou rápido), as canceladas pelo suporte, e as que chegaram a ter alguém escolhido (agora em "Escolheu e não pagou", "Empresa cancelou depois de escolher" ou "Canceladas pelo sistema").`
             : undefined,
         ),
         ratioCard(
@@ -342,8 +306,7 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
           (r) =>
             `${formatInteger(r.numerator)} candidatos ÷ ${formatInteger(r.denominator)} vagas criadas em ${label} = ${formatDecimal(r.value, 1)}.`,
           `Candidatos = freelancers distintos que se candidataram a cada vaga criada no período, em qualquer situação (inclusive quem desistiu ou não foi escolhido).${official} Empresa + Casa; ${EXCLUSION_NOTE}.`,
-          (r) =>
-            `${formatInteger(r.numerator)} candidatos em ${formatInteger(r.denominator)} vagas`,
+          (r) => `${formatInteger(r.numerator)} candidatos em ${formatInteger(r.denominator)} vagas`,
         ),
       ],
     },
@@ -416,9 +379,7 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
 
 // ─── Totais do topo (T1–T3) ─────────────────────────────────────────────────
 
-export function buildTotalCards(
-  data: AdminDashboard,
-): Omit<DashboardCardModel, "metaColor">[] {
+export function buildTotalCards(data: AdminDashboard): Omit<DashboardCardModel, "metaColor">[] {
   const t = data.totals;
   return [
     {
@@ -462,27 +423,22 @@ export const STAGE_DEFINITIONS: Record<
 > = {
   S1: {
     title: "Total de vagas abertas",
-    enters:
-      "Publicada e ainda não concluída nem cancelada: a soma de S2 a S6 (cada vaga conta uma vez).",
-    leaves:
-      "É concluída, cancelada ou passa do horário de fim sem o serviço começar.",
+    enters: "Publicada e ainda não concluída nem cancelada: a soma de S2 a S6 (cada vaga conta uma vez).",
+    leaves: "É concluída, cancelada ou passa do horário de fim sem o serviço começar.",
   },
   S2: {
     title: "Vagas sem freelancer candidato",
-    enters:
-      "Publicada, sem ninguém escolhido e sem candidatura pendente (quem desistiu ou foi recusado não conta).",
+    enters: "Publicada, sem ninguém escolhido e sem candidatura pendente (quem desistiu ou foi recusado não conta).",
     leaves: "Recebe a primeira candidatura.",
   },
   S3: {
     title: "Vagas faltando escolher o freela",
-    enters:
-      "Tem ao menos uma candidatura pendente e o contratante ainda não escolheu. Vaga de várias posições com parte escolhida fica aqui (etapa mais atrasada).",
+    enters: "Tem ao menos uma candidatura pendente e o contratante ainda não escolheu. Vaga de várias posições com parte escolhida fica aqui (etapa mais atrasada).",
     leaves: "O contratante escolhe o freelancer de todas as posições.",
   },
   S4: {
     title: "Vagas aguardando pagamento",
-    enters:
-      "Todas as posições com freelancer escolhido e o pagamento ainda não confirmado.",
+    enters: "Todas as posições com freelancer escolhido e o pagamento ainda não confirmado.",
     leaves: "O pagamento é confirmado (o serviço é agendado).",
   },
   S5: {
@@ -492,8 +448,7 @@ export const STAGE_DEFINITIONS: Record<
   },
   S6: {
     title: "Vagas em andamento",
-    enters:
-      "Serviço iniciado (check-in) e ainda não finalizado, mesmo depois do horário previsto.",
+    enters: "Serviço iniciado (check-in) e ainda não finalizado, mesmo depois do horário previsto.",
     leaves: "O serviço é finalizado (check-out).",
   },
   S7: {
@@ -503,19 +458,12 @@ export const STAGE_DEFINITIONS: Record<
   },
 };
 
-export const STAGE_SCOPE_LABELS: Record<
-  "today" | "upcoming",
-  { label: string; description: string }
-> = {
+export const STAGE_SCOPE_LABELS: Record<"today" | "upcoming", { label: string; description: string }> = {
   today: {
     label: "Hoje",
-    description:
-      "vagas com serviço hoje (inclusive o turno que começou ontem e ainda não terminou)",
+    description: "vagas com serviço hoje (inclusive o turno que começou ontem e ainda não terminou)",
   },
-  upcoming: {
-    label: "A acontecer",
-    description: "vagas de hoje em diante que ainda não terminaram",
-  },
+  upcoming: { label: "A acontecer", description: "vagas de hoje em diante que ainda não terminaram" },
 };
 
 const BRASILIA_OFFSET_MS = 3 * 3_600_000;
@@ -534,8 +482,7 @@ export function shortDateTimeBrasilia(iso: string): string {
 /** Texto da exclusão de contas de teste, para o rodapé do dashboard. */
 export function exclusionText(data: AdminDashboard): string {
   const n = data.exclusions?.excludedAccounts;
-  if (n === undefined)
-    return "Contas internas e de teste: esta versão da API ainda não diz quais ficam fora.";
+  if (n === undefined) return "Contas internas e de teste: esta versão da API ainda não diz quais ficam fora.";
   const accounts =
     n === 0
       ? "nenhuma conta na lista de contas internas (variável ADMIN_DASHBOARD_EXCLUDED_USER_IDS vazia)"
@@ -568,15 +515,15 @@ export const VACANCY_OUTCOME_DEFINITIONS: Record<
   },
   FAKE_DELETED: {
     title: "Apagadas pela empresa",
-    what: "A empresa apagou a vaga depois de {X} min. O app só deixa apagar vaga sem freelancer aceito e sem pagamento.",
+    what: "A empresa apagou a vaga depois de {X} min, sem nunca ter escolhido ninguém. O app só deixa apagar vaga sem freelancer aceito e sem pagamento.",
   },
   FAKE_CANCELLED_WITH_CANDIDATES: {
     title: "Tinha candidatos e a empresa cancelou sem escolher",
-    what: "A empresa cancelou a vaga antes do início, depois de {X} min, com ao menos um freelancer candidato que não tinha desistido, sem escolher ninguém. A candidatura repetida do lote (a mesma pessoa em todas as vagas iguais) não conta como candidato.",
+    what: "A empresa cancelou a vaga antes do início, depois de {X} min, com ao menos um freelancer candidato esperando a escolha (não desistiu nem foi recusado), sem escolher ninguém. A candidatura repetida do lote (a mesma pessoa em todas as vagas iguais) não conta como candidato.",
   },
   FAKE_EXPIRED_WITH_CANDIDATES: {
     title: "Tinha candidatos e a empresa deixou passar",
-    what: "O horário da vaga passou com ao menos um freelancer candidato que não tinha desistido, sem ninguém escolhido (a vaga ficou aberta ou o sistema a cancelou depois do início).",
+    what: "O horário da vaga passou com ao menos um freelancer candidato esperando a escolha (não desistiu nem foi recusado), sem ninguém escolhido (a vaga ficou aberta ou o sistema a cancelou depois do início).",
   },
   COMPLETED: {
     title: "Concluídas",
@@ -612,7 +559,7 @@ export const VACANCY_OUTCOME_DEFINITIONS: Record<
   },
   NO_FREELANCER: {
     title: "Sem freelancer",
-    what: "Ninguém se candidatou (ou todos os candidatos desistiram) e a vaga passou do horário ou foi cancelada.",
+    what: "Ninguém se candidatou, ou todos os candidatos desistiram ou foram recusados pela empresa, e a vaga passou do horário ou foi cancelada.",
   },
   CHOSEN_NOT_PAID: {
     title: "Escolheu e não pagou",
@@ -620,7 +567,7 @@ export const VACANCY_OUTCOME_DEFINITIONS: Record<
   },
   COMPANY_CANCELLED_AFTER_CHOOSING: {
     title: "Empresa cancelou depois de escolher",
-    what: "A empresa cancelou a vaga depois de já ter escolhido alguém (com ou sem pagamento).",
+    what: "A empresa cancelou (ou cancelou e depois apagou) a vaga depois de já ter escolhido alguém, com ou sem pagamento.",
   },
   CANCELLED_BY_SUPPORT: {
     title: "Canceladas pelo suporte",
@@ -632,7 +579,7 @@ export const VACANCY_OUTCOME_DEFINITIONS: Record<
   },
   OTHER: {
     title: "Fora do padrão",
-    what: "Situação que não devia durar: serviço pago e não encerrado mais de 7 dias depois do fim, ou serviço cancelado com a vaga ainda viva. Conta nas oficiais; vale alguém olhar.",
+    what: "Situação que não devia durar: serviço pago e não encerrado mais de 7 dias depois do fim, ou serviço cancelado e o horário da vaga passou. Conta nas oficiais; vale alguém olhar.",
   },
 };
 
@@ -709,18 +656,14 @@ const SOURCE_OUTCOMES =
   "Vagas de Empresa + Casa criadas no período (inclusive as apagadas, as de QA e as das contas internas), na situação de agora; cada vaga em uma categoria só.";
 
 function outcomeWhat(key: VacancyOutcomeKey, quickMinutes: number): string {
-  return VACANCY_OUTCOME_DEFINITIONS[key].what
-    .split("{X}")
-    .join(formatInteger(quickMinutes));
+  return VACANCY_OUTCOME_DEFINITIONS[key].what.split("{X}").join(formatInteger(quickMinutes));
 }
 
 /**
  * Destino das vagas criadas no período e faltas. `null` quando a API ainda não manda os blocos
  * (a tela mostra um aviso). Só formata: toda conta vem pronta da API.
  */
-export function buildVacancyOutcomeView(
-  data: AdminDashboard,
-): VacancyOutcomeView | null {
+export function buildVacancyOutcomeView(data: AdminDashboard): VacancyOutcomeView | null {
   const vo = data.vacancyOutcomes;
   if (!vo) return null;
   const label = data.period?.label ?? "o período";
@@ -729,11 +672,9 @@ export function buildVacancyOutcomeView(
   const cur: DashboardOutcomeSummary = vo.current;
   const prev: DashboardOutcomeSummary = vo.previous;
   const x = vo.quickCancelMinutes;
-  const share = (n: number, of: number) =>
-    of > 0 ? formatPercent(n / of) : DASH;
+  const share = (n: number, of: number) => (of > 0 ? formatPercent(n / of) : DASH);
   const neutral = "text-[#737373]";
-  const prevCount = (n: number) =>
-    `${label} · em ${prevText}: ${formatInteger(n)}`;
+  const prevCount = (n: number) => `${label} · em ${prevText}: ${formatInteger(n)}`;
 
   const sumOf = (keys: VacancyOutcomeKey[], s: DashboardOutcomeSummary) =>
     keys.reduce((acc, key) => acc + (s.byOutcome[key] ?? 0), 0);
@@ -852,14 +793,11 @@ function buildNoShowCards(data: AdminDashboard): DashboardCardModel[] {
       title: "Freelancer chamado e não foi",
       value: formatInteger(cur.occurrences),
       caption: `${formatInteger(cur.people)} ${pluralize(cur.people, "pessoa", "pessoas")} em ${formatInteger(cur.vacancies)} ${pluralize(cur.vacancies, "vaga", "vagas")}`,
-      badge:
-        cur.contested > 0
-          ? `${formatInteger(cur.contested)} em contestação`
-          : undefined,
+      badge: cur.contested > 0 ? `${formatInteger(cur.contested)} em contestação` : undefined,
       meta: `${label} · ${changeText("count", ns.change ?? undefined, previousLabel)}`,
       metaColor: changeTone(ns.change ?? undefined, false),
       details: {
-        calc: `${formatInteger(cur.occurrences)} = ${formatInteger(cur.noWarning)} faltaram sem avisar (a empresa disse "não chegou" ou o "compareceu? NÃO" foi confirmado) + ${formatInteger(cur.lateWithdrawal)} desistiram a menos de 6 h do início, com o serviço pago. ${formatInteger(cur.contested)} ainda em contestação. Em ${prevText}: ${formatInteger(prev.occurrences)}. É a mesma base do card "não compareceu" da página Operação, contada por pessoa e vaga.`,
+        calc: `${formatInteger(cur.occurrences)} = ${formatInteger(cur.noWarning)} faltaram sem avisar (a empresa disse "não chegou", o que o freelancer pode contestar, ou o "compareceu? NÃO" foi confirmado) + ${formatInteger(cur.lateWithdrawal)} desistiram a menos de 6 h do início, com o serviço pago. ${formatInteger(cur.contested)} ainda em contestação. Em ${prevText}: ${formatInteger(prev.occurrences)}. É a mesma base do card "não compareceu" da página Operação, contada por pessoa e vaga.`,
         source,
       },
     },

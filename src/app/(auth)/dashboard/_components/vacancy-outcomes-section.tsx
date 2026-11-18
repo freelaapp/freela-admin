@@ -67,7 +67,7 @@ export function VacancyOutcomesSection({ data }: { data: AdminDashboard }) {
                 {group.rows.map((row) => (
                   <li key={row.id}>
                     <details>
-                      <summary className="flex cursor-pointer list-none items-baseline justify-between gap-3 py-2">
+                      <summary className="flex cursor-pointer list-none items-baseline justify-between gap-3 py-3 [&::-webkit-details-marker]:hidden">
                         <span className="min-w-0 text-sm text-[#1d1d1b]">
                           {row.title}
                           <span
