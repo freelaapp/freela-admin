@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { AdminDashboard } from "../infrastructure/dashboard-api";
+import {
+  VACANCY_OUTCOME_KEYS,
+  type AdminDashboard,
+  type DashboardOutcomeSummary,
+  type VacancyOutcomeKey,
+} from "../infrastructure/dashboard-api";
 import {
   DASH,
+  VACANCY_OUTCOME_DEFINITIONS,
   buildPeriodGroups,
   buildTotalCards,
+  buildVacancyOutcomeView,
   changeText,
   changeTone,
   exclusionText,
@@ -203,5 +210,143 @@ describe("totais e exclusões", () => {
     expect(exclusionText({ ...base, exclusions: { excludedAccounts: 0, qaServiceType: "teste" } })).toContain(
       "ADMIN_DASHBOARD_EXCLUDED_USER_IDS vazia",
     );
+  });
+});
+
+describe("destino das vagas criadas e faltas", () => {
+  const summary = (counts: Partial<Record<VacancyOutcomeKey, number>>): DashboardOutcomeSummary => {
+    const byOutcome = Object.fromEntries(
+      VACANCY_OUTCOME_KEYS.map((k) => [k, counts[k] ?? 0]),
+    ) as Record<VacancyOutcomeKey, number>;
+    const values = Object.entries(byOutcome);
+    const fake = values.filter(([k]) => k.startsWith("FAKE_")).reduce((a, [, n]) => a + n, 0);
+    const test = values.filter(([k]) => k.startsWith("TEST_")).reduce((a, [, n]) => a + n, 0);
+    const total = values.reduce((a, [, n]) => a + n, 0);
+    return {
+      total,
+      official: total - fake - test,
+      fake,
+      test,
+      byOutcome,
+      officialCandidates: 0,
+    };
+  };
+  const noShow = {
+    occurrences: 5,
+    people: 4,
+    vacancies: 3,
+    noWarning: 3,
+    lateWithdrawal: 2,
+    contested: 1,
+    warnedWithdrawals: 2,
+    notConfirmed: 1,
+  };
+  const withOutcomes: AdminDashboard = {
+    ...base,
+    indicators: {
+      vacanciesCreated: {
+        current: 8,
+        previous: 5,
+        change: { absolute: 3, percent: 60 },
+      },
+      vacanciesEndedWithoutProvider: {
+        current: 1,
+        previous: 1,
+        change: { absolute: 0, percent: 0 },
+        shareOfCreated: { current: ratio(1, 8), previous: ratio(1, 5) },
+      },
+    },
+    vacancyOutcomes: {
+      quickCancelMinutes: 45,
+      current: summary({
+        COMPLETED: 4,
+        OPEN_WITH_CANDIDATES: 2,
+        NO_SHOW: 1,
+        NO_FREELANCER: 1,
+        FAKE_QUICK: 3,
+        FAKE_CANCELLED_WITH_CANDIDATES: 2,
+        TEST_QA: 1,
+      }),
+      previous: summary({ COMPLETED: 5 }),
+      previousRule: { vacanciesCreated: 13, endedWithoutProvider: 3 },
+    },
+    noShows: {
+      current: noShow,
+      previous: { ...noShow, occurrences: 4 },
+      change: { absolute: 1, percent: 25 },
+    },
+  };
+
+  it("todas as categorias da API têm nome e definição", () => {
+    for (const key of VACANCY_OUTCOME_KEYS) {
+      expect(VACANCY_OUTCOME_DEFINITIONS[key].title.length).toBeGreaterThan(0);
+      expect(VACANCY_OUTCOME_DEFINITIONS[key].what.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("sem os blocos na API: null (a tela avisa)", () => {
+    expect(buildVacancyOutcomeView(base)).toBeNull();
+  });
+
+  it("topo: total = oficiais + falsas + teste, com a conta", () => {
+    const view = buildVacancyOutcomeView(withOutcomes)!;
+    const total = view.summary.find((c) => c.id === "VO-TOTAL")!;
+    expect(total.value).toBe("14");
+    expect(total.caption).toBe("8 oficiais · 5 falsas · 1 de teste");
+    expect(total.details.calc).toContain("14 = 8 oficiais + 5 falsas + 1 de teste");
+    const fake = view.summary.find((c) => c.id === "VO-FAKE")!;
+    expect(fake.details.calc).toContain("3 abertas e fechadas rápido");
+    expect(fake.details.calc).toContain("até 45 min");
+  });
+
+  it("oficiais destrinchadas: toda categoria oficial aparece uma vez, com % das oficiais e o ?", () => {
+    const view = buildVacancyOutcomeView(withOutcomes)!;
+    const rows = view.officialGroups.flatMap((g) => g.rows);
+    const officialKeys = VACANCY_OUTCOME_KEYS.filter(
+      (k) => !k.startsWith("FAKE_") && !k.startsWith("TEST_"),
+    );
+    expect(rows.map((r) => r.id).sort()).toEqual([...officialKeys].sort());
+    const completed = rows.find((r) => r.id === "COMPLETED")!;
+    expect(completed.value).toBe("4");
+    expect(completed.share).toBe("50,0%");
+    expect(completed.help).toContain("4 de 8 vagas oficiais");
+    expect(completed.help).toContain("Em 01/10 a 17/10: 5");
+    const sumRows = rows.reduce((acc, r) => acc + Number(r.value), 0);
+    expect(sumRows).toBe(8);
+  });
+
+  it("um card por tipo de vaga falsa, com o limite do rápido no texto", () => {
+    const view = buildVacancyOutcomeView(withOutcomes)!;
+    expect(view.fakeCards.map((c) => c.id)).toEqual([
+      "FAKE_QUICK",
+      "FAKE_DELETED",
+      "FAKE_CANCELLED_WITH_CANDIDATES",
+      "FAKE_EXPIRED_WITH_CANDIDATES",
+    ]);
+    expect(view.fakeCards[0].details.calc).toContain("até 45 min");
+    expect(view.fakeCards[0].details.calc).not.toContain("{X}");
+  });
+
+  it("faltas: pessoas em vagas, subtotais e os dois detalhes fora", () => {
+    const [official, warned, notConfirmed] = buildVacancyOutcomeView(withOutcomes)!.noShowCards;
+    expect(official.value).toBe("5");
+    expect(official.caption).toBe("4 pessoas em 3 vagas");
+    expect(official.badge).toBe("1 em contestação");
+    expect(official.details.calc).toContain("3 faltaram sem avisar");
+    expect(official.details.calc).toContain("2 desistiram a menos de 6 h");
+    expect(official.metaColor).toBe("text-red-600");
+    expect(warned.value).toBe("2");
+    expect(notConfirmed.value).toBe("1");
+  });
+
+  it("P3 e P5 dizem que contam sem as vagas falsas e mostram a regra de antes", () => {
+    const p3 = card(withOutcomes, "P3");
+    expect(p3.title).toBe("Vagas criadas (sem vagas falsas)");
+    expect(p3.details.calc).toContain("8 oficiais = 14 criadas no total − 5 falsas − 1 de teste");
+    expect(p3.details.calc).toContain(
+      "Pela regra de antes (só sem as apagadas, as de QA e as das contas internas): 13",
+    );
+    expect(card(withOutcomes, "P5").details.calc).toContain("Pela regra de antes");
+    expect(card(base, "P3").title).toBe("Vagas criadas");
   });
 });

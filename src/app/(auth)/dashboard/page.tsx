@@ -26,6 +26,7 @@ import type { AdminMetricsPeriodPreset } from "@/modules/admin/infrastructure/ad
 import { PeriodBar, isoDayBrasilia } from "./_components/period-bar";
 import { VacancyStagesSection } from "./_components/vacancy-stages-section";
 import { TopContractorsTable } from "./_components/top-contractors-table";
+import { VacancyOutcomesSection } from "./_components/vacancy-outcomes-section";
 
 const TOTAL_ICONS = { T1: UserCheck, T2: Building2, T3: DollarSign } as const;
 const GROUP_ICONS: Record<DashboardCardGroup["id"], React.ElementType> = {
@@ -156,9 +157,11 @@ export default function DashboardPage() {
             </section>
           ))}
 
+          <VacancyOutcomesSection data={data} />
+
           <TopContractorsTable
             rows={data.topContractors}
-            periodLabel={`Período: ${data.period?.label ?? "o escolhido"} · ranking por contratações concluídas, desempate pelo valor movimentado`}
+            periodLabel={`Período: ${data.period?.label ?? "o escolhido"} · ranking por contratações concluídas, desempate pelo valor movimentado · "vagas criadas" aqui ainda segue a regra de antes (inclui as vagas falsas que não foram apagadas)`}
           />
 
           <p className="mt-6 text-xs text-[#737373]">{exclusionText(data)}</p>

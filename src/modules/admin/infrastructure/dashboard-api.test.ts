@@ -75,6 +75,59 @@ describe("getAdminDashboard", () => {
     expect(out.totals.platformRevenueCents).toBe(1234567);
   });
 
+  it("destino das vagas e faltas: lê os blocos; categoria desconhecida não quebra e falta vira 0", async () => {
+    const summary = (total: number) => ({
+      total,
+      official: total,
+      fake: 0,
+      test: 0,
+      byOutcome: { COMPLETED: total, CATEGORIA_NOVA: 3 },
+      officialCandidates: 0,
+    });
+    const noShow = {
+      occurrences: 2,
+      people: 2,
+      vacancies: 1,
+      noWarning: 1,
+      lateWithdrawal: 1,
+      contested: 0,
+      warnedWithdrawals: 0,
+      notConfirmed: 0,
+    };
+    get.mockResolvedValue({
+      data: {
+        data: {
+          ...fullPayload,
+          vacancyOutcomes: {
+            quickCancelMinutes: 60,
+            current: summary(5),
+            previous: summary(2),
+            previousRule: { vacanciesCreated: 6, endedWithoutProvider: 1 },
+          },
+          noShows: {
+            current: noShow,
+            previous: noShow,
+            change: { absolute: 0, percent: 0 },
+          },
+        },
+      },
+    });
+    const out = await getAdminDashboard({});
+    expect(out.vacancyOutcomes?.current.byOutcome.COMPLETED).toBe(5);
+    expect(out.vacancyOutcomes?.current.byOutcome.FAKE_QUICK).toBe(0);
+    expect(out.vacancyOutcomes?.current.byOutcome).not.toHaveProperty(
+      "CATEGORIA_NOVA",
+    );
+    expect(out.noShows?.current.occurrences).toBe(2);
+  });
+
+  it("API de antes de 18/11 (sem os blocos novos): ficam undefined", async () => {
+    get.mockResolvedValue({ data: { data: fullPayload } });
+    const out = await getAdminDashboard({});
+    expect(out.vacancyOutcomes).toBeUndefined();
+    expect(out.noShows).toBeUndefined();
+  });
+
   it("indicador malformado vira undefined; o resto continua", async () => {
     get.mockResolvedValue({
       data: {
