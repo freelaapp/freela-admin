@@ -1003,6 +1003,11 @@ export interface VacancyReservesView {
   autoFill?: boolean;
   /** O "Chamar reserva" passa agora: vaga paga, com reserva, sem chamada aberta, com tempo. */
   canCall?: boolean;
+  /**
+   * E7: o "Recolocar como suplente" vale agora (a lista ainda vale e há lugar), com ou sem
+   * chamada aberta. API anterior: ausente (o botão não aparece).
+   */
+  canReinstate?: boolean;
   /** @deprecated contrato antigo: `chosen` só com a vaga paga. */
   reserves: VacancyReserveItem[];
   /** @deprecated sempre vazio desde 28/10. */
@@ -1045,6 +1050,11 @@ export interface VacancyReserveChange {
   releasedBy: string | null;
   releasedByLabel: string | null;
   releasedAt: string | null;
+  /**
+   * E7: saída (recusou, deixou vencer, saiu) que o suporte perdoou ao recolocar a pessoa. Nulo
+   * nas outras linhas e nas saídas ainda sem perdão. API anterior: ausente.
+   */
+  reinstatedAt?: string | null;
 }
 
 export async function getVacancyReserves(vacancyId: string): Promise<VacancyReservesView> {
@@ -1061,6 +1071,20 @@ export async function adminReplaceReserves(
   candidacyIds: string[],
 ): Promise<VacancyReservesView> {
   const res = await adminApi.put(`/vacancies/${vacancyId}/reserves`, { candidacyIds });
+  return res.data.data;
+}
+
+/**
+ * E7: recoloca como suplente quem recusou o chamado, deixou vencer ou saiu da lista (`reserveId` =
+ * a linha da saída). Mesmas conferências da designação; entra no fim da lista.
+ */
+export async function adminReinstateReserve(
+  vacancyId: string,
+  reserveId: string,
+): Promise<VacancyReservesView> {
+  const res = await adminApi.post(
+    `/vacancies/${vacancyId}/reserves/${reserveId}/reinstate`,
+  );
   return res.data.data;
 }
 
