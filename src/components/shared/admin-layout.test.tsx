@@ -98,12 +98,41 @@ describe("menu do painel: Suspensões (fluxo v2, fatia G)", () => {
   });
 });
 
+describe("menu do painel: Ocorrências (D5, fatia C2)", () => {
+  beforeEach(() => {
+    auth.permissions = [];
+  });
+
+  it("aparece com a permissão de Freelancers, logo depois de Suspensões", () => {
+    auth.permissions = ["FREELANCERS"];
+    render(
+      <AdminLayout>
+        <div />
+      </AdminLayout>,
+    );
+    const link = screen.getAllByRole("link", { name: /Ocorrências/ })[0];
+    expect(link).toHaveAttribute("href", "/ocorrencias");
+    const labels = menuLinks();
+    expect(labels.indexOf("Ocorrências")).toBe(labels.indexOf("Suspensões") + 1);
+  });
+
+  it("some sem a permissão de Freelancers", () => {
+    auth.permissions = ["JOBS"];
+    render(
+      <AdminLayout>
+        <div />
+      </AdminLayout>,
+    );
+    expect(screen.queryByRole("link", { name: /Ocorrências/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("menu do painel: Onboarding (aula obrigatória)", () => {
   beforeEach(() => {
     auth.permissions = [];
   });
 
-  it("aparece para quem tem ORIENTATION, logo depois de Suspensões", () => {
+  it("aparece para quem tem ORIENTATION, logo depois de Suspensões e Ocorrências", () => {
     auth.permissions = ["ORIENTATION", "FREELANCERS"];
     render(
       <AdminLayout>
@@ -113,7 +142,8 @@ describe("menu do painel: Onboarding (aula obrigatória)", () => {
     const link = screen.getAllByRole("link", { name: /Onboarding/ })[0];
     expect(link).toHaveAttribute("href", "/onboarding");
     const labels = menuLinks();
-    expect(labels.indexOf("Onboarding")).toBe(labels.indexOf("Suspensões") + 1);
+    // D5, fatia C2 (18/11): "Ocorrências" entrou entre Suspensões e Onboarding.
+    expect(labels.indexOf("Onboarding")).toBe(labels.indexOf("Ocorrências") + 1);
   });
 
   it("some sem a permissão ORIENTATION", () => {

@@ -20,6 +20,14 @@ vi.mock("@/modules/admin/infrastructure/suspensions-api", () => ({
 vi.mock("@/modules/admin/infrastructure/admin-api", () => ({
   getAdminProviders: vi.fn(),
 }));
+// D5, fatia C2: a página pergunta quais faltas estão na fila de Ocorrências. Padrão: chave
+// desligada (404), tudo como antes.
+vi.mock("@/modules/admin/infrastructure/occurrences-api", () => ({
+  listOccurrences: vi.fn(),
+  getOccurrence: vi.fn(),
+  decideOccurrence: vi.fn(),
+  revokeOccurrenceDecision: vi.fn(),
+}));
 
 import { toast } from "sonner";
 import {
@@ -30,6 +38,11 @@ import {
   registerSuspensionConversation,
 } from "@/modules/admin/infrastructure/suspensions-api";
 import { getAdminProviders } from "@/modules/admin/infrastructure/admin-api";
+import { listOccurrences } from "@/modules/admin/infrastructure/occurrences-api";
+import {
+  occurrenceItem,
+  occurrenceList,
+} from "@/modules/admin/application/occurrences.test-fixtures";
 import {
   suspensionItem,
   suspensionList,
@@ -58,6 +71,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   window.history.replaceState(null, "", "/suspensoes");
+  vi.mocked(listOccurrences).mockRejectedValue(apiError(404, "FEATURE_DISABLED"));
 });
 
 /** Fluxo v2, fatia G: a página "Suspensões" do admin (designer, lote 2 §5.5). */
@@ -176,6 +190,18 @@ describe("Suspensões (admin)", () => {
     fireEvent.change(within(keep).getByLabelText(/Por que mantém/), { target: { value: "Sem prova." } });
     fireEvent.click(submit);
     await waitFor(() => expect(keepInfraction).toHaveBeenCalledWith("inf-1", "Sem prova."));
+  });
+
+  it("D5 C2: falta na fila de Ocorrências: 'Abrir a ocorrência' no lugar de 'Registrar conversa'", async () => {
+    vi.mocked(listSuspensions).mockResolvedValue(suspensionList([suspensionItem()]));
+    vi.mocked(listOccurrences).mockResolvedValue(
+      occurrenceList({ tab: "all", items: [occurrenceItem({ infractionId: "inf-1" })] }),
+    );
+    renderPage();
+    const link = await screen.findByRole("link", { name: "Abrir a ocorrência" });
+    expect(link).toHaveAttribute("href", "/ocorrencias/inf-1");
+    expect(screen.queryByRole("button", { name: "Registrar conversa" })).not.toBeInTheDocument();
+    expect(listOccurrences).toHaveBeenCalledWith("all");
   });
 
   it("suspender: os dias são obrigatórios (1 a 90), mesmo com a conversa marcada", async () => {

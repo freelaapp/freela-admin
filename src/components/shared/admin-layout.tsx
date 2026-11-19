@@ -48,6 +48,7 @@ import {
   LifeBuoy,
   Layers,
   UserX,
+  Gavel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNewVacancyChime } from "@/modules/admin/application/use-new-vacancy-chime";
@@ -71,6 +72,8 @@ const navItems: NavItem[] = [
   { label: "Freelancers", icon: Users, path: "/freelancers", permission: "FREELANCERS" },
   // Fluxo v2, fatia G: quem não pode se candidatar (mesma chave das infrações, FREELANCERS).
   { label: "Suspensões", icon: UserX, path: "/suspensoes", permission: "FREELANCERS" },
+  // D5, fatia C2: as faltas sem aviso para o suporte confirmar ou trocar (mesma chave).
+  { label: "Ocorrências", icon: Gavel, path: "/ocorrencias", permission: "FREELANCERS" },
   // Aula obrigatória dos freelancers (turmas, chamada, configurações).
   { label: "Onboarding", icon: ClipboardCheck, path: "/onboarding", permission: "ORIENTATION" },
   { label: "Empresas", icon: Building2, path: "/empresas", permission: "COMPANIES" },

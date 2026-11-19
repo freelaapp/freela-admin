@@ -9,6 +9,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAreaGuard } from "@/modules/auth/application/use-area-guard";
 import { useSuspensions } from "@/modules/admin/application/use-suspensions";
+import { useOccurrences } from "@/modules/admin/application/use-occurrences";
 import {
   DEFAULT_FILTERS,
   DISABLED_TEXT,
@@ -104,6 +105,17 @@ export default function SuspensoesPage() {
     () => applySuspensionFilters(loaded ?? [], filters, new Date()),
     [loaded, filters],
   );
+  // D5, fatia C2: as faltas que estão na fila de Ocorrências (chave da API ligada). Desligada, a
+  // rota dá 404 e tudo fica como antes ("Registrar conversa").
+  const occurrences = useOccurrences("all", allowed);
+  const inQueue = useMemo(
+    () => new Set((occurrences.data?.items ?? []).map((o) => o.infractionId)),
+    [occurrences.data],
+  );
+  const occurrenceHrefOf = (item: SuspensionItem): string | null =>
+    item.source && inQueue.has(item.source.infractionId)
+      ? `/ocorrencias/${item.source.infractionId}`
+      : null;
 
   if (isChecking || !allowed) {
     return (
@@ -378,10 +390,20 @@ export default function SuspensoesPage() {
                       >
                         Ver detalhe
                       </Button>
-                      {isActive(item) && canRegisterConversation(item) && (
-                        <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "conversation", item })}>
-                          Registrar conversa
-                        </Button>
+                      {isActive(item) && occurrenceHrefOf(item) ? (
+                        <a
+                          href={occurrenceHrefOf(item) as string}
+                          className="inline-flex h-8 items-center rounded-md border border-[#e5e5e5] px-3 text-sm font-medium text-[#1d1d1b]"
+                        >
+                          Abrir a ocorrência
+                        </a>
+                      ) : (
+                        isActive(item) &&
+                        canRegisterConversation(item) && (
+                          <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "conversation", item })}>
+                            Registrar conversa
+                          </Button>
+                        )
                       )}
                       {isActive(item) && canKeepOccurrence(item) && (
                         <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "keep", item })}>
@@ -410,6 +432,7 @@ export default function SuspensoesPage() {
           onSearchAll={() => set("situation", "all")}
           onClose={closeDetail}
           onAction={(kind, item) => setDialog({ kind, item })}
+          occurrenceHref={detailItem ? occurrenceHrefOf(detailItem) : null}
         />
       )}
 
