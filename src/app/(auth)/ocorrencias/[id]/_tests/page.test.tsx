@@ -187,6 +187,57 @@ describe("Ocorrência (D5, fatia C2): o caso", () => {
     expect(screen.getByRole("button", { name: "Ver o caso de novo" })).toBeInTheDocument();
   });
 
+  // Revisão final: a decisão recarrega o caso, que volta JÁ decidido (`canDecide: false`). A
+  // mensagem de sucesso e o 409 moram no formulário: ele não pode sumir com o recarregamento.
+  const decided = () =>
+    occurrenceDetail({
+      decisions: [decisionRecord({ decision: "RELEASE", suspensionDays: null })],
+      options: { ...occurrenceDetail().options, canDecide: false },
+    });
+
+  it("depois de decidir, o caso recarrega decidido e a mensagem e o [Próximo caso] continuam", async () => {
+    vi.mocked(getOccurrence).mockResolvedValueOnce(occurrenceDetail()).mockResolvedValue(decided());
+    vi.mocked(decideOccurrence).mockResolvedValue({
+      outcome: "DECIDED",
+      decision: decisionRecord({ decision: "RELEASE", suspensionDays: null }),
+      contestAnswer: null,
+      effects: {
+        conversationRegistered: false,
+        liftedAutomatic: true,
+        suspendedUntil: null,
+        pointsReturned: null,
+        stillSuspended: false,
+      },
+    });
+    renderPage();
+    await screen.findByText("Decidir o caso");
+    fillBasics();
+    fireEvent.click(screen.getByRole("radio", { name: "Liberar agora" }));
+    fireEvent.click(screen.getByRole("button", { name: "Liberar agora" }));
+    expect(await screen.findByText("Maria já pode se candidatar. Mandamos o aviso pelo app.")).toBeInTheDocument();
+    // O recarregamento já trouxe a decisão: a linha dela aparece e a mensagem continua.
+    expect(await screen.findByText(/^Decidido por Ana em/)).toBeInTheDocument();
+    expect(getOccurrence).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Maria já pode se candidatar. Mandamos o aviso pelo app.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Próximo caso" })).toBeInTheDocument();
+  });
+
+  it("409 de outra pessoa com o caso recarregado decidido: o erro e o texto continuam; 'Ver o caso de novo' fecha", async () => {
+    vi.mocked(getOccurrence).mockResolvedValueOnce(occurrenceDetail()).mockResolvedValue(decided());
+    vi.mocked(decideOccurrence).mockRejectedValue(apiError(409, "OCCURRENCE_ALREADY_DECIDED"));
+    renderPage();
+    await screen.findByText("Decidir o caso");
+    fillBasics();
+    fireEvent.click(screen.getByRole("radio", { name: "Liberar agora" }));
+    fireEvent.click(screen.getByRole("button", { name: "Liberar agora" }));
+    expect(await screen.findByText(/^Outra pessoa já decidiu este caso/)).toBeInTheDocument();
+    await waitFor(() => expect(getOccurrence).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(/^Outra pessoa já decidiu este caso/)).toBeInTheDocument();
+    expect(screen.getByLabelText("O que aconteceu")).toHaveValue("A empresa disse que ela não apareceu.");
+    fireEvent.click(screen.getByRole("button", { name: "Ver o caso de novo" }));
+    await waitFor(() => expect(screen.queryByText("Decidir o caso")).not.toBeInTheDocument());
+  });
+
   it("contestada: aceitar vira anular (com confirmação), sem as outras opções", async () => {
     const item = occurrenceItem({
       status: "CONTESTED",

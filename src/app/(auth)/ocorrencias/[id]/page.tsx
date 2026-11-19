@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
@@ -46,6 +46,18 @@ export default function OcorrenciaPage() {
   const id = params?.id ?? null;
   const detail = useOccurrence(id, allowed);
   const [revoking, setRevoking] = useState<OccurrenceDecisionRecord | null>(null);
+  // O formulário fica montado depois de aparecer: a decisão recarrega o caso (já decidido,
+  // `canDecide: false`), e a mensagem de sucesso, o erro 409 e o texto escrito moram nele. Só sai
+  // quando o admin pede "Ver o caso de novo".
+  const [formLatched, setFormLatched] = useState(false);
+  const canDecideNow = detail.data?.options.canDecide === true;
+  useEffect(() => {
+    if (canDecideNow) setFormLatched(true);
+  }, [canDecideNow]);
+  const reloadCase = () => {
+    setFormLatched(false);
+    void detail.refetch();
+  };
 
   if (isChecking || !allowed) {
     return (
@@ -190,7 +202,9 @@ export default function OcorrenciaPage() {
         </section>
       )}
 
-      {data.options.canDecide && <DecideForm key={item.infractionId} detail={data} onReload={() => detail.refetch()} />}
+      {(data.options.canDecide || formLatched) && (
+        <DecideForm key={item.infractionId} detail={data} onReload={reloadCase} />
+      )}
 
       {revoking && <RevokeDecisionDialog decision={revoking} item={item} onClose={() => setRevoking(null)} />}
     </div>
