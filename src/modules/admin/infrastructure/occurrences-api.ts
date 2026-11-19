@@ -94,6 +94,8 @@ export interface OccurrenceSettings {
   suspensionDays: number[];
   /** Os avisos W-OC estão ligados (só então a advertência vai pelo WhatsApp). */
   noticesEnabled: boolean;
+  /** A janela da "2ª falta" em dias (60). Ausente na API anterior à revisão. */
+  repeatWindowDays?: number;
 }
 
 export interface OccurrenceList extends OccurrenceSettings {

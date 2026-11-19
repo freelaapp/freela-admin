@@ -202,7 +202,7 @@ export function DecideForm({
             {form.choice === "KEEP" && <p className={HINT}>{keepHint(item, form.contact, now)}</p>}
             {form.choice === "RELEASE" && (
               <div className="mt-2 space-y-2">
-                <p className={HINT}>{releaseHint(item)}</p>
+                <p className={HINT}>{releaseHint(item, detail.repeatWindowDays)}</p>
                 <ChoicePills
                   aria-label="Como liberar"
                   options={RELEASE_MODE_OPTIONS}

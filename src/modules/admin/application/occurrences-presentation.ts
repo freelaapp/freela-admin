@@ -358,9 +358,10 @@ export function keepHint(item: OccurrenceItem, contact: DecideFormState["contact
   return `Continua sem se candidatar${future ? until : ""} e só volta depois que alguém registrar a conversa.`;
 }
 
-export function releaseHint(item: OccurrenceItem): string {
+/** A janela da "2ª falta" vem da API (`repeatWindowDays`); API sem o campo = 60, o padrão da escada. */
+export function releaseHint(item: OccurrenceItem, repeatWindowDays = 60): string {
   const n = firstName(item);
-  return `${n} pode se candidatar já. A falta e os pontos continuam no histórico e contam se ${n} faltar de novo em 60 dias.`;
+  return `${n} pode se candidatar já. A falta e os pontos continuam no histórico e contam se ${n} faltar de novo em ${repeatWindowDays} dias.`;
 }
 
 export function warningHint(item: OccurrenceItem, noticesEnabled: boolean): string {
