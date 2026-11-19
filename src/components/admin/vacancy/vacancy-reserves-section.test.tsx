@@ -6,13 +6,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { VacancyReservesSection } from "./vacancy-reserves-section";
-import type { VacancyReservesView } from "@/modules/admin/infrastructure/admin-api";
+import type {
+  VacancyReserveChange,
+  VacancyReservesView,
+} from "@/modules/admin/infrastructure/admin-api";
 
 const api = vi.hoisted(() => ({
   getVacancyReserves: vi.fn(),
   adminOpenReserveCall: vi.fn(),
   adminCancelReserveCall: vi.fn(),
   adminReplaceReserves: vi.fn(),
+  adminReinstateReserve: vi.fn(),
 }));
 
 vi.mock("@/modules/admin/infrastructure/admin-api", async (importOriginal) => ({
@@ -21,6 +25,7 @@ vi.mock("@/modules/admin/infrastructure/admin-api", async (importOriginal) => ({
   adminOpenReserveCall: api.adminOpenReserveCall,
   adminCancelReserveCall: api.adminCancelReserveCall,
   adminReplaceReserves: api.adminReplaceReserves,
+  adminReinstateReserve: api.adminReinstateReserve,
 }));
 
 vi.mock("sonner", () => ({
@@ -828,6 +833,213 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     expect(await screen.findByText("Não chegou (a empresa avisou) · pelo sistema")).toBeInTheDocument();
     expect(screen.queryByText(/PRINCIPAL_NOT_ARRIVED/)).not.toBeInTheDocument();
     expect(screen.queryByText(/por o sistema/)).not.toBeInTheDocument();
+  });
+
+  describe('E7: "Recolocar como suplente"', () => {
+    const T1 = "2026-11-18T04:31:00.000Z";
+    const T2 = "2026-11-18T13:40:00.000Z";
+    const saida = (
+      over: Partial<VacancyReserveChange> &
+        Pick<VacancyReserveChange, "candidacyId" | "name" | "status">,
+    ): VacancyReserveChange => ({
+      reserveId: `r-${over.candidacyId}-${over.status}`,
+      position: 1,
+      callId: "call-1",
+      designatedBy: "CONTRACTOR",
+      designatedByLabel: "rafael@bardoze.com",
+      designatedAt: "2026-11-17T21:38:00.000Z",
+      releaseReason: null,
+      releasedBy: null,
+      releasedByLabel: null,
+      releasedAt: null,
+      reinstatedAt: null,
+      ...over,
+    });
+    /** Caso Spoleto: as duas suplentes deixaram vencer de madrugada; lista vazia, sem chamada. */
+    const SPOLETO: VacancyReservesView = {
+      ...VIEW,
+      chosen: [],
+      canCall: false,
+      canReinstate: true,
+      history: {
+        calls: [],
+        principalChanges: [],
+        reserveChanges: [
+          saida({ candidacyId: "c-bia", name: "Bia Lima", status: "EXPIRED" }),
+          saida({
+            candidacyId: "c-cai",
+            name: "Cai Rocha",
+            position: 2,
+            status: "DECLINED",
+          }),
+          saida({
+            candidacyId: "c-davi",
+            name: "Davi Melo",
+            status: "RELEASED",
+            callId: null,
+            releaseReason: "ACCEPTED_ELSEWHERE",
+            releasedAt: T1,
+          }),
+        ],
+      },
+    };
+
+    it("lista quem não pôde ou não respondeu (não quem saiu por outro motivo) e recoloca", async () => {
+      api.getVacancyReserves.mockResolvedValue(SPOLETO);
+      api.adminReinstateReserve.mockResolvedValue({
+        ...SPOLETO,
+        chosen: [reserva("c-bia", "Bia Lima", 1)],
+      });
+      renderSection();
+
+      const grupo = await screen.findByRole("group", { name: "Saíram da lista" });
+      expect(grupo).toHaveTextContent("Bia Lima");
+      expect(grupo).toHaveTextContent("não respondeu a tempo");
+      expect(grupo).toHaveTextContent("Cai Rocha");
+      expect(grupo).toHaveTextContent("não pôde quando foi chamado");
+      expect(grupo).not.toHaveTextContent("Davi Melo");
+
+      fireEvent.click(
+        screen.getAllByRole("button", { name: /Recolocar como suplente/ })[0],
+      );
+
+      await waitFor(() =>
+        expect(api.adminReinstateReserve).toHaveBeenCalledWith(
+          "v1",
+          "r-c-bia-EXPIRED",
+        ),
+      );
+      expect(window.confirm).toHaveBeenCalledWith(
+        expect.stringContaining("Entra no fim da lista e recebe o aviso de suplente"),
+      );
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith("Bia voltou como suplente 1."),
+      );
+    });
+
+    it("com chamada aberta: o aviso diz que só recebe a oferta se ninguém antes aceitar", async () => {
+      api.getVacancyReserves.mockResolvedValue({
+        ...SPOLETO,
+        chosen: [reserva("c-cai", "Cai Rocha", 1, "OFFERED")],
+        openCall: {
+          callId: "call-2",
+          status: "OPEN",
+          reason: "PRINCIPAL_UNCONFIRMED",
+          closeReason: null,
+          createdAt: "2026-11-18T11:17:00.000Z",
+          offeredTo: {
+            candidacyId: "c-cai",
+            name: "Cai Rocha",
+            position: 1,
+            expiresAt: "2026-11-18T11:32:00.000Z",
+          },
+        },
+      });
+      api.adminReinstateReserve.mockResolvedValue(SPOLETO);
+      renderSection();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: /Recolocar como suplente/ }),
+      );
+
+      await waitFor(() => expect(api.adminReinstateReserve).toHaveBeenCalled());
+      expect(window.confirm).toHaveBeenCalledWith(
+        expect.stringContaining("só recebe a oferta se ninguém antes aceitar"),
+      );
+      // Quem está na lista agora (a Cai, chamada) não aparece entre as saídas.
+      expect(
+        screen.getByRole("group", { name: "Saíram da lista" }),
+      ).not.toHaveTextContent("Cai Rocha");
+    });
+
+    it("a API recusa (ocupada no horário): mostra a mensagem dela", async () => {
+      api.getVacancyReserves.mockResolvedValue(SPOLETO);
+      api.adminReinstateReserve.mockRejectedValue({
+        isAxiosError: true,
+        response: {
+          status: 409,
+          data: {
+            error: {
+              code: "PROVIDER_SCHEDULE_CONFLICT",
+              message: "Esta pessoa já foi escolhida para outro serviço no mesmo horário.",
+            },
+          },
+        },
+      });
+      renderSection();
+
+      fireEvent.click(
+        (await screen.findAllByRole("button", { name: /Recolocar como suplente/ }))[0],
+      );
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          "Esta pessoa já foi escolhida para outro serviço no mesmo horário.",
+        ),
+      );
+    });
+
+    it("API anterior (sem canReinstate), lista fechada ou cheia: sem o botão", async () => {
+      api.getVacancyReserves.mockResolvedValue({ ...SPOLETO, canReinstate: undefined });
+      const { unmount } = renderSection();
+      expect(await screen.findByText(/Nenhum suplente ativo agora/)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Recolocar como suplente/ }),
+      ).not.toBeInTheDocument();
+      unmount();
+
+      api.getVacancyReserves.mockResolvedValue({ ...SPOLETO, canReinstate: false });
+      renderSection();
+      expect(await screen.findByText(/Nenhum suplente ativo agora/)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Recolocar como suplente/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("já recolocada: some das saídas e o histórico diz que o suporte recolocou", async () => {
+      api.getVacancyReserves.mockResolvedValue({
+        ...SPOLETO,
+        chosen: [{ ...reserva("c-bia", "Bia Lima", 1), designatedBy: "ADMIN" }],
+        history: {
+          calls: [],
+          principalChanges: [],
+          reserveChanges: [
+            saida({
+              reserveId: "r-bia-novo",
+              candidacyId: "c-bia",
+              name: "Bia Lima",
+              status: "HELD",
+              callId: null,
+              designatedBy: "ADMIN",
+              designatedByLabel: "suporte@freela.com",
+              designatedAt: T2,
+            }),
+            saida({
+              candidacyId: "c-bia",
+              name: "Bia Lima",
+              status: "EXPIRED",
+              reinstatedAt: T2,
+            }),
+            saida({
+              candidacyId: "c-cai",
+              name: "Cai Rocha",
+              position: 2,
+              status: "DECLINED",
+            }),
+          ],
+        },
+      });
+      renderSection();
+
+      expect(
+        await screen.findByText(
+          /o suporte recolocou Bia Lima como suplente 1 \(suporte@freela\.com\)/,
+        ),
+      ).toBeInTheDocument();
+      const grupo = screen.getByRole("group", { name: "Saíram da lista" });
+      expect(grupo).not.toHaveTextContent("Bia Lima");
+      expect(grupo).toHaveTextContent("Cai Rocha");
+    });
   });
 
   it("chave desligada e sem histórico: não mostra nada", async () => {

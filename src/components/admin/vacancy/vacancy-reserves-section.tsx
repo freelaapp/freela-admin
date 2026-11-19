@@ -1,13 +1,21 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { BellRing, History, ListOrdered, Loader2, Users } from "lucide-react";
+import {
+  BellRing,
+  History,
+  ListOrdered,
+  Loader2,
+  RotateCcw,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { getAxiosErrorMessage } from "@/modules/admin/application/use-admin-cancel-vacancy";
 import {
   useCancelReserveCall,
   useOpenReserveCall,
+  useReinstateReserve,
   useReplaceReserves,
   useVacancyReserves,
 } from "@/modules/admin/application/use-vacancy-reserves";
@@ -85,6 +93,36 @@ const RESPOSTA_OFERTA: Record<string, string> = {
 
 const primeiroNome = (nome: string | null | undefined) =>
   (nome ?? "").trim().split(/\s+/)[0] || "O freelancer";
+
+/**
+ * E7: quem saiu da lista e não volta sozinho (recusou o chamado, deixou vencer ou saiu). Só o
+ * suporte recoloca.
+ */
+const SAIDA_QUE_NAO_VOLTA: Record<string, string> = {
+  DECLINED: "não pôde quando foi chamado",
+  EXPIRED: "não respondeu a tempo",
+  LEFT: "saiu da lista de suplentes",
+};
+
+/**
+ * E7: as saídas que o suporte ainda pode recolocar, uma por pessoa (a mais recente; a API manda
+ * da mais nova para a mais antiga), sem quem já está na lista agora.
+ */
+function saidasRecolocaveis(
+  changes: VacancyReserveChange[],
+  naListaAgora: Set<string>,
+): VacancyReserveChange[] {
+  const vistas = new Set<string>();
+  const saidas: VacancyReserveChange[] = [];
+  for (const c of changes) {
+    if (vistas.has(c.candidacyId)) continue;
+    vistas.add(c.candidacyId);
+    if (!SAIDA_QUE_NAO_VOLTA[c.status] || c.reinstatedAt) continue;
+    if (naListaAgora.has(c.candidacyId)) continue;
+    saidas.push(c);
+  }
+  return saidas;
+}
 
 function linhaPessoa(p: {
   averageRating?: number | null;
@@ -204,6 +242,12 @@ function linhasDaLista(
     sozinhas: VacancyReserveChange[];
   };
   const grupos = new Map<string, Grupo>();
+  // E7: a linha que o suporte criou ao recolocar nasce no mesmo instante do perdão da saída.
+  const recolocacoes = new Set(
+    changes
+      .filter((c) => c.reinstatedAt)
+      .map((c) => `${c.candidacyId}@${c.reinstatedAt}`),
+  );
   const grupo = (em: string) => {
     let g = grupos.get(em);
     if (!g) {
@@ -245,10 +289,18 @@ function linhasDaLista(
           }
         : null;
     if (autor) {
-      const postas = [...g.postas].sort((a, b) => posicao(a) - posicao(b));
+      const ordenadas = [...g.postas].sort((a, b) => posicao(a) - posicao(b));
+      const recolocadas = ordenadas.filter((c) =>
+        recolocacoes.has(`${c.candidacyId}@${c.designatedAt}`),
+      );
+      const postas = ordenadas.filter((c) => !recolocadas.includes(c));
       const reordenadas = new Set(g.reordenadas.map((c) => c.candidacyId));
       const novas = postas.filter((c) => !reordenadas.has(c.candidacyId));
       const partes: string[] = [];
+      if (recolocadas.length > 0)
+        partes.push(
+          `recolocou ${recolocadas.map((c) => `${nomeCompleto(c)} como suplente ${posicao(c)}`).join(" e ")}`,
+        );
       if (novas.length > 0)
         partes.push(
           `escolheu os suplentes: ${postas.map((c) => `${posicao(c)} ${nomeCompleto(c)}`).join(" · ")}`,
@@ -333,6 +385,7 @@ export function VacancyReservesSection({
   const chamar = useOpenReserveCall(vacancyId);
   const cancelar = useCancelReserveCall(vacancyId);
   const trocar = useReplaceReserves(vacancyId);
+  const recolocar = useReinstateReserve(vacancyId);
   const [formAberto, setFormAberto] = useState(false);
   const [escolhendo, setEscolhendo] = useState(false);
   const [selecao, setSelecao] = useState<string[]>([]);
@@ -378,7 +431,18 @@ export function VacancyReservesSection({
   // API anterior não manda `canCall`: vale a regra antiga (lista só com a vaga paga).
   const chamavel = view.canCall ?? true;
   const podeChamar = view.enabled && !chamadaAberta && !!proxima && chamavel;
-  const ocupado = chamar.isPending || cancelar.isPending || trocar.isPending;
+  const ocupado =
+    chamar.isPending ||
+    cancelar.isPending ||
+    trocar.isPending ||
+    recolocar.isPending;
+  // E7: "Recolocar como suplente" só com a API que manda `canReinstate` (lista valendo e com lugar).
+  const saidas = saidasRecolocaveis(
+    historico.reserveChanges ?? [],
+    new Set(reservas.map((r) => r.candidacyId)),
+  );
+  const podeRecolocar =
+    view.enabled && view.canReinstate === true && saidas.length > 0;
   const faltaNota =
     !motivo || (motivo === "CONTRACTOR_CHOICE" && !nota.trim());
   // Escolher no lugar da empresa (a pedido dela): só com `canChoose` explícito —
@@ -424,6 +488,29 @@ export function VacancyReservesSection({
     } catch (e) {
       toast.error(
         getAxiosErrorMessage(e, "Não foi possível guardar os suplentes."),
+      );
+    }
+  }
+
+  async function recolocarComoSuplente(saida: VacancyReserveChange) {
+    const nomeSaida = primeiroNome(saida.name);
+    const texto = chamadaAberta
+      ? `Recolocar ${nomeSaida} como suplente? Entra no fim da lista e, como há uma chamada em andamento, só recebe a oferta se ninguém antes aceitar. Fica registrado que foi o suporte.`
+      : `Recolocar ${nomeSaida} como suplente? Entra no fim da lista e recebe o aviso de suplente. Fica registrado que foi o suporte.`;
+    if (!window.confirm(texto)) return;
+    try {
+      const depois = await recolocar.mutateAsync(saida.reserveId);
+      const posicao = (depois.chosen ?? depois.reserves).find(
+        (r) => r.candidacyId === saida.candidacyId,
+      )?.position;
+      toast.success(
+        posicao
+          ? `${nomeSaida} voltou como suplente ${posicao}.`
+          : `${nomeSaida} voltou para a lista de suplentes.`,
+      );
+    } catch (e) {
+      toast.error(
+        getAxiosErrorMessage(e, "Não foi possível recolocar como suplente."),
       );
     }
   }
@@ -561,6 +648,51 @@ export function VacancyReservesSection({
           Chamar suplente fica disponível depois que a empresa pagar a vaga e
           enquanto os suplentes valem.
         </p>
+      )}
+
+      {podeRecolocar && !escolhendo && !formAberto && (
+        <div
+          className="space-y-1.5 rounded-md border border-[#e5e5e5] p-2.5 text-xs"
+          role="group"
+          aria-label="Saíram da lista"
+        >
+          <p className="font-semibold text-[#1d1d1b]">Saíram da lista</p>
+          <p className="text-[#737373]">
+            Quem não pôde, não respondeu a tempo ou saiu não volta sozinho. O
+            suporte pode recolocar: entra no fim da lista, com as mesmas
+            conferências de sempre (horário livre, sem bloqueio nem suspensão).
+          </p>
+          <ul className="space-y-1">
+            {saidas.map((s) => (
+              <li
+                key={s.reserveId}
+                className="flex items-center gap-2 rounded-md bg-[#f7f7f7] px-2.5 py-1.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-[#1d1d1b]">
+                    {s.name.trim() || "O freelancer"}
+                  </p>
+                  <p className="text-[11px] text-[#737373]">
+                    {SAIDA_QUE_NAO_VOLTA[s.status]}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => recolocarComoSuplente(s)}
+                  disabled={ocupado}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#e5e5e5] bg-white px-2 py-1 text-[11px] font-semibold text-[#1d1d1b] transition-colors hover:bg-[#f0f0f0] disabled:opacity-60"
+                >
+                  {recolocar.isPending && recolocar.variables === s.reserveId ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-3 w-3" />
+                  )}
+                  Recolocar como suplente
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {podeEscolher && !escolhendo && !formAberto && (

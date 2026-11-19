@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   adminCancelReserveCall,
   adminOpenReserveCall,
+  adminReinstateReserve,
   adminReplaceReserves,
   getVacancyReserves,
   type AdminReserveCallReason,
@@ -62,6 +63,16 @@ export function useReplaceReserves(vacancyId: string | null) {
   return useMutation({
     mutationFn: (candidacyIds: string[]) =>
       adminReplaceReserves(vacancyId as string, candidacyIds),
+    onSuccess: refresh,
+  });
+}
+
+/** E7: recoloca como suplente quem recusou, deixou vencer ou saiu (pela linha da saída). */
+export function useReinstateReserve(vacancyId: string | null) {
+  const refresh = useRefreshReserves(vacancyId);
+  return useMutation({
+    mutationFn: (reserveId: string) =>
+      adminReinstateReserve(vacancyId as string, reserveId),
     onSuccess: refresh,
   });
 }
