@@ -10,6 +10,8 @@ import { OrientationProviderSection } from "@/components/admin/orientation/orien
 import { PixKeyReplaceSection } from "@/components/admin/provider/pix-key-replace-section";
 import { CompletenessCard } from "./_components/completeness-card";
 import { StatusCountsStrip } from "./_components/status-counts-strip";
+import { BanReasonFields } from "./_components/ban-reason-fields";
+import { accessFormError } from "@/modules/admin/application/freelancer-access-presentation";
 import { useProvidersStatusCounts } from "@/modules/admin/application/use-providers-status-counts";
 import {
   ACCOUNT_HINT,
@@ -263,6 +265,10 @@ export default function FreelancersPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedAuthor, setSelectedAuthor] = useState<AuthorProfile | null>(null);
   const banFreelancer = useAdminBanFreelancer();
+  // D5, fatia C3: motivo (lista fixa) e nota interna do banir/desbanir.
+  const [banReason, setBanReason] = useState("");
+  const [banNote, setBanNote] = useState("");
+  const [banError, setBanError] = useState<string | null>(null);
   const clearLowPriority = useClearLowPriority();
 
   // Prioridade filtra client-side (a API não tem esse parâmetro na listagem).
@@ -316,6 +322,9 @@ export default function FreelancersPage() {
     setModalType(type);
     setSelectedItem(item);
     setModalOpen(true);
+    setBanReason("");
+    setBanNote("");
+    setBanError(null);
     if (type === "edit") {
       setEditForm({
         jobTitle: item.raw.jobTitle ?? "",
@@ -388,8 +397,16 @@ export default function FreelancersPage() {
       return;
     }
     const unban = selectedItem.banned;
+    const invalid = accessFormError(!unban, banReason, banNote);
+    setBanError(invalid);
+    if (invalid) return;
     try {
-      await banFreelancer.mutateAsync({ userId, banned: !unban });
+      await banFreelancer.mutateAsync({
+        userId,
+        banned: !unban,
+        reason: banReason,
+        ...(banNote.trim() ? { note: banNote.trim() } : {}),
+      });
       toast.success(
         unban
           ? `${selectedItem.nome} foi desbanido — o login está liberado de novo.`
@@ -893,6 +910,18 @@ export default function FreelancersPage() {
                 </div>
               </div>
             )}
+            <BanReasonFields
+              userId={selectedItem.raw.userId ?? null}
+              banning={!selectedItem.banned}
+              reason={banReason}
+              note={banNote}
+              error={banError}
+              onReason={(v) => {
+                setBanReason(v);
+                setBanError(null);
+              }}
+              onNote={setBanNote}
+            />
             <DialogFooter>
               <Button variant="outline" onClick={closeModal} disabled={banFreelancer.isPending} className="border-[#e5e5e5] text-[#737373] hover:bg-[#f7f7f7]">Cancelar</Button>
               {selectedItem.banned ? (

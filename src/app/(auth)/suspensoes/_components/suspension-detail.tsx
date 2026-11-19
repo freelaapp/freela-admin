@@ -44,8 +44,14 @@ export function SuspensionDetailPanel({
   onSearchAll,
   onClose,
   onAction,
+  occurrenceHref = null,
 }: {
   item: SuspensionItem | null;
+  /**
+   * D5, fatia C2: a falta desta suspensão está na fila de Ocorrências (chave ligada). Aí
+   * "Registrar conversa" vira "Abrir a ocorrência", para não haver dois caminhos para o mesmo caso.
+   */
+  occurrenceHref?: string | null;
   /** O `?s=` aponta para uma suspensão fora das linhas carregadas. */
   notFound: boolean;
   /** A situação escolhida pede só as que valem agora: dá para procurar em "Todas". */
@@ -157,10 +163,19 @@ export function SuspensionDetailPanel({
 
           {isActive(item) && (
             <div className="flex flex-wrap gap-2 pt-3">
-              {canRegisterConversation(item) && (
-                <Button size="sm" variant="outline" onClick={() => onAction("conversation", item)}>
-                  Registrar conversa
-                </Button>
+              {occurrenceHref ? (
+                <a
+                  href={occurrenceHref}
+                  className="inline-flex h-8 items-center rounded-md border border-[#e5e5e5] px-3 text-sm font-medium text-[#1d1d1b]"
+                >
+                  Abrir a ocorrência
+                </a>
+              ) : (
+                canRegisterConversation(item) && (
+                  <Button size="sm" variant="outline" onClick={() => onAction("conversation", item)}>
+                    Registrar conversa
+                  </Button>
+                )
               )}
               {canKeepOccurrence(item) && (
                 <Button size="sm" variant="outline" onClick={() => onAction("keep", item)}>

@@ -47,10 +47,21 @@ export function useProvidersFilterOptions() {
 export function useAdminBanFreelancer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, banned }: { userId: string; banned: boolean }) =>
-      adminSetFreelancerBanned(userId, banned),
+    mutationFn: ({
+      userId,
+      banned,
+      reason,
+      note,
+    }: {
+      userId: string;
+      banned: boolean;
+      /** D5, fatia C3: o motivo da lista fixa e a nota interna. */
+      reason?: string;
+      note?: string;
+    }) => adminSetFreelancerBanned(userId, banned, reason ? { reason, note } : undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "providers"] });
+      qc.invalidateQueries({ queryKey: ["admin", "freelancer-access-events"] });
     },
   });
 }
