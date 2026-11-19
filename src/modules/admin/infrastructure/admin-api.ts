@@ -1290,9 +1290,39 @@ export interface AdminRestartVacancyResult {
 export async function adminSetFreelancerBanned(
   userId: string,
   banned: boolean,
+  /**
+   * D5, fatia C3: o motivo (lista fixa) e a nota interna. A API antiga recusa campo desconhecido
+   * (400): a API com a C3 tem de subir ANTES deste admin.
+   */
+  access?: { reason: string; note?: string },
 ): Promise<{ userId: string; banned: boolean }> {
-  const res = await adminApi.post(`/providers/${userId}/${banned ? "ban" : "unban"}`);
+  const res = await adminApi.post(
+    `/providers/${userId}/${banned ? "ban" : "unban"}`,
+    access ? { reason: access.reason, ...(access.note ? { note: access.note } : {}) } : undefined,
+  );
   return res.data.data;
+}
+
+/** D5, fatia C3: um registro de banir/desbanir (quem, quando, motivo). */
+export interface FreelancerAccessEvent {
+  id: string;
+  action: "BAN" | "UNBAN";
+  /** Chave da lista fixa, ou UNSPECIFIED (tela antiga). */
+  reason: string;
+  note: string | null;
+  adminName: string | null;
+  createdAt: string;
+}
+
+/** D5, fatia C3: o histórico de banir/desbanir. API antiga (404) = lista vazia. */
+export async function getFreelancerAccessEvents(userId: string): Promise<FreelancerAccessEvent[]> {
+  try {
+    const res = await adminApi.get(`/providers/${userId}/access-events`);
+    return res.data.data ?? [];
+  } catch (err) {
+    if ((err as { response?: { status?: number } })?.response?.status === 404) return [];
+    throw err;
+  }
 }
 
 /**
