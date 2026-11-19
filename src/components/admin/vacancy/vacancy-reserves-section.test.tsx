@@ -910,10 +910,38 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
         ),
       );
       expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining("Entra no fim da lista e recebe o aviso de suplente"),
+        expect.stringContaining(
+          "Entra no fim da lista e recebe o aviso de suplente quando a vaga estiver paga",
+        ),
       );
       await waitFor(() =>
         expect(toast.success).toHaveBeenCalledWith("Bia voltou como suplente 1."),
+      );
+    });
+
+    it('vaga sem titular (desistiu de madrugada): manda tocar em "Chamar suplente" em seguida', async () => {
+      api.getVacancyReserves.mockResolvedValue({ ...SPOLETO, principal: null });
+      api.adminReinstateReserve.mockResolvedValue({
+        ...SPOLETO,
+        principal: null,
+        chosen: [reserva("c-bia", "Bia Lima", 1)],
+      });
+      renderSection();
+
+      fireEvent.click(
+        (await screen.findAllByRole("button", { name: /Recolocar como suplente/ }))[0],
+      );
+
+      await waitFor(() => expect(api.adminReinstateReserve).toHaveBeenCalled());
+      expect(window.confirm).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'A vaga está sem titular: Bia só fica sabendo quando for chamada, então toque em "Chamar suplente" em seguida.',
+        ),
+      );
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith(
+          'Bia voltou como suplente 1. Toque em "Chamar suplente" para oferecer a vaga.',
+        ),
       );
     });
 

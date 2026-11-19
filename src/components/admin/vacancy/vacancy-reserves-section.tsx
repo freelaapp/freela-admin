@@ -494,19 +494,27 @@ export function VacancyReservesSection({
 
   async function recolocarComoSuplente(saida: VacancyReserveChange) {
     const nomeSaida = primeiroNome(saida.name);
+    // O aviso "você é suplente" (W29/W26) só sai com titular aceito e a vaga paga; sem titular,
+    // ninguém chama sozinho: o suporte chama em seguida.
+    const semTitular = !view?.principal;
     const texto = chamadaAberta
       ? `Recolocar ${nomeSaida} como suplente? Entra no fim da lista e, como há uma chamada em andamento, só recebe a oferta se ninguém antes aceitar. Fica registrado que foi o suporte.`
-      : `Recolocar ${nomeSaida} como suplente? Entra no fim da lista e recebe o aviso de suplente. Fica registrado que foi o suporte.`;
+      : semTitular
+        ? `Recolocar ${nomeSaida} como suplente? Entra no fim da lista. A vaga está sem titular: ${nomeSaida} só fica sabendo quando for chamada, então toque em "Chamar suplente" em seguida. Fica registrado que foi o suporte.`
+        : `Recolocar ${nomeSaida} como suplente? Entra no fim da lista e recebe o aviso de suplente quando a vaga estiver paga (em até uns 10 minutos). Fica registrado que foi o suporte.`;
     if (!window.confirm(texto)) return;
     try {
       const depois = await recolocar.mutateAsync(saida.reserveId);
       const posicao = (depois.chosen ?? depois.reserves).find(
         (r) => r.candidacyId === saida.candidacyId,
       )?.position;
+      const voltou = posicao
+        ? `${nomeSaida} voltou como suplente ${posicao}.`
+        : `${nomeSaida} voltou para a lista de suplentes.`;
       toast.success(
-        posicao
-          ? `${nomeSaida} voltou como suplente ${posicao}.`
-          : `${nomeSaida} voltou para a lista de suplentes.`,
+        semTitular && !chamadaAberta
+          ? `${voltou} Toque em "Chamar suplente" para oferecer a vaga.`
+          : voltou,
       );
     } catch (e) {
       toast.error(
