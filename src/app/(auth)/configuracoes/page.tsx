@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { SupportContactCard } from "./_components/support-contact-card";
+import { PlatformParametersCard } from "./_components/platform-parameters-card";
 import { MetaEventsCard } from "./_components/meta-events-card";
 
 const sections = [
@@ -44,6 +45,8 @@ export default function ConfiguracoesPage() {
 
       <SupportContactCard />
 
+      <PlatformParametersCard />
+
       <MetaEventsCard />
 
       <Dialog open={showAlert} onOpenChange={setShowAlert}>
@@ -56,8 +59,8 @@ export default function ConfiguracoesPage() {
               </span>
             </DialogTitle>
             <DialogDescription>
-              O card <strong>WhatsApp de suporte</strong> já é real: o número salvo ali aparece no site, no
-              app e nas mensagens.
+              Os cards <strong>WhatsApp de suporte</strong> e <strong>Parâmetros das regras</strong> já são reais: o que
+              você salva ali vale no site, no app e nas mensagens.
               <br /><br />
               As demais opções desta página ainda são <strong>demonstração</strong> e serão ligadas em breve.
             </DialogDescription>

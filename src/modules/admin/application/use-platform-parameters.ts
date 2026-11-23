@@ -30,6 +30,7 @@ export function useUpdatePlatformParameter() {
         reason: input.reason,
         expectedVersion: input.expectedVersion,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    // Também no erro: um 409 pede a versão nova antes de salvar de novo.
+    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
