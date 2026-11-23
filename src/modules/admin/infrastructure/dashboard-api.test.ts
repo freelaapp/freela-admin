@@ -12,7 +12,7 @@ import {
   getAdminDashboard,
   getVacancyStages,
 } from "./dashboard-api";
-import { serviceDateBlock } from "../application/dashboard-service-date.fixture";
+import { serviceDateBlock } from "../application/__tests__/dashboard-service-date.fixture";
 
 const ratio = (numerator: number, denominator: number) => ({
   value: denominator ? numerator / denominator : null,
@@ -176,6 +176,19 @@ describe("getAdminDashboard", () => {
     expect(out.vacanciesByServiceDate?.coveredNoShows).toBeUndefined();
     expect(out.vacanciesByServiceDate?.candidatesPerVacancy).toBeUndefined();
     expect(out.vacanciesByServiceDate?.byOutcome.current).not.toHaveProperty("BRAND_NEW");
+    expect(out.vacanciesByServiceDate?.total.current).toBe(10);
+  });
+
+  it("bloco novo: change ausente em total, falsas, teste e cobertas não descarta o bloco", async () => {
+    const block = serviceDateBlock() as unknown as Record<string, Record<string, unknown>>;
+    for (const key of ["total", "fake", "test", "coveredNoShows"]) delete block[key].change;
+    get.mockResolvedValue({ data: { data: { ...fullPayload, vacanciesByServiceDate: block } } });
+    const out = await getAdminDashboard({});
+    expect(out.vacanciesByServiceDate).toBeDefined();
+    expect(out.vacanciesByServiceDate?.total.change).toBeNull();
+    expect(out.vacanciesByServiceDate?.fake.change).toBeNull();
+    expect(out.vacanciesByServiceDate?.test.change).toBeNull();
+    expect(out.vacanciesByServiceDate?.coveredNoShows?.change).toBeNull();
     expect(out.vacanciesByServiceDate?.total.current).toBe(10);
   });
 

@@ -18,7 +18,7 @@ vi.mock("@/modules/admin/application/use-admin-dashboard", () => ({
 }));
 
 import DashboardPage from "../page";
-import { serviceDateBlock } from "@/modules/admin/application/dashboard-service-date.fixture";
+import { serviceDateBlock } from "@/modules/admin/application/__tests__/dashboard-service-date.fixture";
 
 const ratio = (numerator: number, denominator: number) => ({
   value: denominator ? numerator / denominator : null,

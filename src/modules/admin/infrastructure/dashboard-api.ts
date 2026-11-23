@@ -181,19 +181,24 @@ const serviceDateGroupSchema = z.object({
   shareOfTotal: z.object({ current: ratioSchema, previous: ratioSchema }).optional().catch(undefined),
 });
 
+/** Contagem do bloco novo: `change` ausente ou malformado vira `null` e o bloco segue. */
+const serviceCountSchema = countIndicatorSchema.extend({ change: changeSchema.catch(null) });
+
 const countPairSchema = z.object({ current: count, previous: count });
 
 const vacanciesByServiceDateSchema = z.object({
   base: z.string(),
   period: periodSchema,
-  total: countIndicatorSchema,
+  total: serviceCountSchema,
   groups: z.array(serviceDateGroupSchema),
   groupsSum: countPairSchema,
-  fake: countIndicatorSchema,
-  test: countIndicatorSchema,
+  fake: serviceCountSchema,
+  test: serviceCountSchema,
   grossTotal: countPairSchema,
-  coveredNoShows: optional(countIndicatorSchema),
-  candidatesPerVacancy: optional(ratioIndicatorSchema),
+  coveredNoShows: optional(serviceCountSchema),
+  candidatesPerVacancy: optional(
+    ratioIndicatorSchema.extend({ change: changeSchema.catch(null) }),
+  ),
   byOutcome: z.object({ current: outcomeCountsSchema, previous: outcomeCountsSchema }),
 });
 

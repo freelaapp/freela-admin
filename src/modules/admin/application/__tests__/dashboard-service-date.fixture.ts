@@ -2,7 +2,7 @@ import {
   VACANCY_OUTCOME_KEYS,
   type AdminDashboard,
   type VacancyOutcomeKey,
-} from "../infrastructure/dashboard-api";
+} from "../../infrastructure/dashboard-api";
 
 type ServiceDate = NonNullable<AdminDashboard["vacanciesByServiceDate"]>;
 

@@ -6,7 +6,7 @@ import {
   type AdminDashboard,
   type VacancyOutcomeKey,
 } from "@/modules/admin/infrastructure/dashboard-api";
-import { serviceDateBlock } from "@/modules/admin/application/dashboard-service-date.fixture";
+import { serviceDateBlock } from "@/modules/admin/application/__tests__/dashboard-service-date.fixture";
 import { VacancyOutcomesSection } from "./vacancy-outcomes-section";
 
 const counts = (over: Partial<Record<VacancyOutcomeKey, number>>) =>

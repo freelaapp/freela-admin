@@ -267,7 +267,7 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
       title: "Vagas",
       ...(svc ? { note: serviceDateNote(svc) } : {}),
       cards: svc
-        ? buildServiceDateCards(svc)
+        ? buildServiceDateCards(svc, data.generatedAt)
         : [
         withExtraCalc(
           count(
@@ -424,15 +424,36 @@ function serviceDateNote(svc: DashboardVacanciesByServiceDate): string {
 }
 
 /** Total do período pela data do serviço, um card por grupo (somam o total) e a média de candidatos. */
-function buildServiceDateCards(svc: DashboardVacanciesByServiceDate): DashboardCardModel[] {
+function buildServiceDateCards(
+  svc: DashboardVacanciesByServiceDate,
+  generatedAt: string,
+): DashboardCardModel[] {
   const label = svc.period.label;
   const prevLabel = svc.period.previousLabel;
   const total = svc.total;
   const shareText = (n: number, of: number) => (of > 0 ? formatPercent(n / of) : DASH);
-  const metaFor = (change: DashboardChange | undefined, higherIsBetter: boolean | undefined) => ({
-    meta: `${label} · ${changeText("count", change, prevLabel)}`,
-    metaColor: higherIsBetter === undefined ? "text-[#737373]" : changeTone(change, higherIsBetter),
-  });
+  // Período que ainda não terminou (Hoje, Este mês): comparar com um período fechado mostraria
+  // calendário, não desempenho. Sem bom/ruim: cinza e o número anterior seco.
+  const now = Number.isNaN(Date.parse(generatedAt)) ? Date.now() : Date.parse(generatedAt);
+  const inProgress = Date.parse(svc.period.end) > now;
+  const metaFor = (
+    change: DashboardChange | undefined,
+    higherIsBetter: boolean | undefined,
+    previousText: string,
+  ) =>
+    inProgress
+      ? {
+          meta: `${label} · período em andamento · ${previousText} em ${prevLabel}`,
+          metaColor: "text-[#737373]",
+        }
+      : {
+          meta: `${label} · ${changeText("count", change, prevLabel)}`,
+          metaColor:
+            higherIsBetter === undefined ? "text-[#737373]" : changeTone(change, higherIsBetter),
+        };
+  const inProgressNote = inProgress
+    ? " Período ainda em andamento: a comparação com o período fechado não diz se foi melhor ou pior, por isso não tem seta verde ou vermelha."
+    : "";
 
   const sumParts = svc.groups.map((g) => {
     const [one, many] = GROUP_SUM_NAMES[g.key] ?? [g.label.toLowerCase(), g.label.toLowerCase()];
@@ -448,9 +469,9 @@ function buildServiceDateCards(svc: DashboardVacanciesByServiceDate): DashboardC
     title: isSingleDayPeriod(svc.period) ? "Vagas do dia" : "Vagas do período",
     value: formatInteger(total.current),
     caption: `Pela data do serviço, sem ${formatInteger(fake)} ${pluralize(fake, "falsa", "falsas")} e ${formatInteger(test)} de teste`,
-    ...metaFor(total.change ?? undefined, true),
+    ...metaFor(total.change ?? undefined, true, formatInteger(total.previous)),
     details: {
-      calc: `${formatInteger(total.current)} vagas oficiais com serviço em ${label}. A soma dos grupos: ${sumParts.join(" + ")} = ${formatInteger(total.current)}.${sumMismatch ? ` Atenção: a soma dos grupos (${formatInteger(svc.groupsSum.current)}) não fecha com o total; avise o time técnico.` : ""} Em ${prevLabel}: ${formatInteger(total.previous)}. Fora desta conta: ${formatInteger(fake)} ${pluralize(fake, "falsa", "falsas")} e ${formatInteger(test)} de teste (com elas, ${formatInteger(svc.grossTotal.current)}).`,
+      calc: `${formatInteger(total.current)} vagas oficiais com serviço em ${label}. A soma dos grupos: ${sumParts.join(" + ")} = ${formatInteger(total.current)}.${sumMismatch ? ` Atenção: a soma dos grupos (${formatInteger(svc.groupsSum.current)}) não fecha com o total; avise o time técnico.` : ""} Em ${prevLabel}: ${formatInteger(total.previous)}. Fora desta conta: ${formatInteger(fake)} ${pluralize(fake, "falsa", "falsas")} e ${formatInteger(test)} de teste (com elas, ${formatInteger(svc.grossTotal.current)}).${inProgressNote}`,
       source: SERVICE_SOURCE,
     },
   };
@@ -471,13 +492,13 @@ function buildServiceDateCards(svc: DashboardVacanciesByServiceDate): DashboardC
       title: g.label,
       value: formatInteger(g.current),
       caption: [`${curShare} do total`, coveredText].filter(Boolean).join(" · "),
-      ...metaFor(g.change ?? undefined, GROUP_GOOD_DIRECTION[g.key]),
+      ...metaFor(g.change ?? undefined, GROUP_GOOD_DIRECTION[g.key], formatInteger(g.previous)),
       details: {
         calc: `${formatInteger(g.current)} de ${formatInteger(total.current)} vagas oficiais com serviço em ${label} = ${curShare}. Entram: ${g.outcomes.map(outcomeTitle).join("; ")}. Em ${prevLabel}: ${formatInteger(g.previous)} de ${formatInteger(total.previous)} (${prevShare}).${
           isNoShow && covered
             ? ` Faltas cobertas por suplente: ${formatInteger(covered.current)} em ${label} (${formatInteger(covered.previous)} em ${prevLabel}). Nelas o titular faltou e um suplente fez o serviço: a vaga foi concluída, então já contadas em Concluídas e não somam neste card.`
             : ""
-        }`,
+        }${inProgressNote}`,
         source: SERVICE_SOURCE,
       },
     };
@@ -491,10 +512,10 @@ function buildServiceDateCards(svc: DashboardVacanciesByServiceDate): DashboardC
     caption: avg
       ? `${formatInteger(avg.current.numerator)} candidatos em ${formatInteger(avg.current.denominator)} vagas`
       : undefined,
-    ...metaFor(avg?.change ?? undefined, undefined),
+    ...metaFor(avg?.change ?? undefined, undefined, formatDecimal(avg?.previous.value, 1)),
     details: {
       calc: avg
-        ? `${formatInteger(avg.current.numerator)} candidatos ÷ ${formatInteger(avg.current.denominator)} vagas oficiais com serviço em ${label} (pela data do serviço) = ${formatDecimal(avg.current.value, 1)}. Em ${prevLabel}: ${formatDecimal(avg.previous.value, 1)} (${formatInteger(avg.previous.numerator)} candidatos em ${formatInteger(avg.previous.denominator)} vagas).`
+        ? `${formatInteger(avg.current.numerator)} candidatos ÷ ${formatInteger(avg.current.denominator)} vagas oficiais com serviço em ${label} (pela data do serviço) = ${formatDecimal(avg.current.value, 1)}. Em ${prevLabel}: ${formatDecimal(avg.previous.value, 1)} (${formatInteger(avg.previous.numerator)} candidatos em ${formatInteger(avg.previous.denominator)} vagas).${inProgressNote}`
         : "Esta versão da API ainda não devolve este número.",
       source: `Candidatos = freelancers distintos que se candidataram a cada vaga, em qualquer situação (inclusive quem desistiu ou não foi escolhido). ${SERVICE_SOURCE}`,
     },
@@ -521,15 +542,10 @@ export function periodSentenceParts(data: AdminDashboard): { text: string; bold?
     ];
   }
   return [
-    { text: "Cadastros, conversão e avaliações medem " },
-    { text: label, bold: true },
-    { text: " e comparam com " },
-    { text: previousLabel, bold: true },
-    { text: ", cada indicador pela data do próprio evento (cadastro, avaliação etc.; horário de Brasília). " },
     { text: "Vagas: pela data do serviço", bold: true },
-    {
-      text: ` (o dia em que o turno começa), ${svc.period.label} contra ${svc.period.previousLabel}, períodos inteiros, inclusive o que ainda vai acontecer.`,
-    },
+    { text: `, ${svc.period.label} contra ${svc.period.previousLabel}. Demais indicadores: pela data do próprio evento (cadastro, avaliação etc.), ` },
+    { text: label, bold: true },
+    { text: ` contra ${previousLabel}. Horário de Brasília.` },
   ];
 }
 

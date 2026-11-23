@@ -22,7 +22,7 @@ import {
   ratioCaption,
   shortDateTimeBrasilia,
 } from "./dashboard-presentation";
-import { DAY_PERIOD, MONTH_PERIOD, serviceDateBlock } from "./dashboard-service-date.fixture";
+import { DAY_PERIOD, MONTH_PERIOD, serviceDateBlock } from "./__tests__/dashboard-service-date.fixture";
 
 const ratio = (numerator: number, denominator: number) => ({
   value: denominator ? numerator / denominator : null,
@@ -476,13 +476,59 @@ describe("vagas pela data do serviço", () => {
     expect(note).toContain("anteontem");
   });
 
-  it("frase do período: vagas pela data do serviço, demais pela data do evento; sem bloco = frase de antes", () => {
-    const text = periodSentence(withService());
-    expect(text).toContain("Vagas: pela data do serviço");
-    expect(text).toContain("data do próprio evento");
+  it("frase do período: uma frase curta, sem repetir 'inteiro'; sem bloco = frase de antes", () => {
+    const text = periodSentence(withService(MONTH_PERIOD));
+    expect(text).toBe(
+      "Vagas: pela data do serviço, novembro/2026 (mês inteiro) contra outubro/2026 (mês inteiro). Demais indicadores: pela data do próprio evento (cadastro, avaliação etc.), novembro/2026 até agora contra 01/10 a 17/10. Horário de Brasília.",
+    );
+    expect(text).not.toContain("períodos inteiros");
     expect(periodSentence(base)).toBe(
       "Os números abaixo medem novembro/2026 até agora e comparam com 01/10 a 17/10, cada indicador pela data do próprio evento (horário de Brasília).",
     );
+  });
+});
+
+describe("período em andamento (comparação injusta fica neutra)", () => {
+  const cards = (period: typeof DAY_PERIOD, generatedAt: string) => {
+    const data: AdminDashboard = {
+      ...base,
+      generatedAt,
+      vacanciesByServiceDate: serviceDateBlock(period),
+    };
+    return buildPeriodGroups(data).find((g) => g.id === "vacancies")!.cards;
+  };
+  const GRAY = "text-[#737373]";
+
+  it("período que ainda não terminou: toda comparação cinza e com 'período em andamento'", () => {
+    // Este mês (termina 01/12) visto em 17/11; Hoje visto às 13h do próprio dia.
+    const today = {
+      ...DAY_PERIOD,
+      preset: "today",
+      label: "hoje",
+      previousLabel: "ontem",
+      start: "2026-11-17T03:00:00.000Z",
+      end: "2026-11-18T03:00:00.000Z",
+    };
+    for (const list of [
+      cards(MONTH_PERIOD, "2026-11-17T13:00:00.000Z"),
+      cards(today, "2026-11-17T13:00:00.000Z"),
+    ]) {
+      expect(list.length).toBe(9);
+      for (const c of list) {
+        expect(c.metaColor).toBe(GRAY);
+        expect(c.meta).toContain("período em andamento");
+      }
+    }
+    const total = cards(MONTH_PERIOD, "2026-11-17T13:00:00.000Z")[0];
+    expect(total.meta).toBe("novembro/2026 (mês inteiro) · período em andamento · 8 em outubro/2026 (mês inteiro)");
+    expect(total.details.calc).toContain("Período ainda em andamento");
+  });
+
+  it("período já terminado (Ontem visto hoje): comparação e cores como antes", () => {
+    const list = cards(DAY_PERIOD, "2026-11-17T13:00:00.000Z");
+    expect(list[0].meta).toBe("ontem · +25% vs. anteontem");
+    expect(list.some((c) => c.metaColor === "text-green-600")).toBe(true);
+    for (const c of list) expect(c.meta).not.toContain("período em andamento");
   });
 });
 
