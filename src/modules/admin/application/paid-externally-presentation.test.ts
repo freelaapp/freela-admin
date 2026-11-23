@@ -1,9 +1,6 @@
 import { AxiosError, AxiosHeaders } from "axios";
 import { describe, expect, it } from "vitest";
 import {
-  advancedCompositionCalc,
-  advancedSlices,
-  paidByFreelaCardOf,
   paidExternallyDifferenceText,
   paidExternallyErrorOf,
   paidExternallyMinDateKey,
@@ -123,33 +120,8 @@ describe("pago por fora: aviso depois do 200", () => {
   });
 });
 
-describe("pago por fora no Adiantado e no selo", () => {
-  const zero = { count: 0, valueInCents: 0 };
-  const breakdown = {
-    onCompletion: { count: 1, valueInCents: 5000 },
-    deadline: zero,
-    admin: zero,
-    invoiceCancelled: zero,
-    paidExternally: { count: 2, valueInCents: 24000 },
-  };
-
-  it("composição e fatias incluem o pago por fora quando existe (e a soma fecha)", () => {
-    expect(advancedCompositionCalc(breakdown)).toBe(
-      "no encerramento (antes da regra) R$ 50,00 (1) + no teto R$ 0,00 (0) + Pagar agora R$ 0,00 (0) + fatura cancelada R$ 0,00 (0) + pago por fora (do bolso) R$ 240,00 (2) = R$ 290,00",
-    );
-    expect(advancedSlices(breakdown).at(-1)).toEqual({ label: "pago por fora", value: "R$ 240,00" });
-    const card = paidByFreelaCardOf(breakdown, "fonte");
-    expect(card.valueInCents).toBe(24000);
-    expect(card.meta).toContain("por fora 2");
-  });
-
-  it("sem pago por fora: textos de antes, sem a quinta fatia", () => {
-    const old = { ...breakdown, paidExternally: zero };
-    expect(advancedCompositionCalc(old)).not.toContain("pago por fora");
-    expect(advancedSlices(old)).toHaveLength(4);
-  });
-
-  it("selo: 'Pago por fora' com o bloco; senão o do status", () => {
+describe("selo do pago por fora", () => {
+  it("'Pago por fora' com o bloco; senão o do status", () => {
     expect(repasseRowBadge({ status: "COMPLETED", paidExternally: { at: "x" } }).label).toBe("Pago por fora");
     expect(repasseRowBadge({ status: "COMPLETED", paidExternally: null }).label).toBe("Concluído");
   });

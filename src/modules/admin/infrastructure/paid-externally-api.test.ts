@@ -7,7 +7,6 @@ vi.mock("@/modules/shared/infrastructure/authed-client", () => ({
 }));
 
 import {
-  advancedBreakdownOf,
   getVacancyRepasse,
   markRepassePaidExternally,
   vacancyRepasseOf,
@@ -16,7 +15,6 @@ import {
 /** "Pago por fora" (23/11/2026): contrato da API `POST .../mark-paid-externally` e `GET .../by-vacancy/:id`. */
 beforeEach(() => vi.clearAllMocks());
 
-const SLICE = { count: 1, valueInCents: 9500 };
 
 describe("markRepassePaidExternally", () => {
   it("rota com o id, motivo sem espaços nas pontas, dia, valor e comprovante; resposta lida", async () => {
@@ -124,16 +122,5 @@ describe("getVacancyRepasse / vacancyRepasseOf", () => {
     expect(
       vacancyRepasseOf({ repasseId: "r", status: "COMPLETED", amountInCents: 1 })?.markPaidExternally.allowed,
     ).toBe(false);
-  });
-});
-
-describe("advancedBreakdownOf com o pago por fora", () => {
-  it("lê a quinta fatia quando vem; ausente (API de antes) = zero", () => {
-    const base = { onCompletion: SLICE, deadline: SLICE, admin: SLICE, invoiceCancelled: SLICE };
-    expect(advancedBreakdownOf({ ...base, paidExternally: { count: 2, valueInCents: 24000 } })?.paidExternally).toEqual({
-      count: 2,
-      valueInCents: 24000,
-    });
-    expect(advancedBreakdownOf(base)?.paidExternally).toEqual({ count: 0, valueInCents: 0 });
   });
 });

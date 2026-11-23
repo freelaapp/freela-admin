@@ -212,66 +212,41 @@ const part = (label: string, slice: CountAndValue) =>
  */
 export function paidByFreelaCardOf(breakdown: AdvancedBreakdown, advancedSource: string): CardText {
   const { deadline, admin, invoiceCancelled } = breakdown;
-  // "Pago por fora" (23/11/2026): o dono pagou do bolso. Só aparece quando existe.
-  const external = breakdown.paidExternally ?? { count: 0, valueInCents: 0 };
-  const total =
-    deadline.valueInCents + admin.valueInCents + invoiceCancelled.valueInCents + external.valueInCents;
-  const n = deadline.count + admin.count + invoiceCancelled.count + external.count;
+  const total = deadline.valueInCents + admin.valueInCents + invoiceCancelled.valueInCents;
+  const n = deadline.count + admin.count + invoiceCancelled.count;
   return {
     key: "paidByFreela",
     title: "Pagos pela Freela antes da fatura, ainda não recebidos",
     valueInCents: total,
-    meta:
-      `${plural(n, "pagamento", "pagamentos")} · no teto ${deadline.count} · Pagar agora ${admin.count}` +
-      (external.count > 0 ? ` · por fora ${external.count}` : ""),
-    help: "Dinheiro que a Freela já pagou aos freelancers antes de a empresa pagar a fatura (no teto, pelo 'Pagar agora', com a fatura cancelada ou pago por fora, do bolso) e que ainda não voltou. É uma foto de agora: sai daqui quando a fatura é paga.",
-    calc:
-      `${part("no teto", deadline)} + ${part("Pagar agora", admin)} + ${part(
-        "fatura cancelada",
-        invoiceCancelled,
-      )}` +
-      (external.count > 0 ? ` + ${part("pago por fora (do bolso)", external)}` : "") +
-      ` = ${formatBrl(total)}`,
+    meta: `${plural(n, "pagamento", "pagamentos")} · no teto ${deadline.count} · Pagar agora ${admin.count}`,
+    help: "Dinheiro que a Freela já pagou aos freelancers antes de a empresa pagar a fatura (no teto, pelo 'Pagar agora' ou com a fatura cancelada) e que ainda não voltou. É uma foto de agora: sai daqui quando a fatura é paga.",
+    calc: `${part("no teto", deadline)} + ${part("Pagar agora", admin)} + ${part(
+      "fatura cancelada",
+      invoiceCancelled,
+    )} = ${formatBrl(total)}`,
     source: `${advancedSource} Só a parte paga antes da fatura pelo teto, pelo "Pagar agora" ou por fatura cancelada; os pagos no encerramento (vagas de antes da regra) estão só no card "Adiantado aos freelancers" da aba Faturas.`.trim(),
   };
 }
 
-/**
- * A composição do card "Adiantado aos freelancers": as fatias somam o valor dele.
- * A do "pago por fora" (23/11/2026) só entra quando existe.
- */
+/** A composição do card "Adiantado aos freelancers": as quatro fatias somam o valor dele. */
 export function advancedCompositionCalc(breakdown: AdvancedBreakdown): string {
   const { onCompletion, deadline, admin, invoiceCancelled } = breakdown;
-  const external = breakdown.paidExternally ?? { count: 0, valueInCents: 0 };
   const total =
-    onCompletion.valueInCents +
-    deadline.valueInCents +
-    admin.valueInCents +
-    invoiceCancelled.valueInCents +
-    external.valueInCents;
-  return (
-    `${part("no encerramento (antes da regra)", onCompletion)} + ${part("no teto", deadline)} + ${part(
-      "Pagar agora",
-      admin,
-    )} + ${part("fatura cancelada", invoiceCancelled)}` +
-    (external.count > 0 ? ` + ${part("pago por fora (do bolso)", external)}` : "") +
-    ` = ${formatBrl(total)}`
-  );
+    onCompletion.valueInCents + deadline.valueInCents + admin.valueInCents + invoiceCancelled.valueInCents;
+  return `${part("no encerramento (antes da regra)", onCompletion)} + ${part("no teto", deadline)} + ${part(
+    "Pagar agora",
+    admin,
+  )} + ${part("fatura cancelada", invoiceCancelled)} = ${formatBrl(total)}`;
 }
 
 /** As fatias do "Adiantado", para o card mostrar logo abaixo do número. */
 export function advancedSlices(breakdown: AdvancedBreakdown): { label: string; value: string }[] {
-  const slices = [
+  return [
     { label: "no encerramento", value: formatBrl(breakdown.onCompletion.valueInCents) },
     { label: "no teto", value: formatBrl(breakdown.deadline.valueInCents) },
     { label: "Pagar agora", value: formatBrl(breakdown.admin.valueInCents) },
     { label: "fatura cancelada", value: formatBrl(breakdown.invoiceCancelled.valueInCents) },
   ];
-  const external = breakdown.paidExternally;
-  if (external && external.count > 0) {
-    slices.push({ label: "pago por fora", value: formatBrl(external.valueInCents) });
-  }
-  return slices;
 }
 
 // ─── "Pagar agora": erros e resultado ────────────────────────────────────────

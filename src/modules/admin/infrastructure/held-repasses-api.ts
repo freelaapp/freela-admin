@@ -214,8 +214,7 @@ function countAndValueOf(raw: unknown): CountAndValue | null {
 
 /**
  * `cards.advanced.breakdown` do resumo (API #603). Ausente ou com alguma das
- * quatro fatias quebrada → `null` (a composição não aparece). A quinta fatia,
- * `paidExternally` ("pago por fora", 23/11/2026), é aditiva: ausente = zero.
+ * quatro fatias quebrada → `null` (a composição não aparece).
  */
 export function advancedBreakdownOf(raw: unknown): AdvancedBreakdown | null {
   if (!isObj(raw)) return null;
@@ -224,8 +223,7 @@ export function advancedBreakdownOf(raw: unknown): AdvancedBreakdown | null {
   const admin = countAndValueOf(raw.admin);
   const invoiceCancelled = countAndValueOf(raw.invoiceCancelled);
   if (!onCompletion || !deadline || !admin || !invoiceCancelled) return null;
-  const paidExternally = countAndValueOf(raw.paidExternally) ?? { count: 0, valueInCents: 0 };
-  return { onCompletion, deadline, admin, invoiceCancelled, paidExternally };
+  return { onCompletion, deadline, admin, invoiceCancelled };
 }
 
 /** `cards.held` do resumo (API #603). Ausente ou malformado → `null` (o card não aparece). */
@@ -406,19 +404,19 @@ export interface MarkPaidExternallyInput {
 export interface MarkPaidExternallyResult {
   repasseId: string;
   vacancyId: string;
-  /** O valor do repasse (o que o sistema ia pagar). */
-  amountInCents: number;
+  /** O valor do repasse (o que o sistema ia pagar). `null` = a API não mandou. */
+  amountInCents: number | null;
   paidExternally: PaidExternallyInfo | null;
-  /** Pago − devido (negativo = pagou a menos). */
-  differenceInCents: number;
+  /** Pago − devido (negativo = pagou a menos). `null` = a API não mandou (não inventar "sem diferença"). */
+  differenceInCents: number | null;
   /** Bônus de avaliação PENDING da vaga: não sai sozinho (decisão manual). */
   pendingBonusInCents: number;
   /** Já estava marcado (repetição): nada mudou. */
   alreadyMarked: boolean;
 }
 
-const signedCents = (value: unknown): number =>
-  typeof value === "number" && Number.isSafeInteger(value) ? value : 0;
+const signedCents = (value: unknown): number | null =>
+  typeof value === "number" && Number.isSafeInteger(value) ? value : null;
 
 export async function markRepassePaidExternally(
   repasseId: string,
@@ -434,7 +432,7 @@ export async function markRepassePaidExternally(
   return {
     repasseId: textOr(raw.repasseId, repasseId),
     vacancyId: textOr(raw.vacancyId, ""),
-    amountInCents: cents(raw.amountInCents) ?? input.amountPaidInCents,
+    amountInCents: cents(raw.amountInCents),
     paidExternally: paidExternallyInfoOf(raw.paidExternally),
     differenceInCents: signedCents(raw.differenceInCents),
     pendingBonusInCents: cents(raw.pendingBonusInCents) ?? 0,
