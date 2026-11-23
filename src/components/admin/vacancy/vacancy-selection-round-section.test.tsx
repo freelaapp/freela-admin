@@ -348,4 +348,30 @@ describe("VacancySelectionRoundSection", () => {
       expect(api.releaseVacancyCandidateList).not.toHaveBeenCalled();
     });
   });
+
+  it("V3: linha da ordem usada e coluna Nota; rankReason nulo continua traço", async () => {
+    api.getVacancySelectionRound.mockResolvedValue({
+      round: { ...VIEW.round!, rankingOrder: "V3", workedHereCapPct: 30 },
+      people: [
+        pessoa({ position: 1, name: "Ana Souza", rankReason: "SCORE", rankScore: 4.5 }),
+        pessoa({ position: 2, name: "Maria Lima", rankReason: null }),
+      ],
+    });
+    render(ui());
+    expect(
+      await screen.findByText("Ordem usada: nota → distância → já trabalhou aqui (teto 30%)"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Nota" })).toBeInTheDocument();
+    expect(screen.getByText("4,5")).toBeInTheDocument();
+    const maria = screen.getByText("Maria Lima").closest("tr")!;
+    expect(maria).toHaveTextContent("—");
+  });
+
+  it("rodada antiga (campos ausentes): sem a linha e sem a coluna Nota, como hoje", async () => {
+    api.getVacancySelectionRound.mockResolvedValue(VIEW);
+    render(ui());
+    await screen.findByText("Ana Souza");
+    expect(screen.queryByText(/Ordem usada/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Nota" })).not.toBeInTheDocument();
+  });
 });

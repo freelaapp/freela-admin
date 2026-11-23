@@ -22,6 +22,8 @@ import {
   clockLabel,
   companyViewCard,
   deadlinesLine,
+  rankingOrderLine,
+  scoreLabel,
   releaseErrorMessage,
   releaseNoteProblem,
   reasonLabel,
@@ -443,5 +445,36 @@ describe("reconcileChoice: o que vai no POST é o que a tela mostra", () => {
     expect(reconcileChoice(sel, pend, new Set(["c"]), 2)).toEqual({ principal: "a", reserves: [null, "c"] });
     expect(reconcileChoice(sel, pend, new Set(["b", "c"]), 1)).toEqual({ principal: "a", reserves: ["b", null] });
     expect(reconcileChoice(sel, new Set(["b", "c"]), new Set(["b", "c"]), 2).principal).toBeNull();
+  });
+});
+
+describe("ordem usada e nota da rodada (risco trabalhista F1)", () => {
+  const round = (over: Record<string, unknown> = {}) =>
+    ({ rankingOrder: "V3", workedHereCapPct: 30, ...over }) as never;
+
+  it("V3 com teto: a ordem usada e o teto fotografado", () => {
+    expect(rankingOrderLine(round())).toBe(
+      "Ordem usada: nota → distância → já trabalhou aqui (teto 30%)",
+    );
+  });
+
+  it("V3 sem teto na rodada: sem o parêntese", () => {
+    expect(rankingOrderLine(round({ workedHereCapPct: undefined }))).toBe(
+      "Ordem usada: nota → distância → já trabalhou aqui",
+    );
+  });
+
+  it("rodada antiga ou chave desligada (tudo ausente) e V2: sem a linha", () => {
+    expect(rankingOrderLine(round({ rankingOrder: undefined, workedHereCapPct: undefined }))).toBeNull();
+    expect(rankingOrderLine(round({ rankingOrder: null }))).toBeNull();
+    expect(rankingOrderLine(round({ rankingOrder: "V2", workedHereCapPct: null }))).toBeNull();
+  });
+
+  it("nota: vírgula e até 2 casas; ausente vira traço", () => {
+    expect(scoreLabel(4.5)).toBe("4,5");
+    expect(scoreLabel(4.75)).toBe("4,75");
+    expect(scoreLabel(5)).toBe("5");
+    expect(scoreLabel(undefined)).toBe("—");
+    expect(scoreLabel(null)).toBe("—");
   });
 });

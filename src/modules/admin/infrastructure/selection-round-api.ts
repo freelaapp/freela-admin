@@ -83,6 +83,13 @@ export interface AdminSelectionRound {
   openNote?: string | null;
   /** O prazo de resposta desta rodada, em minutos (o escolhido no "Selecionar agora"). */
   availabilityMinutes?: number | null;
+  /**
+   * Risco trabalhista F1: a ordem fotografada na rodada. Ausente (chave V3 desligada ou rodada
+   * antiga) = a tela fica como era.
+   */
+  rankingOrder?: "V2" | "V3" | null;
+  /** O teto de "já trabalhou aqui" (%) valendo na rodada; só com `rankingOrder = V3`. */
+  workedHereCapPct?: number | null;
 }
 
 export interface AdminSelectionPerson {
@@ -94,6 +101,8 @@ export interface AdminSelectionPerson {
   name: string;
   rankReason: SelectionRankReason | null;
   workedHereCount: number;
+  /** Nota de 1 a 5 da ordenação (só o admin vê). Ausente = a coluna "Nota" some. */
+  rankScore?: number | null;
   situation: SelectionSituation;
   reservePosition: number | null;
   waitlistPosition: number | null;
