@@ -24,6 +24,8 @@ export function VacancyOutcomesSection({ data }: { data: AdminDashboard }) {
     );
   }
 
+  const byService = view.base === "service";
+
   return (
     <>
       <section aria-labelledby="destino-vagas" className="mb-6">
@@ -31,11 +33,14 @@ export function VacancyOutcomesSection({ data }: { data: AdminDashboard }) {
           id="destino-vagas"
           className="mb-1 text-base font-semibold text-[#1d1d1b]"
         >
-          Destino das vagas criadas
+          {byService
+            ? "Destino das vagas do período"
+            : "Destino das vagas criadas"}
         </h2>
         <p className="mb-3 text-xs text-[#737373]">
-          Cada vaga criada no período entra em um grupo só, pela situação de
-          agora. Toque no nome de uma linha para ver o que ela é e a conta.
+          {byService
+            ? "Cada vaga com serviço no período (pela data do serviço) entra em uma categoria só, pela situação de agora. Aqui está o detalhe de cada grupo da seção Vagas, com os mesmos números. Toque no nome de uma linha para ver o que ela é e a conta."
+            : "Cada vaga criada no período entra em um grupo só, pela situação de agora. Toque no nome de uma linha para ver o que ela é e a conta."}
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {view.summary.map((card) => (
@@ -105,9 +110,9 @@ export function VacancyOutcomesSection({ data }: { data: AdminDashboard }) {
           Vagas falsas (fora dos números oficiais)
         </h2>
         <p className="mb-3 text-xs text-[#737373]">
-          Vagas que a empresa abriu e não levou adiante. Ficam fora de
-          &quot;Vagas criadas&quot; e das contas do período, mas aparecem aqui,
-          cada tipo no seu card.
+          {byService
+            ? "Vagas que a empresa abriu e não levou adiante, com serviço no período. Ficam fora do total e dos grupos da seção Vagas, mas aparecem aqui, cada tipo no seu card."
+            : 'Vagas que a empresa abriu e não levou adiante. Ficam fora de "Vagas criadas" e das contas do período, mas aparecem aqui, cada tipo no seu card.'}
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {view.fakeCards.map((card) => (
@@ -134,9 +139,9 @@ export function VacancyOutcomesSection({ data }: { data: AdminDashboard }) {
             Faltas: freelancer chamado e não foi
           </h2>
           <p className="mb-3 text-xs text-[#737373]">
-            Contadas por pessoa e vaga, pela data da falta. Uma vaga em que o
-            titular faltou e o suplente trabalhou aparece como concluída lá em
-            cima e a falta aparece aqui.
+            {byService
+              ? "Contadas por pessoa e vaga, pela data da falta (não pela data do serviço), por isso podem diferir do card \"Freelancer confirmou e não foi\" da seção Vagas. Uma vaga em que o titular faltou e o suplente trabalhou aparece como concluída lá em cima e a falta aparece aqui."
+              : "Contadas por pessoa e vaga, pela data da falta. Uma vaga em que o titular faltou e o suplente trabalhou aparece como concluída lá em cima e a falta aparece aqui."}
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {view.noShowCards.map((card) => (

@@ -12,6 +12,7 @@ import {
   getAdminDashboard,
   getVacancyStages,
 } from "./dashboard-api";
+import { serviceDateBlock } from "../application/dashboard-service-date.fixture";
 
 const ratio = (numerator: number, denominator: number) => ({
   value: denominator ? numerator / denominator : null,
@@ -126,6 +127,56 @@ describe("getAdminDashboard", () => {
     const out = await getAdminDashboard({});
     expect(out.vacancyOutcomes).toBeUndefined();
     expect(out.noShows).toBeUndefined();
+  });
+
+  it("vagas pela data do serviço: lê o bloco (grupos, falsas, cobertas, média, destino)", async () => {
+    get.mockResolvedValue({
+      data: { data: { ...fullPayload, vacanciesByServiceDate: serviceDateBlock() } },
+    });
+    const out = await getAdminDashboard({});
+    const block = out.vacanciesByServiceDate!;
+    expect(block.total.current).toBe(10);
+    expect(block.groups.map((g) => g.key)).toEqual([
+      "COMPLETED",
+      "NO_SHOW",
+      "NO_FREELANCER",
+      "CANCELLED",
+      "HAPPENING_OR_CLOSING",
+      "UPCOMING",
+      "OUT_OF_PATTERN",
+    ]);
+    expect(block.groups[1].change).toBeNull();
+    expect(block.groups[0].shareOfTotal?.current.value).toBeCloseTo(0.6);
+    expect(block.coveredNoShows?.current).toBe(2);
+    expect(block.candidatesPerVacancy?.current.value).toBeCloseTo(16.8);
+    expect(block.fake.current).toBe(3);
+    expect(block.byOutcome.current.FAKE_QUICK).toBe(2);
+    // Os campos antigos seguem como estavam.
+    expect(out.indicators.freelancerSignups?.current).toBe(37);
+  });
+
+  it("API sem o bloco novo ou com o bloco malformado: undefined, resto intacto", async () => {
+    get.mockResolvedValue({ data: { data: fullPayload } });
+    expect((await getAdminDashboard({})).vacanciesByServiceDate).toBeUndefined();
+    get.mockResolvedValue({
+      data: { data: { ...fullPayload, vacanciesByServiceDate: { base: "SERVICE_DATE", total: "dez" } } },
+    });
+    const out = await getAdminDashboard({});
+    expect(out.vacanciesByServiceDate).toBeUndefined();
+    expect(out.indicators.freelancerSignups?.current).toBe(37);
+  });
+
+  it("bloco novo: cobertas e média ausentes não derrubam o bloco; categoria nova vira 0", async () => {
+    const block = serviceDateBlock() as unknown as Record<string, unknown>;
+    delete block.coveredNoShows;
+    delete block.candidatesPerVacancy;
+    (block.byOutcome as { current: Record<string, number> }).current.BRAND_NEW = 4;
+    get.mockResolvedValue({ data: { data: { ...fullPayload, vacanciesByServiceDate: block } } });
+    const out = await getAdminDashboard({});
+    expect(out.vacanciesByServiceDate?.coveredNoShows).toBeUndefined();
+    expect(out.vacanciesByServiceDate?.candidatesPerVacancy).toBeUndefined();
+    expect(out.vacanciesByServiceDate?.byOutcome.current).not.toHaveProperty("BRAND_NEW");
+    expect(out.vacanciesByServiceDate?.total.current).toBe(10);
   });
 
   it("indicador malformado vira undefined; o resto continua", async () => {

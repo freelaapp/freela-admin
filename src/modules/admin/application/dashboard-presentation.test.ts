@@ -18,9 +18,11 @@ import {
   formatDecimal,
   formatInteger,
   formatPercent,
+  periodSentence,
   ratioCaption,
   shortDateTimeBrasilia,
 } from "./dashboard-presentation";
+import { DAY_PERIOD, MONTH_PERIOD, serviceDateBlock } from "./dashboard-service-date.fixture";
 
 const ratio = (numerator: number, denominator: number) => ({
   value: denominator ? numerator / denominator : null,
@@ -348,5 +350,189 @@ describe("destino das vagas criadas e faltas", () => {
     );
     expect(card(withOutcomes, "P5").details.calc).toContain("Pela regra de antes");
     expect(card(base, "P3").title).toBe("Vagas criadas");
+  });
+});
+
+// ─── Vagas pela data do serviço (pedido do Denner, 23/11/2026) ──────────────
+
+describe("vagas pela data do serviço", () => {
+  const withService = (period = DAY_PERIOD): AdminDashboard => ({
+    ...base,
+    indicators: {
+      vacanciesCreated: { current: 244, previous: 200, change: { absolute: 44, percent: 22 } },
+    },
+    vacanciesByServiceDate: serviceDateBlock(period),
+  });
+  const vacancyCards = (data: AdminDashboard) =>
+    buildPeriodGroups(data).find((g) => g.id === "vacancies")!.cards;
+  const GROUP_IDS = [
+    "SD-COMPLETED",
+    "SD-NO_SHOW",
+    "SD-NO_FREELANCER",
+    "SD-CANCELLED",
+    "SD-HAPPENING_OR_CLOSING",
+    "SD-UPCOMING",
+    "SD-OUT_OF_PATTERN",
+  ];
+
+  it("título depende do período: um dia só = Vagas do dia; vários dias = Vagas do período", () => {
+    expect(vacancyCards(withService(DAY_PERIOD))[0].title).toBe("Vagas do dia");
+    expect(vacancyCards(withService(MONTH_PERIOD))[0].title).toBe("Vagas do período");
+    // Personalizado de 1 dia também é "do dia".
+    expect(
+      vacancyCards(withService({ ...DAY_PERIOD, preset: "custom", label: "16/11 a 16/11" }))[0].title,
+    ).toBe("Vagas do dia");
+  });
+
+  it("um card por grupo, na ordem da API, e os cards somam o total", () => {
+    const cards = vacancyCards(withService());
+    expect(cards.map((c) => c.id)).toEqual(["SD-TOTAL", ...GROUP_IDS, "SD-AVG"]);
+    const num = (c: { value: string }) => Number(c.value.replace(/\./g, ""));
+    const total = num(cards[0]);
+    const sum = cards.filter((c) => GROUP_IDS.includes(c.id)).reduce((acc, c) => acc + num(c), 0);
+    expect(total).toBe(10);
+    expect(sum).toBe(total);
+  });
+
+  it('o card "confirmou e não foi" aparece, com % do total e as faltas cobertas por suplente', () => {
+    const noShow = vacancyCards(withService()).find((c) => c.id === "SD-NO_SHOW")!;
+    expect(noShow.title).toBe("Freelancer confirmou e não foi");
+    expect(noShow.value).toBe("1");
+    expect(noShow.caption).toContain("10,0% do total");
+    expect(noShow.caption).toContain("2 faltas cobertas por suplente");
+    expect(noShow.details.calc).toContain("já contadas em Concluídas");
+  });
+
+  it("total: legenda da data do serviço sem as falsas, e a conta mostra a soma dos grupos", () => {
+    const total = vacancyCards(withService())[0];
+    expect(total.value).toBe("10");
+    expect(total.caption).toContain("data do serviço");
+    expect(total.caption).toContain("sem 3 falsas e 1 de teste");
+    expect(total.details.calc).toContain(
+      "6 concluídas + 1 confirmou e não foi + 1 sem freelancer + 1 cancelada + 0 em andamento ou aguardando encerrar + 1 ainda vai acontecer + 0 fora do padrão = 10",
+    );
+    expect(total.meta).toBe("ontem · +25% vs. anteontem");
+  });
+
+  it("total avisa quando a soma dos grupos não fecha com o total", () => {
+    const data = withService();
+    data.vacanciesByServiceDate!.groupsSum = { current: 9, previous: 8 };
+    expect(vacancyCards(data)[0].details.calc).toContain("não fecha");
+  });
+
+  it("cor: concluídas subir é verde; não foi, sem freelancer e canceladas subir é vermelho", () => {
+    const data = withService();
+    const block = data.vacanciesByServiceDate!;
+    const set = (key: string, absolute: number) => {
+      const g = block.groups.find((x) => x.key === key)!;
+      g.change = { absolute, percent: 10 };
+    };
+    set("COMPLETED", 2);
+    set("NO_SHOW", 1);
+    set("NO_FREELANCER", 1);
+    set("CANCELLED", 1);
+    const by = (id: string) => vacancyCards(data).find((c) => c.id === id)!;
+    expect(by("SD-COMPLETED").metaColor).toBe("text-green-600");
+    for (const id of ["SD-NO_SHOW", "SD-NO_FREELANCER", "SD-CANCELLED"]) {
+      expect(by(id).metaColor).toBe("text-red-600");
+    }
+    set("COMPLETED", -2);
+    set("NO_SHOW", -1);
+    expect(by("SD-COMPLETED").metaColor).toBe("text-red-600");
+    expect(by("SD-NO_SHOW").metaColor).toBe("text-green-600");
+  });
+
+  it("média de freelancers por vaga na nova base", () => {
+    const avg = vacancyCards(withService()).find((c) => c.id === "SD-AVG")!;
+    expect(avg.title).toBe("Média de freelancers por vaga");
+    expect(avg.value).toBe("16,8");
+    expect(avg.caption).toBe("168 candidatos em 10 vagas");
+    expect(avg.details.calc).toContain("168 candidatos ÷ 10 vagas");
+    expect(avg.details.calc).toContain("data do serviço");
+  });
+
+  it("com o bloco, os cards antigos por data de criação saem da seção Vagas", () => {
+    const ids = vacancyCards(withService()).map((c) => c.id);
+    for (const old of ["P3", "P4", "P5", "P9"]) expect(ids).not.toContain(old);
+  });
+
+  it("sem o bloco (API antiga): seção Vagas igual à de antes", () => {
+    const ids = vacancyCards({
+      ...base,
+      indicators: {
+        vacanciesCreated: { current: 244, previous: 200, change: { absolute: 44, percent: 22 } },
+      },
+    }).map((c) => c.id);
+    expect(ids).toEqual(["P3", "P4", "P5", "P9"]);
+    expect(
+      buildPeriodGroups(base).find((g) => g.id === "vacancies")!.note,
+    ).toBeUndefined();
+  });
+
+  it("nota da seção explica que as vagas contam pela data do serviço", () => {
+    const note = buildPeriodGroups(withService()).find((g) => g.id === "vacancies")!.note;
+    expect(note).toContain("data do serviço");
+    expect(note).toContain("ontem");
+    expect(note).toContain("anteontem");
+  });
+
+  it("frase do período: vagas pela data do serviço, demais pela data do evento; sem bloco = frase de antes", () => {
+    const text = periodSentence(withService());
+    expect(text).toContain("Vagas: pela data do serviço");
+    expect(text).toContain("data do próprio evento");
+    expect(periodSentence(base)).toBe(
+      "Os números abaixo medem novembro/2026 até agora e comparam com 01/10 a 17/10, cada indicador pela data do próprio evento (horário de Brasília).",
+    );
+  });
+});
+
+describe("destino das vagas do período (data do serviço)", () => {
+  const data: AdminDashboard = { ...base, vacanciesByServiceDate: serviceDateBlock() };
+
+  it("monta a visão só com o bloco novo e marca a base como data do serviço", () => {
+    const view = buildVacancyOutcomeView(data)!;
+    expect(view).not.toBeNull();
+    expect(view.base).toBe("service");
+  });
+
+  it("um grupo por grupo da API, com o total e uma linha por categoria", () => {
+    const view = buildVacancyOutcomeView(data)!;
+    expect(view.officialGroups.map((g) => g.title)).toEqual(
+      serviceDateBlock().groups.map((g) => g.label),
+    );
+    const cancelled = view.officialGroups.find((g) => g.id === "CANCELLED")!;
+    expect(cancelled.total).toBe("1");
+    expect(cancelled.rows.map((r) => r.id)).toEqual([
+      "COMPANY_CANCELLED_AFTER_CHOOSING",
+      "CHOSEN_NOT_PAID",
+      "CANCELLED_BY_SUPPORT",
+      "CANCELLED_BY_SYSTEM",
+    ]);
+    const support = cancelled.rows.find((r) => r.id === "CANCELLED_BY_SUPPORT")!;
+    expect(support.value).toBe("1");
+    expect(support.share).toBe("10,0%");
+    expect(support.help).toContain("1 de 10 vagas oficiais");
+    // Os totais dos grupos somam o total oficial.
+    const sum = view.officialGroups.reduce((acc, g) => acc + Number(g.total), 0);
+    expect(sum).toBe(10);
+  });
+
+  it("um card por tipo de falsa e um card do total bruto (oficiais + falsas + teste)", () => {
+    const view = buildVacancyOutcomeView(data)!;
+    expect(view.fakeCards.map((c) => c.id)).toEqual([
+      "FAKE_QUICK",
+      "FAKE_DELETED",
+      "FAKE_CANCELLED_WITH_CANDIDATES",
+      "FAKE_EXPIRED_WITH_CANDIDATES",
+    ]);
+    expect(view.fakeCards[0].value).toBe("2");
+    expect(view.summary).toHaveLength(1);
+    expect(view.summary[0].value).toBe("14");
+    expect(view.summary[0].caption).toBe("10 oficiais · 3 falsas · 1 de teste");
+    expect(view.summary[0].details.calc).toContain("14 = 10 oficiais + 3 falsas + 1 de teste");
+  });
+
+  it("sem o bloco novo, a visão antiga (pela data de criação) continua", () => {
+    expect(buildVacancyOutcomeView(base)).toBeNull();
   });
 });

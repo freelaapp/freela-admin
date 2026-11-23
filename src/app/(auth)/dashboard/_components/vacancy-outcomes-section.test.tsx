@@ -6,6 +6,7 @@ import {
   type AdminDashboard,
   type VacancyOutcomeKey,
 } from "@/modules/admin/infrastructure/dashboard-api";
+import { serviceDateBlock } from "@/modules/admin/application/dashboard-service-date.fixture";
 import { VacancyOutcomesSection } from "./vacancy-outcomes-section";
 
 const counts = (over: Partial<Record<VacancyOutcomeKey, number>>) =>
@@ -115,5 +116,31 @@ describe("VacancyOutcomesSection", () => {
     expect(
       screen.queryByRole("heading", { name: "Destino das vagas criadas" }),
     ).toBeNull();
+  });
+
+  it("com o bloco da data do serviço: Destino das vagas do período, por grupo, e falsas à parte", () => {
+    render(
+      <VacancyOutcomesSection
+        data={{ ...base, vacanciesByServiceDate: serviceDateBlock() }}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Destino das vagas do período" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Destino das vagas criadas" }),
+    ).toBeNull();
+    expect(screen.getByText(/pela data do serviço/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Canceladas" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Canceladas pelo suporte")).toBeInTheDocument();
+    expect(
+      screen.getByText("10 oficiais · 3 falsas · 1 de teste"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Abertas e fechadas rápido")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Vagas falsas (fora dos números oficiais)" }),
+    ).toBeInTheDocument();
   });
 });

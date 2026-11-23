@@ -18,6 +18,7 @@ vi.mock("@/modules/admin/application/use-admin-dashboard", () => ({
 }));
 
 import DashboardPage from "../page";
+import { serviceDateBlock } from "@/modules/admin/application/dashboard-service-date.fixture";
 
 const ratio = (numerator: number, denominator: number) => ({
   value: denominator ? numerator / denominator : null,
@@ -141,5 +142,35 @@ describe("Dashboard novo", () => {
     expect(screen.getByText(/status das vagas ainda não estão disponíveis/)).toBeInTheDocument();
     const links = screen.getAllByRole("link", { name: "Operação" });
     expect(links.every((a) => a.getAttribute("href") === "/dashboard/operacao")).toBe(true);
+  });
+
+  it("com o bloco da data do serviço: Vagas do dia, um card por grupo e a frase do período", () => {
+    state.dashboard = {
+      data: { ...dashboard, vacanciesByServiceDate: serviceDateBlock() },
+      isLoading: false,
+      isError: false,
+      error: null,
+      isFetching: false,
+    };
+    render(<DashboardPage />);
+    const vagas = screen.getByRole("heading", { name: "Vagas" }).closest("section") as HTMLElement;
+    expect(within(vagas).getByText("Vagas do dia")).toBeInTheDocument();
+    expect(within(vagas).getByText("Freelancer confirmou e não foi")).toBeInTheDocument();
+    expect(within(vagas).getByText("Concluídas")).toBeInTheDocument();
+    expect(within(vagas).getByText("Média de freelancers por vaga")).toBeInTheDocument();
+    expect(within(vagas).queryByText("Vagas concluídas")).toBeNull();
+    expect(screen.getByText(/Vagas: pela data do serviço/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Destino das vagas do período" }),
+    ).toBeInTheDocument();
+  });
+
+  it("sem o bloco (API antiga): tela como sempre, com a frase antiga", () => {
+    render(<DashboardPage />);
+    const vagas = screen.getByRole("heading", { name: "Vagas" }).closest("section") as HTMLElement;
+    expect(within(vagas).getByText("Vagas concluídas")).toBeInTheDocument();
+    expect(within(vagas).queryByText("Vagas do dia")).toBeNull();
+    expect(screen.getByText(/cada indicador pela data do próprio evento/)).toBeInTheDocument();
+    expect(screen.queryByText(/Vagas: pela data do serviço/)).toBeNull();
   });
 });
