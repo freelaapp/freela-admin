@@ -19,14 +19,19 @@ export function stateLabel(param: Pick<PlatformParameter, "inEffect">): string {
   return param.inEffect ? "Em vigor" : "Guardado; regra desligada";
 }
 
-/** "5 da lista de 10": a API arredonda para baixo (`floor(10 x %)`). */
-export function capSeatsLabel(capPct: number): string {
-  return `${Math.floor((10 * capPct) / 100)} da lista de 10`;
+/**
+ * Com o tamanho real da rodada (pré-selecionados): "5 da lista de 10" (a API arredonda para baixo:
+ * `floor(tamanho x %)`). Sem ele a tela não inventa lista: só "teto 50%".
+ */
+export function capSeatsLabel(capPct: number, roundSize?: number | null): string {
+  if (!roundSize || roundSize <= 0) return `teto ${capPct}%`;
+  return `${Math.floor((roundSize * capPct) / 100)} da lista de ${roundSize}`;
 }
 
+/** `version > 0` = alguém já alterou (mesmo que o valor tenha voltado ao padrão). */
 export function lastChangeLabel(param: PlatformParameter): string {
-  if (param.isDefault || !param.updatedAt) return "Valor inicial (ninguém alterou)";
-  return `Alterado por ${param.updatedBy?.name ?? "um admin"} em ${formatInstantDateTime(param.updatedAt)}`;
+  if (param.version <= 0 || !param.updatedAt) return "Valor inicial (ninguém alterou)";
+  return `Alterado por ${param.updatedBy ?? "um admin"} em ${formatInstantDateTime(param.updatedAt)}`;
 }
 
 export interface ParameterInputErrors {

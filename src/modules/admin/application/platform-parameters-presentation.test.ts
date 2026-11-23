@@ -21,7 +21,7 @@ const param = (over: Partial<PlatformParameter> = {}): PlatformParameter => ({
   max: 100,
   isDefault: true,
   inEffect: true,
-  version: 1,
+  version: 0,
   updatedAt: null,
   updatedBy: null,
   ...over,
@@ -39,12 +39,14 @@ describe("platform-parameters-presentation", () => {
     expect(formatParameterValue(7, "")).toBe("7");
   });
 
-  it("teto: quantos da lista de 10 (arredonda para baixo, como a regra)", () => {
-    expect(capSeatsLabel(50)).toBe("5 da lista de 10");
-    expect(capSeatsLabel(30)).toBe("3 da lista de 10");
-    expect(capSeatsLabel(35)).toBe("3 da lista de 10");
-    expect(capSeatsLabel(0)).toBe("0 da lista de 10");
-    expect(capSeatsLabel(100)).toBe("10 da lista de 10");
+  it("teto: com o tamanho da rodada, quantos cabem (arredonda para baixo); sem ele, só o teto", () => {
+    expect(capSeatsLabel(50, 10)).toBe("5 da lista de 10");
+    expect(capSeatsLabel(35, 10)).toBe("3 da lista de 10");
+    expect(capSeatsLabel(100, 10)).toBe("10 da lista de 10");
+    expect(capSeatsLabel(50, 6)).toBe("3 da lista de 6");
+    expect(capSeatsLabel(0, 8)).toBe("0 da lista de 8");
+    expect(capSeatsLabel(50)).toBe("teto 50%");
+    expect(capSeatsLabel(50, 0)).toBe("teto 50%");
   });
 
   it("última mudança: autor e data, ou valor inicial", () => {
@@ -54,13 +56,18 @@ describe("platform-parameters-presentation", () => {
         param({
           isDefault: false,
           updatedAt: "2026-11-23T17:05:00.000Z",
-          updatedBy: { id: "a", name: "Ana Lima" },
+          updatedBy: "Ana Lima",
+          version: 2,
         }),
       ),
     ).toBe("Alterado por Ana Lima em 23/11/2026, 14:05");
     expect(
-      lastChangeLabel(param({ isDefault: false, updatedAt: "2026-11-23T17:05:00.000Z" })),
+      lastChangeLabel(param({ isDefault: false, version: 2, updatedAt: "2026-11-23T17:05:00.000Z" })),
     ).toBe("Alterado por um admin em 23/11/2026, 14:05");
+    // voltou ao padrão (50) mas alguém já alterou: não é "valor inicial"
+    expect(
+      lastChangeLabel(param({ isDefault: true, version: 3, updatedAt: "2026-11-23T17:05:00.000Z", updatedBy: "Diego" })),
+    ).toBe("Alterado por Diego em 23/11/2026, 14:05");
   });
 
   it("validação: faixa, igual ao de hoje, motivo de 5 a 500", () => {

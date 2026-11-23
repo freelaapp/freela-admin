@@ -31,7 +31,7 @@ const PARAM = {
   max: 100,
   isDefault: true,
   inEffect: true,
-  version: 1,
+  version: 0,
   updatedAt: null,
   updatedBy: null,
 };
@@ -70,7 +70,7 @@ describe("PlatformParametersCard", () => {
     renderCard();
     expect(await screen.findByText("Já trabalhou aqui: teto")).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeInTheDocument();
-    expect(screen.getByText(/5 da lista de 10/)).toBeInTheDocument();
+    expect(screen.getByText(/teto 50%/)).toBeInTheDocument();
     expect(screen.getByText(/Padrão: 50%/)).toBeInTheDocument();
     expect(screen.getByText(/Faixa: 0 a 100/)).toBeInTheDocument();
     expect(screen.getByText("Em vigor")).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe("PlatformParametersCard", () => {
         isDefault: false,
         version: 2,
         updatedAt: "2026-11-23T17:05:00.000Z",
-        updatedBy: { id: "a", name: "Ana Lima" },
+        updatedBy: "Ana Lima",
       },
     ]);
     renderCard();
@@ -124,7 +124,7 @@ describe("PlatformParametersCard", () => {
       expect(api.updatePlatformParameter).toHaveBeenCalledWith("ranking.worked_here_cap_pct", {
         value: 30,
         reason: "Pedido do Diego",
-        expectedVersion: 1,
+        expectedVersion: 0,
       }),
     );
     await waitFor(() => expect(toast.success).toHaveBeenCalled());

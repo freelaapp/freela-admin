@@ -25,7 +25,7 @@ const item = {
   inEffect: true,
   version: 3,
   updatedAt: "2026-11-23T17:05:00.000Z",
-  updatedBy: { id: "a1", name: "Ana Lima" },
+  updatedBy: "Ana Lima",
 };
 
 describe("platform-parameters-api", () => {
@@ -67,6 +67,38 @@ describe("platform-parameters-api", () => {
       updatedAt: null,
       updatedBy: null,
     });
+  });
+
+  it("aceita o payload real da API: updatedBy é o NOME do admin (texto)", async () => {
+    get.mockResolvedValue({ data: { data: { items: [{ ...item, updatedBy: "Diego" }] } } });
+    const [p] = await getPlatformParameters();
+    expect(p.updatedBy).toBe("Diego");
+  });
+
+  it("tolera updatedBy como objeto {name} e normaliza para texto", async () => {
+    get.mockResolvedValue({ data: { data: { items: [{ ...item, updatedBy: { id: "a1", name: "Ana Lima" } }] } } });
+    const [p] = await getPlatformParameters();
+    expect(p.updatedBy).toBe("Ana Lima");
+  });
+
+  it("a resposta do PUT com updatedBy em texto não quebra", async () => {
+    put.mockResolvedValue({ data: { data: { ...item, value: 40, version: 4, updatedBy: "Diego" } } });
+    const out = await updatePlatformParameter("ranking.worked_here_cap_pct", {
+      value: 40,
+      reason: "Pedido do Diego",
+      expectedVersion: 3,
+    });
+    expect(out.updatedBy).toBe("Diego");
+  });
+
+  it("valida item por item: o malformado é descartado com aviso e os bons ficam", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    get.mockResolvedValue({ data: { data: { items: [item, { key: "ruim", value: "x" }, null] } } });
+    const out = await getPlatformParameters();
+    expect(out).toHaveLength(1);
+    expect(out[0].key).toBe(item.key);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it("lista vazia quando a resposta não traz items", async () => {

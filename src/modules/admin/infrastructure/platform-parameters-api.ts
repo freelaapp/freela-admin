@@ -14,11 +14,15 @@ const adminsApi = createAuthedClient("/v1/admins");
 export const PARAMETER_REASON_MIN = 5;
 export const PARAMETER_REASON_MAX = 500;
 
-const adminRef = z
-  .object({ id: z.string().nullable().optional(), name: z.string().nullable().optional() })
+/**
+ * A API manda `updatedBy` como TEXTO (o nome do admin). Por segurança tolera também um objeto
+ * `{ name }` e normaliza sempre para texto (ou null).
+ */
+const adminName = z
+  .union([z.string(), z.object({ name: z.string().nullable().optional() }).passthrough()])
   .nullable()
   .optional()
-  .transform((v) => (v ? { id: v.id ?? "", name: v.name ?? null } : null));
+  .transform((v) => (typeof v === "string" ? v : (v?.name ?? null)) || null);
 
 const parameterSchema = z
   .object({
@@ -32,9 +36,10 @@ const parameterSchema = z
     max: z.number(),
     isDefault: z.boolean().optional().default(false),
     inEffect: z.boolean().optional().default(false),
-    version: z.number().optional().default(1),
+    /** 0 = ainda sem linha no banco (ninguém alterou). */
+    version: z.number().optional().default(0),
     updatedAt: z.string().nullable().optional().transform((v) => v ?? null),
-    updatedBy: adminRef,
+    updatedBy: adminName,
   })
   .transform((p) => ({
     ...p,
@@ -59,7 +64,18 @@ export type PlatformParameterChange = z.output<typeof changeSchema>;
 export async function getPlatformParameters(): Promise<PlatformParameter[]> {
   const res = await adminsApi.get("/platform-parameters");
   const items = res.data?.data?.items;
-  return z.array(parameterSchema).parse(Array.isArray(items) ? items : []);
+  return parseItemByItem(Array.isArray(items) ? items : []);
+}
+
+/** Item malformado é descartado (com aviso) sem derrubar o cartão inteiro. */
+function parseItemByItem(items: unknown[]): PlatformParameter[] {
+  const out: PlatformParameter[] = [];
+  for (const raw of items) {
+    const parsed = parameterSchema.safeParse(raw);
+    if (parsed.success) out.push(parsed.data);
+    else console.warn("[platform-parameters] item inválido descartado", parsed.error.issues);
+  }
+  return out;
 }
 
 export async function updatePlatformParameter(
