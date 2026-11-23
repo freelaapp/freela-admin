@@ -32,7 +32,7 @@ import {
   type CardText,
 } from "@/modules/admin/application/held-repasses-presentation";
 import { dayLabel, formatBrl, instantWithWeekday } from "@/modules/admin/application/invoice-presentation";
-import { repasseStatusBadge } from "@/modules/admin/application/repasse-status-presentation";
+import { repasseRowBadge } from "@/modules/admin/application/repasse-status-presentation";
 import { useAdminRepasses } from "@/modules/admin/application/use-admin-repasses";
 import { useBillingSummary } from "@/modules/admin/application/use-admin-billing";
 import { useHeldRepasses } from "@/modules/admin/application/use-held-repasses";
@@ -45,7 +45,29 @@ import {
   type HeldSituationFilter,
 } from "@/modules/admin/infrastructure/held-repasses-api";
 import { FailedWithdrawalsPanel } from "./failed-withdrawals-panel";
+import {
+  MarkPaidExternallyButton,
+  MarkPaidExternallyDialog,
+  type PaidExternallyTarget,
+} from "./mark-paid-externally-dialog";
 import { ReleasePayoutDialog } from "./release-payout-dialog";
+
+/** O retido como alvo do "Marcar como pago por fora". */
+export function heldPaidExternallyTarget(row: HeldRepasseItem): PaidExternallyTarget {
+  return {
+    repasseId: row.repasseId,
+    vacancyId: row.vacancyId,
+    amountInCents: row.amountInCents,
+    freelancerName: row.freelancer.name,
+    service: [row.vacancyTitle ?? "Serviço", row.serviceDate ? dayLabel(row.serviceDate) : null, row.company.name]
+      .filter(Boolean)
+      .join(" · "),
+    companyName: row.company.name,
+    kind: "held",
+    invoice: row.invoice ? { number: row.invoice.number, dueDate: row.invoice.dueDate } : null,
+    deadlineAt: row.effectiveDeadlineAt,
+  };
+}
 
 /** A lista é pequena (dezenas): uma página grande deixa a busca valer para todos. */
 const PAGE_SIZE = 200;
@@ -233,6 +255,7 @@ function HeldList({
   onPage: (p: number) => void;
 }) {
   const [releasing, setReleasing] = useState<HeldRepasseItem | null>(null);
+  const [marking, setMarking] = useState<PaidExternallyTarget | null>(null);
   // Cada abertura remonta o diálogo: motivo limpo, sem erro antigo.
   const [opening, setOpening] = useState(0);
   const now = new Date();
@@ -372,21 +395,36 @@ function HeldList({
       mobile: "actions",
       accessor: (row) => {
         const availability = releaseAvailability(row);
-        if (!availability.enabled) {
-          return <p className="max-w-[16rem] text-xs text-[#737373]">{availability.reason}</p>;
-        }
+        // Liberado (fatura, teto ou outro admin): o Pix já está saindo — sem "pago por fora".
+        const canMark = !row.releaseAuthorized && row.situation !== "releasing";
         return (
-          <Button
-            size="sm"
-            aria-label={`Pagar agora ${formatBrl(row.amountInCents)} para ${row.freelancer.name ?? "o freelancer"}`}
-            onClick={() => {
-              setOpening((n) => n + 1);
-              setReleasing(row);
-            }}
-            className="min-h-11 bg-[#eca826] text-white hover:bg-[#d4951e]"
-          >
-            Pagar agora
-          </Button>
+          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-start">
+            {availability.enabled ? (
+              <Button
+                size="sm"
+                aria-label={`Pagar agora ${formatBrl(row.amountInCents)} para ${row.freelancer.name ?? "o freelancer"}`}
+                onClick={() => {
+                  setOpening((n) => n + 1);
+                  setReleasing(row);
+                }}
+                className="min-h-11 bg-[#eca826] text-white hover:bg-[#d4951e]"
+              >
+                Pagar agora
+              </Button>
+            ) : (
+              <p className="max-w-[16rem] text-xs text-[#737373]">{availability.reason}</p>
+            )}
+            {canMark && (
+              <MarkPaidExternallyButton
+                amountInCents={row.amountInCents}
+                name={row.freelancer.name}
+                onClick={() => {
+                  setOpening((n) => n + 1);
+                  setMarking(heldPaidExternallyTarget(row));
+                }}
+              />
+            )}
+          </div>
         );
       },
     },
@@ -506,6 +544,9 @@ function HeldList({
       {releasing && (
         <ReleasePayoutDialog key={opening} item={releasing} onClose={() => setReleasing(null)} />
       )}
+      {marking && (
+        <MarkPaidExternallyDialog key={`mark-${opening}`} target={marking} onClose={() => setMarking(null)} />
+      )}
     </div>
   );
 }
@@ -514,18 +555,45 @@ function HeldList({
 
 type RepasseRow = RepasseItem & { busca: string; statusLabel: string };
 
+/** Data `dd/mm` de Brasília de um instante. */
+const ddmmBrt = (iso: string) =>
+  new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" });
+
+/** O que o `title` do selo "Pago por fora" mostra: quando, quem, quanto, motivo e comprovante. */
+function paidExternallyTitle(row: RepasseItem): string {
+  const p = row.paidExternally;
+  if (!p) return row.status;
+  return [
+    `Pago por fora em ${ddmmBrt(p.at)}${p.adminName ? ` por ${p.adminName}` : ""}`,
+    formatBrl(p.amountPaidInCents),
+    p.reason,
+    p.proof,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /**
- * A lista de sempre (`GET /v1/bars-restaurants/admin/repasses`): ainda sem nome
- * nem vaga resolvidos na API, mas com o status traduzido (inclusive "Aguardando
- * a fatura" e "Em verificação"). Lê ao abrir e no "Atualizar".
+ * A lista de sempre (`GET /v1/bars-restaurants/admin/repasses`), com o status
+ * traduzido (inclusive "Aguardando a fatura", "Em verificação" e "Pago por fora").
+ * Com a API de 23/11 vêm o nome do freelancer e a vaga; no "Falhou", o "Marcar
+ * como pago por fora". Lê ao abrir e no "Atualizar".
  */
 function AllRepassesList() {
   const { data, isLoading, isFetching, isError, refetch } = useAdminRepasses();
+  const [marking, setMarking] = useState<PaidExternallyTarget | null>(null);
+  const [opening, setOpening] = useState(0);
   const rows: RepasseRow[] = useMemo(
     () =>
       (data ?? []).map((r) => {
-        const statusLabel = repasseStatusBadge(r.status).label;
-        return { ...r, statusLabel, busca: `${r.providerGlobalId} ${r.vacancyId} ${statusLabel}` };
+        const statusLabel = repasseRowBadge(r).label;
+        return {
+          ...r,
+          statusLabel,
+          busca: [r.freelancerName, r.vacancyTitle, r.providerGlobalId, r.vacancyId, statusLabel]
+            .filter(Boolean)
+            .join(" "),
+        };
       }),
     [data],
   );
@@ -550,13 +618,23 @@ function AllRepassesList() {
 
   const columns: Column<RepasseRow>[] = [
     {
-      header: "Freelancer (id)",
+      header: "Freelancer",
       mobile: "title",
-      accessor: (row) => <span className="font-mono text-xs">{row.providerGlobalId.slice(0, 12)}</span>,
+      accessor: (row) =>
+        row.freelancerName ? (
+          <span className="text-[#1d1d1b]">{row.freelancerName}</span>
+        ) : (
+          <span className="font-mono text-xs">{row.providerGlobalId.slice(0, 12)}</span>
+        ),
     },
     {
       header: "Vaga",
-      accessor: (row) => <span className="font-mono text-xs">{`#${row.vacancyId.slice(0, 8)}`}</span>,
+      accessor: (row) => (
+        <div className="min-w-0 text-sm">
+          {row.vacancyTitle && <p className="text-[#1d1d1b]">{row.vacancyTitle}</p>}
+          <p className="font-mono text-[10px] text-[#a3a3a3]">{`#${row.vacancyId.slice(0, 8)}`}</p>
+        </div>
+      ),
     },
     {
       header: "Valor",
@@ -570,10 +648,10 @@ function AllRepassesList() {
     {
       header: "Status",
       accessor: (row) => {
-        const badge = repasseStatusBadge(row.status);
+        const badge = repasseRowBadge(row);
         return (
           <span
-            title={row.status}
+            title={paidExternallyTitle(row)}
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.cls}`}
           >
             {badge.label}
@@ -581,21 +659,52 @@ function AllRepassesList() {
         );
       },
     },
+    {
+      header: "",
+      mobile: "actions",
+      accessor: (row) =>
+        // Só o Pix da Freela que falhou, com freelancer e valor (o retido fica em
+        // "Aguardando fatura"). Sem o nome da API nova, nada de ação só com um id.
+        row.status === "FAILED" && !row.paidExternally && row.freelancerName && row.amountInCents > 0 ? (
+          <MarkPaidExternallyButton
+            amountInCents={row.amountInCents}
+            name={row.freelancerName}
+            onClick={() => {
+              setOpening((n) => n + 1);
+              setMarking({
+                repasseId: row.id,
+                vacancyId: row.vacancyId,
+                amountInCents: row.amountInCents,
+                freelancerName: row.freelancerName ?? null,
+                service: row.vacancyTitle ?? "Serviço",
+                companyName: null,
+                kind: "failed",
+                failureReason: row.failureReason ?? null,
+              });
+            }}
+          />
+        ) : null,
+    },
   ];
 
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      searchPlaceholder="Buscar por id do freelancer, vaga ou status…"
-      searchKey="busca"
-      filters={
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RotateCcw className={`mr-1.5 h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
-          Atualizar
-        </Button>
-      }
-      isFetching={isFetching}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={rows}
+        searchPlaceholder="Buscar por freelancer, vaga ou status…"
+        searchKey="busca"
+        filters={
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RotateCcw className={`mr-1.5 h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
+            Atualizar
+          </Button>
+        }
+        isFetching={isFetching}
+      />
+      {marking && (
+        <MarkPaidExternallyDialog key={`mark-${opening}`} target={marking} onClose={() => setMarking(null)} />
+      )}
+    </>
   );
 }

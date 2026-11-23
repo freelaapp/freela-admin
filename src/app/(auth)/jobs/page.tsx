@@ -160,6 +160,7 @@ type Row = ReturnType<typeof mapVacancyToRow>;
 
 
 import { VacancyRoadmap, formatStepAt } from "./_components/vacancy-roadmap";
+import { VacancyPayoutBlock } from "./_components/vacancy-payout-block";
 
 
 export default function JobsPage() {
@@ -1289,6 +1290,14 @@ export default function JobsPage() {
                     </p>
                   )}
                 </div>
+                {/* Situação do repasse e o "Marcar como pago por fora" (23/11/2026). */}
+                <VacancyPayoutBlock
+                  vacancyId={modalDetalhes.raw.id}
+                  vacancyTitle={modalDetalhes.raw.title}
+                  serviceDay={modalDetalhes.data}
+                  companyName={modalDetalhes.empresa}
+                  freelancerName={modalDetalhes.providerName}
+                />
                 <div className="bg-[#f7f7f7] rounded-lg p-3">
                   <p className="text-[#737373]">Data</p>
                   <p className="font-semibold text-[#1d1d1b]">{modalDetalhes.data}</p>

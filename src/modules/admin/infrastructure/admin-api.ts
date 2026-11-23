@@ -1578,6 +1578,22 @@ export interface RepasseItem {
   status: string;
   confirmedAt: string | null;
   createdAt: string;
+  /** Aditivos (23/11/2026). API de antes não manda: a tela cai no id. */
+  failureReason?: string | null;
+  freelancerName?: string | null;
+  vacancyTitle?: string | null;
+  /**
+   * "Pago por fora": o dono pagou do próprio bolso. O `status` segue `COMPLETED`;
+   * é este bloco que troca o selo para "Pago por fora".
+   */
+  paidExternally?: {
+    at: string;
+    amountPaidInCents: number;
+    reason: string;
+    proof: string | null;
+    adminId: string;
+    adminName: string | null;
+  } | null;
 }
 
 export async function getAdminRepasses(): Promise<RepasseItem[]> {

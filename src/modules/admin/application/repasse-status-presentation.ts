@@ -24,8 +24,25 @@ export const REPASSE_STATUS_BADGES: Record<string, RepasseStatusBadge> = {
 
 const UNKNOWN: RepasseStatusBadge = { label: "Em processamento", cls: "bg-[#f7f7f7] text-[#525252]" };
 
+/**
+ * "Pago por fora" (23/11/2026): o dono pagou do próprio bolso. O status do
+ * repasse segue `COMPLETED`; o selo vem do bloco `paidExternally` da linha.
+ */
+export const PAID_EXTERNALLY_BADGE: RepasseStatusBadge = {
+  label: "Pago por fora",
+  cls: "bg-violet-50 text-violet-800",
+};
+
 export function repasseStatusBadge(status: string | null | undefined): RepasseStatusBadge {
   return (status && REPASSE_STATUS_BADGES[status]) || UNKNOWN;
+}
+
+/** O selo de uma linha: "Pago por fora" quando a linha traz o bloco; senão, o do status. */
+export function repasseRowBadge(row: {
+  status: string | null | undefined;
+  paidExternally?: unknown;
+}): RepasseStatusBadge {
+  return row.paidExternally ? PAID_EXTERNALLY_BADGE : repasseStatusBadge(row.status);
 }
 
 /**

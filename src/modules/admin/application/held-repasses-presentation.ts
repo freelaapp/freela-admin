@@ -5,6 +5,7 @@ import type {
   HeldRepassesTotals,
   HeldSituationFilter,
   HeldTotals,
+  MarkPaidExternallyResult,
   ReleaseRepasseResult,
 } from "../infrastructure/held-repasses-api";
 import { repasseStatusBadge } from "./repasse-status-presentation";
@@ -211,41 +212,66 @@ const part = (label: string, slice: CountAndValue) =>
  */
 export function paidByFreelaCardOf(breakdown: AdvancedBreakdown, advancedSource: string): CardText {
   const { deadline, admin, invoiceCancelled } = breakdown;
-  const total = deadline.valueInCents + admin.valueInCents + invoiceCancelled.valueInCents;
-  const n = deadline.count + admin.count + invoiceCancelled.count;
+  // "Pago por fora" (23/11/2026): o dono pagou do bolso. Só aparece quando existe.
+  const external = breakdown.paidExternally ?? { count: 0, valueInCents: 0 };
+  const total =
+    deadline.valueInCents + admin.valueInCents + invoiceCancelled.valueInCents + external.valueInCents;
+  const n = deadline.count + admin.count + invoiceCancelled.count + external.count;
   return {
     key: "paidByFreela",
     title: "Pagos pela Freela antes da fatura, ainda não recebidos",
     valueInCents: total,
-    meta: `${plural(n, "pagamento", "pagamentos")} · no teto ${deadline.count} · Pagar agora ${admin.count}`,
-    help: "Dinheiro que a Freela já pagou aos freelancers antes de a empresa pagar a fatura (no teto, pelo 'Pagar agora' ou com a fatura cancelada) e que ainda não voltou. É uma foto de agora: sai daqui quando a fatura é paga.",
-    calc: `${part("no teto", deadline)} + ${part("Pagar agora", admin)} + ${part(
-      "fatura cancelada",
-      invoiceCancelled,
-    )} = ${formatBrl(total)}`,
+    meta:
+      `${plural(n, "pagamento", "pagamentos")} · no teto ${deadline.count} · Pagar agora ${admin.count}` +
+      (external.count > 0 ? ` · por fora ${external.count}` : ""),
+    help: "Dinheiro que a Freela já pagou aos freelancers antes de a empresa pagar a fatura (no teto, pelo 'Pagar agora', com a fatura cancelada ou pago por fora, do bolso) e que ainda não voltou. É uma foto de agora: sai daqui quando a fatura é paga.",
+    calc:
+      `${part("no teto", deadline)} + ${part("Pagar agora", admin)} + ${part(
+        "fatura cancelada",
+        invoiceCancelled,
+      )}` +
+      (external.count > 0 ? ` + ${part("pago por fora (do bolso)", external)}` : "") +
+      ` = ${formatBrl(total)}`,
     source: `${advancedSource} Só a parte paga antes da fatura pelo teto, pelo "Pagar agora" ou por fatura cancelada; os pagos no encerramento (vagas de antes da regra) estão só no card "Adiantado aos freelancers" da aba Faturas.`.trim(),
   };
 }
 
-/** A composição do card "Adiantado aos freelancers": as quatro fatias somam o valor dele. */
+/**
+ * A composição do card "Adiantado aos freelancers": as fatias somam o valor dele.
+ * A do "pago por fora" (23/11/2026) só entra quando existe.
+ */
 export function advancedCompositionCalc(breakdown: AdvancedBreakdown): string {
   const { onCompletion, deadline, admin, invoiceCancelled } = breakdown;
+  const external = breakdown.paidExternally ?? { count: 0, valueInCents: 0 };
   const total =
-    onCompletion.valueInCents + deadline.valueInCents + admin.valueInCents + invoiceCancelled.valueInCents;
-  return `${part("no encerramento (antes da regra)", onCompletion)} + ${part("no teto", deadline)} + ${part(
-    "Pagar agora",
-    admin,
-  )} + ${part("fatura cancelada", invoiceCancelled)} = ${formatBrl(total)}`;
+    onCompletion.valueInCents +
+    deadline.valueInCents +
+    admin.valueInCents +
+    invoiceCancelled.valueInCents +
+    external.valueInCents;
+  return (
+    `${part("no encerramento (antes da regra)", onCompletion)} + ${part("no teto", deadline)} + ${part(
+      "Pagar agora",
+      admin,
+    )} + ${part("fatura cancelada", invoiceCancelled)}` +
+    (external.count > 0 ? ` + ${part("pago por fora (do bolso)", external)}` : "") +
+    ` = ${formatBrl(total)}`
+  );
 }
 
 /** As fatias do "Adiantado", para o card mostrar logo abaixo do número. */
 export function advancedSlices(breakdown: AdvancedBreakdown): { label: string; value: string }[] {
-  return [
+  const slices = [
     { label: "no encerramento", value: formatBrl(breakdown.onCompletion.valueInCents) },
     { label: "no teto", value: formatBrl(breakdown.deadline.valueInCents) },
     { label: "Pagar agora", value: formatBrl(breakdown.admin.valueInCents) },
     { label: "fatura cancelada", value: formatBrl(breakdown.invoiceCancelled.valueInCents) },
   ];
+  const external = breakdown.paidExternally;
+  if (external && external.count > 0) {
+    slices.push({ label: "pago por fora", value: formatBrl(external.valueInCents) });
+  }
+  return slices;
 }
 
 // ─── "Pagar agora": erros e resultado ────────────────────────────────────────
@@ -358,4 +384,167 @@ export function retryWithdrawalErrorOf(err: unknown): { text: string; refresh: b
     text: "Não conseguimos confirmar se o saque foi pedido. Recarregue a lista antes de tentar de novo, para não sacar duas vezes.",
     refresh: true,
   };
+}
+
+// ─── "Pago por fora" (23/11/2026): textos ────────────────────────────────────
+
+/** Hoje em Brasília (`AAAA-MM-DD`). */
+export function todayBrtKey(now: Date = new Date()): string {
+  return now.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
+
+/** A data declarada vale até 60 dias atrás (a mesma regra da API). */
+export const PAID_EXTERNALLY_MAX_DAYS_AGO = 60;
+
+export function paidExternallyMinDateKey(now: Date = new Date()): string {
+  const today = todayBrtKey(now);
+  const date = new Date(`${today}T12:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - PAID_EXTERNALLY_MAX_DAYS_AGO);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Aviso quando o valor pago difere do valor do pagamento (não bloqueia), sempre
+ * com a conta. `null` = igual.
+ */
+export function paidExternallyDifferenceText(paidInCents: number, dueInCents: number): string | null {
+  if (paidInCents === dueInCents) return null;
+  const paid = formatBrl(paidInCents);
+  const due = formatBrl(dueInCents);
+  if (paidInCents < dueInCents) {
+    return `Você pagou ${paid}; o pagamento é de ${due} (${due} − ${paid} = ${formatBrl(
+      dueInCents - paidInCents,
+    )} a menos). A Freela não paga a diferença depois. Explique no motivo.`;
+  }
+  return `Você pagou ${paid}; o pagamento é de ${due} (${paid} − ${due} = ${formatBrl(
+    paidInCents - dueInCents,
+  )} a mais). A Freela não cobra a diferença de ninguém. Explique no motivo.`;
+}
+
+/** Campo do formulário a que o erro se refere (para mostrar junto dele). */
+export type PaidExternallyErrorField = "reason" | "amount" | "paidAt" | "proof" | null;
+
+/**
+ * O texto de cada erro do "Marcar como pago por fora". `refresh` = a lista estava
+ * velha (recarrega). Os campos continuam preenchidos.
+ */
+export function paidExternallyErrorOf(
+  err: unknown,
+  target: { name: string | null; amountInCents: number },
+): { text: string; refresh: boolean; field: PaidExternallyErrorField } {
+  const { status, code } = apiErrorOf(err);
+  const who = target.name ? firstName(target.name) : "o freelancer";
+  const value = formatBrl(target.amountInCents);
+  switch (code) {
+    case "REASON_REQUIRED":
+      return { text: RELEASE_REASON_HINT, refresh: false, field: "reason" };
+    case "INVALID_AMOUNT":
+      return { text: "Informe um valor maior que zero, por exemplo 120,00.", refresh: false, field: "amount" };
+    case "INVALID_PAID_AT":
+      return {
+        text: `Escolha o dia em que você pagou: de ${PAID_EXTERNALLY_MAX_DAYS_AGO} dias atrás até hoje.`,
+        refresh: false,
+        field: "paidAt",
+      };
+    case "INVALID_PROOF":
+      return { text: "O comprovante tem no máximo 200 caracteres.", refresh: false, field: "proof" };
+    case "REPASSE_ALREADY_RELEASED":
+      return {
+        text: `A Freela liberou este pagamento antes (fatura paga, teto ou "Pagar agora"). O Pix de ${value} para ${who} está saindo ou já saiu. Nada foi marcado. Se você também pagou por fora, ${who} recebeu duas vezes: combine a devolução.`,
+        refresh: true,
+        field: null,
+      };
+    case "REPASSE_ALREADY_PAID":
+      return {
+        text: "A Freela já pagou este repasse pela Woovi. Nada foi marcado. A lista foi atualizada.",
+        refresh: true,
+        field: null,
+      };
+    case "REPASSE_CREDIT_UNKNOWN":
+      return {
+        text: "O Pix da Freela para este pagamento pode ter saído (em verificação). Confira na Woovi antes. Nada foi marcado.",
+        refresh: true,
+        field: null,
+      };
+    case "REPASSE_IN_PROGRESS":
+      return {
+        text: "O Pix deste pagamento está saindo agora. Nada foi marcado. Recarregue em alguns minutos.",
+        refresh: true,
+        field: null,
+      };
+    case "REPASSE_INCOMPLETE":
+      return {
+        text: "Este pagamento falhou antes de ter freelancer e valor definidos. Nada foi marcado: resolva a vaga primeiro.",
+        refresh: false,
+        field: null,
+      };
+    case "REPASSE_NOT_MARKABLE":
+      return {
+        text: 'Este pagamento mudou de situação e não pode mais ser marcado como pago por fora. Nada foi marcado. Confira em "Todos os repasses".',
+        refresh: true,
+        field: null,
+      };
+    case "REPASSE_NOT_FOUND":
+      return { text: "Não achamos este pagamento. Nada foi marcado. A lista foi atualizada.", refresh: true, field: null };
+  }
+  if (status === 403) {
+    return {
+      text: "Só quem tem acesso ao Financeiro pode marcar um pagamento como pago por fora.",
+      refresh: false,
+      field: null,
+    };
+  }
+  if (status === 404) {
+    return { text: "Esta ação ainda não está disponível neste ambiente. Nada foi marcado.", refresh: false, field: null };
+  }
+  if (status !== null && status >= 400 && status < 500) {
+    return {
+      text: "Não foi possível marcar. Nada foi marcado. Recarregue a lista e tente de novo.",
+      refresh: true,
+      field: null,
+    };
+  }
+  // Rede, tempo esgotado ou 5xx: o pedido pode ter chegado. Repetir é seguro (a API
+  // devolve "já marcado"), mas o retido some da lista se ficou marcado.
+  return {
+    text: 'Não conseguimos confirmar se ficou marcado. Veja se o pagamento saiu de "Aguardando fatura" antes de tentar de novo: se ainda estiver lá, a Freela vai pagar no teto.',
+    refresh: true,
+    field: null,
+  };
+}
+
+/** O aviso depois do 200. */
+export function paidExternallyOutcomeOf(
+  result: MarkPaidExternallyResult,
+  target: { name: string | null; amountInCents: number },
+): { kind: "success" | "warning"; text: string } {
+  const who = target.name ?? "o freelancer";
+  const paid = result.paidExternally;
+  const paidCents = paid?.amountPaidInCents ?? target.amountInCents;
+  const day = paid ? ddmmOf(paid.at) : null;
+  const value =
+    paidCents === target.amountInCents
+      ? formatBrl(paidCents)
+      : `${formatBrl(paidCents)} (de ${formatBrl(target.amountInCents)})`;
+  const base = result.alreadyMarked
+    ? `O pagamento de ${who} já estava marcado como pago por fora${day ? ` (${day})` : ""}. Nada mudou.`
+    : `Pagamento de ${who} marcado como pago por fora: ${value}${day ? ` em ${day}` : ""}. A Freela não vai pagar de novo.`;
+  if (result.pendingBonusInCents > 0) {
+    return {
+      kind: "warning",
+      text: `${base} Atenção: há bônus de avaliação de ${formatBrl(
+        result.pendingBonusInCents,
+      )} desta vaga que não sai sozinho; decida com o financeiro.`,
+    };
+  }
+  return { kind: "success", text: base };
+}
+
+/** `dd/mm` de um instante, no dia de Brasília. */
+function ddmmOf(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+  });
 }

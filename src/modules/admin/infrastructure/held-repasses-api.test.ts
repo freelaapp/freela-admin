@@ -147,7 +147,11 @@ describe("held-repasses-api", () => {
       admin: { count: 1, valueInCents: 9500 },
       invoiceCancelled: { count: 0, valueInCents: 0 },
     };
-    expect(advancedBreakdownOf(breakdown)).toEqual(breakdown);
+    // API de antes (sem a fatia do "pago por fora", 23/11/2026): a fatia vem zerada.
+    expect(advancedBreakdownOf(breakdown)).toEqual({
+      ...breakdown,
+      paidExternally: { count: 0, valueInCents: 0 },
+    });
     expect(advancedBreakdownOf({ ...breakdown, admin: { count: 1 } })).toBeNull();
     expect(advancedBreakdownOf(undefined)).toBeNull();
 

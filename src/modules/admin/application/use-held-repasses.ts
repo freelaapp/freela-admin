@@ -3,13 +3,16 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiErrorOf } from "../infrastructure/api-error";
 import {
+  getVacancyRepasse,
   listFailedWithdrawals,
   listHeldRepasses,
+  markRepassePaidExternally,
   releaseHeldRepasse,
   retryWithdrawal,
   type HeldRepassesParams,
+  type MarkPaidExternallyInput,
 } from "../infrastructure/held-repasses-api";
-import { releaseErrorOf } from "./held-repasses-presentation";
+import { paidExternallyErrorOf, releaseErrorOf } from "./held-repasses-presentation";
 import { billingKeys } from "./use-admin-billing";
 
 /** Sob o prefixo `admin/billing`: toda ação de fatura (ex.: baixa manual) também recarrega a lista. */
@@ -91,5 +94,41 @@ export function useRetryWithdrawal() {
       retryWithdrawal(input.repasseId, { reason: input.reason }),
     onSuccess: refresh,
     onError: refresh,
+  });
+}
+
+/** O repasse da vaga (detalhe da vaga). Sem FINANCE (403) ou rota fora do ar (404): sem bloco. */
+export const vacancyRepasseKey = (vacancyId: string) => ["admin", "repasses", "by-vacancy", vacancyId] as const;
+
+export function useVacancyRepasse(vacancyId: string | null) {
+  return useQuery({
+    queryKey: vacancyRepasseKey(vacancyId ?? ""),
+    queryFn: () => getVacancyRepasse(vacancyId as string),
+    enabled: !!vacancyId,
+    staleTime: 15000,
+    retry: retryUnlessClientError,
+  });
+}
+
+/**
+ * "Marcar como pago por fora" (23/11/2026). Depois (deu certo ou a lista estava
+ * velha): a lista e os cards dos retidos, o resumo das faturas (o "Adiantado"),
+ * a lista de repasses (inclusive o repasse da vaga) e o resumo do Financeiro.
+ */
+export function useMarkRepassePaidExternally() {
+  const qc = useQueryClient();
+  const refresh = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: billingKeys.all }),
+      qc.invalidateQueries({ queryKey: ["admin", "repasses"] }),
+      qc.invalidateQueries({ queryKey: ["admin", "finance"] }),
+    ]);
+  return useMutation({
+    mutationFn: (input: MarkPaidExternallyInput & { repasseId: string }) =>
+      markRepassePaidExternally(input.repasseId, input),
+    onSuccess: () => refresh(),
+    onError: (error) => {
+      if (paidExternallyErrorOf(error, { name: null, amountInCents: 0 }).refresh) return refresh();
+    },
   });
 }

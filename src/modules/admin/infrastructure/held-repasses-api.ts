@@ -214,7 +214,8 @@ function countAndValueOf(raw: unknown): CountAndValue | null {
 
 /**
  * `cards.advanced.breakdown` do resumo (API #603). Ausente ou com alguma das
- * quatro fatias quebrada → `null` (a composição não aparece).
+ * quatro fatias quebrada → `null` (a composição não aparece). A quinta fatia,
+ * `paidExternally` ("pago por fora", 23/11/2026), é aditiva: ausente = zero.
  */
 export function advancedBreakdownOf(raw: unknown): AdvancedBreakdown | null {
   if (!isObj(raw)) return null;
@@ -223,7 +224,8 @@ export function advancedBreakdownOf(raw: unknown): AdvancedBreakdown | null {
   const admin = countAndValueOf(raw.admin);
   const invoiceCancelled = countAndValueOf(raw.invoiceCancelled);
   if (!onCompletion || !deadline || !admin || !invoiceCancelled) return null;
-  return { onCompletion, deadline, admin, invoiceCancelled };
+  const paidExternally = countAndValueOf(raw.paidExternally) ?? { count: 0, valueInCents: 0 };
+  return { onCompletion, deadline, admin, invoiceCancelled, paidExternally };
 }
 
 /** `cards.held` do resumo (API #603). Ausente ou malformado → `null` (o card não aparece). */
@@ -353,4 +355,129 @@ export async function retryWithdrawal(
     withdrawalStatus: text(raw.withdrawalStatus),
     failureReason: text(raw.failureReason),
   };
+}
+
+// ─── "Pago por fora" (23/11/2026) ────────────────────────────────────────────
+
+/**
+ * O dono pagou o freelancer do próprio bolso e o sistema nunca mais paga este
+ * repasse (nem a fatura paga, nem o teto, nem o "Pagar agora").
+ * - `POST /v1/admin/repasses/:repasseId/mark-paid-externally
+ *    { reason, paidAt?, amountPaidInCents?, proof? }`: marca. Nada é enviado.
+ * - `GET /v1/admin/repasses/by-vacancy/:vacancyId`: o repasse da vaga (detalhe da
+ *   vaga) e se dá para marcar.
+ * Repetir a marcação devolve 200 com `alreadyMarked: true` (seguro depois de
+ * falha de rede). Antes do deploy da API as rotas dão 404.
+ */
+export interface PaidExternallyInfo {
+  /** Dia (instante) em que o admin disse ter pago. */
+  at: string;
+  amountPaidInCents: number;
+  reason: string;
+  proof: string | null;
+  adminId: string | null;
+  /** Só na lista "Todos os repasses" (a API resolve o nome). */
+  adminName?: string | null;
+}
+
+export function paidExternallyInfoOf(raw: unknown): PaidExternallyInfo | null {
+  if (!isObj(raw)) return null;
+  const at = instant(raw.at);
+  const amountPaidInCents = cents(raw.amountPaidInCents);
+  if (!at || amountPaidInCents === null) return null;
+  return {
+    at,
+    amountPaidInCents,
+    reason: textOr(raw.reason, ""),
+    proof: text(raw.proof),
+    adminId: text(raw.adminId),
+    ...(raw.adminName !== undefined ? { adminName: text(raw.adminName) } : {}),
+  };
+}
+
+export interface MarkPaidExternallyInput {
+  reason: string;
+  /** Dia de Brasília (AAAA-MM-DD). */
+  paidAt: string;
+  amountPaidInCents: number;
+  proof: string | null;
+}
+
+export interface MarkPaidExternallyResult {
+  repasseId: string;
+  vacancyId: string;
+  /** O valor do repasse (o que o sistema ia pagar). */
+  amountInCents: number;
+  paidExternally: PaidExternallyInfo | null;
+  /** Pago − devido (negativo = pagou a menos). */
+  differenceInCents: number;
+  /** Bônus de avaliação PENDING da vaga: não sai sozinho (decisão manual). */
+  pendingBonusInCents: number;
+  /** Já estava marcado (repetição): nada mudou. */
+  alreadyMarked: boolean;
+}
+
+const signedCents = (value: unknown): number =>
+  typeof value === "number" && Number.isSafeInteger(value) ? value : 0;
+
+export async function markRepassePaidExternally(
+  repasseId: string,
+  input: MarkPaidExternallyInput,
+): Promise<MarkPaidExternallyResult> {
+  const res = await adminApi.post(`/repasses/${encodeURIComponent(repasseId)}/mark-paid-externally`, {
+    reason: input.reason.trim(),
+    paidAt: input.paidAt,
+    amountPaidInCents: input.amountPaidInCents,
+    ...(input.proof && input.proof.trim() ? { proof: input.proof.trim() } : {}),
+  });
+  const raw = isObj(res.data?.data) ? res.data.data : {};
+  return {
+    repasseId: textOr(raw.repasseId, repasseId),
+    vacancyId: textOr(raw.vacancyId, ""),
+    amountInCents: cents(raw.amountInCents) ?? input.amountPaidInCents,
+    paidExternally: paidExternallyInfoOf(raw.paidExternally),
+    differenceInCents: signedCents(raw.differenceInCents),
+    pendingBonusInCents: cents(raw.pendingBonusInCents) ?? 0,
+    alreadyMarked: raw.alreadyMarked === true,
+  };
+}
+
+export interface VacancyRepasse {
+  repasseId: string;
+  vacancyId: string;
+  status: string;
+  amountInCents: number;
+  failureReason: string | null;
+  releaseAuthorized: boolean;
+  expectedDate: DateKey | null;
+  deadlineAt: string | null;
+  paidExternally: PaidExternallyInfo | null;
+  markPaidExternally: { allowed: boolean; blockedMessage: string | null };
+}
+
+/** O repasse da vaga (`null` = a vaga ainda não tem repasse, ou a resposta veio quebrada). */
+export function vacancyRepasseOf(raw: unknown): VacancyRepasse | null {
+  if (!isObj(raw)) return null;
+  const repasseId = text(raw.repasseId);
+  const status = text(raw.status);
+  const amountInCents = cents(raw.amountInCents);
+  if (!repasseId || !status || amountInCents === null) return null;
+  const mark = isObj(raw.markPaidExternally) ? raw.markPaidExternally : {};
+  return {
+    repasseId,
+    vacancyId: textOr(raw.vacancyId, ""),
+    status,
+    amountInCents,
+    failureReason: text(raw.failureReason),
+    releaseAuthorized: raw.releaseAuthorized === true,
+    expectedDate: dateKey(raw.expectedDate),
+    deadlineAt: instant(raw.deadlineAt),
+    paidExternally: paidExternallyInfoOf(raw.paidExternally),
+    markPaidExternally: { allowed: mark.allowed === true, blockedMessage: text(mark.blockedMessage) },
+  };
+}
+
+export async function getVacancyRepasse(vacancyId: string): Promise<VacancyRepasse | null> {
+  const res = await adminApi.get(`/repasses/by-vacancy/${encodeURIComponent(vacancyId)}`);
+  return vacancyRepasseOf(res.data?.data);
 }

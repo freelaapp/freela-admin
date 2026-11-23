@@ -217,6 +217,7 @@ export function ActionDialog({
   error,
   onSubmit,
   onClose,
+  submitTone = "primary",
 }: {
   title: string;
   description?: React.ReactNode;
@@ -224,6 +225,11 @@ export function ActionDialog({
   submitLabel: string;
   /** O texto do botão enquanto a ação roda (padrão: "Salvando..."). */
   pendingLabel?: string;
+  /**
+   * `neutral` = botão escuro: ação rara e irreversível que não pode lembrar um
+   * "Pagar" (ex.: "Marcar como pago por fora"). Padrão: o laranja de sempre.
+   */
+  submitTone?: "primary" | "neutral";
   canSubmit: boolean;
   pending: boolean;
   error: string | null;
@@ -275,7 +281,12 @@ export function ActionDialog({
           <Button
             onClick={onSubmit}
             disabled={!canSubmit || pending}
-            className="w-full bg-[#eca826] text-white hover:bg-[#d4951e] sm:w-auto"
+            className={cn(
+              "w-full text-white sm:w-auto",
+              submitTone === "neutral"
+                ? "bg-[#1d1d1b] hover:bg-[#3a3a37]"
+                : "bg-[#eca826] hover:bg-[#d4951e]",
+            )}
           >
             {pending ? (
               <>

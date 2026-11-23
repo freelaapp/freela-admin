@@ -367,6 +367,11 @@ export interface AdvancedBreakdown {
   deadline: CountAndValue;
   admin: CountAndValue;
   invoiceCancelled: CountAndValue;
+  /**
+   * "Pago por fora" (23/11/2026): o dono pagou do próprio bolso, não a Woovi.
+   * Aditivo: API de antes não manda → zero.
+   */
+  paidExternally?: CountAndValue;
 }
 
 /** Card "Retido aguardando a fatura" do resumo (ADR-017, API #603). */

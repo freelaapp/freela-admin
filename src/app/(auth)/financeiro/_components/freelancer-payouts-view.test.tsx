@@ -175,7 +175,7 @@ describe("Pagamentos aos freelancers — aguardando fatura", () => {
     ).toBeInTheDocument();
     // Sem chave Pix: sem botão, com o porquê.
     expect(within(table).getByText("sem chave Pix")).toBeInTheDocument();
-    expect(within(table).queryByRole("button", { name: /para João Lima/ })).not.toBeInTheDocument();
+    expect(within(table).queryByRole("button", { name: /^Pagar agora .*João Lima/ })).not.toBeInTheDocument();
     expect(within(table).getByText(/João não tem chave Pix cadastrada/)).toBeInTheDocument();
     expect(within(table).getByText("Fatura ainda aberta: o serviço entra no próximo fechamento")).toBeInTheDocument();
     expect(screen.getByText("Mostrando 2 de 2 · R$ 215,00 nesta página")).toBeInTheDocument();
@@ -222,6 +222,95 @@ describe("Pagamentos aos freelancers — aguardando fatura", () => {
     const table = await screen.findByTestId("data-table-desktop");
     fireEvent.click(within(table).getByRole("button", { name: "Pagar agora R$ 95,00 para Ana Souza" }));
     expect(screen.getByRole("heading", { name: "Pagar agora R$ 95,00 para Ana Souza?" })).toBeInTheDocument();
+  });
+
+  it("'Marcar como pago por fora' abaixo do 'Pagar agora', inclusive sem chave Pix; abre o diálogo", async () => {
+    renderView();
+    const table = await screen.findByTestId("data-table-desktop");
+    expect(
+      within(table).getByRole("button", {
+        name: "Marcar como pago por fora o pagamento de R$ 120,00 para João Lima",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(table).getByRole("button", {
+        name: "Marcar como pago por fora o pagamento de R$ 95,00 para Ana Souza",
+      }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Marcar R$ 95,00 de Ana Souza como pago por fora?" }),
+    ).toBeInTheDocument();
+  });
+
+  it("liberado (fatura, teto ou outro admin): sem 'Marcar como pago por fora' — o Pix já está saindo", async () => {
+    vi.mocked(listHeldRepasses).mockResolvedValue(
+      list([{ ...ANA, releaseAuthorized: true, situation: "releasing" }]),
+    );
+    renderView();
+    const table = await screen.findByTestId("data-table-desktop");
+    expect(await within(table).findByText("Ana Souza")).toBeInTheDocument();
+    expect(within(table).queryByRole("button", { name: /Marcar como pago por fora/ })).not.toBeInTheDocument();
+  });
+
+  it("'Todos os repasses': nome, vaga, selo 'Pago por fora' e o botão só no Pix que falhou", async () => {
+    repasses.data = [
+      {
+        id: "r-fora",
+        vacancyId: "02390e9e-0655",
+        jobId: "j-1",
+        providerGlobalId: "pg-1",
+        pixKey: "",
+        pixKeyType: "",
+        amountInCents: 12000,
+        status: "COMPLETED",
+        confirmedAt: "2026-11-23T15:00:00.000Z",
+        createdAt: "2026-11-17T23:00:00.000Z",
+        freelancerName: "Maria Vithorya",
+        vacancyTitle: "Garçom",
+        failureReason: null,
+        paidExternally: {
+          at: "2026-11-23T15:00:00.000Z",
+          amountPaidInCents: 12000,
+          reason: "Diego pagou por fora",
+          proof: null,
+          adminId: "adm",
+          adminName: "Diego",
+        },
+      },
+      {
+        id: "r-falhou",
+        vacancyId: "005eb27c-1aed",
+        jobId: "j-2",
+        providerGlobalId: "pg-2",
+        pixKey: "x",
+        pixKeyType: "CPF",
+        amountInCents: 9500,
+        status: "FAILED",
+        confirmedAt: null,
+        createdAt: "2026-11-17T23:00:00.000Z",
+        freelancerName: "Guilherme Hiago",
+        vacancyTitle: "Cozinheiro",
+        failureReason: "chave Pix inválida",
+        paidExternally: null,
+      },
+    ];
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: "Todos os repasses" }));
+    const table = await screen.findByTestId("data-table-desktop");
+    expect(within(table).getByText("Maria Vithorya")).toBeInTheDocument();
+    const badge = within(table).getByText("Pago por fora");
+    expect(badge).toHaveAttribute("title", "Pago por fora em 23/11 por Diego · R$ 120,00 · Diego pagou por fora");
+    expect(
+      within(table).queryByRole("button", {
+        name: "Marcar como pago por fora o pagamento de R$ 120,00 para Maria Vithorya",
+      }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(table).getByRole("button", {
+        name: "Marcar como pago por fora o pagamento de R$ 95,00 para Guilherme Hiago",
+      }),
+    );
+    expect(screen.getByText(/O Pix da Freela falhou: chave Pix inválida\./)).toBeInTheDocument();
   });
 
   it("nenhum retido: texto verdadeiro com a regra ligada ou desligada", async () => {
