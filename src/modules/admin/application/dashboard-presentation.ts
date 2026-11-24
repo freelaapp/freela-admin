@@ -8,6 +8,8 @@ import type {
   DashboardShareIndicator,
   DashboardNoShowSummary,
   DashboardOutcomeSummary,
+  DashboardServiceDateGroup,
+  DashboardVacanciesByServiceDate,
   VacancyOutcomeKey,
   VacancyStageKey,
 } from "../infrastructure/dashboard-api";
@@ -110,6 +112,8 @@ export interface DashboardCardModel {
 export interface DashboardCardGroup {
   id: "signups" | "vacancies" | "conversion" | "ratings";
   title: string;
+  /** Linha explicativa logo abaixo do título da seção (base de contagem, o que fica de fora). */
+  note?: string;
   cards: DashboardCardModel[];
 }
 
@@ -131,6 +135,7 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
   const prevText = previousLabel ?? "o período anterior";
   const i = data.indicators;
   const vo = data.vacancyOutcomes;
+  const svc = data.vacanciesByServiceDate;
   const official = vo ? ` ${OFFICIAL_NOTE}` : "";
 
   const meta = (kind: ChangeKind, change: DashboardChange | undefined, higherIsBetter = true) => ({
@@ -260,7 +265,10 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
     {
       id: "vacancies",
       title: "Vagas",
-      cards: [
+      ...(svc ? { note: serviceDateNote(svc) } : {}),
+      cards: svc
+        ? buildServiceDateCards(svc, data.generatedAt)
+        : [
         withExtraCalc(
           count(
             "P3",
@@ -376,6 +384,175 @@ export function buildPeriodGroups(data: AdminDashboard): DashboardCardGroup[] {
     },
   ];
 }
+
+
+// ─── Vagas pela data do serviço (pedido do Denner, 23/11/2026) ──────────────
+
+const SERVICE_SOURCE =
+  "Vagas de Empresa + Casa pela data do serviço (o dia, em Brasília, em que o turno começa), na situação de agora; sem as vagas falsas e as de teste; contas internas e vagas de QA (cargo Teste) ficam fora.";
+
+/** Período de um dia só (Hoje, Ontem, personalizado de 1 dia): a API manda janela [00h, 00h). */
+export function isSingleDayPeriod(period: { start: string; end: string }): boolean {
+  const ms = new Date(period.end).getTime() - new Date(period.start).getTime();
+  return Number.isFinite(ms) && ms > 0 && ms <= 25 * 3_600_000;
+}
+
+/** Como cada grupo entra na soma ("6 concluídas + 1 confirmou e não foi + ..."). */
+const GROUP_SUM_NAMES: Record<string, [one: string, many: string]> = {
+  COMPLETED: ["concluída", "concluídas"],
+  NO_SHOW: ["confirmou e não foi", "confirmaram e não foram"],
+  NO_FREELANCER: ["sem freelancer", "sem freelancer"],
+  CANCELLED: ["cancelada", "canceladas"],
+  HAPPENING_OR_CLOSING: ["em andamento ou aguardando encerrar", "em andamento ou aguardando encerrar"],
+  UPCOMING: ["ainda vai acontecer", "ainda vão acontecer"],
+  OUT_OF_PATTERN: ["fora do padrão", "fora do padrão"],
+};
+
+/** Mais é bom (true), mais é ruim (false) ou sem juízo de valor (undefined). */
+const GROUP_GOOD_DIRECTION: Record<string, boolean | undefined> = {
+  COMPLETED: true,
+  NO_SHOW: false,
+  NO_FREELANCER: false,
+  CANCELLED: false,
+};
+
+const outcomeTitle = (key: string) =>
+  VACANCY_OUTCOME_DEFINITIONS[key as VacancyOutcomeKey]?.title ?? key;
+
+function serviceDateNote(svc: DashboardVacanciesByServiceDate): string {
+  return `Vagas pela data do serviço (o dia em que o turno começa, horário de Brasília): ${svc.period.label}, comparado com ${svc.period.previousLabel}. Cada vaga conta uma vez, na situação de agora, e os grupos abaixo somam o total. Vagas falsas e de teste ficam de fora (estão em "Destino das vagas do período").`;
+}
+
+/** Total do período pela data do serviço, um card por grupo (somam o total) e a média de candidatos. */
+function buildServiceDateCards(
+  svc: DashboardVacanciesByServiceDate,
+  generatedAt: string,
+): DashboardCardModel[] {
+  const label = svc.period.label;
+  const prevLabel = svc.period.previousLabel;
+  const total = svc.total;
+  const shareText = (n: number, of: number) => (of > 0 ? formatPercent(n / of) : DASH);
+  // Período que ainda não terminou (Hoje, Este mês): comparar com um período fechado mostraria
+  // calendário, não desempenho. Sem bom/ruim: cinza e o número anterior seco.
+  const now = Number.isNaN(Date.parse(generatedAt)) ? Date.now() : Date.parse(generatedAt);
+  const inProgress = Date.parse(svc.period.end) > now;
+  const metaFor = (
+    change: DashboardChange | undefined,
+    higherIsBetter: boolean | undefined,
+    previousText: string,
+  ) =>
+    inProgress
+      ? {
+          meta: `${label} · período em andamento · ${previousText} em ${prevLabel}`,
+          metaColor: "text-[#737373]",
+        }
+      : {
+          meta: `${label} · ${changeText("count", change, prevLabel)}`,
+          metaColor:
+            higherIsBetter === undefined ? "text-[#737373]" : changeTone(change, higherIsBetter),
+        };
+  const inProgressNote = inProgress
+    ? " Período ainda em andamento: a comparação com o período fechado não diz se foi melhor ou pior, por isso não tem seta verde ou vermelha."
+    : "";
+
+  const sumParts = svc.groups.map((g) => {
+    const [one, many] = GROUP_SUM_NAMES[g.key] ?? [g.label.toLowerCase(), g.label.toLowerCase()];
+    return `${formatInteger(g.current)} ${g.current === 1 ? one : many}`;
+  });
+  const sumMismatch =
+    svc.groupsSum.current !== total.current || svc.groupsSum.previous !== total.previous;
+  const fake = svc.fake.current;
+  const test = svc.test.current;
+
+  const totalCard: DashboardCardModel = {
+    id: "SD-TOTAL",
+    title: isSingleDayPeriod(svc.period) ? "Vagas do dia" : "Vagas do período",
+    value: formatInteger(total.current),
+    caption: `Pela data do serviço, sem ${formatInteger(fake)} ${pluralize(fake, "falsa", "falsas")} e ${formatInteger(test)} de teste`,
+    ...metaFor(total.change ?? undefined, true, formatInteger(total.previous)),
+    details: {
+      calc: `${formatInteger(total.current)} vagas oficiais com serviço em ${label}. A soma dos grupos: ${sumParts.join(" + ")} = ${formatInteger(total.current)}.${sumMismatch ? ` Atenção: a soma dos grupos (${formatInteger(svc.groupsSum.current)}) não fecha com o total; avise o time técnico.` : ""} Em ${prevLabel}: ${formatInteger(total.previous)}. Fora desta conta: ${formatInteger(fake)} ${pluralize(fake, "falsa", "falsas")} e ${formatInteger(test)} de teste (com elas, ${formatInteger(svc.grossTotal.current)}).${inProgressNote}`,
+      source: SERVICE_SOURCE,
+    },
+  };
+
+  const covered = svc.coveredNoShows;
+  const groupCard = (g: DashboardServiceDateGroup): DashboardCardModel => {
+    const cur = g.shareOfTotal?.current;
+    const prev = g.shareOfTotal?.previous;
+    const curShare = cur ? formatPercent(cur.value) : shareText(g.current, total.current);
+    const prevShare = prev ? formatPercent(prev.value) : shareText(g.previous, total.previous);
+    const isNoShow = g.key === "NO_SHOW";
+    const coveredText =
+      isNoShow && covered
+        ? `${formatInteger(covered.current)} ${pluralize(covered.current, "falta coberta", "faltas cobertas")} por suplente`
+        : undefined;
+    return {
+      id: `SD-${g.key}`,
+      title: g.label,
+      value: formatInteger(g.current),
+      caption: [`${curShare} do total`, coveredText].filter(Boolean).join(" · "),
+      ...metaFor(g.change ?? undefined, GROUP_GOOD_DIRECTION[g.key], formatInteger(g.previous)),
+      details: {
+        calc: `${formatInteger(g.current)} de ${formatInteger(total.current)} vagas oficiais com serviço em ${label} = ${curShare}. Entram: ${g.outcomes.map(outcomeTitle).join("; ")}. Em ${prevLabel}: ${formatInteger(g.previous)} de ${formatInteger(total.previous)} (${prevShare}).${
+          isNoShow && covered
+            ? ` Faltas cobertas por suplente: ${formatInteger(covered.current)} em ${label} (${formatInteger(covered.previous)} em ${prevLabel}). Nelas o titular faltou e um suplente fez o serviço: a vaga foi concluída, então já contadas em Concluídas e não somam neste card.`
+            : ""
+        }${inProgressNote}`,
+        source: SERVICE_SOURCE,
+      },
+    };
+  };
+
+  const avg = svc.candidatesPerVacancy;
+  const avgCard: DashboardCardModel = {
+    id: "SD-AVG",
+    title: "Média de freelancers por vaga",
+    value: formatDecimal(avg?.current.value, 1),
+    caption: avg
+      ? `${formatInteger(avg.current.numerator)} candidatos em ${formatInteger(avg.current.denominator)} vagas`
+      : undefined,
+    ...metaFor(avg?.change ?? undefined, undefined, formatDecimal(avg?.previous.value, 1)),
+    details: {
+      calc: avg
+        ? `${formatInteger(avg.current.numerator)} candidatos ÷ ${formatInteger(avg.current.denominator)} vagas oficiais com serviço em ${label} (pela data do serviço) = ${formatDecimal(avg.current.value, 1)}. Em ${prevLabel}: ${formatDecimal(avg.previous.value, 1)} (${formatInteger(avg.previous.numerator)} candidatos em ${formatInteger(avg.previous.denominator)} vagas).${inProgressNote}`
+        : "Esta versão da API ainda não devolve este número.",
+      source: `Candidatos = freelancers distintos que se candidataram a cada vaga, em qualquer situação (inclusive quem desistiu ou não foi escolhido). ${SERVICE_SOURCE}`,
+    },
+  };
+
+  return [totalCard, ...svc.groups.map(groupCard), avgCard];
+}
+
+/**
+ * Frase abaixo da barra de período, em pedaços (`bold` vira negrito na tela). Sem o bloco da data
+ * do serviço (API antiga) é a frase de sempre.
+ */
+export function periodSentenceParts(data: AdminDashboard): { text: string; bold?: boolean }[] {
+  const label = data.period?.label ?? "o período escolhido";
+  const previousLabel = data.period?.previousLabel ?? "o período anterior";
+  const svc = data.vacanciesByServiceDate;
+  if (!svc) {
+    return [
+      { text: "Os números abaixo medem " },
+      { text: label, bold: true },
+      { text: " e comparam com " },
+      { text: previousLabel, bold: true },
+      { text: ", cada indicador pela data do próprio evento (horário de Brasília)." },
+    ];
+  }
+  return [
+    { text: "Vagas: pela data do serviço", bold: true },
+    { text: `, ${svc.period.label} contra ${svc.period.previousLabel}. Demais indicadores: pela data do próprio evento (cadastro, avaliação etc.), ` },
+    { text: label, bold: true },
+    { text: ` contra ${previousLabel}. Horário de Brasília.` },
+  ];
+}
+
+export const periodSentence = (data: AdminDashboard): string =>
+  periodSentenceParts(data)
+    .map((part) => part.text)
+    .join("");
 
 // ─── Totais do topo (T1–T3) ─────────────────────────────────────────────────
 
@@ -637,6 +814,8 @@ export interface OutcomeRow {
 }
 
 export interface VacancyOutcomeView {
+  /** `created`: vagas criadas no período (safra); `service`: vagas pela data do serviço. */
+  base: "created" | "service";
   /** Cards do topo: total bruto, oficiais, falsas e teste. */
   summary: DashboardCardModel[];
   /** Grupos das oficiais, cada um com as linhas das categorias. */
@@ -655,8 +834,11 @@ export interface VacancyOutcomeView {
 const SOURCE_OUTCOMES =
   "Vagas de Empresa + Casa criadas no período (inclusive as apagadas, as de QA e as das contas internas), na situação de agora; cada vaga em uma categoria só.";
 
-function outcomeWhat(key: VacancyOutcomeKey, quickMinutes: number): string {
-  return VACANCY_OUTCOME_DEFINITIONS[key].what.split("{X}").join(formatInteger(quickMinutes));
+function outcomeWhat(key: VacancyOutcomeKey, quickMinutes: number | undefined): string {
+  const what = VACANCY_OUTCOME_DEFINITIONS[key].what;
+  return quickMinutes === undefined
+    ? what.split("{X} min").join('o limite de minutos do "rápido"')
+    : what.split("{X}").join(formatInteger(quickMinutes));
 }
 
 /**
@@ -664,6 +846,8 @@ function outcomeWhat(key: VacancyOutcomeKey, quickMinutes: number): string {
  * (a tela mostra um aviso). Só formata: toda conta vem pronta da API.
  */
 export function buildVacancyOutcomeView(data: AdminDashboard): VacancyOutcomeView | null {
+  const svc = data.vacanciesByServiceDate;
+  if (svc) return buildServiceDateOutcomeView(data, svc);
   const vo = data.vacancyOutcomes;
   if (!vo) return null;
   const label = data.period?.label ?? "o período";
@@ -770,11 +954,84 @@ export function buildVacancyOutcomeView(data: AdminDashboard): VacancyOutcomeVie
   });
 
   return {
+    base: "created",
     summary,
     officialGroups,
     fakeCards,
     noShowCards: buildNoShowCards(data),
   };
+}
+
+const SOURCE_OUTCOMES_SERVICE =
+  "Vagas de Empresa + Casa com serviço no período (inclusive as falsas, as de QA e as das contas internas), na situação de agora; cada vaga em uma categoria só.";
+
+/**
+ * Destino pela data do serviço: o detalhe por categoria dentro de cada um dos grupos que a seção
+ * Vagas já mostra (os mesmos números, abertos), mais um card por tipo de vaga falsa e o total bruto.
+ */
+function buildServiceDateOutcomeView(
+  data: AdminDashboard,
+  svc: DashboardVacanciesByServiceDate,
+): VacancyOutcomeView {
+  const label = svc.period.label;
+  const prevText = svc.period.previousLabel;
+  const cur = svc.byOutcome.current;
+  const prev = svc.byOutcome.previous;
+  const x = data.vacancyOutcomes?.quickCancelMinutes;
+  const official = svc.total.current;
+  const gross = svc.grossTotal.current;
+  const share = (n: number, of: number) => (of > 0 ? formatPercent(n / of) : DASH);
+  const neutral = "text-[#737373]";
+  const prevCount = (n: number) => `${label} · em ${prevText}: ${formatInteger(n)}`;
+
+  const summary: DashboardCardModel[] = [
+    {
+      id: "VO-GROSS",
+      title: "Todas as vagas do período (com falsas e de teste)",
+      value: formatInteger(gross),
+      caption: `${formatInteger(official)} oficiais · ${formatInteger(svc.fake.current)} falsas · ${formatInteger(svc.test.current)} de teste`,
+      meta: prevCount(svc.grossTotal.previous),
+      metaColor: neutral,
+      details: {
+        calc: `${formatInteger(gross)} = ${formatInteger(official)} oficiais + ${formatInteger(svc.fake.current)} falsas + ${formatInteger(svc.test.current)} de teste, todas com serviço em ${label}. As oficiais são o total da seção Vagas; as falsas estão nos cards abaixo.`,
+        source: SOURCE_OUTCOMES_SERVICE,
+      },
+    },
+  ];
+
+  const officialGroups = svc.groups.map((group) => {
+    const keys = group.outcomes.filter((k): k is VacancyOutcomeKey => k in VACANCY_OUTCOME_DEFINITIONS);
+    const rows: OutcomeRow[] = keys.map((key) => {
+      const n = cur[key] ?? 0;
+      const p = prev[key] ?? 0;
+      return {
+        id: key,
+        title: VACANCY_OUTCOME_DEFINITIONS[key].title,
+        value: formatInteger(n),
+        share: share(n, official),
+        help: `${outcomeWhat(key, x)} Conta: ${formatInteger(n)} de ${formatInteger(official)} vagas oficiais com serviço em ${label} = ${share(n, official)}. Em ${prevText}: ${formatInteger(p)}. Fonte: ${SOURCE_OUTCOMES_SERVICE}`,
+      };
+    });
+    return { id: group.key, title: group.label, total: formatInteger(group.current), rows };
+  });
+
+  const fakeCards: DashboardCardModel[] = FAKE_KEYS.map((key) => {
+    const n = cur[key] ?? 0;
+    return {
+      id: key,
+      title: VACANCY_OUTCOME_DEFINITIONS[key].title,
+      value: formatInteger(n),
+      caption: `${share(n, gross)} das vagas do período`,
+      meta: prevCount(prev[key] ?? 0),
+      metaColor: neutral,
+      details: {
+        calc: `${outcomeWhat(key, x)} ${formatInteger(n)} de ${formatInteger(gross)} vagas (com falsas e de teste) com serviço em ${label}.`,
+        source: `${SOURCE_OUTCOMES_SERVICE} Fica fora dos números oficiais.`,
+      },
+    };
+  });
+
+  return { base: "service", summary, officialGroups, fakeCards, noShowCards: buildNoShowCards(data) };
 }
 
 function buildNoShowCards(data: AdminDashboard): DashboardCardModel[] {

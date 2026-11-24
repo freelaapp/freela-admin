@@ -19,6 +19,7 @@ import {
   buildPeriodGroups,
   buildTotalCards,
   exclusionText,
+  periodSentenceParts,
   type DashboardCardGroup,
 } from "@/modules/admin/application/dashboard-presentation";
 import { DashboardUnavailableError } from "@/modules/admin/infrastructure/dashboard-api";
@@ -125,9 +126,9 @@ export default function DashboardPage() {
       {data && !unavailable && (
         <>
           <p className="mb-4 text-xs text-[#737373]">
-            Os números abaixo medem <strong>{data.period?.label ?? "o período escolhido"}</strong>{" "}
-            e comparam com <strong>{data.period?.previousLabel ?? "o período anterior"}</strong>,
-            cada indicador pela data do próprio evento (horário de Brasília).
+            {periodSentenceParts(data).map((part, index) =>
+              part.bold ? <strong key={index}>{part.text}</strong> : part.text,
+            )}
             {isFetching && " Atualizando…"}
           </p>
 
@@ -139,6 +140,7 @@ export default function DashboardPage() {
               >
                 {group.title}
               </h2>
+              {group.note && <p className="mb-3 text-xs text-[#737373]">{group.note}</p>}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {group.cards.map((card) => (
                   <KpiCard

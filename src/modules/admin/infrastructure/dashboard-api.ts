@@ -165,6 +165,43 @@ const noShowsSchema = z.object({
   change: changeSchema,
 });
 
+/**
+ * Vagas pela DATA DO SERVIÇO (API de 23/11/2026, `vacanciesByServiceDate`): vagas oficiais por dia
+ * do turno, em 7 grupos que somam o total (atual e anterior), mais falsas e teste à parte.
+ * Bloco aditivo: API antiga não manda e a tela fica como era. Dentro do bloco, só o que a tela
+ * não pode adivinhar é obrigatório; as cobertas por suplente e a média são opcionais.
+ */
+const serviceDateGroupSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  outcomes: z.array(z.string()).catch([]),
+  current: count,
+  previous: count,
+  change: changeSchema.catch(null),
+  shareOfTotal: z.object({ current: ratioSchema, previous: ratioSchema }).optional().catch(undefined),
+});
+
+/** Contagem do bloco novo: `change` ausente ou malformado vira `null` e o bloco segue. */
+const serviceCountSchema = countIndicatorSchema.extend({ change: changeSchema.catch(null) });
+
+const countPairSchema = z.object({ current: count, previous: count });
+
+const vacanciesByServiceDateSchema = z.object({
+  base: z.string(),
+  period: periodSchema,
+  total: serviceCountSchema,
+  groups: z.array(serviceDateGroupSchema),
+  groupsSum: countPairSchema,
+  fake: serviceCountSchema,
+  test: serviceCountSchema,
+  grossTotal: countPairSchema,
+  coveredNoShows: optional(serviceCountSchema),
+  candidatesPerVacancy: optional(
+    ratioIndicatorSchema.extend({ change: changeSchema.catch(null) }),
+  ),
+  byOutcome: z.object({ current: outcomeCountsSchema, previous: outcomeCountsSchema }),
+});
+
 const dashboardSchema = z.object({
   generatedAt: z.string(),
   period: optional(periodSchema),
@@ -196,6 +233,8 @@ const dashboardSchema = z.object({
   /** API de antes de 18/11/2026 não manda: a seção mostra o aviso e o resto continua. */
   vacancyOutcomes: optional(vacancyOutcomesSchema),
   noShows: optional(noShowsSchema),
+  /** API de antes de 23/11/2026 não manda: a seção Vagas continua pela data de criação. */
+  vacanciesByServiceDate: optional(vacanciesByServiceDateSchema),
 });
 
 export type DashboardChange = z.infer<typeof changeSchema>;
@@ -211,6 +250,8 @@ export type DashboardOutcomeSummary = z.infer<typeof outcomeSummarySchema>;
 export type DashboardVacancyOutcomes = z.infer<typeof vacancyOutcomesSchema>;
 export type DashboardNoShowSummary = z.infer<typeof noShowSummarySchema>;
 export type DashboardNoShows = z.infer<typeof noShowsSchema>;
+export type DashboardServiceDateGroup = z.infer<typeof serviceDateGroupSchema>;
+export type DashboardVacanciesByServiceDate = z.infer<typeof vacanciesByServiceDateSchema>;
 export type AdminDashboard = z.infer<typeof dashboardSchema>;
 export type DashboardIndicators = AdminDashboard["indicators"];
 
