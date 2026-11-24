@@ -12,7 +12,7 @@ export function useSupportContact() {
 export function useUpdateSupportContact() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (whatsapp: string) => updateSupportContact(whatsapp),
+    mutationFn: (patch: { whatsapp?: string; email?: string }) => updateSupportContact(patch),
     onSuccess: (data) => qc.setQueryData(KEY, data),
   });
 }

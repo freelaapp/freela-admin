@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import axios from "axios";
 import { ExternalLink, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,30 +26,64 @@ import {
   normalizeSupportWhatsapp,
   whatsappTestUrl,
 } from "@/modules/admin/application/support-whatsapp";
+import { SUPPORT_EMAIL_ERROR, normalizeSupportEmail } from "@/modules/admin/application/support-email";
+
+type Field = "whatsapp" | "email";
+
+function apiErrorCode(error: unknown): string | undefined {
+  return axios.isAxiosError(error) ? error.response?.data?.error?.code : undefined;
+}
 
 /**
- * WhatsApp de suporte que site, app e mensagens mostram. Troca aqui vale em
+ * Contato de suporte (WhatsApp e e-mail) que site, app e mensagens mostram. Troca aqui vale em
  * até 5 minutos em todo lugar — sem deploy e sem versão nova do app.
  */
 export function SupportContactCard() {
   const current = useSupportContact();
   const save = useUpdateSupportContact();
   const [value, setValue] = useState("");
-  const [confirming, setConfirming] = useState(false);
+  const [emailValue, setEmailValue] = useState("");
+  const [confirming, setConfirming] = useState<Field | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
   const e164 = normalizeSupportWhatsapp(value);
   const typed = value.trim().length > 0;
   const unchanged = !!e164 && e164 === current.data?.whatsappE164;
 
+  const email = normalizeSupportEmail(emailValue);
+  const emailTyped = emailValue.trim().length > 0;
+  const emailUnchanged = !!email && email === current.data?.email;
+
   const handleSave = async () => {
-    if (!e164) return;
+    const field = confirming;
+    if (!field) return;
+    const patch = field === "whatsapp" ? { whatsapp: e164 ?? undefined } : { email: email ?? undefined };
+    if (!Object.values(patch)[0]) return;
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
     try {
-      await save.mutateAsync(e164);
-      toast.success("WhatsApp de suporte atualizado. Site, app e mensagens mudam em até 5 minutos.");
-      setConfirming(false);
-      setValue("");
+      await save.mutateAsync(patch);
+      toast.success(
+        field === "whatsapp"
+          ? "WhatsApp de suporte atualizado. Site, app e mensagens mudam em até 5 minutos."
+          : "E-mail de suporte atualizado. Site, app e e-mails mudam em até 5 minutos.",
+      );
+      setConfirming(null);
+      if (field === "whatsapp") setValue("");
+      else setEmailValue("");
     } catch (error) {
-      toast.error(getAxiosErrorMessage(error, "Não foi possível salvar o número."));
+      const code = apiErrorCode(error);
+      const fieldCode = field === "whatsapp" ? "INVALID_SUPPORT_WHATSAPP" : "INVALID_SUPPORT_EMAIL";
+      if (code === fieldCode) {
+        setErrors((prev) => ({ ...prev, [field]: getAxiosErrorMessage(error, "Valor inválido.") }));
+        setConfirming(null);
+      } else {
+        toast.error(
+          getAxiosErrorMessage(
+            error,
+            field === "whatsapp" ? "Não foi possível salvar o número." : "Não foi possível salvar o e-mail.",
+          ),
+        );
+      }
     }
   };
 
@@ -59,9 +94,9 @@ export function SupportContactCard() {
           <MessageCircle className="h-5 w-5 text-[#eca826]" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-[#1d1d1b]">WhatsApp de suporte</h3>
+          <h3 className="text-sm font-semibold text-[#1d1d1b]">Contato de suporte</h3>
           <p className="mt-1 text-xs text-[#737373]">
-            Número que aparece no site, no app e nas mensagens (e-mails e avisos). A troca vale em até 5 minutos.
+            WhatsApp e e-mail que aparecem no site, no app e nas mensagens (e-mails e avisos). A troca vale em até 5 minutos.
           </p>
 
           <div className="mt-3 text-sm">
@@ -92,11 +127,15 @@ export function SupportContactCard() {
                 autoComplete="off"
                 placeholder="(11) 97177-7563"
                 value={formatSupportWhatsappInput(value)}
-                onChange={(event) => setValue(event.target.value)}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  setErrors((prev) => ({ ...prev, whatsapp: undefined }));
+                }}
               />
               {typed && !e164 && (
                 <p className="text-xs text-red-600">Informe um celular com DDD, ex.: (11) 97177-7563.</p>
               )}
+              {errors.whatsapp && <p className="text-xs text-red-600">{errors.whatsapp}</p>}
             </div>
             {e164 && (
               <a
@@ -108,23 +147,65 @@ export function SupportContactCard() {
                 Testar no WhatsApp <ExternalLink className="h-3.5 w-3.5" />
               </a>
             )}
-            <Button onClick={() => setConfirming(true)} disabled={!e164 || unchanged || save.isPending}>
-              Salvar
+            <Button onClick={() => setConfirming("whatsapp")} disabled={!e164 || unchanged || save.isPending}>
+              Salvar WhatsApp
+            </Button>
+          </div>
+
+          <div className="mt-6 border-t border-[#e5e5e5] pt-4 text-sm">
+            {current.data && (
+              <>
+                <p className="text-xs font-medium text-[#737373]">E-mail de suporte</p>
+                <p className="text-lg font-bold text-[#1d1d1b]">{current.data.email}</p>
+                {current.data.emailIsDefault && (
+                  <p className="text-xs text-[#737373]">E-mail padrão do sistema (ninguém alterou ainda).</p>
+                )}
+              </>
+            )}
+            <p className="mt-1 text-xs text-[#737373]">Aparece no site, no app e nos e-mails do Freela.</p>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <div className="min-w-[220px] flex-1 space-y-1">
+              <Label htmlFor="support-email">Novo e-mail de suporte</Label>
+              <Input
+                id="support-email"
+                type="email"
+                inputMode="email"
+                autoComplete="off"
+                placeholder="contato@freelaservicos.com.br"
+                value={emailValue}
+                onChange={(event) => {
+                  setEmailValue(event.target.value);
+                  setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+              />
+              {emailTyped && !email && <p className="text-xs text-red-600">{SUPPORT_EMAIL_ERROR}</p>}
+              {errors.email && <p className="text-xs text-red-600">{errors.email}</p>}
+            </div>
+            <Button
+              onClick={() => setConfirming("email")}
+              disabled={!email || emailUnchanged || save.isPending}
+            >
+              Salvar e-mail
             </Button>
           </div>
         </div>
       </div>
 
-      <Dialog open={confirming} onOpenChange={(open) => !save.isPending && setConfirming(open)}>
+      <Dialog open={confirming !== null} onOpenChange={(open) => !save.isPending && !open && setConfirming(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Trocar o WhatsApp de suporte?</DialogTitle>
+            <DialogTitle>
+              {confirming === "email" ? "Trocar o e-mail de suporte?" : "Trocar o WhatsApp de suporte?"}
+            </DialogTitle>
             <DialogDescription>
-              Site, app e mensagens passam a usar {formatSupportWhatsappInput(value)}. Pode levar até 5 minutos.
+              Site, app e mensagens passam a usar{" "}
+              {confirming === "email" ? email : formatSupportWhatsappInput(value)}. Pode levar até 5 minutos.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)} disabled={save.isPending}>
+            <Button variant="outline" onClick={() => setConfirming(null)} disabled={save.isPending}>
               Voltar
             </Button>
             <Button onClick={handleSave} disabled={save.isPending}>
