@@ -835,6 +835,55 @@ describe("VacancyReservesSection (lista escolhida pela empresa, 28/10)", () => {
     expect(screen.queryByText(/por o sistema/)).not.toBeInTheDocument();
   });
 
+  describe("risco trabalhista F1: quem aprovou a troca", () => {
+    const troca = (over: object = {}) => ({
+      id: "pc-1",
+      kind: "SUBSTITUTED",
+      fromCandidacyId: "c-ana",
+      toCandidacyId: "c-bia",
+      reason: "PRINCIPAL_WITHDREW",
+      actorKind: "CONTRACTOR",
+      note: null,
+      occurredAt: "2026-11-23T17:05:00.000Z",
+      ...over,
+    });
+    const withChanges = (...changes: object[]) =>
+      api.getVacancyReserves.mockResolvedValue({
+        ...VIEW,
+        history: { calls: [], principalChanges: changes, reserveChanges: [] },
+      });
+
+    it("mostra a linha Base com o texto pronto da API", async () => {
+      withChanges(
+        troca({
+          approvalBasis: "COMPANY_LIST",
+          approvedByLabel: "Lista da empresa (fulano@x.com, 23/11/2026 14:05)",
+        }),
+      );
+      renderSection();
+      expect(
+        await screen.findByText("Base: Lista da empresa (fulano@x.com, 23/11/2026 14:05)"),
+      ).toBeInTheDocument();
+    });
+
+    it("sem o texto da API usa o fallback; sem registro mostra troca anterior ao controle", async () => {
+      withChanges(
+        troca({ id: "pc-1", approvalBasis: "SUPPORT", occurredAt: "2026-11-23T18:00:00.000Z" }),
+        troca({ id: "pc-2", approvalBasis: null }),
+      );
+      renderSection();
+      expect(await screen.findByText("Base: Suporte")).toBeInTheDocument();
+      expect(screen.getByText("Base: Sem registro (troca anterior ao controle)")).toBeInTheDocument();
+    });
+
+    it("API antiga (sem os campos): a linha Base não aparece", async () => {
+      withChanges(troca());
+      renderSection();
+      expect(await screen.findByText(/Desistiu da vaga/)).toBeInTheDocument();
+      expect(screen.queryByText(/Base:/)).not.toBeInTheDocument();
+    });
+  });
+
   describe('E7: "Recolocar como suplente"', () => {
     const T1 = "2026-11-18T04:31:00.000Z";
     const T2 = "2026-11-18T13:40:00.000Z";

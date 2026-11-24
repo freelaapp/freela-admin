@@ -28,6 +28,7 @@ import type {
   VacancyReservesView,
 } from "@/modules/admin/infrastructure/admin-api";
 import { formatInstantDateTime, formatVacancyTime } from "@/lib/date.utils";
+import { approvalLabel } from "./approval-basis";
 
 const MOTIVO: Record<string, string> = {
   PRESTART_NO_RESPONSE: "Não confirmou presença",
@@ -924,6 +925,9 @@ export function VacancyReservesSection({
                     {`${MOTIVO[item.troca.reason] ?? item.troca.reason} · ${POR_QUEM[item.troca.actorKind] ?? item.troca.actorKind}`}
                     {item.troca.note && ` — "${item.troca.note}"`}
                   </p>
+                  {approvalLabel(item.troca) && (
+                    <p className="text-[#737373]">{`Base: ${approvalLabel(item.troca)}`}</p>
+                  )}
                 </li>
               ),
             )}

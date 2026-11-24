@@ -981,6 +981,18 @@ export interface VacancyPrincipalChange {
   note: string | null;
   actorKind: string;
   occurredAt: string;
+  /**
+   * Risco trabalhista F1: quem aprovou a troca. Ausentes só na API antiga. Com a chave
+   * `STAFFING_APPROVAL_TRAIL_ENABLED` desligada a API manda os campos nulos e `approvedByLabel`
+   * "Sem registro (troca anterior ao controle)"; `approvalBasis: null` = troca anterior ao controle.
+   */
+  approvalBasis?: "COMPANY_LIST" | "COMPANY_CALL" | "COMPANY_APPROVED" | "AUTO_RULE" | "SUPPORT" | "NONE" | null;
+  approvedByKind?: string | null;
+  approvedByUserId?: string | null;
+  approvedAt?: string | null;
+  reserveId?: string | null;
+  /** Texto pronto da API, ex.: "Lista da empresa (fulano@x.com, 23/11/2026 14:05)". */
+  approvedByLabel?: string | null;
 }
 
 /**

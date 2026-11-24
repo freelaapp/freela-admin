@@ -70,6 +70,23 @@ export function deadlinesLine(round: AdminSelectionRound): string {
   return parts.join(" · ");
 }
 
+/**
+ * "Ordem usada: nota → distância → já trabalhou aqui (teto 30%)". Só na ordem V3; sem o campo
+ * (chave desligada, rodada antiga) ou na V2 a seção fica como era.
+ */
+export function rankingOrderLine(round: AdminSelectionRound): string | null {
+  if (round.rankingOrder !== "V3") return null;
+  const cap =
+    typeof round.workedHereCapPct === "number" ? ` (teto ${round.workedHereCapPct}%)` : "";
+  return `Ordem usada: nota → distância → já trabalhou aqui${cap}`;
+}
+
+/** A coluna "Nota": "4,5" / "4,75"; sem nota, traço. */
+export function scoreLabel(score: number | null | undefined): string {
+  if (typeof score !== "number" || !Number.isFinite(score)) return "—";
+  return score.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
 const STAGE_LABEL: Record<SelectionStage, string> = {
   em_selecao: "Esperando as respostas",
   aguardando_contratante: "Opções enviadas à empresa",
