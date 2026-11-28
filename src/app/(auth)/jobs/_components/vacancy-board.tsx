@@ -513,6 +513,9 @@ export function VacancyBoard({
   const [busca, setBusca] = useState("");
   /** Vaga com a área de trabalho aberta. */
   const [acoesDe, setAcoesDe] = useState<string | null>(null);
+  // Colunas abertas por inteiro (o "+ N nesta etapa" vira botão): sem isso a
+  // coluna mostrava só as primeiras MAX_CARDS vagas e o resto ficava invisível.
+  const [abertas, setAbertas] = useState<Set<VacancyBucket>>(() => new Set());
   const checklist = useSupportChecklist(quemTicou, module);
 
   /**
@@ -773,7 +776,8 @@ export function VacancyBoard({
       <div className="flex items-start gap-3 overflow-x-auto pb-2">
         {COLUNAS.map((coluna) => {
           const itens = porBucket.get(coluna.bucket) ?? [];
-          const mostrados = itens.slice(0, MAX_CARDS);
+          const aberta = abertas.has(coluna.bucket);
+          const mostrados = aberta ? itens : itens.slice(0, MAX_CARDS);
           const restantes = itens.length - mostrados.length;
 
           return (
@@ -847,10 +851,22 @@ export function VacancyBoard({
                   </p>
                 ) : null}
 
-                {restantes > 0 ? (
-                  <p className="pt-0.5 text-center text-[12px] font-semibold text-[#64748B]">
-                    + {restantes} nesta etapa
-                  </p>
+                {restantes > 0 || (aberta && itens.length > MAX_CARDS) ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAbertas((atual) => {
+                        const nova = new Set(atual);
+                        if (nova.has(coluna.bucket)) nova.delete(coluna.bucket);
+                        else nova.add(coluna.bucket);
+                        return nova;
+                      })
+                    }
+                    aria-expanded={aberta}
+                    className="rounded-md pt-0.5 text-center text-[12px] font-semibold text-[#2563EB] underline-offset-2 hover:underline"
+                  >
+                    {aberta ? "Mostrar menos" : `Ver mais ${restantes} nesta etapa`}
+                  </button>
                 ) : null}
               </div>
             </section>
